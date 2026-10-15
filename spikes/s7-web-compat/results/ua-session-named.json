@@ -1,0 +1,216 @@
+{
+  "generatedAt": "2026-10-15T22:51:08.452Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "mode": "session-named",
+  "defaultUA": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Veltriva/44.7.2 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36",
+  "cleanedUA": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.149 Safari/537.36",
+  "visibilityState": "visible",
+  "rows": [
+    {
+      "name": "app-side UA values",
+      "observed": {
+        "mode": "session-named",
+        "visibilityState": "visible",
+        "appName": "Veltriva",
+        "appVersion": "44.7.2",
+        "app.userAgentFallback": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Veltriva/44.7.2 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36",
+        "webContents.getUserAgent()": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.149 Safari/537.36",
+        "session.getUserAgent()": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.149 Safari/537.36"
+      },
+      "pass": null
+    },
+    {
+      "name": "page-visible values (navigator + userAgentData + worker + globals)",
+      "observed": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.149 Safari/537.36",
+        "appVersion": "5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.149 Safari/537.36",
+        "vendor": "Google Inc.",
+        "platform": "Win32",
+        "webdriver": false,
+        "languages": [
+          "en-US"
+        ],
+        "brands": [
+          {
+            "brand": "Not?A_Brand",
+            "version": "24"
+          },
+          {
+            "brand": "Chromium",
+            "version": "152"
+          }
+        ],
+        "mobile": false,
+        "uadPlatform": "Windows",
+        "highEntropy": {
+          "architecture": "x86",
+          "bitness": "64",
+          "brands": [
+            {
+              "brand": "Not?A_Brand",
+              "version": "24"
+            },
+            {
+              "brand": "Chromium",
+              "version": "152"
+            }
+          ],
+          "fullVersionList": [
+            {
+              "brand": "Not?A_Brand",
+              "version": "24.0.0.0"
+            },
+            {
+              "brand": "Chromium",
+              "version": "152.0.7977.149"
+            }
+          ],
+          "mobile": false,
+          "model": "",
+          "platform": "Windows",
+          "platformVersion": "19.0.0",
+          "uaFullVersion": "152.0.7977.149",
+          "wow64": false
+        },
+        "workerView": {
+          "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.149 Safari/537.36",
+          "brands": [
+            {
+              "brand": "Not?A_Brand",
+              "version": "24"
+            },
+            {
+              "brand": "Chromium",
+              "version": "152"
+            }
+          ]
+        },
+        "globals": {
+          "chrome": "object",
+          "process": "undefined",
+          "require": "undefined",
+          "module": "undefined",
+          "Buffer": "undefined",
+          "electron": "undefined"
+        },
+        "media": {
+          "canPlayType": {
+            "h264": "probably",
+            "vp9": "probably",
+            "av1": "probably",
+            "aac": "probably",
+            "opus": "probably"
+          },
+          "mse": {
+            "h264": true,
+            "vp9": true,
+            "av1": true
+          },
+          "widevine": "unavailable: NotSupportedError"
+        },
+        "pluginNames": [
+          "PDF Viewer",
+          "Chrome PDF Viewer",
+          "Chromium PDF Viewer",
+          "Microsoft Edge PDF Viewer",
+          "WebKit built-in PDF"
+        ],
+        "fetchedHeaders": {
+          "host": "127.0.0.1:53449",
+          "connection": "keep-alive",
+          "sec-ch-ua-platform": "\"Windows\"",
+          "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.149 Safari/537.36",
+          "sec-ch-ua": "\"Not?A_Brand\";v=\"24\", \"Chromium\";v=\"152\"",
+          "sec-ch-ua-mobile": "?0",
+          "accept": "*/*",
+          "sec-fetch-site": "same-origin",
+          "sec-fetch-mode": "cors",
+          "sec-fetch-dest": "empty",
+          "referer": "http://127.0.0.1:53449/echo",
+          "accept-encoding": "gzip, deflate, br, zstd",
+          "accept-language": "en-US"
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "server-received UA / Sec-CH headers, 1st navigation",
+      "observed": {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.149 Safari/537.36",
+        "accept-language": "en-US"
+      },
+      "pass": null
+    },
+    {
+      "name": "server-received headers, 2nd navigation (after Accept-CH)",
+      "observed": {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.149 Safari/537.36",
+        "accept-language": "en-US"
+      },
+      "pass": null
+    },
+    {
+      "name": "server-received headers, fetch() from page",
+      "observed": {
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.149 Safari/537.36",
+        "sec-ch-ua": "\"Not?A_Brand\";v=\"24\", \"Chromium\";v=\"152\"",
+        "sec-ch-ua-mobile": "?0",
+        "accept-language": "en-US"
+      },
+      "pass": null
+    },
+    {
+      "name": "webRequest.onBeforeSendHeaders view",
+      "observed": [
+        {
+          "url": "/echo",
+          "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.149 Safari/537.36",
+          "chKeys": []
+        },
+        {
+          "url": "/echo",
+          "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.149 Safari/537.36",
+          "chKeys": []
+        },
+        {
+          "url": "/echo.json",
+          "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.149 Safari/537.36",
+          "chKeys": [
+            "sec-ch-ua-platform",
+            "sec-ch-ua",
+            "sec-ch-ua-mobile"
+          ]
+        }
+      ],
+      "pass": null
+    },
+    {
+      "name": "UA identical in app / JS / worker / HTTP",
+      "observed": {
+        "distinct": 1
+      },
+      "pass": true
+    },
+    {
+      "name": "any \"electron\" substring left anywhere (UA, brands, hints, globals)",
+      "observed": {
+        "hits": [],
+        "globals": {
+          "chrome": "object",
+          "process": "undefined",
+          "require": "undefined",
+          "module": "undefined",
+          "Buffer": "undefined",
+          "electron": "undefined"
+        }
+      },
+      "pass": null
+    }
+  ]
+}

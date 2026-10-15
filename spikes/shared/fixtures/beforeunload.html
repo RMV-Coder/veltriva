@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>beforeunload</title>
+<h1>beforeunload fixture</h1>
+<p>Mode from <code>?mode=</code>: <b id="mode"></b>. <code>always</code> objects to every unload; <code>dirty</code> only after typing; <code>never</code> registers a handler that never objects.</p>
+<input id="text" placeholder="type here to make the page dirty">
+<script>
+  const mode = new URLSearchParams(location.search).get('mode') || 'always';
+  document.getElementById('mode').textContent = mode;
+  let dirty = false;
+  document.getElementById('text').addEventListener('input', () => { dirty = true; });
+
+  function report(event, extra) {
+    const query = new URLSearchParams({ event, mode, dirty: String(dirty), ...(extra || {}) });
+    navigator.sendBeacon('/beacon?' + query.toString());
+  }
+
+  window.addEventListener('beforeunload', (event) => {
+    const object = mode === 'always' || (mode === 'dirty' && dirty);
+    report('beforeunload', { objected: String(object) });
+    if (object) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  });
+  window.addEventListener('pagehide', () => report('pagehide'));
+</script>

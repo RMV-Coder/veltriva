@@ -1,0 +1,1139 @@
+{
+  "generatedAt": "2026-10-15T23:06:03.745Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "args": [
+    "--only=q6"
+  ],
+  "displayScaleFactor": 1.25,
+  "results": {
+    "window": {
+      "alwaysOnTop": true,
+      "size": [
+        800,
+        600
+      ]
+    },
+    "q6": {
+      "expected": {
+        "scroll": {
+          "A": 3248,
+          "C": 6416
+        }
+      },
+      "variants": {
+        "V0 restore() on a brand-new view (recommended)": {
+          "summary": {
+            "outcomes": [
+              "resolved",
+              "resolved",
+              "resolved"
+            ],
+            "errors": [],
+            "historyLengths": [
+              3,
+              3,
+              3
+            ],
+            "activeIndexes": [
+              2,
+              2,
+              2
+            ],
+            "entryUrls": [
+              "/article?n=200&title=A",
+              "/form.html",
+              "/article?n=200&title=C"
+            ],
+            "activeScrollRestored": [
+              true,
+              true,
+              true
+            ],
+            "formRestoredAtBack1": [
+              "4/6 fields",
+              "4/6 fields",
+              "4/6 fields"
+            ],
+            "scrollRestoredAtA": [
+              true,
+              true,
+              true
+            ],
+            "settledAtMs": [
+              104,
+              128,
+              150
+            ],
+            "walk": [
+              "/article?n=200&title=C",
+              "/form.html",
+              "/article?n=200&title=A"
+            ]
+          },
+          "runs": [
+            {
+              "outcome": {
+                "returnedPromise": true,
+                "status": "resolved",
+                "settledAtMs": 104
+              },
+              "events": [
+                "6.1ms did-start-loading",
+                "6.4ms did-start-navigation",
+                "79.8ms did-navigate",
+                "88.4ms dom-ready",
+                "103.6ms did-frame-finish-load",
+                "103.6ms did-finish-load",
+                "103.7ms >>> restore() promise resolved"
+              ],
+              "history": {
+                "length": 3,
+                "activeIndex": 2,
+                "canGoBack": true,
+                "canGoForward": false,
+                "entries": [
+                  {
+                    "url": "/article?n=200&title=A",
+                    "title": "A",
+                    "pageStateType": "string",
+                    "pageStateBase64Chars": 936,
+                    "pageStateBytes": 700
+                  },
+                  {
+                    "url": "/form.html",
+                    "title": "form",
+                    "pageStateType": "string",
+                    "pageStateBase64Chars": 2472,
+                    "pageStateBytes": 1852
+                  },
+                  {
+                    "url": "/article?n=200&title=C",
+                    "title": "C",
+                    "pageStateType": "string",
+                    "pageStateBase64Chars": 872,
+                    "pageStateBytes": 652
+                  }
+                ]
+              },
+              "activeUrl": "/article?n=200&title=C",
+              "active": {
+                "key": "C",
+                "url": "/article?n=200&title=C",
+                "title": "C",
+                "urlOk": true,
+                "visibilityState": "visible",
+                "scroll": {
+                  "expected": 6416,
+                  "atLoad": 6416,
+                  "final": 6416,
+                  "ok": true,
+                  "settleMs": 0
+                }
+              },
+              "walk": [
+                "/article?n=200&title=C",
+                "/form.html",
+                "/article?n=200&title=A"
+              ],
+              "formAtBack": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              },
+              "scrollAtA": {
+                "expected": 3248,
+                "atLoad": 3248,
+                "final": 3248,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            {
+              "outcome": {
+                "returnedPromise": true,
+                "status": "resolved",
+                "settledAtMs": 128
+              },
+              "events": [
+                "7.1ms did-start-loading",
+                "7.3ms did-start-navigation",
+                "97ms did-navigate",
+                "110.2ms dom-ready",
+                "127.6ms did-frame-finish-load",
+                "127.6ms did-finish-load",
+                "127.7ms >>> restore() promise resolved"
+              ],
+              "history": {
+                "length": 3,
+                "activeIndex": 2,
+                "canGoBack": true,
+                "canGoForward": false,
+                "entries": [
+                  {
+                    "url": "/article?n=200&title=A",
+                    "title": "A",
+                    "pageStateType": "string",
+                    "pageStateBase64Chars": 936,
+                    "pageStateBytes": 700
+                  },
+                  {
+                    "url": "/form.html",
+                    "title": "form",
+                    "pageStateType": "string",
+                    "pageStateBase64Chars": 2472,
+                    "pageStateBytes": 1852
+                  },
+                  {
+                    "url": "/article?n=200&title=C",
+                    "title": "C",
+                    "pageStateType": "string",
+                    "pageStateBase64Chars": 872,
+                    "pageStateBytes": 652
+                  }
+                ]
+              },
+              "activeUrl": "/article?n=200&title=C",
+              "active": {
+                "key": "C",
+                "url": "/article?n=200&title=C",
+                "title": "C",
+                "urlOk": true,
+                "visibilityState": "visible",
+                "scroll": {
+                  "expected": 6416,
+                  "atLoad": 6416,
+                  "final": 6416,
+                  "ok": true,
+                  "settleMs": 0
+                }
+              },
+              "walk": [
+                "/article?n=200&title=C",
+                "/form.html",
+                "/article?n=200&title=A"
+              ],
+              "formAtBack": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              },
+              "scrollAtA": {
+                "expected": 3248,
+                "atLoad": 3248,
+                "final": 3248,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            {
+              "outcome": {
+                "returnedPromise": true,
+                "status": "resolved",
+                "settledAtMs": 150
+              },
+              "events": [
+                "7.2ms did-start-loading",
+                "7.5ms did-start-navigation",
+                "112.1ms did-navigate",
+                "125.2ms dom-ready",
+                "149.4ms did-frame-finish-load",
+                "149.4ms did-finish-load",
+                "149.5ms >>> restore() promise resolved"
+              ],
+              "history": {
+                "length": 3,
+                "activeIndex": 2,
+                "canGoBack": true,
+                "canGoForward": false,
+                "entries": [
+                  {
+                    "url": "/article?n=200&title=A",
+                    "title": "A",
+                    "pageStateType": "string",
+                    "pageStateBase64Chars": 936,
+                    "pageStateBytes": 700
+                  },
+                  {
+                    "url": "/form.html",
+                    "title": "form",
+                    "pageStateType": "string",
+                    "pageStateBase64Chars": 2472,
+                    "pageStateBytes": 1852
+                  },
+                  {
+                    "url": "/article?n=200&title=C",
+                    "title": "C",
+                    "pageStateType": "string",
+                    "pageStateBase64Chars": 872,
+                    "pageStateBytes": 652
+                  }
+                ]
+              },
+              "activeUrl": "/article?n=200&title=C",
+              "active": {
+                "key": "C",
+                "url": "/article?n=200&title=C",
+                "title": "C",
+                "urlOk": true,
+                "visibilityState": "visible",
+                "scroll": {
+                  "expected": 6416,
+                  "atLoad": 6416,
+                  "final": 6416,
+                  "ok": true,
+                  "settleMs": 0
+                }
+              },
+              "walk": [
+                "/article?n=200&title=C",
+                "/form.html",
+                "/article?n=200&title=A"
+              ],
+              "formAtBack": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              },
+              "scrollAtA": {
+                "expected": 3248,
+                "atLoad": 3248,
+                "final": 3248,
+                "ok": true,
+                "settleMs": 0
+              }
+            }
+          ]
+        },
+        "V1 restore() after await loadURL('about:blank')": {
+          "summary": {
+            "outcomes": [
+              "rejected",
+              "rejected",
+              "rejected"
+            ],
+            "errors": [
+              "Cannot restore history on webContents that have previously loaded a page."
+            ],
+            "historyLengths": [
+              null,
+              null,
+              null
+            ],
+            "activeIndexes": [
+              null,
+              null,
+              null
+            ],
+            "activeScrollRestored": [
+              null,
+              null,
+              null
+            ],
+            "formRestoredAtBack1": [
+              null,
+              null,
+              null
+            ],
+            "scrollRestoredAtA": [
+              null,
+              null,
+              null
+            ],
+            "settledAtMs": [
+              0,
+              0,
+              0
+            ],
+            "stateAfterRejection": {
+              "url": "about:blank",
+              "length": 1,
+              "activeIndex": 0,
+              "entries": [
+                "about:blank"
+              ]
+            }
+          },
+          "runs": [
+            {
+              "outcome": {
+                "returnedPromise": true,
+                "status": "rejected",
+                "error": "Cannot restore history on webContents that have previously loaded a page.",
+                "settledAtMs": 0
+              },
+              "events": [
+                "0.1ms >>> restore() promise rejected"
+              ],
+              "state": {
+                "url": "about:blank",
+                "history": {
+                  "length": 1,
+                  "activeIndex": 0,
+                  "canGoBack": false,
+                  "canGoForward": false,
+                  "entries": [
+                    {
+                      "url": "about:blank",
+                      "title": "about:blank",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 784,
+                      "pageStateBytes": 588
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "outcome": {
+                "returnedPromise": true,
+                "status": "rejected",
+                "error": "Cannot restore history on webContents that have previously loaded a page.",
+                "settledAtMs": 0
+              },
+              "events": [
+                "0.3ms >>> restore() promise rejected"
+              ],
+              "state": {
+                "url": "about:blank",
+                "history": {
+                  "length": 1,
+                  "activeIndex": 0,
+                  "canGoBack": false,
+                  "canGoForward": false,
+                  "entries": [
+                    {
+                      "url": "about:blank",
+                      "title": "about:blank",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 784,
+                      "pageStateBytes": 588
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "outcome": {
+                "returnedPromise": true,
+                "status": "rejected",
+                "error": "Cannot restore history on webContents that have previously loaded a page.",
+                "settledAtMs": 0
+              },
+              "events": [
+                "0.1ms >>> restore() promise rejected"
+              ],
+              "state": {
+                "url": "about:blank",
+                "history": {
+                  "length": 1,
+                  "activeIndex": 0,
+                  "canGoBack": false,
+                  "canGoForward": false,
+                  "entries": [
+                    {
+                      "url": "about:blank",
+                      "title": "about:blank",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 784,
+                      "pageStateBytes": 588
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "V1b restore() right after loadURL('about:blank') without awaiting it": {
+          "summary": {
+            "outcomes": [
+              "rejected",
+              "rejected",
+              "rejected"
+            ],
+            "errors": [
+              "ERR_ABORTED (-3) loading 'about:blank'"
+            ],
+            "historyLengths": [
+              null,
+              null,
+              null
+            ],
+            "activeIndexes": [
+              null,
+              null,
+              null
+            ],
+            "activeScrollRestored": [
+              null,
+              null,
+              null
+            ],
+            "formRestoredAtBack1": [
+              null,
+              null,
+              null
+            ],
+            "scrollRestoredAtA": [
+              null,
+              null,
+              null
+            ],
+            "settledAtMs": [
+              9,
+              8,
+              9
+            ],
+            "stateAfterRejection": {
+              "url": "about:blank",
+              "length": 4,
+              "activeIndex": 3,
+              "entries": [
+                "/article?n=200&title=A",
+                "/form.html",
+                "about:blank",
+                "about:blank"
+              ]
+            }
+          },
+          "runs": [
+            {
+              "outcome": {
+                "returnedPromise": true,
+                "status": "rejected",
+                "error": "ERR_ABORTED (-3) loading 'about:blank'",
+                "settledAtMs": 9
+              },
+              "events": [
+                "5.9ms did-start-navigation",
+                "8.3ms did-start-navigation",
+                "8.7ms >>> restore() promise rejected"
+              ],
+              "state": {
+                "url": "about:blank",
+                "history": {
+                  "length": 4,
+                  "activeIndex": 3,
+                  "canGoBack": true,
+                  "canGoForward": false,
+                  "entries": [
+                    {
+                      "url": "/article?n=200&title=A",
+                      "title": "A",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 936,
+                      "pageStateBytes": 700
+                    },
+                    {
+                      "url": "/form.html",
+                      "title": "form",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 2472,
+                      "pageStateBytes": 1852
+                    },
+                    {
+                      "url": "about:blank",
+                      "title": "about:blank",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 848,
+                      "pageStateBytes": 636
+                    },
+                    {
+                      "url": "about:blank",
+                      "title": "about:blank",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 784,
+                      "pageStateBytes": 588
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "outcome": {
+                "returnedPromise": true,
+                "status": "rejected",
+                "error": "ERR_ABORTED (-3) loading 'about:blank'",
+                "settledAtMs": 8
+              },
+              "events": [
+                "5ms did-start-navigation",
+                "7.6ms did-start-navigation",
+                "7.9ms >>> restore() promise rejected"
+              ],
+              "state": {
+                "url": "about:blank",
+                "history": {
+                  "length": 4,
+                  "activeIndex": 3,
+                  "canGoBack": true,
+                  "canGoForward": false,
+                  "entries": [
+                    {
+                      "url": "/article?n=200&title=A",
+                      "title": "A",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 936,
+                      "pageStateBytes": 700
+                    },
+                    {
+                      "url": "/form.html",
+                      "title": "form",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 2472,
+                      "pageStateBytes": 1852
+                    },
+                    {
+                      "url": "about:blank",
+                      "title": "about:blank",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 848,
+                      "pageStateBytes": 636
+                    },
+                    {
+                      "url": "about:blank",
+                      "title": "about:blank",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 784,
+                      "pageStateBytes": 588
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "outcome": {
+                "returnedPromise": true,
+                "status": "rejected",
+                "error": "ERR_ABORTED (-3) loading 'about:blank'",
+                "settledAtMs": 9
+              },
+              "events": [
+                "5.8ms did-start-navigation",
+                "8.7ms did-start-navigation",
+                "9ms >>> restore() promise rejected"
+              ],
+              "state": {
+                "url": "about:blank",
+                "history": {
+                  "length": 4,
+                  "activeIndex": 3,
+                  "canGoBack": true,
+                  "canGoForward": false,
+                  "entries": [
+                    {
+                      "url": "/article?n=200&title=A",
+                      "title": "A",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 936,
+                      "pageStateBytes": 700
+                    },
+                    {
+                      "url": "/form.html",
+                      "title": "form",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 2472,
+                      "pageStateBytes": 1852
+                    },
+                    {
+                      "url": "about:blank",
+                      "title": "about:blank",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 848,
+                      "pageStateBytes": 636
+                    },
+                    {
+                      "url": "about:blank",
+                      "title": "about:blank",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 784,
+                      "pageStateBytes": 588
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "V2 restore() after loading a real page (A)": {
+          "summary": {
+            "outcomes": [
+              "rejected",
+              "rejected",
+              "rejected"
+            ],
+            "errors": [
+              "Cannot restore history on webContents that have previously loaded a page."
+            ],
+            "historyLengths": [
+              null,
+              null,
+              null
+            ],
+            "activeIndexes": [
+              null,
+              null,
+              null
+            ],
+            "activeScrollRestored": [
+              null,
+              null,
+              null
+            ],
+            "formRestoredAtBack1": [
+              null,
+              null,
+              null
+            ],
+            "scrollRestoredAtA": [
+              null,
+              null,
+              null
+            ],
+            "settledAtMs": [
+              0,
+              0,
+              0
+            ],
+            "stateAfterRejection": {
+              "url": "/article?n=200&title=A",
+              "length": 1,
+              "activeIndex": 0,
+              "entries": [
+                "/article?n=200&title=A"
+              ]
+            }
+          },
+          "runs": [
+            {
+              "outcome": {
+                "returnedPromise": true,
+                "status": "rejected",
+                "error": "Cannot restore history on webContents that have previously loaded a page.",
+                "settledAtMs": 0
+              },
+              "events": [
+                "0.2ms >>> restore() promise rejected"
+              ],
+              "state": {
+                "url": "/article?n=200&title=A",
+                "history": {
+                  "length": 1,
+                  "activeIndex": 0,
+                  "canGoBack": false,
+                  "canGoForward": false,
+                  "entries": [
+                    {
+                      "url": "/article?n=200&title=A",
+                      "title": "A",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 872,
+                      "pageStateBytes": 652
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "outcome": {
+                "returnedPromise": true,
+                "status": "rejected",
+                "error": "Cannot restore history on webContents that have previously loaded a page.",
+                "settledAtMs": 0
+              },
+              "events": [
+                "0.2ms >>> restore() promise rejected"
+              ],
+              "state": {
+                "url": "/article?n=200&title=A",
+                "history": {
+                  "length": 1,
+                  "activeIndex": 0,
+                  "canGoBack": false,
+                  "canGoForward": false,
+                  "entries": [
+                    {
+                      "url": "/article?n=200&title=A",
+                      "title": "A",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 872,
+                      "pageStateBytes": 652
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "outcome": {
+                "returnedPromise": true,
+                "status": "rejected",
+                "error": "Cannot restore history on webContents that have previously loaded a page.",
+                "settledAtMs": 0
+              },
+              "events": [
+                "0.2ms >>> restore() promise rejected"
+              ],
+              "state": {
+                "url": "/article?n=200&title=A",
+                "history": {
+                  "length": 1,
+                  "activeIndex": 0,
+                  "canGoBack": false,
+                  "canGoForward": false,
+                  "entries": [
+                    {
+                      "url": "/article?n=200&title=A",
+                      "title": "A",
+                      "pageStateType": "string",
+                      "pageStateBase64Chars": 872,
+                      "pageStateBytes": 652
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "secondRestoreOnRestoredView": {
+        "first": {
+          "returnedPromise": true,
+          "status": "resolved",
+          "settledAtMs": 138
+        },
+        "second": {
+          "status": "rejected",
+          "error": "Cannot restore history on webContents that have previously loaded a page.",
+          "historyAfter": {
+            "length": 3,
+            "activeIndex": 2,
+            "canGoBack": true,
+            "canGoForward": false,
+            "entries": [
+              {
+                "url": "/article?n=200&title=A",
+                "title": "A",
+                "pageStateType": "string",
+                "pageStateBase64Chars": 936,
+                "pageStateBytes": 700
+              },
+              {
+                "url": "/form.html",
+                "title": "form",
+                "pageStateType": "string",
+                "pageStateBase64Chars": 2472,
+                "pageStateBytes": 1852
+              },
+              {
+                "url": "/article?n=200&title=C",
+                "title": "C",
+                "pageStateType": "string",
+                "pageStateBase64Chars": 872,
+                "pageStateBytes": 652
+              }
+            ]
+          }
+        }
+      },
+      "elapsedMs": 11092
+    },
+    "guard": {
+      "blockedRequests": [],
+      "permissionRequests": []
+    }
+  },
+  "rows": [
+    {
+      "name": "Q6 V0 restore() on a brand-new view (recommended)",
+      "observed": {
+        "outcomes": [
+          "resolved",
+          "resolved",
+          "resolved"
+        ],
+        "errors": [],
+        "historyLengths": [
+          3,
+          3,
+          3
+        ],
+        "activeIndexes": [
+          2,
+          2,
+          2
+        ],
+        "entryUrls": [
+          "/article?n=200&title=A",
+          "/form.html",
+          "/article?n=200&title=C"
+        ],
+        "activeScrollRestored": [
+          true,
+          true,
+          true
+        ],
+        "formRestoredAtBack1": [
+          "4/6 fields",
+          "4/6 fields",
+          "4/6 fields"
+        ],
+        "scrollRestoredAtA": [
+          true,
+          true,
+          true
+        ],
+        "settledAtMs": [
+          104,
+          128,
+          150
+        ],
+        "walk": [
+          "/article?n=200&title=C",
+          "/form.html",
+          "/article?n=200&title=A"
+        ]
+      },
+      "pass": null
+    },
+    {
+      "name": "Q6 V1 restore() after await loadURL('about:blank')",
+      "observed": {
+        "outcomes": [
+          "rejected",
+          "rejected",
+          "rejected"
+        ],
+        "errors": [
+          "Cannot restore history on webContents that have previously loaded a page."
+        ],
+        "historyLengths": [
+          null,
+          null,
+          null
+        ],
+        "activeIndexes": [
+          null,
+          null,
+          null
+        ],
+        "activeScrollRestored": [
+          null,
+          null,
+          null
+        ],
+        "formRestoredAtBack1": [
+          null,
+          null,
+          null
+        ],
+        "scrollRestoredAtA": [
+          null,
+          null,
+          null
+        ],
+        "settledAtMs": [
+          0,
+          0,
+          0
+        ],
+        "stateAfterRejection": {
+          "url": "about:blank",
+          "length": 1,
+          "activeIndex": 0,
+          "entries": [
+            "about:blank"
+          ]
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q6 V1b restore() right after loadURL('about:blank') without awaiting it",
+      "observed": {
+        "outcomes": [
+          "rejected",
+          "rejected",
+          "rejected"
+        ],
+        "errors": [
+          "ERR_ABORTED (-3) loading 'about:blank'"
+        ],
+        "historyLengths": [
+          null,
+          null,
+          null
+        ],
+        "activeIndexes": [
+          null,
+          null,
+          null
+        ],
+        "activeScrollRestored": [
+          null,
+          null,
+          null
+        ],
+        "formRestoredAtBack1": [
+          null,
+          null,
+          null
+        ],
+        "scrollRestoredAtA": [
+          null,
+          null,
+          null
+        ],
+        "settledAtMs": [
+          9,
+          8,
+          9
+        ],
+        "stateAfterRejection": {
+          "url": "about:blank",
+          "length": 4,
+          "activeIndex": 3,
+          "entries": [
+            "/article?n=200&title=A",
+            "/form.html",
+            "about:blank",
+            "about:blank"
+          ]
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q6 V2 restore() after loading a real page (A)",
+      "observed": {
+        "outcomes": [
+          "rejected",
+          "rejected",
+          "rejected"
+        ],
+        "errors": [
+          "Cannot restore history on webContents that have previously loaded a page."
+        ],
+        "historyLengths": [
+          null,
+          null,
+          null
+        ],
+        "activeIndexes": [
+          null,
+          null,
+          null
+        ],
+        "activeScrollRestored": [
+          null,
+          null,
+          null
+        ],
+        "formRestoredAtBack1": [
+          null,
+          null,
+          null
+        ],
+        "scrollRestoredAtA": [
+          null,
+          null,
+          null
+        ],
+        "settledAtMs": [
+          0,
+          0,
+          0
+        ],
+        "stateAfterRejection": {
+          "url": "/article?n=200&title=A",
+          "length": 1,
+          "activeIndex": 0,
+          "entries": [
+            "/article?n=200&title=A"
+          ]
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q6 second restore() on a view that already restored",
+      "observed": {
+        "first": "resolved",
+        "second": "rejected",
+        "error": "Cannot restore history on webContents that have previously loaded a page.",
+        "length": 3,
+        "activeIndex": 2
+      },
+      "pass": null
+    }
+  ]
+}

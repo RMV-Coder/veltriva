@@ -1,0 +1,153 @@
+{
+  "generatedAt": "2026-10-15T23:15:30.105Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "visibilityState": "visible",
+  "rows": [
+    {
+      "name": "about:blank capture (baseline)",
+      "observed": {
+        "visibilityState": "visible",
+        "width": 983,
+        "height": 604,
+        "differentFromCorner": 0,
+        "distinctColours": 1,
+        "whiteShare": 0
+      },
+      "pass": true
+    },
+    {
+      "name": "plain HTML page capture (sanity: capture works)",
+      "observed": {
+        "width": 983,
+        "height": 604,
+        "differentFromCorner": 5.75,
+        "distinctColours": "256+",
+        "whiteShare": 94.25
+      },
+      "pass": true
+    },
+    {
+      "name": "did-finish-load for /fixture.pdf",
+      "observed": {
+        "loadResult": "resolved",
+        "didFinish": true,
+        "events": [
+          "did-start-navigation http://127.0.0.1:61973/fixture.pdf main=true",
+          "did-start-navigation about:blank main=false",
+          "did-start-navigation chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html main=false",
+          "did-finish-load"
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "PDF capture shows the viewer AND the white document page",
+      "observed": {
+        "visibilityState": "visible",
+        "title": "fixture.pdf",
+        "url": "http://127.0.0.1:61973/fixture.pdf",
+        "width": 983,
+        "height": 604,
+        "differentFromCorner": 89.15,
+        "distinctColours": "256+",
+        "whiteShare": 55.63
+      },
+      "pass": true
+    },
+    {
+      "name": "PDF frame tree",
+      "observed": [
+        {
+          "url": "http://127.0.0.1:61973/fixture.pdf",
+          "processId": 4,
+          "origin": "http://127.0.0.1:61973"
+        },
+        {
+          "url": "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html",
+          "processId": 5,
+          "origin": "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai"
+        },
+        {
+          "url": "http://127.0.0.1:61973/fixture.pdf",
+          "processId": 6,
+          "origin": "http://127.0.0.1:61973"
+        }
+      ],
+      "pass": true,
+      "note": "extension/embedded frames indicate the viewer UI"
+    },
+    {
+      "name": "navigator.pdfViewerEnabled / plugins on the PDF page",
+      "observed": {
+        "plugins": [
+          "PDF Viewer",
+          "Chrome PDF Viewer",
+          "Chromium PDF Viewer",
+          "Microsoft Edge PDF Viewer",
+          "WebKit built-in PDF"
+        ],
+        "pdfViewerEnabled": true,
+        "mime": [
+          "application/pdf",
+          "text/pdf"
+        ]
+      },
+      "pass": null
+    },
+    {
+      "name": "tab navigates normally after the PDF",
+      "observed": "After PDF",
+      "pass": true
+    },
+    {
+      "name": "PDF with a strict will-frame-navigate guard (http/https/about:blank only)",
+      "observed": {
+        "guardSawNavigations": [
+          {
+            "url": "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/1720afdb-95ae-4730-a040-6cae9c473fd1",
+            "isMainFrame": false,
+            "allowed": false
+          }
+        ],
+        "blockedByGuard": 1,
+        "width": 983,
+        "height": 572,
+        "differentFromCorner": 88.34,
+        "distinctColours": "256+",
+        "whiteShare": 0.01
+      },
+      "pass": null,
+      "note": "viewer chrome renders but the DOCUMENT PAGE does not"
+    },
+    {
+      "name": "PDF with the guard plus the PDF viewer extension origin allowed",
+      "observed": {
+        "guardSawNavigations": [
+          {
+            "url": "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/ff805500-d032-4a25-afba-9aa0bdba96c9",
+            "isMainFrame": false,
+            "allowed": true
+          }
+        ],
+        "blockedByGuard": 0,
+        "width": 983,
+        "height": 572,
+        "differentFromCorner": 89.17,
+        "distinctColours": "256+",
+        "whiteShare": 54.99
+      },
+      "pass": null,
+      "note": "document page rendered"
+    },
+    {
+      "name": "allowing only the PDF extension origin restores the document page",
+      "observed": true,
+      "pass": true
+    }
+  ]
+}

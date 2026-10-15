@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>audio</title>
+<h1>Audio fixture</h1>
+<p>A quiet looping tone. Call <code>play()</code> and <code>pause()</code> (from a user gesture or with executeJavaScript's userGesture flag).</p>
+<audio id="a" src="/tone.wav" loop preload="auto"></audio>
+<script>
+  const audio = document.getElementById('a');
+  window.play = () => audio.play().then(() => 'playing', (error) => 'error: ' + error.name);
+  window.pause = () => { audio.pause(); return 'paused'; };
+</script>

@@ -1,0 +1,1150 @@
+{
+  "generatedAt": "2026-10-15T23:05:50.847Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "args": [
+    "--only=q5"
+  ],
+  "displayScaleFactor": 1.25,
+  "results": {
+    "window": {
+      "alwaysOnTop": true,
+      "size": [
+        800,
+        600
+      ]
+    },
+    "q5": {
+      "cases": {
+        "success": {
+          "label": "single good entry",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "resolved",
+            "settledAtMs": 119
+          },
+          "events": [
+            "11.3ms did-start-loading",
+            "11.8ms did-start-navigation {\"url\":\"/article?n=200&title=A\",\"isMainFrame\":true}",
+            "84.9ms did-navigate {\"url\":\"/article?n=200&title=A\",\"httpResponseCode\":200,\"httpStatusText\":\"OK\"}",
+            "102.4ms dom-ready",
+            "118.9ms did-frame-finish-load {\"isMainFrame\":true}",
+            "119ms did-finish-load",
+            "119.1ms >>> restore() promise resolved"
+          ],
+          "state": {
+            "url": "/article?n=200&title=A",
+            "title": "A",
+            "isLoading": true,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": [
+                "/article?n=200&title=A [A]"
+              ]
+            },
+            "page": {
+              "href": "http://127.0.0.1:53272/article?n=200&title=A",
+              "title": "A",
+              "text": "A\n\nParagraph 0. Veltriva spike filler text that wraps across the line so the page becomes tall enough to scroll in a mea"
+            }
+          }
+        },
+        "closedPortSingle": {
+          "label": "single entry, closed port",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "rejected",
+            "error": "ERR_CONNECTION_REFUSED (-102) loading 'http://127.0.0.1:53273/never-served'",
+            "settledAtMs": 2178
+          },
+          "events": [
+            "4.9ms did-start-loading",
+            "5.1ms did-start-navigation {\"url\":\"/never-served\",\"isMainFrame\":true}",
+            "2170.5ms did-fail-load {\"errorCode\":-102,\"errorDescription\":\"ERR_CONNECTION_REFUSED\",\"validatedURL\":\"/never-served\",\"isMainFrame\":true}",
+            "2176.7ms dom-ready",
+            "2178.2ms did-frame-finish-load {\"isMainFrame\":true}",
+            "2178.2ms did-finish-load",
+            "2178.4ms >>> restore() promise rejected"
+          ],
+          "state": {
+            "url": "/never-served",
+            "title": "127.0.0.1:53273/never-served",
+            "isLoading": true,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": [
+                "/never-served [127.0.0.1:53273/never-served]"
+              ]
+            },
+            "page": {
+              "href": "chrome-error://chromewebdata/",
+              "title": "",
+              "text": ""
+            }
+          }
+        },
+        "closedPortMiddle": {
+          "label": "A, dead (active), C",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "rejected",
+            "error": "ERR_CONNECTION_REFUSED (-102) loading 'http://127.0.0.1:53273/never-served'",
+            "settledAtMs": 211
+          },
+          "events": [
+            "5.5ms did-start-loading",
+            "5.8ms did-start-navigation {\"url\":\"/never-served\",\"isMainFrame\":true}",
+            "204.5ms did-fail-load {\"errorCode\":-102,\"errorDescription\":\"ERR_CONNECTION_REFUSED\",\"validatedURL\":\"/never-served\",\"isMainFrame\":true}",
+            "208.8ms dom-ready",
+            "210.4ms did-frame-finish-load {\"isMainFrame\":true}",
+            "210.4ms did-finish-load",
+            "210.6ms >>> restore() promise rejected"
+          ],
+          "state": {
+            "url": "/never-served",
+            "title": "127.0.0.1:53273/never-served",
+            "isLoading": true,
+            "isCrashed": false,
+            "history": {
+              "length": 3,
+              "activeIndex": 1,
+              "canGoBack": true,
+              "canGoForward": true,
+              "entries": [
+                "/article?n=200&title=A [A]",
+                "/never-served [127.0.0.1:53273/never-served]",
+                "/article?n=200&title=C [C]"
+              ]
+            },
+            "page": {
+              "href": "chrome-error://chromewebdata/",
+              "title": "",
+              "text": ""
+            }
+          },
+          "after": {
+            "afterBack": {
+              "loaded": "/article?n=200&title=A",
+              "activeIndex": 0
+            },
+            "afterForwardToDead": {
+              "loaded": "/never-served",
+              "url": "/never-served"
+            }
+          }
+        },
+        "retryOnSameWebContentsAfterFailure": {
+          "label": "restore dead, then restore good entries into the SAME web contents",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "rejected",
+            "error": "ERR_CONNECTION_REFUSED (-102) loading 'http://127.0.0.1:53273/never-served'",
+            "settledAtMs": 328
+          },
+          "events": [
+            "8.4ms did-start-loading",
+            "8.8ms did-start-navigation {\"url\":\"/never-served\",\"isMainFrame\":true}",
+            "322ms did-fail-load {\"errorCode\":-102,\"errorDescription\":\"ERR_CONNECTION_REFUSED\",\"validatedURL\":\"/never-served\",\"isMainFrame\":true}",
+            "327.1ms dom-ready",
+            "327.7ms did-frame-finish-load {\"isMainFrame\":true}",
+            "327.8ms did-finish-load",
+            "327.9ms >>> restore() promise rejected"
+          ],
+          "state": {
+            "url": "/never-served",
+            "title": "127.0.0.1:53273/never-served",
+            "isLoading": true,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": [
+                "/never-served [127.0.0.1:53273/never-served]"
+              ]
+            },
+            "page": {
+              "href": "chrome-error://chromewebdata/",
+              "title": "",
+              "text": ""
+            }
+          },
+          "after": {
+            "secondRestore": {
+              "status": "rejected: Cannot restore history on webContents that have previously loaded a page.",
+              "stateAfterSecondRestore": {
+                "url": "/never-served",
+                "title": "127.0.0.1:53273/never-served",
+                "isLoading": false,
+                "isCrashed": false,
+                "history": {
+                  "length": 1,
+                  "activeIndex": 0,
+                  "canGoBack": false,
+                  "canGoForward": false,
+                  "entries": [
+                    "/never-served [127.0.0.1:53273/never-served]"
+                  ]
+                },
+                "page": {
+                  "href": "chrome-error://chromewebdata/",
+                  "title": "",
+                  "text": ""
+                }
+              }
+            },
+            "loadURLAfterwards": "resolved",
+            "urlAfterLoadURL": "/article?n=200&title=C"
+          }
+        },
+        "http404Single": {
+          "label": "single entry, HTTP 404",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "resolved",
+            "settledAtMs": 133
+          },
+          "events": [
+            "6.2ms did-start-loading",
+            "6.4ms did-start-navigation {\"url\":\"/missing-404\",\"isMainFrame\":true}",
+            "110ms did-navigate {\"url\":\"/missing-404\",\"httpResponseCode\":404,\"httpStatusText\":\"Not Found\"}",
+            "127.3ms page-title-updated {\"title\":\"\"}",
+            "127.8ms dom-ready",
+            "133.3ms did-frame-finish-load {\"isMainFrame\":true}",
+            "133.3ms did-finish-load",
+            "133.4ms >>> restore() promise resolved"
+          ],
+          "state": {
+            "url": "/missing-404",
+            "title": "127.0.0.1:53272/missing-404",
+            "isLoading": true,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": [
+                "/missing-404 [127.0.0.1:53272/missing-404]"
+              ]
+            },
+            "page": {
+              "href": "http://127.0.0.1:53272/missing-404",
+              "title": "",
+              "text": "not found"
+            }
+          }
+        },
+        "http404Middle": {
+          "label": "A, 404 (active), C",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "resolved",
+            "settledAtMs": 140
+          },
+          "events": [
+            "6.7ms did-start-loading",
+            "7.1ms did-start-navigation {\"url\":\"/missing-404\",\"isMainFrame\":true}",
+            "124.1ms did-navigate {\"url\":\"/missing-404\",\"httpResponseCode\":404,\"httpStatusText\":\"Not Found\"}",
+            "134.1ms page-title-updated {\"title\":\"\"}",
+            "135.2ms dom-ready",
+            "140.3ms did-frame-finish-load {\"isMainFrame\":true}",
+            "140.3ms did-finish-load",
+            "140.3ms >>> restore() promise resolved"
+          ],
+          "state": {
+            "url": "/missing-404",
+            "title": "127.0.0.1:53272/missing-404",
+            "isLoading": true,
+            "isCrashed": false,
+            "history": {
+              "length": 3,
+              "activeIndex": 1,
+              "canGoBack": true,
+              "canGoForward": true,
+              "entries": [
+                "/article?n=200&title=A [A]",
+                "/missing-404 [127.0.0.1:53272/missing-404]",
+                "/article?n=200&title=C [C]"
+              ]
+            },
+            "page": {
+              "href": "http://127.0.0.1:53272/missing-404",
+              "title": "",
+              "text": "not found"
+            }
+          }
+        },
+        "slow1500ms": {
+          "label": "single entry, /slow?ms=1500",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "resolved",
+            "settledAtMs": 1552
+          },
+          "events": [
+            "5.2ms did-start-loading",
+            "5.4ms did-start-navigation {\"url\":\"/slow?ms=1500\",\"isMainFrame\":true}",
+            "1538.2ms did-navigate {\"url\":\"/slow?ms=1500\",\"httpResponseCode\":200,\"httpStatusText\":\"OK\"}",
+            "1545ms page-title-updated {\"title\":\"slow 1500ms\"}",
+            "1546.2ms dom-ready",
+            "1552.2ms did-frame-finish-load {\"isMainFrame\":true}",
+            "1552.2ms did-finish-load",
+            "1552.3ms >>> restore() promise resolved"
+          ],
+          "state": {
+            "url": "/slow?ms=1500",
+            "title": "slow 1500ms",
+            "isLoading": true,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": [
+                "/slow?ms=1500 [slow 1500ms]"
+              ]
+            },
+            "page": {
+              "href": "http://127.0.0.1:53272/slow?ms=1500",
+              "title": "slow 1500ms",
+              "text": "Loaded after 1500 ms"
+            }
+          }
+        }
+      },
+      "invalid": {
+        "indexTooLarge": {
+          "label": "indexTooLarge",
+          "outcome": {
+            "status": "threw",
+            "error": "Invalid index. Index must be a positive integer and within the bounds of the entries length."
+          },
+          "events": [],
+          "state": {
+            "url": "",
+            "title": "",
+            "isLoading": false,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": []
+            },
+            "page": "executeJavaScript did not answer within 2 s"
+          }
+        },
+        "indexNegative": {
+          "label": "indexNegative",
+          "outcome": {
+            "status": "threw",
+            "error": "Invalid index. Index must be a positive integer and within the bounds of the entries length."
+          },
+          "events": [],
+          "state": {
+            "url": "",
+            "title": "",
+            "isLoading": false,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": []
+            },
+            "page": "executeJavaScript did not answer within 2 s"
+          }
+        },
+        "emptyEntries": {
+          "label": "emptyEntries",
+          "outcome": {
+            "status": "threw",
+            "error": "Invalid index. Index must be a positive integer and within the bounds of the entries length."
+          },
+          "events": [],
+          "state": {
+            "url": "",
+            "title": "",
+            "isLoading": false,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": []
+            },
+            "page": "executeJavaScript did not answer within 2 s"
+          }
+        },
+        "unparsableUrl": {
+          "label": "unparsableUrl",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "resolved",
+            "settledAtMs": 102
+          },
+          "events": [
+            "7.1ms did-start-loading",
+            "7.3ms did-start-navigation {\"url\":\"about:blank\",\"isMainFrame\":true}",
+            "96.1ms did-navigate {\"url\":\"about:blank\",\"httpResponseCode\":-1,\"httpStatusText\":\"\"}",
+            "101.4ms page-title-updated {\"title\":\"\"}",
+            "101.9ms dom-ready",
+            "102.2ms did-frame-finish-load {\"isMainFrame\":true}",
+            "102.2ms did-finish-load",
+            "102.3ms >>> restore() promise resolved"
+          ],
+          "state": {
+            "url": "about:blank",
+            "title": "about:blank",
+            "isLoading": true,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": [
+                "about:blank [about:blank]"
+              ]
+            },
+            "page": {
+              "href": "about:blank",
+              "title": "",
+              "text": ""
+            }
+          }
+        },
+        "garbagePageStateBase64": {
+          "label": "garbagePageStateBase64",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "resolved",
+            "settledAtMs": 123
+          },
+          "events": [
+            "10.9ms did-start-loading",
+            "11.2ms did-start-navigation {\"url\":\"/article?n=200&title=A\",\"isMainFrame\":true}",
+            "95.8ms did-navigate {\"url\":\"/article?n=200&title=A\",\"httpResponseCode\":200,\"httpStatusText\":\"OK\"}",
+            "106.7ms dom-ready",
+            "123ms did-frame-finish-load {\"isMainFrame\":true}",
+            "123ms did-finish-load",
+            "123.1ms >>> restore() promise resolved"
+          ],
+          "state": {
+            "url": "/article?n=200&title=A",
+            "title": "A",
+            "isLoading": true,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": [
+                "/article?n=200&title=A [A]"
+              ]
+            },
+            "page": {
+              "href": "http://127.0.0.1:53272/article?n=200&title=A",
+              "title": "A",
+              "text": "A\n\nParagraph 0. Veltriva spike filler text that wraps across the line so the page becomes tall enough to scroll in a mea"
+            }
+          }
+        },
+        "garbagePageStateNotBase64": {
+          "label": "garbagePageStateNotBase64",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "resolved",
+            "settledAtMs": 132
+          },
+          "events": [
+            "7.2ms did-start-loading",
+            "7.5ms did-start-navigation {\"url\":\"/article?n=200&title=A\",\"isMainFrame\":true}",
+            "96ms did-navigate {\"url\":\"/article?n=200&title=A\",\"httpResponseCode\":200,\"httpStatusText\":\"OK\"}",
+            "108.8ms dom-ready",
+            "131.5ms did-frame-finish-load {\"isMainFrame\":true}",
+            "131.6ms did-finish-load",
+            "131.6ms >>> restore() promise resolved"
+          ],
+          "state": {
+            "url": "/article?n=200&title=A",
+            "title": "A",
+            "isLoading": true,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": [
+                "/article?n=200&title=A [A]"
+              ]
+            },
+            "page": {
+              "href": "http://127.0.0.1:53272/article?n=200&title=A",
+              "title": "A",
+              "text": "A\n\nParagraph 0. Veltriva spike filler text that wraps across the line so the page becomes tall enough to scroll in a mea"
+            }
+          }
+        },
+        "emptyPageState": {
+          "label": "emptyPageState",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "rejected",
+            "error": "Failed to restore navigation history: Invalid navigation entry at index 0.",
+            "settledAtMs": 0
+          },
+          "events": [
+            "0.2ms >>> restore() promise rejected"
+          ],
+          "state": {
+            "url": "",
+            "title": "",
+            "isLoading": false,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": []
+            },
+            "page": "executeJavaScript did not answer within 2 s"
+          }
+        },
+        "missingTitle": {
+          "label": "missingTitle",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "rejected",
+            "error": "Failed to restore navigation history: Invalid navigation entry at index 0.",
+            "settledAtMs": 0
+          },
+          "events": [
+            "0.2ms >>> restore() promise rejected"
+          ],
+          "state": {
+            "url": "",
+            "title": "",
+            "isLoading": false,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": []
+            },
+            "page": "executeJavaScript did not answer within 2 s"
+          }
+        },
+        "emptyTitle": {
+          "label": "emptyTitle",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "resolved",
+            "settledAtMs": 101
+          },
+          "events": [
+            "5.4ms did-start-loading",
+            "5.5ms did-start-navigation {\"url\":\"/article?n=200&title=A\",\"isMainFrame\":true}",
+            "72.1ms did-navigate {\"url\":\"/article?n=200&title=A\",\"httpResponseCode\":200,\"httpStatusText\":\"OK\"}",
+            "79ms page-title-updated {\"title\":\"A\"}",
+            "81ms dom-ready",
+            "100.7ms did-frame-finish-load {\"isMainFrame\":true}",
+            "100.7ms did-finish-load",
+            "100.7ms >>> restore() promise resolved"
+          ],
+          "state": {
+            "url": "/article?n=200&title=A",
+            "title": "A",
+            "isLoading": true,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": [
+                "/article?n=200&title=A [A]"
+              ]
+            },
+            "page": {
+              "href": "http://127.0.0.1:53272/article?n=200&title=A",
+              "title": "A",
+              "text": "A\n\nParagraph 0. Veltriva spike filler text that wraps across the line so the page becomes tall enough to scroll in a mea"
+            }
+          }
+        },
+        "pageStateNull": {
+          "label": "pageStateNull",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "resolved",
+            "settledAtMs": 124
+          },
+          "events": [
+            "5.2ms did-start-loading",
+            "5.6ms did-start-navigation {\"url\":\"/article?n=200&title=A\",\"isMainFrame\":true}",
+            "92.2ms did-navigate {\"url\":\"/article?n=200&title=A\",\"httpResponseCode\":200,\"httpStatusText\":\"OK\"}",
+            "103.1ms dom-ready",
+            "124ms did-frame-finish-load {\"isMainFrame\":true}",
+            "124ms did-finish-load",
+            "124.1ms >>> restore() promise resolved"
+          ],
+          "state": {
+            "url": "/article?n=200&title=A",
+            "title": "A",
+            "isLoading": true,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": [
+                "/article?n=200&title=A [A]"
+              ]
+            },
+            "page": {
+              "href": "http://127.0.0.1:53272/article?n=200&title=A",
+              "title": "A",
+              "text": "A\n\nParagraph 0. Veltriva spike filler text that wraps across the line so the page becomes tall enough to scroll in a mea"
+            }
+          }
+        },
+        "pageStateExplicitUndefined": {
+          "label": "pageStateExplicitUndefined",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "resolved",
+            "settledAtMs": 144
+          },
+          "events": [
+            "7.9ms did-start-loading",
+            "8.2ms did-start-navigation {\"url\":\"/article?n=200&title=A\",\"isMainFrame\":true}",
+            "114.1ms did-navigate {\"url\":\"/article?n=200&title=A\",\"httpResponseCode\":200,\"httpStatusText\":\"OK\"}",
+            "126.3ms dom-ready",
+            "144.4ms did-frame-finish-load {\"isMainFrame\":true}",
+            "144.5ms did-finish-load",
+            "144.5ms >>> restore() promise resolved"
+          ],
+          "state": {
+            "url": "/article?n=200&title=A",
+            "title": "A",
+            "isLoading": true,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": [
+                "/article?n=200&title=A [A]"
+              ]
+            },
+            "page": {
+              "href": "http://127.0.0.1:53272/article?n=200&title=A",
+              "title": "A",
+              "text": "A\n\nParagraph 0. Veltriva spike filler text that wraps across the line so the page becomes tall enough to scroll in a mea"
+            }
+          }
+        },
+        "emptyUrl": {
+          "label": "emptyUrl",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "resolved",
+            "settledAtMs": 117
+          },
+          "events": [
+            "5.7ms did-start-loading",
+            "5.8ms did-start-navigation {\"url\":\"about:blank\",\"isMainFrame\":true}",
+            "108.3ms did-navigate {\"url\":\"about:blank\",\"httpResponseCode\":-1,\"httpStatusText\":\"\"}",
+            "116.1ms page-title-updated {\"title\":\"\"}",
+            "117ms dom-ready",
+            "117.4ms did-frame-finish-load {\"isMainFrame\":true}",
+            "117.4ms did-finish-load",
+            "117.4ms >>> restore() promise resolved"
+          ],
+          "state": {
+            "url": "about:blank",
+            "title": "about:blank",
+            "isLoading": true,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": [
+                "about:blank [about:blank]"
+              ]
+            },
+            "page": {
+              "href": "about:blank",
+              "title": "",
+              "text": ""
+            }
+          }
+        },
+        "missingUrl": {
+          "label": "missingUrl",
+          "outcome": {
+            "returnedPromise": true,
+            "status": "rejected",
+            "error": "Failed to restore navigation history: Invalid navigation entry at index 0.",
+            "settledAtMs": 0
+          },
+          "events": [
+            "0.3ms >>> restore() promise rejected"
+          ],
+          "state": {
+            "url": "",
+            "title": "",
+            "isLoading": false,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": []
+            },
+            "page": "executeJavaScript did not answer within 2 s"
+          }
+        }
+      },
+      "elapsedMs": 19913
+    },
+    "guard": {
+      "blockedRequests": [],
+      "permissionRequests": []
+    }
+  },
+  "rows": [
+    {
+      "name": "Q5 restore() on a good entry",
+      "observed": "resolved after 119 ms",
+      "pass": true
+    },
+    {
+      "name": "Q5 restore() when the active entry points at a closed port",
+      "observed": "rejected (ERR_CONNECTION_REFUSED (-102) loading 'http://127.0.0.1:53273/never-served') after 2178 ms",
+      "pass": true,
+      "note": "[\"4.9ms did-start-loading\",\"5.1ms did-start-navigation {\\\"url\\\":\\\"/never-served\\\",\\\"isMainFrame\\\":true}\",\"2170.5ms did-fail-load {\\\"errorCode\\\":-102,\\\"errorDescription\\\":\\\"ERR_CONNECTION_REFUSED\\\",\\\"validatedURL\\\":\\\"/never-served\\\",\\\"isMainFrame\\\":true}\",\"2176.7ms dom-ready\",\"2178.2ms did-frame-finish-load {\\\"isMainFrame\\\":true}\",\"2178.2ms did-finish-load\",\"2178.4ms >>> restore() promise rejected\"]"
+    },
+    {
+      "name": "Q5 state after the closed-port rejection",
+      "observed": {
+        "url": "/never-served",
+        "title": "127.0.0.1:53273/never-served",
+        "isLoading": true,
+        "isCrashed": false,
+        "history": {
+          "length": 1,
+          "activeIndex": 0,
+          "canGoBack": false,
+          "canGoForward": false,
+          "entries": [
+            "/never-served [127.0.0.1:53273/never-served]"
+          ]
+        },
+        "page": {
+          "href": "chrome-error://chromewebdata/",
+          "title": "",
+          "text": ""
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 closed port in the middle of three entries",
+      "observed": {
+        "outcome": "rejected (ERR_CONNECTION_REFUSED (-102) loading 'http://127.0.0.1:53273/never-served') after 211 ms",
+        "state": {
+          "url": "/never-served",
+          "title": "127.0.0.1:53273/never-served",
+          "isLoading": true,
+          "isCrashed": false,
+          "history": {
+            "length": 3,
+            "activeIndex": 1,
+            "canGoBack": true,
+            "canGoForward": true,
+            "entries": [
+              "/article?n=200&title=A [A]",
+              "/never-served [127.0.0.1:53273/never-served]",
+              "/article?n=200&title=C [C]"
+            ]
+          },
+          "page": {
+            "href": "chrome-error://chromewebdata/",
+            "title": "",
+            "text": ""
+          }
+        },
+        "after": {
+          "afterBack": {
+            "loaded": "/article?n=200&title=A",
+            "activeIndex": 0
+          },
+          "afterForwardToDead": {
+            "loaded": "/never-served",
+            "url": "/never-served"
+          }
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 retry on the same web contents after a failure",
+      "observed": {
+        "secondRestore": {
+          "status": "rejected: Cannot restore history on webContents that have previously loaded a page.",
+          "stateAfterSecondRestore": {
+            "url": "/never-served",
+            "title": "127.0.0.1:53273/never-served",
+            "isLoading": false,
+            "isCrashed": false,
+            "history": {
+              "length": 1,
+              "activeIndex": 0,
+              "canGoBack": false,
+              "canGoForward": false,
+              "entries": [
+                "/never-served [127.0.0.1:53273/never-served]"
+              ]
+            },
+            "page": {
+              "href": "chrome-error://chromewebdata/",
+              "title": "",
+              "text": ""
+            }
+          }
+        },
+        "loadURLAfterwards": "resolved",
+        "urlAfterLoadURL": "/article?n=200&title=C"
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 restore() when the active entry is an HTTP 404 page",
+      "observed": "resolved after 133 ms",
+      "pass": null,
+      "note": "HTTP errors are still successful loads"
+    },
+    {
+      "name": "Q5 404 events",
+      "observed": [
+        "6.2ms did-start-loading",
+        "6.4ms did-start-navigation {\"url\":\"/missing-404\",\"isMainFrame\":true}",
+        "110ms did-navigate {\"url\":\"/missing-404\",\"httpResponseCode\":404,\"httpStatusText\":\"Not Found\"}",
+        "127.3ms page-title-updated {\"title\":\"\"}",
+        "127.8ms dom-ready",
+        "133.3ms did-frame-finish-load {\"isMainFrame\":true}",
+        "133.3ms did-finish-load",
+        "133.4ms >>> restore() promise resolved"
+      ],
+      "pass": null
+    },
+    {
+      "name": "Q5 404 state",
+      "observed": {
+        "url": "/missing-404",
+        "title": "127.0.0.1:53272/missing-404",
+        "isLoading": true,
+        "isCrashed": false,
+        "history": {
+          "length": 3,
+          "activeIndex": 1,
+          "canGoBack": true,
+          "canGoForward": true,
+          "entries": [
+            "/article?n=200&title=A [A]",
+            "/missing-404 [127.0.0.1:53272/missing-404]",
+            "/article?n=200&title=C [C]"
+          ]
+        },
+        "page": {
+          "href": "http://127.0.0.1:53272/missing-404",
+          "title": "",
+          "text": "not found"
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 slow entry: settle time vs load events",
+      "observed": {
+        "outcome": "resolved after 1552 ms",
+        "events": [
+          "5.2ms did-start-loading",
+          "5.4ms did-start-navigation {\"url\":\"/slow?ms=1500\",\"isMainFrame\":true}",
+          "1538.2ms did-navigate {\"url\":\"/slow?ms=1500\",\"httpResponseCode\":200,\"httpStatusText\":\"OK\"}",
+          "1545ms page-title-updated {\"title\":\"slow 1500ms\"}",
+          "1546.2ms dom-ready",
+          "1552.2ms did-frame-finish-load {\"isMainFrame\":true}",
+          "1552.2ms did-finish-load",
+          "1552.3ms >>> restore() promise resolved"
+        ]
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 invalid input: indexTooLarge",
+      "observed": {
+        "outcome": "threw (Invalid index. Index must be a positive integer and within the bounds of the entries length.) after undefined ms",
+        "state": {
+          "url": "",
+          "history": {
+            "length": 1,
+            "activeIndex": 0,
+            "canGoBack": false,
+            "canGoForward": false,
+            "entries": []
+          }
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 invalid input: indexNegative",
+      "observed": {
+        "outcome": "threw (Invalid index. Index must be a positive integer and within the bounds of the entries length.) after undefined ms",
+        "state": {
+          "url": "",
+          "history": {
+            "length": 1,
+            "activeIndex": 0,
+            "canGoBack": false,
+            "canGoForward": false,
+            "entries": []
+          }
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 invalid input: emptyEntries",
+      "observed": {
+        "outcome": "threw (Invalid index. Index must be a positive integer and within the bounds of the entries length.) after undefined ms",
+        "state": {
+          "url": "",
+          "history": {
+            "length": 1,
+            "activeIndex": 0,
+            "canGoBack": false,
+            "canGoForward": false,
+            "entries": []
+          }
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 invalid input: unparsableUrl",
+      "observed": {
+        "outcome": "resolved after 102 ms",
+        "state": {
+          "url": "about:blank",
+          "history": {
+            "length": 1,
+            "activeIndex": 0,
+            "canGoBack": false,
+            "canGoForward": false,
+            "entries": [
+              "about:blank [about:blank]"
+            ]
+          }
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 invalid input: garbagePageStateBase64",
+      "observed": {
+        "outcome": "resolved after 123 ms",
+        "state": {
+          "url": "/article?n=200&title=A",
+          "history": {
+            "length": 1,
+            "activeIndex": 0,
+            "canGoBack": false,
+            "canGoForward": false,
+            "entries": [
+              "/article?n=200&title=A [A]"
+            ]
+          }
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 invalid input: garbagePageStateNotBase64",
+      "observed": {
+        "outcome": "resolved after 132 ms",
+        "state": {
+          "url": "/article?n=200&title=A",
+          "history": {
+            "length": 1,
+            "activeIndex": 0,
+            "canGoBack": false,
+            "canGoForward": false,
+            "entries": [
+              "/article?n=200&title=A [A]"
+            ]
+          }
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 invalid input: emptyPageState",
+      "observed": {
+        "outcome": "rejected (Failed to restore navigation history: Invalid navigation entry at index 0.) after 0 ms",
+        "state": {
+          "url": "",
+          "history": {
+            "length": 1,
+            "activeIndex": 0,
+            "canGoBack": false,
+            "canGoForward": false,
+            "entries": []
+          }
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 invalid input: missingTitle",
+      "observed": {
+        "outcome": "rejected (Failed to restore navigation history: Invalid navigation entry at index 0.) after 0 ms",
+        "state": {
+          "url": "",
+          "history": {
+            "length": 1,
+            "activeIndex": 0,
+            "canGoBack": false,
+            "canGoForward": false,
+            "entries": []
+          }
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 invalid input: emptyTitle",
+      "observed": {
+        "outcome": "resolved after 101 ms",
+        "state": {
+          "url": "/article?n=200&title=A",
+          "history": {
+            "length": 1,
+            "activeIndex": 0,
+            "canGoBack": false,
+            "canGoForward": false,
+            "entries": [
+              "/article?n=200&title=A [A]"
+            ]
+          }
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 invalid input: pageStateNull",
+      "observed": {
+        "outcome": "resolved after 124 ms",
+        "state": {
+          "url": "/article?n=200&title=A",
+          "history": {
+            "length": 1,
+            "activeIndex": 0,
+            "canGoBack": false,
+            "canGoForward": false,
+            "entries": [
+              "/article?n=200&title=A [A]"
+            ]
+          }
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 invalid input: pageStateExplicitUndefined",
+      "observed": {
+        "outcome": "resolved after 144 ms",
+        "state": {
+          "url": "/article?n=200&title=A",
+          "history": {
+            "length": 1,
+            "activeIndex": 0,
+            "canGoBack": false,
+            "canGoForward": false,
+            "entries": [
+              "/article?n=200&title=A [A]"
+            ]
+          }
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 invalid input: emptyUrl",
+      "observed": {
+        "outcome": "resolved after 117 ms",
+        "state": {
+          "url": "about:blank",
+          "history": {
+            "length": 1,
+            "activeIndex": 0,
+            "canGoBack": false,
+            "canGoForward": false,
+            "entries": [
+              "about:blank [about:blank]"
+            ]
+          }
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q5 invalid input: missingUrl",
+      "observed": {
+        "outcome": "rejected (Failed to restore navigation history: Invalid navigation entry at index 0.) after 0 ms",
+        "state": {
+          "url": "",
+          "history": {
+            "length": 1,
+            "activeIndex": 0,
+            "canGoBack": false,
+            "canGoForward": false,
+            "entries": []
+          }
+        }
+      },
+      "pass": null
+    }
+  ]
+}

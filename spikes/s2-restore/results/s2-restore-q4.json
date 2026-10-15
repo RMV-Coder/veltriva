@@ -1,0 +1,387 @@
+{
+  "generatedAt": "2026-10-15T23:03:56.518Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "args": [
+    "--only=q4"
+  ],
+  "displayScaleFactor": 1.25,
+  "results": {
+    "window": {
+      "alwaysOnTop": true,
+      "size": [
+        800,
+        600
+      ]
+    },
+    "q4": {
+      "pollMs": 100,
+      "maxMs": 10000,
+      "trials": [
+        {
+          "kind": "scroll",
+          "detached": false,
+          "visibilityState": "visible",
+          "quietAfterMs": 0,
+          "changedMs": 1083
+        },
+        {
+          "kind": "scroll",
+          "detached": false,
+          "visibilityState": "visible",
+          "quietAfterMs": 0,
+          "changedMs": 1095
+        },
+        {
+          "kind": "scroll",
+          "detached": false,
+          "visibilityState": "visible",
+          "quietAfterMs": 0,
+          "changedMs": 1087
+        },
+        {
+          "kind": "scroll",
+          "detached": false,
+          "visibilityState": "visible",
+          "quietAfterMs": 0,
+          "changedMs": 1088
+        },
+        {
+          "kind": "scroll",
+          "detached": false,
+          "visibilityState": "visible",
+          "quietAfterMs": 0,
+          "changedMs": 1082
+        },
+        {
+          "kind": "form",
+          "detached": false,
+          "visibilityState": "visible",
+          "quietAfterMs": 1005,
+          "changedMs": 1095,
+          "textMarkerMs": 1095,
+          "captured": {
+            "text": true,
+            "area": true,
+            "reactish": false,
+            "ce": false
+          }
+        },
+        {
+          "kind": "form",
+          "detached": false,
+          "visibilityState": "visible",
+          "quietAfterMs": 993,
+          "changedMs": 1094,
+          "textMarkerMs": 1094,
+          "captured": {
+            "text": true,
+            "area": true,
+            "reactish": false,
+            "ce": false
+          }
+        },
+        {
+          "kind": "form",
+          "detached": false,
+          "visibilityState": "visible",
+          "quietAfterMs": 1003,
+          "changedMs": 1089,
+          "textMarkerMs": 1089,
+          "captured": {
+            "text": true,
+            "area": true,
+            "reactish": false,
+            "ce": false
+          }
+        },
+        {
+          "kind": "form",
+          "detached": false,
+          "visibilityState": "visible",
+          "quietAfterMs": 1037,
+          "changedMs": 1094,
+          "textMarkerMs": 1094,
+          "captured": {
+            "text": true,
+            "area": true,
+            "reactish": false,
+            "ce": false
+          }
+        },
+        {
+          "kind": "form",
+          "detached": false,
+          "visibilityState": "visible",
+          "quietAfterMs": 986,
+          "changedMs": 1086,
+          "textMarkerMs": 1086,
+          "captured": {
+            "text": true,
+            "area": true,
+            "reactish": false,
+            "ce": false
+          }
+        },
+        {
+          "kind": "scroll",
+          "detached": true,
+          "visibilityState": "hidden",
+          "quietAfterMs": 0,
+          "changedMs": 5128
+        },
+        {
+          "kind": "scroll",
+          "detached": true,
+          "visibilityState": "hidden",
+          "quietAfterMs": 0,
+          "changedMs": 5023
+        },
+        {
+          "kind": "scroll",
+          "detached": true,
+          "visibilityState": "hidden",
+          "quietAfterMs": 0,
+          "changedMs": 5022
+        },
+        {
+          "kind": "form",
+          "detached": true,
+          "visibilityState": "hidden",
+          "quietAfterMs": 986,
+          "changedMs": 5115,
+          "textMarkerMs": 5115,
+          "captured": {
+            "text": true,
+            "area": true,
+            "reactish": false,
+            "ce": false
+          }
+        },
+        {
+          "kind": "form",
+          "detached": true,
+          "visibilityState": "hidden",
+          "quietAfterMs": 997,
+          "changedMs": 5025,
+          "textMarkerMs": 5025,
+          "captured": {
+            "text": true,
+            "area": true,
+            "reactish": false,
+            "ce": false
+          }
+        },
+        {
+          "kind": "form",
+          "detached": true,
+          "visibilityState": "hidden",
+          "quietAfterMs": 992,
+          "changedMs": 5110,
+          "textMarkerMs": 5110,
+          "captured": {
+            "text": true,
+            "area": true,
+            "reactish": false,
+            "ce": false
+          }
+        }
+      ],
+      "scroll-attached": {
+        "values": [
+          1083,
+          1095,
+          1087,
+          1088,
+          1082
+        ],
+        "median": 1087,
+        "range": [
+          1082,
+          1095
+        ],
+        "neverWithin10s": 0,
+        "metric": "changedMs",
+        "visibility": [
+          "visible"
+        ]
+      },
+      "form-attached": {
+        "values": [
+          1095,
+          1094,
+          1089,
+          1094,
+          1086
+        ],
+        "median": 1094,
+        "range": [
+          1086,
+          1095
+        ],
+        "neverWithin10s": 0,
+        "metric": "textMarkerMs",
+        "visibility": [
+          "visible"
+        ],
+        "capturedFields": {
+          "text": true,
+          "area": true,
+          "reactish": false,
+          "ce": false
+        }
+      },
+      "scroll-detached": {
+        "values": [
+          5128,
+          5023,
+          5022
+        ],
+        "median": 5023,
+        "range": [
+          5022,
+          5128
+        ],
+        "neverWithin10s": 0,
+        "metric": "changedMs",
+        "visibility": [
+          "hidden"
+        ]
+      },
+      "form-detached": {
+        "values": [
+          5115,
+          5025,
+          5110
+        ],
+        "median": 5110,
+        "range": [
+          5025,
+          5115
+        ],
+        "neverWithin10s": 0,
+        "metric": "textMarkerMs",
+        "visibility": [
+          "hidden"
+        ],
+        "capturedFields": {
+          "text": true,
+          "area": true,
+          "reactish": false,
+          "ce": false
+        }
+      },
+      "elapsedMs": 82286
+    },
+    "guard": {
+      "blockedRequests": [],
+      "permissionRequests": []
+    }
+  },
+  "rows": [
+    {
+      "name": "Q4 pageState freshness: scroll edit, view attached (visible)",
+      "observed": {
+        "ms_to_change": [
+          1083,
+          1095,
+          1087,
+          1088,
+          1082
+        ],
+        "median": 1087,
+        "range": [
+          1082,
+          1095
+        ],
+        "visibility": [
+          "visible"
+        ]
+      },
+      "pass": null
+    },
+    {
+      "name": "Q4 pageState freshness: form edit, view attached (visible)",
+      "observed": {
+        "ms_to_change": [
+          1095,
+          1094,
+          1089,
+          1094,
+          1086
+        ],
+        "median": 1094,
+        "range": [
+          1086,
+          1095
+        ],
+        "visibility": [
+          "visible"
+        ]
+      },
+      "pass": null
+    },
+    {
+      "name": "Q4 form fields present in pageState after 3 s (attached), all trials",
+      "observed": {
+        "text": true,
+        "area": true,
+        "reactish": false,
+        "ce": false
+      },
+      "pass": null
+    },
+    {
+      "name": "Q4 pageState freshness: scroll edit, view DETACHED (hidden)",
+      "observed": {
+        "ms_to_change": [
+          5128,
+          5023,
+          5022
+        ],
+        "median": 5023,
+        "range": [
+          5022,
+          5128
+        ],
+        "visibility": [
+          "hidden"
+        ]
+      },
+      "pass": null
+    },
+    {
+      "name": "Q4 pageState freshness: form edit, view DETACHED (hidden)",
+      "observed": {
+        "ms_to_change": [
+          5115,
+          5025,
+          5110
+        ],
+        "median": 5110,
+        "range": [
+          5025,
+          5115
+        ],
+        "visibility": [
+          "hidden"
+        ]
+      },
+      "pass": null
+    },
+    {
+      "name": "Q4 form fields present in pageState after 3 s (detached), all trials",
+      "observed": {
+        "text": true,
+        "area": true,
+        "reactish": false,
+        "ce": false
+      },
+      "pass": null
+    }
+  ]
+}

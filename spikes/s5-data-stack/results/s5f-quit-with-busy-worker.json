@@ -1,0 +1,160 @@
+{
+  "generatedAt": "2026-10-15T23:24:51.995Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "k": 700,
+  "longQueryUninterruptedMs": 1767,
+  "runs": {
+    "app.quit": {
+      "exitCodes": [
+        0
+      ],
+      "exitAfterQuitCallMs": [
+        1552,
+        2223,
+        1819
+      ],
+      "summary": {
+        "n": 3,
+        "p50": 1819,
+        "p95": 2223,
+        "p99": 2223,
+        "max": 2223,
+        "mean": 1864.67
+      }
+    },
+    "app.exit": {
+      "exitCodes": [
+        0
+      ],
+      "exitAfterQuitCallMs": [
+        1737,
+        1666,
+        1733
+      ],
+      "summary": {
+        "n": 3,
+        "p50": 1733,
+        "p95": 1737,
+        "p99": 1737,
+        "max": 1737,
+        "mean": 1712
+      }
+    },
+    "process.exit": {
+      "exitCodes": [
+        0
+      ],
+      "exitAfterQuitCallMs": [
+        1834,
+        1731,
+        1761
+      ],
+      "summary": {
+        "n": 3,
+        "p50": 1761,
+        "p95": 1834,
+        "p99": 1834,
+        "max": 1834,
+        "mean": 1775.33
+      }
+    },
+    "terminate-then-app.quit": {
+      "exitCodes": [
+        0
+      ],
+      "exitAfterQuitCallMs": [
+        1705,
+        1938,
+        2811
+      ],
+      "summary": {
+        "n": 3,
+        "p50": 1938,
+        "p95": 2811,
+        "p99": 2811,
+        "max": 2811,
+        "mean": 2151.33
+      }
+    },
+    "terminate-then-app.exit": {
+      "exitCodes": [
+        0
+      ],
+      "exitAfterQuitCallMs": [
+        2676,
+        2462,
+        1881
+      ],
+      "summary": {
+        "n": 3,
+        "p50": 2462,
+        "p95": 2676,
+        "p99": 2676,
+        "max": 2676,
+        "mean": 2339.67
+      }
+    },
+    "kill-self": {
+      "exitCodes": [
+        1
+      ],
+      "exitAfterQuitCallMs": [
+        31,
+        182,
+        39
+      ],
+      "summary": {
+        "n": 3,
+        "p50": 39,
+        "p95": 182,
+        "p99": 182,
+        "max": 182,
+        "mean": 84
+      }
+    },
+    "app.quit+watchdog500ms": {
+      "exitCodes": [
+        0
+      ],
+      "exitAfterQuitCallMs": [
+        2396,
+        1740,
+        1460
+      ],
+      "summary": {
+        "n": 3,
+        "p50": 1740,
+        "p95": 2396,
+        "p99": 2396,
+        "max": 2396,
+        "mean": 1865.33
+      }
+    }
+  },
+  "hardKillMidWrite": {
+    "runs": 5,
+    "exitAfterKillMs": [
+      42,
+      34,
+      135,
+      26,
+      35
+    ],
+    "integrity": {
+      "quick": [
+        "ok"
+      ],
+      "ftsOk": true,
+      "pages": 10000,
+      "visits": 30554,
+      "tabs": 300,
+      "ftsDocsize": 10000
+    },
+    "scratchRows": 0
+  }
+}

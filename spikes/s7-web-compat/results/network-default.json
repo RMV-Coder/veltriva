@@ -1,0 +1,232 @@
+{
+  "generatedAt": "2026-10-15T22:47:47.875Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "mode": "default",
+  "visibilityState": "visible",
+  "spellBefore": {
+    "enabledDefault": true,
+    "enabledTab": true,
+    "languagesDefaultSession": [
+      "en-US"
+    ],
+    "languagesTabSession": [
+      "en-US"
+    ],
+    "availableLanguages": 57,
+    "appLocale": "en-US"
+  },
+  "spellAfter": {
+    "languagesTabSession": [
+      "en-US"
+    ],
+    "userDataEntries": [
+      "blob_storage",
+      "Cache",
+      "Code Cache",
+      "DawnGraphiteCache",
+      "DawnWebGPUCache",
+      "declarative_performance_observer.db",
+      "declarative_performance_observer.db-journal",
+      "GPUCache",
+      "GPUPersistentCache",
+      "GrShaderCache",
+      "Local State",
+      "Local Storage",
+      "Network",
+      "Preferences",
+      "ShaderCache",
+      "Shared Dictionary"
+    ],
+    "dictionaryFiles": []
+  },
+  "summaries": {
+    "defaultSession": {
+      "file": "netlog-default-default-session.json",
+      "eventCount": 252,
+      "localHosts": [
+        "127.0.0.1"
+      ],
+      "externalHosts": [
+        {
+          "host": "wpad",
+          "count": 12,
+          "events": [
+            "HOST_RESOLVER_MANAGER_JOB",
+            "HOST_RESOLVER_MANAGER_REQUEST"
+          ],
+          "sampleUrl": null
+        },
+        {
+          "host": "2001:4860:4860::8888",
+          "count": 4,
+          "events": [
+            "SOCKET_CONNECT",
+            "UDP_CONNECT"
+          ],
+          "sampleUrl": null
+        }
+      ]
+    },
+    "tabSession": {
+      "file": "netlog-default-tab-session.json",
+      "eventCount": 223,
+      "localHosts": [
+        "127.0.0.1"
+      ],
+      "externalHosts": [
+        {
+          "host": "wpad",
+          "count": 10,
+          "events": [
+            "HOST_RESOLVER_MANAGER_JOB",
+            "HOST_RESOLVER_MANAGER_REQUEST"
+          ],
+          "sampleUrl": null
+        },
+        {
+          "host": "2001:4860:4860::8888",
+          "count": 2,
+          "events": [
+            "SOCKET_CONNECT",
+            "UDP_CONNECT"
+          ],
+          "sampleUrl": null
+        }
+      ]
+    }
+  },
+  "dictRequests": [],
+  "rows": [
+    {
+      "name": "typed text reached the textarea",
+      "observed": "teh recieve misspeled wrod ",
+      "pass": true
+    },
+    {
+      "name": "context-menu on first word (spellcheck verdict)",
+      "observed": {
+        "misspelledWord": "teh",
+        "suggestions": [
+          "the",
+          "ten",
+          "tea",
+          "tee"
+        ]
+      },
+      "pass": null,
+      "note": "null = event never fired for the synthetic right-click"
+    },
+    {
+      "name": "spellcheck state before / after",
+      "observed": {
+        "before": {
+          "enabledDefault": true,
+          "enabledTab": true,
+          "languagesDefaultSession": [
+            "en-US"
+          ],
+          "languagesTabSession": [
+            "en-US"
+          ],
+          "availableLanguages": 57,
+          "appLocale": "en-US"
+        },
+        "after": {
+          "languagesTabSession": [
+            "en-US"
+          ],
+          "userDataEntries": [
+            "blob_storage",
+            "Cache",
+            "Code Cache",
+            "DawnGraphiteCache",
+            "DawnWebGPUCache",
+            "declarative_performance_observer.db",
+            "declarative_performance_observer.db-journal",
+            "GPUCache",
+            "GPUPersistentCache",
+            "GrShaderCache",
+            "Local State",
+            "Local Storage",
+            "Network",
+            "Preferences",
+            "ShaderCache",
+            "Shared Dictionary"
+          ],
+          "dictionaryFiles": []
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "dictionary requests that reached the local fixture server",
+      "observed": [],
+      "pass": null
+    },
+    {
+      "name": "netlog defaultSession: non-local hosts",
+      "observed": {
+        "events": 252,
+        "localHosts": [
+          "127.0.0.1"
+        ],
+        "external": [
+          {
+            "host": "wpad",
+            "count": 12,
+            "events": [
+              "HOST_RESOLVER_MANAGER_JOB",
+              "HOST_RESOLVER_MANAGER_REQUEST"
+            ],
+            "sampleUrl": null
+          },
+          {
+            "host": "2001:4860:4860::8888",
+            "count": 4,
+            "events": [
+              "SOCKET_CONNECT",
+              "UDP_CONNECT"
+            ],
+            "sampleUrl": null
+          }
+        ]
+      },
+      "pass": null
+    },
+    {
+      "name": "netlog tabSession: non-local hosts",
+      "observed": {
+        "events": 223,
+        "localHosts": [
+          "127.0.0.1"
+        ],
+        "external": [
+          {
+            "host": "wpad",
+            "count": 10,
+            "events": [
+              "HOST_RESOLVER_MANAGER_JOB",
+              "HOST_RESOLVER_MANAGER_REQUEST"
+            ],
+            "sampleUrl": null
+          },
+          {
+            "host": "2001:4860:4860::8888",
+            "count": 2,
+            "events": [
+              "SOCKET_CONNECT",
+              "UDP_CONNECT"
+            ],
+            "sampleUrl": null
+          }
+        ]
+      },
+      "pass": null
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>S4 shell</title>
+<style>
+  html, body { margin: 0; height: 100%; font: 14px system-ui, sans-serif; background: #f4f4f6; }
+  #toolbar { height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 12px; box-sizing: border-box; border-bottom: 1px solid #ccc; background: #fff; }
+  #omnibox { flex: 1; height: 32px; border: 1px solid #aaa; border-radius: 6px; padding: 0 10px; }
+  #stage { position: absolute; top: 56px; left: 0; right: 0; bottom: 0; }
+  #snapshot { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
+  #scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.25); display: none; }
+  #palette { position: absolute; left: 50%; top: 40px; transform: translateX(-50%); width: 520px; padding: 12px; background: #fff; border-radius: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); display: none; }
+  /* Option A′: the shell view itself has a transparent background (set from main); while raised
+     above the tab, only the toolbar, scrim and palette paint, so the live page shows through. */
+  html.overlay-live, html.overlay-live body { background: transparent; }
+  html.overlay-live #scrim { background: rgba(0, 0, 0, 0.12); }
+</style>
+<div id="toolbar"><input id="omnibox" placeholder="Search memory or type a URL"></div>
+<div id="stage">
+  <img id="snapshot" alt="">
+  <div id="scrim"></div>
+  <div id="palette">
+    <input style="width: 100%" value="postgres index">
+    <ul><li>PostgreSQL Documentation — Indexes</li><li>Understanding EXPLAIN ANALYZE</li></ul>
+  </div>
+</div>
+<script>
+  const twoFrames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  // Option A: paint the captured page plus the palette; resolves after the frame is presented.
+  window.showSnapshot = async (src) => {
+    const img = document.getElementById('snapshot');
+    img.src = src;
+    await img.decode();
+    for (const id of ['snapshot', 'scrim', 'palette']) document.getElementById(id).style.display = 'block';
+    await twoFrames();
+    return true;
+  };
+  // Option A′: no snapshot; the page beneath stays live and visible through the transparent shell.
+  window.showOverlayLive = async () => {
+    document.documentElement.classList.add('overlay-live');
+    for (const id of ['scrim', 'palette']) document.getElementById(id).style.display = 'block';
+    document.querySelector('#palette input').focus();
+    await twoFrames();
+    return true;
+  };
+  window.hideOverlay = async () => {
+    document.documentElement.classList.remove('overlay-live');
+    for (const id of ['snapshot', 'scrim', 'palette']) document.getElementById(id).style.display = 'none';
+    await twoFrames();
+    return true;
+  };
+  window.focusState = () => ({ hasFocus: document.hasFocus(), active: document.activeElement?.tagName ?? null });
+</script>

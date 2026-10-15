@@ -1,0 +1,1005 @@
+{
+  "generatedAt": "2026-10-15T23:39:09.191Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "rows": [
+    {
+      "name": "B1 idle page produces no input events",
+      "observed": {},
+      "pass": true
+    },
+    {
+      "name": "B1 mouseMove x5: which events fire",
+      "observed": {
+        "before-mouse-event": {
+          "mouseMove": 5
+        },
+        "input-event": {
+          "mouseMove": 5
+        }
+      },
+      "pass": true,
+      "note": "input-event includes mouseMove (so it must only stamp a time; see S1 for rate under real input)"
+    },
+    {
+      "name": "B1 mouseMove: before-mouse-event count",
+      "observed": 5,
+      "pass": null
+    },
+    {
+      "name": "B1 mouseEnter/mouseLeave: which events fire",
+      "observed": {
+        "before-mouse-event": {
+          "mouseEnter": 1,
+          "mouseLeave": 1
+        },
+        "input-event": {
+          "mouseEnter": 1,
+          "mouseLeave": 1
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "B1 click (mouseDown+mouseUp): which events fire",
+      "observed": {
+        "tally": {
+          "before-mouse-event": {
+            "mouseDown": 1,
+            "mouseUp": 1
+          },
+          "input-event": {
+            "mouseDown": 1,
+            "mouseUp": 1
+          }
+        },
+        "order": [
+          "before-mouse-event:mouseDown",
+          "input-event:mouseDown",
+          "before-mouse-event:mouseUp",
+          "input-event:mouseUp"
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "B1 mouseWheel x2: which events fire",
+      "observed": {
+        "input-event": {
+          "mouseWheel": 4,
+          "gestureScrollBegin": 2,
+          "gestureScrollUpdate": 2,
+          "gestureScrollEnd": 2
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "B1 typing \"abc\" (keyDown+char+keyUp per character): which events fire",
+      "observed": {
+        "tally": {
+          "before-input-event": {
+            "keyDown": 3,
+            "keyUp": 3
+          },
+          "input-event": {
+            "rawKeyDown": 3,
+            "char": 3,
+            "keyUp": 3
+          }
+        },
+        "order": [
+          "before-input-event:keyDown",
+          "input-event:rawKeyDown",
+          "input-event:char",
+          "before-input-event:keyUp",
+          "input-event:keyUp",
+          "before-input-event:keyDown",
+          "input-event:rawKeyDown",
+          "input-event:char",
+          "before-input-event:keyUp",
+          "input-event:keyUp",
+          "before-input-event:keyDown",
+          "input-event:rawKeyDown",
+          "input-event:char",
+          "before-input-event:keyUp"
+        ]
+      },
+      "pass": true,
+      "note": "input-event reports key presses as rawKeyDown/char/keyUp; before-input-event as keyDown/keyUp (never char)"
+    },
+    {
+      "name": "B1 Tab key (keyDown+keyUp): which events fire",
+      "observed": {
+        "before-input-event": {
+          "keyDown": 1,
+          "keyUp": 1
+        },
+        "input-event": {
+          "rawKeyDown": 1,
+          "keyUp": 1
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "B1 control: executeJavaScript(userGesture=true) produces no input events",
+      "observed": {},
+      "pass": true
+    },
+    {
+      "name": "B1 control: page-synthesised DOM events produce no input events",
+      "observed": {},
+      "pass": true
+    },
+    {
+      "name": "B1 the typed characters reached the page",
+      "observed": "initialabc",
+      "pass": true
+    },
+    {
+      "name": "B1 totals for the scripted sequence (5 moves, enter/leave, click, 2 wheel, \"abc\", Tab)",
+      "observed": {
+        "before-mouse-event": {
+          "mouseMove": 5,
+          "mouseEnter": 1,
+          "mouseLeave": 1,
+          "mouseDown": 1,
+          "mouseUp": 1
+        },
+        "input-event": {
+          "mouseMove": 5,
+          "mouseEnter": 1,
+          "mouseLeave": 1,
+          "mouseDown": 1,
+          "mouseUp": 1,
+          "mouseWheel": 4,
+          "gestureScrollBegin": 2,
+          "gestureScrollUpdate": 2,
+          "gestureScrollEnd": 2,
+          "rawKeyDown": 4,
+          "char": 3,
+          "keyUp": 4
+        },
+        "before-input-event": {
+          "keyDown": 4,
+          "keyUp": 4
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "B2 child frame is a cross-process frame; target point hits the <iframe> in the parent",
+      "observed": {
+        "crossProcess": true,
+        "hitTag": "IFRAME",
+        "abs": {
+          "x": 102.80000305175781,
+          "y": 177.87500190734863
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "B2 route 1: sendInputEvent click at the iframe coordinates: did the child input get focus?",
+      "observed": {
+        "clicksSent": 3,
+        "child": {
+          "active": "BODY",
+          "value": "child initial"
+        },
+        "parentActive": "child"
+      },
+      "pass": false,
+      "note": "expected by hypothesis; refuted if the child input stays unfocused"
+    },
+    {
+      "name": "B2 route 1: parent webContents events during that click",
+      "observed": {
+        "before-mouse-event": {
+          "mouseDown": 3,
+          "mouseUp": 3
+        },
+        "input-event": {
+          "mouseDown": 3,
+          "mouseUp": 3
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "B2 route 1: typed \"xy\" with sendInputEvent: did the child receive it?",
+      "observed": {
+        "child": {
+          "active": "BODY",
+          "value": "child initial"
+        },
+        "parentActive": "child",
+        "childInputBeacons": 0
+      },
+      "pass": false,
+      "note": "REFUTED if it fails: sendInputEvent feeds the root widget only, so it cannot drive a cross-process child"
+    },
+    {
+      "name": "B2 route 1: parent webContents events during typing",
+      "observed": {
+        "before-input-event": {
+          "keyDown": 2,
+          "keyUp": 2
+        },
+        "input-event": {
+          "rawKeyDown": 2,
+          "char": 2,
+          "keyUp": 2
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "B2 route 2 (CDP Input.dispatch*): click focused the child input",
+      "observed": {
+        "clicksNeeded": 1,
+        "child": {
+          "active": "child-text",
+          "value": "child initial"
+        },
+        "parentActive": "child"
+      },
+      "pass": true,
+      "note": "tally below covers every click attempt; clicksNeeded > 1 means the first click was routed to the parent"
+    },
+    {
+      "name": "B2 route 2: typed \"rs\" reached the child input",
+      "observed": {
+        "child": {
+          "active": "child-text",
+          "value": "child initialrs"
+        },
+        "childInputBeacons": 2
+      },
+      "pass": true
+    },
+    {
+      "name": "B2 route 2: parent webContents events during the CDP click",
+      "observed": {
+        "before-mouse-event": {
+          "mouseMove": 1,
+          "mouseDown": 1,
+          "mouseUp": 1
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "B2 route 2: parent webContents events during CDP typing",
+      "observed": {},
+      "pass": null
+    },
+    {
+      "name": "B2 route 3: child input focused via frame.executeJavaScript, then typed \"pq\" with sendInputEvent",
+      "observed": {
+        "focusedState": {
+          "child": {
+            "active": "child-text",
+            "value": "child initialrs"
+          },
+          "parentActive": "child"
+        },
+        "afterType2": {
+          "child": {
+            "active": "child-text",
+            "value": "child initialrs"
+          },
+          "childInputBeacons": 0
+        }
+      },
+      "pass": false,
+      "note": "refuted if the child value does not change"
+    },
+    {
+      "name": "B2 route 3: parent webContents events during that typing",
+      "observed": {
+        "before-input-event": {
+          "keyDown": 2,
+          "keyUp": 2
+        },
+        "input-event": {
+          "rawKeyDown": 2,
+          "char": 2,
+          "keyUp": 2
+        }
+      },
+      "pass": null
+    }
+  ],
+  "phases": {
+    "idle": {
+      "tally": {},
+      "order": [],
+      "total": 0
+    },
+    "mouseMove": {
+      "tally": {
+        "before-mouse-event": {
+          "mouseMove": 5
+        },
+        "input-event": {
+          "mouseMove": 5
+        }
+      },
+      "order": [
+        "before-mouse-event:mouseMove",
+        "input-event:mouseMove",
+        "before-mouse-event:mouseMove",
+        "input-event:mouseMove",
+        "before-mouse-event:mouseMove",
+        "input-event:mouseMove",
+        "before-mouse-event:mouseMove",
+        "input-event:mouseMove",
+        "before-mouse-event:mouseMove",
+        "input-event:mouseMove"
+      ],
+      "total": 10
+    },
+    "mouseEnterLeave": {
+      "tally": {
+        "before-mouse-event": {
+          "mouseEnter": 1,
+          "mouseLeave": 1
+        },
+        "input-event": {
+          "mouseEnter": 1,
+          "mouseLeave": 1
+        }
+      },
+      "order": [
+        "before-mouse-event:mouseEnter",
+        "input-event:mouseEnter",
+        "before-mouse-event:mouseLeave",
+        "input-event:mouseLeave"
+      ],
+      "total": 4
+    },
+    "click": {
+      "tally": {
+        "before-mouse-event": {
+          "mouseDown": 1,
+          "mouseUp": 1
+        },
+        "input-event": {
+          "mouseDown": 1,
+          "mouseUp": 1
+        }
+      },
+      "order": [
+        "before-mouse-event:mouseDown",
+        "input-event:mouseDown",
+        "before-mouse-event:mouseUp",
+        "input-event:mouseUp"
+      ],
+      "total": 4
+    },
+    "mouseWheel": {
+      "tally": {
+        "input-event": {
+          "mouseWheel": 4,
+          "gestureScrollBegin": 2,
+          "gestureScrollUpdate": 2,
+          "gestureScrollEnd": 2
+        }
+      },
+      "order": [
+        "input-event:mouseWheel",
+        "input-event:gestureScrollBegin",
+        "input-event:gestureScrollUpdate",
+        "input-event:mouseWheel",
+        "input-event:gestureScrollEnd",
+        "input-event:mouseWheel",
+        "input-event:gestureScrollBegin",
+        "input-event:gestureScrollUpdate",
+        "input-event:mouseWheel",
+        "input-event:gestureScrollEnd"
+      ],
+      "total": 10
+    },
+    "typeABC": {
+      "tally": {
+        "before-input-event": {
+          "keyDown": 3,
+          "keyUp": 3
+        },
+        "input-event": {
+          "rawKeyDown": 3,
+          "char": 3,
+          "keyUp": 3
+        }
+      },
+      "order": [
+        "before-input-event:keyDown",
+        "input-event:rawKeyDown",
+        "input-event:char",
+        "before-input-event:keyUp",
+        "input-event:keyUp",
+        "before-input-event:keyDown",
+        "input-event:rawKeyDown",
+        "input-event:char",
+        "before-input-event:keyUp",
+        "input-event:keyUp",
+        "before-input-event:keyDown",
+        "input-event:rawKeyDown",
+        "input-event:char",
+        "before-input-event:keyUp"
+      ],
+      "total": 15
+    },
+    "tabKey": {
+      "tally": {
+        "before-input-event": {
+          "keyDown": 1,
+          "keyUp": 1
+        },
+        "input-event": {
+          "rawKeyDown": 1,
+          "keyUp": 1
+        }
+      },
+      "order": [
+        "before-input-event:keyDown",
+        "input-event:rawKeyDown",
+        "before-input-event:keyUp",
+        "input-event:keyUp"
+      ],
+      "total": 4
+    },
+    "controlScriptedGesture": {
+      "tally": {},
+      "order": [],
+      "total": 0
+    },
+    "controlSyntheticDomEvents": {
+      "tally": {},
+      "order": [],
+      "total": 0
+    }
+  },
+  "iframe": {
+    "geometry": {
+      "iframeBox": {
+        "x": 8,
+        "y": 114.875,
+        "clientLeft": 2,
+        "clientTop": 2
+      },
+      "inChild": {
+        "cx": 92.80000305175781,
+        "cy": 61.00000190734863
+      },
+      "abs": {
+        "x": 102.80000305175781,
+        "y": 177.87500190734863
+      },
+      "parentHitTest": "IFRAME",
+      "crossProcess": true,
+      "childUrl": "http://b.test:57140/iframe-child.html"
+    },
+    "route1_sendInputEvent": {
+      "click": {
+        "tally": {
+          "before-mouse-event": {
+            "mouseDown": 3,
+            "mouseUp": 3
+          },
+          "input-event": {
+            "mouseDown": 3,
+            "mouseUp": 3
+          }
+        },
+        "order": [
+          "before-mouse-event:mouseDown",
+          "input-event:mouseDown",
+          "before-mouse-event:mouseUp",
+          "input-event:mouseUp",
+          "before-mouse-event:mouseDown",
+          "input-event:mouseDown",
+          "before-mouse-event:mouseUp",
+          "input-event:mouseUp",
+          "before-mouse-event:mouseDown",
+          "input-event:mouseDown",
+          "before-mouse-event:mouseUp",
+          "input-event:mouseUp"
+        ],
+        "total": 12
+      },
+      "afterClick": {
+        "clicksSent": 3,
+        "child": {
+          "active": "BODY",
+          "value": "child initial"
+        },
+        "parentActive": "child"
+      },
+      "type": {
+        "tally": {
+          "before-input-event": {
+            "keyDown": 2,
+            "keyUp": 2
+          },
+          "input-event": {
+            "rawKeyDown": 2,
+            "char": 2,
+            "keyUp": 2
+          }
+        },
+        "order": [
+          "before-input-event:keyDown",
+          "input-event:rawKeyDown",
+          "input-event:char",
+          "before-input-event:keyUp",
+          "input-event:keyUp",
+          "before-input-event:keyDown",
+          "input-event:rawKeyDown",
+          "input-event:char",
+          "before-input-event:keyUp",
+          "input-event:keyUp"
+        ],
+        "total": 10
+      },
+      "afterType": {
+        "child": {
+          "active": "BODY",
+          "value": "child initial"
+        },
+        "parentActive": "child",
+        "childInputBeacons": 0
+      }
+    },
+    "route2_cdp": {
+      "attached": true,
+      "clicksNeeded": 1,
+      "click": {
+        "tally": {
+          "before-mouse-event": {
+            "mouseMove": 1,
+            "mouseDown": 1,
+            "mouseUp": 1
+          }
+        },
+        "order": [
+          "before-mouse-event:mouseMove",
+          "before-mouse-event:mouseDown",
+          "before-mouse-event:mouseUp"
+        ],
+        "total": 3
+      },
+      "afterClick": {
+        "child": {
+          "active": "child-text",
+          "value": "child initial"
+        },
+        "parentActive": "child"
+      },
+      "type": {
+        "tally": {},
+        "order": [],
+        "total": 0
+      },
+      "afterType": {
+        "child": {
+          "active": "child-text",
+          "value": "child initialrs"
+        },
+        "childInputBeacons": 2
+      }
+    },
+    "route3_focusViaFrameThenSendInputEvent": {
+      "focusedState": {
+        "child": {
+          "active": "child-text",
+          "value": "child initialrs"
+        },
+        "parentActive": "child"
+      },
+      "type": {
+        "tally": {
+          "before-input-event": {
+            "keyDown": 2,
+            "keyUp": 2
+          },
+          "input-event": {
+            "rawKeyDown": 2,
+            "char": 2,
+            "keyUp": 2
+          }
+        },
+        "order": [
+          "before-input-event:keyDown",
+          "input-event:rawKeyDown",
+          "input-event:char",
+          "before-input-event:keyUp",
+          "input-event:keyUp",
+          "before-input-event:keyDown",
+          "input-event:rawKeyDown",
+          "input-event:char",
+          "before-input-event:keyUp",
+          "input-event:keyUp"
+        ],
+        "total": 10
+      },
+      "afterType2": {
+        "child": {
+          "active": "child-text",
+          "value": "child initialrs"
+        },
+        "childInputBeacons": 0
+      }
+    },
+    "finalChildValue": "child initialrs",
+    "samples": {
+      "before-mouse-event:mouseDown": {
+        "type": "mouseDown",
+        "clickCount": 1,
+        "movementX": 0,
+        "movementY": 0,
+        "button": "left",
+        "globalX": 0,
+        "globalY": 0,
+        "x": 102.80000305175781,
+        "y": 177.875
+      },
+      "input-event:mouseDown": {
+        "type": "mouseDown",
+        "clickCount": 1,
+        "movementX": 0,
+        "movementY": 0,
+        "button": "left",
+        "globalX": 0,
+        "globalY": 0,
+        "x": 102.80000305175781,
+        "y": 177.875
+      },
+      "before-mouse-event:mouseUp": {
+        "type": "mouseUp",
+        "clickCount": 1,
+        "movementX": 0,
+        "movementY": 0,
+        "button": "left",
+        "globalX": 0,
+        "globalY": 0,
+        "x": 102.80000305175781,
+        "y": 177.875
+      },
+      "input-event:mouseUp": {
+        "type": "mouseUp",
+        "clickCount": 1,
+        "movementX": 0,
+        "movementY": 0,
+        "button": "left",
+        "globalX": 0,
+        "globalY": 0,
+        "x": 102.80000305175781,
+        "y": 177.875
+      },
+      "before-input-event:keyDown": {
+        "type": "keyDown",
+        "key": "x",
+        "code": "KeyX",
+        "isAutoRepeat": false,
+        "isComposing": false,
+        "shift": false,
+        "control": false,
+        "alt": false,
+        "meta": false,
+        "location": 0,
+        "_modifiers": 0,
+        "modifiers": []
+      },
+      "input-event:rawKeyDown": {
+        "type": "rawKeyDown",
+        "key": "x",
+        "code": "KeyX",
+        "isAutoRepeat": false,
+        "isComposing": false,
+        "shift": false,
+        "control": false,
+        "alt": false,
+        "meta": false,
+        "location": 0,
+        "_modifiers": 0,
+        "modifiers": []
+      },
+      "input-event:char": {
+        "type": "char",
+        "key": "x",
+        "code": "KeyX",
+        "isAutoRepeat": false,
+        "isComposing": false,
+        "shift": false,
+        "control": false,
+        "alt": false,
+        "meta": false,
+        "location": 0,
+        "_modifiers": 0,
+        "modifiers": []
+      },
+      "before-input-event:keyUp": {
+        "type": "keyUp",
+        "key": "x",
+        "code": "KeyX",
+        "isAutoRepeat": false,
+        "isComposing": false,
+        "shift": false,
+        "control": false,
+        "alt": false,
+        "meta": false,
+        "location": 0,
+        "_modifiers": 0,
+        "modifiers": []
+      },
+      "input-event:keyUp": {
+        "type": "keyUp",
+        "key": "x",
+        "code": "KeyX",
+        "isAutoRepeat": false,
+        "isComposing": false,
+        "shift": false,
+        "control": false,
+        "alt": false,
+        "meta": false,
+        "location": 0,
+        "_modifiers": 0,
+        "modifiers": []
+      },
+      "before-mouse-event:mouseMove": {
+        "type": "mouseMove",
+        "clickCount": 0,
+        "movementX": 0,
+        "movementY": 0,
+        "button": "none",
+        "globalX": 428.20001220703125,
+        "globalY": 365.07501220703125,
+        "x": 93.20000457763672,
+        "y": 61.07500076293945
+      }
+    }
+  },
+  "samples": {
+    "before-mouse-event:mouseMove": {
+      "type": "mouseMove",
+      "clickCount": 0,
+      "movementX": 0,
+      "movementY": 0,
+      "button": "left",
+      "globalX": 0,
+      "globalY": 0,
+      "x": 100,
+      "y": 300
+    },
+    "input-event:mouseMove": {
+      "type": "mouseMove",
+      "clickCount": 0,
+      "movementX": 0,
+      "movementY": 0,
+      "button": "left",
+      "globalX": 0,
+      "globalY": 0,
+      "x": 100,
+      "y": 300
+    },
+    "before-mouse-event:mouseEnter": {
+      "type": "mouseEnter",
+      "clickCount": 0,
+      "movementX": 0,
+      "movementY": 0,
+      "button": "left",
+      "globalX": 0,
+      "globalY": 0,
+      "x": 125.01250457763672,
+      "y": 91.07499694824219
+    },
+    "input-event:mouseEnter": {
+      "type": "mouseEnter",
+      "clickCount": 0,
+      "movementX": 0,
+      "movementY": 0,
+      "button": "left",
+      "globalX": 0,
+      "globalY": 0,
+      "x": 125.01250457763672,
+      "y": 91.07499694824219
+    },
+    "before-mouse-event:mouseLeave": {
+      "type": "mouseLeave",
+      "clickCount": 0,
+      "movementX": 0,
+      "movementY": 0,
+      "button": "left",
+      "globalX": 0,
+      "globalY": 0,
+      "x": 125.01250457763672,
+      "y": 91.07499694824219
+    },
+    "input-event:mouseLeave": {
+      "type": "mouseLeave",
+      "clickCount": 0,
+      "movementX": 0,
+      "movementY": 0,
+      "button": "left",
+      "globalX": 0,
+      "globalY": 0,
+      "x": 125.01250457763672,
+      "y": 91.07499694824219
+    },
+    "before-mouse-event:mouseDown": {
+      "type": "mouseDown",
+      "clickCount": 1,
+      "movementX": 0,
+      "movementY": 0,
+      "button": "left",
+      "globalX": 0,
+      "globalY": 0,
+      "x": 125.01250457763672,
+      "y": 91.07499694824219
+    },
+    "input-event:mouseDown": {
+      "type": "mouseDown",
+      "clickCount": 1,
+      "movementX": 0,
+      "movementY": 0,
+      "button": "left",
+      "globalX": 0,
+      "globalY": 0,
+      "x": 125.01250457763672,
+      "y": 91.07499694824219
+    },
+    "before-mouse-event:mouseUp": {
+      "type": "mouseUp",
+      "clickCount": 1,
+      "movementX": 0,
+      "movementY": 0,
+      "button": "left",
+      "globalX": 0,
+      "globalY": 0,
+      "x": 125.01250457763672,
+      "y": 91.07499694824219
+    },
+    "input-event:mouseUp": {
+      "type": "mouseUp",
+      "clickCount": 1,
+      "movementX": 0,
+      "movementY": 0,
+      "button": "left",
+      "globalX": 0,
+      "globalY": 0,
+      "x": 125.01250457763672,
+      "y": 91.07499694824219
+    },
+    "input-event:mouseWheel": {
+      "type": "mouseWheel",
+      "modifiers": [],
+      "_modifiers": 0
+    },
+    "input-event:gestureScrollBegin": {
+      "type": "gestureScrollBegin",
+      "modifiers": [],
+      "_modifiers": 0
+    },
+    "input-event:gestureScrollUpdate": {
+      "type": "gestureScrollUpdate",
+      "modifiers": [],
+      "_modifiers": 0
+    },
+    "input-event:gestureScrollEnd": {
+      "type": "gestureScrollEnd",
+      "modifiers": [],
+      "_modifiers": 0
+    },
+    "before-input-event:keyDown": {
+      "type": "keyDown",
+      "key": "a",
+      "code": "KeyA",
+      "isAutoRepeat": false,
+      "isComposing": false,
+      "shift": false,
+      "control": false,
+      "alt": false,
+      "meta": false,
+      "location": 0,
+      "_modifiers": 0,
+      "modifiers": []
+    },
+    "input-event:rawKeyDown": {
+      "type": "rawKeyDown",
+      "key": "a",
+      "code": "KeyA",
+      "isAutoRepeat": false,
+      "isComposing": false,
+      "shift": false,
+      "control": false,
+      "alt": false,
+      "meta": false,
+      "location": 0,
+      "_modifiers": 0,
+      "modifiers": []
+    },
+    "input-event:char": {
+      "type": "char",
+      "key": "a",
+      "code": "KeyA",
+      "isAutoRepeat": false,
+      "isComposing": false,
+      "shift": false,
+      "control": false,
+      "alt": false,
+      "meta": false,
+      "location": 0,
+      "_modifiers": 0,
+      "modifiers": []
+    },
+    "before-input-event:keyUp": {
+      "type": "keyUp",
+      "key": "a",
+      "code": "KeyA",
+      "isAutoRepeat": false,
+      "isComposing": false,
+      "shift": false,
+      "control": false,
+      "alt": false,
+      "meta": false,
+      "location": 0,
+      "_modifiers": 0,
+      "modifiers": []
+    },
+    "input-event:keyUp": {
+      "type": "keyUp",
+      "key": "a",
+      "code": "KeyA",
+      "isAutoRepeat": false,
+      "isComposing": false,
+      "shift": false,
+      "control": false,
+      "alt": false,
+      "meta": false,
+      "location": 0,
+      "_modifiers": 0,
+      "modifiers": []
+    }
+  },
+  "typedValueAfterSequence": "initialabc",
+  "scriptedSequenceTotals": {
+    "before-mouse-event": {
+      "mouseMove": 5,
+      "mouseEnter": 1,
+      "mouseLeave": 1,
+      "mouseDown": 1,
+      "mouseUp": 1
+    },
+    "input-event": {
+      "mouseMove": 5,
+      "mouseEnter": 1,
+      "mouseLeave": 1,
+      "mouseDown": 1,
+      "mouseUp": 1,
+      "mouseWheel": 4,
+      "gestureScrollBegin": 2,
+      "gestureScrollUpdate": 2,
+      "gestureScrollEnd": 2,
+      "rawKeyDown": 4,
+      "char": 3,
+      "keyUp": 4
+    },
+    "before-input-event": {
+      "keyDown": 4,
+      "keyUp": 4
+    }
+  },
+  "deniedPermissionsAndNavigations": [
+    {
+      "kind": "check",
+      "permission": "background-sync"
+    }
+  ]
+}

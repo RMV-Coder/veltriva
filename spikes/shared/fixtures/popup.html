@@ -1,0 +1,18 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>popup opener</title>
+<h1>Popup opener fixture</h1>
+<p><button id="open">Open popup (user gesture)</button> <a id="blank" href="/article?n=20&amp;title=Opened%20in%20new%20tab" target="_blank">target=_blank link</a></p>
+<script>
+  // ?onload=1 calls window.open while loading, with no user gesture.
+  window.__messages = [];
+  window.addEventListener('message', (event) => { window.__messages.push(event.data); });
+  window.openPopup = (features) => {
+    const child = window.open('/popup-child.html', 'child', features || 'width=480,height=600');
+    return child ? 'opened' : 'blocked-or-null';
+  };
+  document.getElementById('open').addEventListener('click', () => window.openPopup());
+  if (new URLSearchParams(location.search).get('onload') === '1') {
+    window.__onloadResult = window.openPopup();
+  }
+</script>

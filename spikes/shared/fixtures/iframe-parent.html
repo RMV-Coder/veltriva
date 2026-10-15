@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>iframe parent</title>
+<h1>Cross-site iframe fixture</h1>
+<p>Load this page from <code>http://a.test:PORT/</code>; the iframe comes from <code>b.test</code>, a different site.</p>
+<iframe id="child" width="600" height="300" title="cross-site child"></iframe>
+<script>
+  document.getElementById('child').src = 'http://b.test:' + location.port + '/iframe-child.html';
+</script>

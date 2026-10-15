@@ -1,0 +1,691 @@
+{
+  "generatedAt": "2026-10-15T23:16:06.825Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "docsNoSetSavePath": "electron.d.ts DownloadItem.setSavePath: 'If user doesn't set the save path via the API, Electron will use the original routine to determine the save path; this usually prompts a save dialog.' Not exercised.",
+  "results": [
+    {
+      "label": "link-loopback-sample",
+      "filename": "sample.txt",
+      "mime": "text/plain",
+      "totalBytes": 0,
+      "urlChain": [
+        "http://127.0.0.1:49670/download/sample.txt"
+      ],
+      "initiatorOrigin": "http://127.0.0.1:49670",
+      "finalState": "completed",
+      "bytesOnDisk": 24,
+      "streams": [
+        ":$DATA",
+        "Zone.Identifier"
+      ],
+      "zoneIdentifier": {
+        "ZoneId": "3",
+        "HostUrl": "about:internet"
+      }
+    },
+    {
+      "label": "link-loopback-fake-installer",
+      "filename": "fake-installer.exe",
+      "mime": "application/octet-stream",
+      "totalBytes": 0,
+      "urlChain": [
+        "http://127.0.0.1:49670/download/fake-installer.exe"
+      ],
+      "initiatorOrigin": "http://127.0.0.1:49670",
+      "finalState": "completed",
+      "bytesOnDisk": 35,
+      "streams": [
+        ":$DATA",
+        "Zone.Identifier"
+      ],
+      "zoneIdentifier": {
+        "ZoneId": "3",
+        "HostUrl": "about:internet"
+      }
+    },
+    {
+      "label": "link-a.test-sample",
+      "filename": "sample.txt",
+      "mime": "text/plain",
+      "totalBytes": 0,
+      "urlChain": [
+        "http://a.test:49670/download/sample.txt"
+      ],
+      "initiatorOrigin": "http://a.test:49670",
+      "finalState": "completed",
+      "bytesOnDisk": 24,
+      "streams": [
+        ":$DATA",
+        "Zone.Identifier"
+      ],
+      "zoneIdentifier": {
+        "ZoneId": "3",
+        "HostUrl": "about:internet"
+      }
+    },
+    {
+      "label": "link-a.test-fake-installer",
+      "filename": "fake-installer.exe",
+      "mime": "application/octet-stream",
+      "totalBytes": 0,
+      "urlChain": [
+        "http://a.test:49670/download/fake-installer.exe"
+      ],
+      "initiatorOrigin": "http://a.test:49670",
+      "finalState": "completed",
+      "bytesOnDisk": 35,
+      "streams": [
+        ":$DATA",
+        "Zone.Identifier"
+      ],
+      "zoneIdentifier": {
+        "ZoneId": "3",
+        "HostUrl": "about:internet"
+      }
+    },
+    {
+      "label": "link-public-name-sample",
+      "filename": "sample.txt",
+      "mime": "text/plain",
+      "totalBytes": 0,
+      "urlChain": [
+        "http://dl.example.com:49670/download/sample.txt"
+      ],
+      "initiatorOrigin": "http://dl.example.com:49670",
+      "finalState": "completed",
+      "bytesOnDisk": 24,
+      "streams": [
+        ":$DATA",
+        "Zone.Identifier"
+      ],
+      "zoneIdentifier": {
+        "ZoneId": "3",
+        "HostUrl": "about:internet"
+      }
+    },
+    {
+      "label": "link-public-name-fake-installer",
+      "filename": "fake-installer.exe",
+      "mime": "application/octet-stream",
+      "totalBytes": 0,
+      "urlChain": [
+        "http://dl.example.com:49670/download/fake-installer.exe"
+      ],
+      "initiatorOrigin": "http://dl.example.com:49670",
+      "finalState": "completed",
+      "bytesOnDisk": 35,
+      "streams": [
+        ":$DATA",
+        "Zone.Identifier"
+      ],
+      "zoneIdentifier": {
+        "ZoneId": "3",
+        "HostUrl": "about:internet"
+      }
+    },
+    {
+      "label": "webContents.downloadURL",
+      "filename": "sample.txt",
+      "mime": "text/plain",
+      "totalBytes": 0,
+      "urlChain": [
+        "http://a.test:49670/download/sample.txt"
+      ],
+      "initiatorOrigin": "http://dl.example.com:49670",
+      "finalState": "completed",
+      "bytesOnDisk": 24,
+      "streams": [
+        ":$DATA",
+        "Zone.Identifier"
+      ],
+      "zoneIdentifier": {
+        "ZoneId": "3",
+        "HostUrl": "about:internet"
+      }
+    },
+    {
+      "label": "session.downloadURL",
+      "filename": "sample.txt",
+      "mime": "text/plain",
+      "totalBytes": 0,
+      "urlChain": [
+        "http://a.test:49670/download/sample.txt"
+      ],
+      "initiatorOrigin": "",
+      "finalState": "completed",
+      "bytesOnDisk": 24,
+      "streams": [
+        ":$DATA",
+        "Zone.Identifier"
+      ],
+      "zoneIdentifier": {
+        "ZoneId": "3",
+        "HostUrl": "about:internet"
+      }
+    },
+    {
+      "label": "session.downloadURL-public-name",
+      "filename": "sample.txt",
+      "mime": "text/plain",
+      "totalBytes": 0,
+      "urlChain": [
+        "http://dl.example.com:49670/download/sample.txt"
+      ],
+      "initiatorOrigin": "",
+      "finalState": "completed",
+      "bytesOnDisk": 24,
+      "streams": [
+        ":$DATA",
+        "Zone.Identifier"
+      ],
+      "zoneIdentifier": {
+        "ZoneId": "3",
+        "HostUrl": "about:internet"
+      }
+    }
+  ],
+  "closeResults": [
+    {
+      "label": "close-link-originated",
+      "atClose": {
+        "state": "progressing",
+        "received": 1024,
+        "total": 10240
+      },
+      "stateSamples": [
+        "0s:progressing@1024",
+        "0.5s:progressing@3072",
+        "1s:progressing@4096",
+        "1.5s:progressing@5120",
+        "2s:progressing@6144",
+        "2.6s:progressing@7168",
+        "3.1s:progressing@8192",
+        "3.6s:progressing@9216"
+      ],
+      "finalState": "completed",
+      "secondsFromCloseToDone": 4.1,
+      "bytesOnDisk": 10240,
+      "server": {
+        "chunksSent": 10,
+        "completed": true,
+        "clientHungUp": false
+      }
+    },
+    {
+      "label": "close-downloadURL-originated",
+      "atClose": {
+        "state": "progressing",
+        "received": 1024,
+        "total": 10240
+      },
+      "stateSamples": [
+        "0s:progressing@1024",
+        "0.5s:progressing@2048",
+        "1s:progressing@3072",
+        "1.5s:progressing@5120",
+        "2.1s:progressing@6144",
+        "2.6s:progressing@7168",
+        "3.1s:progressing@8192",
+        "3.6s:progressing@9216"
+      ],
+      "finalState": "completed",
+      "secondsFromCloseToDone": 4.1,
+      "bytesOnDisk": 10240,
+      "server": {
+        "chunksSent": 10,
+        "completed": true,
+        "clientHungUp": false
+      }
+    },
+    {
+      "label": "renderer-crash-link-originated",
+      "atClose": {
+        "state": "progressing",
+        "received": 2048,
+        "total": 10240
+      },
+      "stateSamples": [
+        "0.3s:progressing@2048",
+        "0.8s:progressing@3072",
+        "1.3s:progressing@4096",
+        "1.8s:progressing@5120",
+        "2.3s:progressing@6144",
+        "2.8s:progressing@7168",
+        "3.3s:progressing@8192",
+        "3.8s:progressing@9216"
+      ],
+      "finalState": "completed",
+      "secondsFromCloseToDone": 4,
+      "bytesOnDisk": 10240,
+      "server": {
+        "chunksSent": 10,
+        "completed": true,
+        "clientHungUp": false
+      }
+    },
+    {
+      "label": "close-unrelated-tab-session-downloadURL",
+      "atClose": {
+        "state": "progressing",
+        "received": 1024,
+        "total": 10240
+      },
+      "stateSamples": [
+        "0s:progressing@1024",
+        "0.5s:progressing@3072",
+        "1s:progressing@3072",
+        "1.5s:progressing@4096",
+        "2.1s:progressing@5120",
+        "2.6s:progressing@6144",
+        "3.1s:progressing@7168",
+        "3.6s:progressing@8192"
+      ],
+      "finalState": "completed",
+      "secondsFromCloseToDone": 4,
+      "bytesOnDisk": 10240,
+      "server": {
+        "chunksSent": 10,
+        "completed": true,
+        "clientHungUp": false
+      }
+    }
+  ],
+  "rows": [
+    {
+      "name": "download link-loopback-sample",
+      "observed": {
+        "label": "link-loopback-sample",
+        "filename": "sample.txt",
+        "mime": "text/plain",
+        "totalBytes": 0,
+        "urlChain": [
+          "http://127.0.0.1:49670/download/sample.txt"
+        ],
+        "initiatorOrigin": "http://127.0.0.1:49670",
+        "finalState": "completed",
+        "bytesOnDisk": 24,
+        "streams": [
+          ":$DATA",
+          "Zone.Identifier"
+        ],
+        "zoneIdentifier": {
+          "ZoneId": "3",
+          "HostUrl": "about:internet"
+        }
+      },
+      "pass": null,
+      "note": "Zone.Identifier present"
+    },
+    {
+      "name": "download link-loopback-fake-installer",
+      "observed": {
+        "label": "link-loopback-fake-installer",
+        "filename": "fake-installer.exe",
+        "mime": "application/octet-stream",
+        "totalBytes": 0,
+        "urlChain": [
+          "http://127.0.0.1:49670/download/fake-installer.exe"
+        ],
+        "initiatorOrigin": "http://127.0.0.1:49670",
+        "finalState": "completed",
+        "bytesOnDisk": 35,
+        "streams": [
+          ":$DATA",
+          "Zone.Identifier"
+        ],
+        "zoneIdentifier": {
+          "ZoneId": "3",
+          "HostUrl": "about:internet"
+        }
+      },
+      "pass": null,
+      "note": "Zone.Identifier present"
+    },
+    {
+      "name": "download link-a.test-sample",
+      "observed": {
+        "label": "link-a.test-sample",
+        "filename": "sample.txt",
+        "mime": "text/plain",
+        "totalBytes": 0,
+        "urlChain": [
+          "http://a.test:49670/download/sample.txt"
+        ],
+        "initiatorOrigin": "http://a.test:49670",
+        "finalState": "completed",
+        "bytesOnDisk": 24,
+        "streams": [
+          ":$DATA",
+          "Zone.Identifier"
+        ],
+        "zoneIdentifier": {
+          "ZoneId": "3",
+          "HostUrl": "about:internet"
+        }
+      },
+      "pass": null,
+      "note": "Zone.Identifier present"
+    },
+    {
+      "name": "download link-a.test-fake-installer",
+      "observed": {
+        "label": "link-a.test-fake-installer",
+        "filename": "fake-installer.exe",
+        "mime": "application/octet-stream",
+        "totalBytes": 0,
+        "urlChain": [
+          "http://a.test:49670/download/fake-installer.exe"
+        ],
+        "initiatorOrigin": "http://a.test:49670",
+        "finalState": "completed",
+        "bytesOnDisk": 35,
+        "streams": [
+          ":$DATA",
+          "Zone.Identifier"
+        ],
+        "zoneIdentifier": {
+          "ZoneId": "3",
+          "HostUrl": "about:internet"
+        }
+      },
+      "pass": null,
+      "note": "Zone.Identifier present"
+    },
+    {
+      "name": "download link-public-name-sample",
+      "observed": {
+        "label": "link-public-name-sample",
+        "filename": "sample.txt",
+        "mime": "text/plain",
+        "totalBytes": 0,
+        "urlChain": [
+          "http://dl.example.com:49670/download/sample.txt"
+        ],
+        "initiatorOrigin": "http://dl.example.com:49670",
+        "finalState": "completed",
+        "bytesOnDisk": 24,
+        "streams": [
+          ":$DATA",
+          "Zone.Identifier"
+        ],
+        "zoneIdentifier": {
+          "ZoneId": "3",
+          "HostUrl": "about:internet"
+        }
+      },
+      "pass": null,
+      "note": "Zone.Identifier present"
+    },
+    {
+      "name": "download link-public-name-fake-installer",
+      "observed": {
+        "label": "link-public-name-fake-installer",
+        "filename": "fake-installer.exe",
+        "mime": "application/octet-stream",
+        "totalBytes": 0,
+        "urlChain": [
+          "http://dl.example.com:49670/download/fake-installer.exe"
+        ],
+        "initiatorOrigin": "http://dl.example.com:49670",
+        "finalState": "completed",
+        "bytesOnDisk": 35,
+        "streams": [
+          ":$DATA",
+          "Zone.Identifier"
+        ],
+        "zoneIdentifier": {
+          "ZoneId": "3",
+          "HostUrl": "about:internet"
+        }
+      },
+      "pass": null,
+      "note": "Zone.Identifier present"
+    },
+    {
+      "name": "download webContents.downloadURL",
+      "observed": {
+        "label": "webContents.downloadURL",
+        "filename": "sample.txt",
+        "mime": "text/plain",
+        "totalBytes": 0,
+        "urlChain": [
+          "http://a.test:49670/download/sample.txt"
+        ],
+        "initiatorOrigin": "http://dl.example.com:49670",
+        "finalState": "completed",
+        "bytesOnDisk": 24,
+        "streams": [
+          ":$DATA",
+          "Zone.Identifier"
+        ],
+        "zoneIdentifier": {
+          "ZoneId": "3",
+          "HostUrl": "about:internet"
+        }
+      },
+      "pass": null,
+      "note": "Zone.Identifier present"
+    },
+    {
+      "name": "download session.downloadURL",
+      "observed": {
+        "label": "session.downloadURL",
+        "filename": "sample.txt",
+        "mime": "text/plain",
+        "totalBytes": 0,
+        "urlChain": [
+          "http://a.test:49670/download/sample.txt"
+        ],
+        "initiatorOrigin": "",
+        "finalState": "completed",
+        "bytesOnDisk": 24,
+        "streams": [
+          ":$DATA",
+          "Zone.Identifier"
+        ],
+        "zoneIdentifier": {
+          "ZoneId": "3",
+          "HostUrl": "about:internet"
+        }
+      },
+      "pass": null,
+      "note": "Zone.Identifier present"
+    },
+    {
+      "name": "download session.downloadURL-public-name",
+      "observed": {
+        "label": "session.downloadURL-public-name",
+        "filename": "sample.txt",
+        "mime": "text/plain",
+        "totalBytes": 0,
+        "urlChain": [
+          "http://dl.example.com:49670/download/sample.txt"
+        ],
+        "initiatorOrigin": "",
+        "finalState": "completed",
+        "bytesOnDisk": 24,
+        "streams": [
+          ":$DATA",
+          "Zone.Identifier"
+        ],
+        "zoneIdentifier": {
+          "ZoneId": "3",
+          "HostUrl": "about:internet"
+        }
+      },
+      "pass": null,
+      "note": "Zone.Identifier present"
+    },
+    {
+      "name": "will-download delivered a webContents argument",
+      "observed": [
+        {
+          "prefix": "link-loopback-sample",
+          "hasWebContentsArg": true
+        },
+        {
+          "prefix": "link-loopback-fake-installer",
+          "hasWebContentsArg": true
+        },
+        {
+          "prefix": "link-a.test-sample",
+          "hasWebContentsArg": true
+        },
+        {
+          "prefix": "link-a.test-fake-installer",
+          "hasWebContentsArg": true
+        },
+        {
+          "prefix": "link-public-name-sample",
+          "hasWebContentsArg": true
+        },
+        {
+          "prefix": "link-public-name-fake-installer",
+          "hasWebContentsArg": true
+        },
+        {
+          "prefix": "webContents.downloadURL",
+          "hasWebContentsArg": true
+        },
+        {
+          "prefix": "session.downloadURL",
+          "hasWebContentsArg": false
+        },
+        {
+          "prefix": "session.downloadURL-public-name",
+          "hasWebContentsArg": false
+        }
+      ],
+      "pass": null
+    },
+    {
+      "name": "close tab mid-download: close-link-originated",
+      "observed": {
+        "label": "close-link-originated",
+        "atClose": {
+          "state": "progressing",
+          "received": 1024,
+          "total": 10240
+        },
+        "stateSamples": [
+          "0s:progressing@1024",
+          "0.5s:progressing@3072",
+          "1s:progressing@4096",
+          "1.5s:progressing@5120",
+          "2s:progressing@6144",
+          "2.6s:progressing@7168",
+          "3.1s:progressing@8192",
+          "3.6s:progressing@9216"
+        ],
+        "finalState": "completed",
+        "secondsFromCloseToDone": 4.1,
+        "bytesOnDisk": 10240,
+        "server": {
+          "chunksSent": 10,
+          "completed": true,
+          "clientHungUp": false
+        }
+      },
+      "pass": null,
+      "note": "download SURVIVED the tab close"
+    },
+    {
+      "name": "close tab mid-download: close-downloadURL-originated",
+      "observed": {
+        "label": "close-downloadURL-originated",
+        "atClose": {
+          "state": "progressing",
+          "received": 1024,
+          "total": 10240
+        },
+        "stateSamples": [
+          "0s:progressing@1024",
+          "0.5s:progressing@2048",
+          "1s:progressing@3072",
+          "1.5s:progressing@5120",
+          "2.1s:progressing@6144",
+          "2.6s:progressing@7168",
+          "3.1s:progressing@8192",
+          "3.6s:progressing@9216"
+        ],
+        "finalState": "completed",
+        "secondsFromCloseToDone": 4.1,
+        "bytesOnDisk": 10240,
+        "server": {
+          "chunksSent": 10,
+          "completed": true,
+          "clientHungUp": false
+        }
+      },
+      "pass": null,
+      "note": "download SURVIVED the tab close"
+    },
+    {
+      "name": "close tab mid-download: renderer-crash-link-originated",
+      "observed": {
+        "label": "renderer-crash-link-originated",
+        "atClose": {
+          "state": "progressing",
+          "received": 2048,
+          "total": 10240
+        },
+        "stateSamples": [
+          "0.3s:progressing@2048",
+          "0.8s:progressing@3072",
+          "1.3s:progressing@4096",
+          "1.8s:progressing@5120",
+          "2.3s:progressing@6144",
+          "2.8s:progressing@7168",
+          "3.3s:progressing@8192",
+          "3.8s:progressing@9216"
+        ],
+        "finalState": "completed",
+        "secondsFromCloseToDone": 4,
+        "bytesOnDisk": 10240,
+        "server": {
+          "chunksSent": 10,
+          "completed": true,
+          "clientHungUp": false
+        }
+      },
+      "pass": null,
+      "note": "download SURVIVED the tab close"
+    },
+    {
+      "name": "close tab mid-download: close-unrelated-tab-session-downloadURL",
+      "observed": {
+        "label": "close-unrelated-tab-session-downloadURL",
+        "atClose": {
+          "state": "progressing",
+          "received": 1024,
+          "total": 10240
+        },
+        "stateSamples": [
+          "0s:progressing@1024",
+          "0.5s:progressing@3072",
+          "1s:progressing@3072",
+          "1.5s:progressing@4096",
+          "2.1s:progressing@5120",
+          "2.6s:progressing@6144",
+          "3.1s:progressing@7168",
+          "3.6s:progressing@8192"
+        ],
+        "finalState": "completed",
+        "secondsFromCloseToDone": 4,
+        "bytesOnDisk": 10240,
+        "server": {
+          "chunksSent": 10,
+          "completed": true,
+          "clientHungUp": false
+        }
+      },
+      "pass": null,
+      "note": "download SURVIVED the tab close"
+    }
+  ]
+}

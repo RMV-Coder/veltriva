@@ -1,0 +1,302 @@
+{
+  "generatedAt": "2026-10-15T22:49:01.586Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "mode": "fr-blocked",
+  "visibilityState": "visible",
+  "spellBefore": {
+    "enabledDefault": true,
+    "enabledTab": true,
+    "languagesDefaultSession": [
+      "en-US"
+    ],
+    "languagesTabSession": [
+      "en-US"
+    ],
+    "availableLanguages": 57,
+    "appLocale": "en-US"
+  },
+  "languageSwitch": {
+    "languages": [
+      "fr",
+      "de"
+    ],
+    "dictRequestsTriggered": 0
+  },
+  "spellAfter": {
+    "languagesTabSession": [
+      "fr",
+      "de"
+    ],
+    "userDataEntries": [
+      "blob_storage",
+      "Cache",
+      "Code Cache",
+      "DawnGraphiteCache",
+      "DawnWebGPUCache",
+      "declarative_performance_observer.db",
+      "declarative_performance_observer.db-journal",
+      "Dictionaries",
+      "GPUCache",
+      "GPUPersistentCache",
+      "GrShaderCache",
+      "Local State",
+      "Local Storage",
+      "Network",
+      "Preferences",
+      "ShaderCache",
+      "Shared Dictionary"
+    ],
+    "dictionaryFiles": []
+  },
+  "summaries": {
+    "defaultSession": {
+      "file": "netlog-fr-blocked-default-session.json",
+      "eventCount": 271,
+      "localHosts": [
+        "127.0.0.1"
+      ],
+      "externalHosts": [
+        {
+          "host": "redirector.gvt1.com",
+          "count": 12,
+          "events": [
+            "CORS_REQUEST",
+            "HTTP_STREAM_JOB_CONTROLLER",
+            "QUIC_SESSION_POOL_JOB",
+            "REQUEST_ALIVE",
+            "TRANSPORT_SECURITY_STATE_SHOULD_UPGRADE_TO_SSL",
+            "URL_REQUEST_START_JOB"
+          ],
+          "sampleUrl": "https://redirector.gvt1.com/edgedl/chrome/dict/fr-fr-3-0.bdic"
+        },
+        {
+          "host": "2001:4860:4860::8888",
+          "count": 4,
+          "events": [
+            "SOCKET_CONNECT",
+            "UDP_CONNECT"
+          ],
+          "sampleUrl": null
+        },
+        {
+          "host": "~notfound",
+          "count": 3,
+          "events": [
+            "HOST_RESOLVER_MANAGER_REQUEST"
+          ],
+          "sampleUrl": null
+        }
+      ]
+    },
+    "tabSession": {
+      "file": "netlog-fr-blocked-tab-session.json",
+      "eventCount": 270,
+      "localHosts": [
+        "127.0.0.1"
+      ],
+      "externalHosts": [
+        {
+          "host": "redirector.gvt1.com",
+          "count": 12,
+          "events": [
+            "CORS_REQUEST",
+            "HTTP_STREAM_JOB_CONTROLLER",
+            "QUIC_SESSION_POOL_JOB",
+            "REQUEST_ALIVE",
+            "TRANSPORT_SECURITY_STATE_SHOULD_UPGRADE_TO_SSL",
+            "URL_REQUEST_START_JOB"
+          ],
+          "sampleUrl": "https://redirector.gvt1.com/edgedl/chrome/dict/fr-fr-3-0.bdic"
+        },
+        {
+          "host": "2001:4860:4860::8888",
+          "count": 4,
+          "events": [
+            "SOCKET_CONNECT",
+            "UDP_CONNECT"
+          ],
+          "sampleUrl": null
+        },
+        {
+          "host": "~notfound",
+          "count": 3,
+          "events": [
+            "HOST_RESOLVER_MANAGER_REQUEST"
+          ],
+          "sampleUrl": null
+        }
+      ]
+    }
+  },
+  "dictRequests": [],
+  "rows": [
+    {
+      "name": "typed text reached the textarea",
+      "observed": "teh recieve misspeled wrod ",
+      "pass": true
+    },
+    {
+      "name": "context-menu on first word (spellcheck verdict)",
+      "observed": {
+        "misspelledWord": "teh",
+        "suggestions": [
+          "the",
+          "ten",
+          "tea",
+          "tee"
+        ]
+      },
+      "pass": null,
+      "note": "null = event never fired for the synthetic right-click"
+    },
+    {
+      "name": "after switching spellcheck languages to fr + de",
+      "observed": {
+        "languages": [
+          "fr",
+          "de"
+        ],
+        "dictRequestsTriggered": 0
+      },
+      "pass": null
+    },
+    {
+      "name": "spellcheck state before / after",
+      "observed": {
+        "before": {
+          "enabledDefault": true,
+          "enabledTab": true,
+          "languagesDefaultSession": [
+            "en-US"
+          ],
+          "languagesTabSession": [
+            "en-US"
+          ],
+          "availableLanguages": 57,
+          "appLocale": "en-US"
+        },
+        "after": {
+          "languagesTabSession": [
+            "fr",
+            "de"
+          ],
+          "userDataEntries": [
+            "blob_storage",
+            "Cache",
+            "Code Cache",
+            "DawnGraphiteCache",
+            "DawnWebGPUCache",
+            "declarative_performance_observer.db",
+            "declarative_performance_observer.db-journal",
+            "Dictionaries",
+            "GPUCache",
+            "GPUPersistentCache",
+            "GrShaderCache",
+            "Local State",
+            "Local Storage",
+            "Network",
+            "Preferences",
+            "ShaderCache",
+            "Shared Dictionary"
+          ],
+          "dictionaryFiles": []
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "dictionary requests that reached the local fixture server",
+      "observed": [],
+      "pass": null
+    },
+    {
+      "name": "netlog defaultSession: non-local hosts",
+      "observed": {
+        "events": 271,
+        "localHosts": [
+          "127.0.0.1"
+        ],
+        "external": [
+          {
+            "host": "redirector.gvt1.com",
+            "count": 12,
+            "events": [
+              "CORS_REQUEST",
+              "HTTP_STREAM_JOB_CONTROLLER",
+              "QUIC_SESSION_POOL_JOB",
+              "REQUEST_ALIVE",
+              "TRANSPORT_SECURITY_STATE_SHOULD_UPGRADE_TO_SSL",
+              "URL_REQUEST_START_JOB"
+            ],
+            "sampleUrl": "https://redirector.gvt1.com/edgedl/chrome/dict/fr-fr-3-0.bdic"
+          },
+          {
+            "host": "2001:4860:4860::8888",
+            "count": 4,
+            "events": [
+              "SOCKET_CONNECT",
+              "UDP_CONNECT"
+            ],
+            "sampleUrl": null
+          },
+          {
+            "host": "~notfound",
+            "count": 3,
+            "events": [
+              "HOST_RESOLVER_MANAGER_REQUEST"
+            ],
+            "sampleUrl": null
+          }
+        ]
+      },
+      "pass": null
+    },
+    {
+      "name": "netlog tabSession: non-local hosts",
+      "observed": {
+        "events": 270,
+        "localHosts": [
+          "127.0.0.1"
+        ],
+        "external": [
+          {
+            "host": "redirector.gvt1.com",
+            "count": 12,
+            "events": [
+              "CORS_REQUEST",
+              "HTTP_STREAM_JOB_CONTROLLER",
+              "QUIC_SESSION_POOL_JOB",
+              "REQUEST_ALIVE",
+              "TRANSPORT_SECURITY_STATE_SHOULD_UPGRADE_TO_SSL",
+              "URL_REQUEST_START_JOB"
+            ],
+            "sampleUrl": "https://redirector.gvt1.com/edgedl/chrome/dict/fr-fr-3-0.bdic"
+          },
+          {
+            "host": "2001:4860:4860::8888",
+            "count": 4,
+            "events": [
+              "SOCKET_CONNECT",
+              "UDP_CONNECT"
+            ],
+            "sampleUrl": null
+          },
+          {
+            "host": "~notfound",
+            "count": 3,
+            "events": [
+              "HOST_RESOLVER_MANAGER_REQUEST"
+            ],
+            "sampleUrl": null
+          }
+        ]
+      },
+      "pass": null
+    }
+  ]
+}

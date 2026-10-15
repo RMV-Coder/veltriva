@@ -1,0 +1,43 @@
+{
+  "generatedAt": "2026-10-15T22:31:52.282Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "rows": [
+    {
+      "name": "fixture loads through *.test host mapping",
+      "observed": "timers",
+      "pass": true
+    },
+    {
+      "name": "cross-site iframe runs in its own renderer process",
+      "observed": {
+        "frames": [
+          {
+            "url": "http://a.test:53981/iframe-parent.html",
+            "processId": 4
+          },
+          {
+            "url": "http://b.test:53981/iframe-child.html",
+            "processId": 5
+          }
+        ],
+        "distinctProcesses": 2
+      },
+      "pass": true
+    },
+    {
+      "name": "better-sqlite3 loads in Electron main with FTS5",
+      "observed": {
+        "sqlite": "3.53.4",
+        "hit": {
+          "x": "veltriva spike"
+        }
+      },
+      "pass": true
+    }
+  ]
+}

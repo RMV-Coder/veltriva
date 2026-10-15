@@ -1,0 +1,781 @@
+{
+  "generatedAt": "2026-10-15T23:05:29.031Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "args": [
+    "--only=q4b"
+  ],
+  "displayScaleFactor": 1.25,
+  "results": {
+    "window": {
+      "alwaysOnTop": true,
+      "size": [
+        800,
+        600
+      ]
+    },
+    "q4b": {
+      "windowMs": 1500,
+      "trials": [
+        {
+          "trigger": "control",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 0,
+          "visibilityState": "visible",
+          "freshAtMs": 1029,
+          "sideEffects": {
+            "didNavigateInPageEvents": 0,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "control",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 0,
+          "visibilityState": "visible",
+          "freshAtMs": 1026,
+          "sideEffects": {
+            "didNavigateInPageEvents": 0,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "removeChildView",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 3,
+          "visibilityState": "hidden",
+          "freshAtMs": 1040,
+          "sideEffects": {
+            "didNavigateInPageEvents": 0,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "removeChildView",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 4,
+          "visibilityState": "hidden",
+          "freshAtMs": 1039,
+          "sideEffects": {
+            "didNavigateInPageEvents": 0,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "removeChildView",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 4,
+          "visibilityState": "hidden",
+          "freshAtMs": 1044,
+          "sideEffects": {
+            "didNavigateInPageEvents": 0,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "removeChildView",
+          "kind": "scroll",
+          "editedWhileDetached": false,
+          "applyTookMs": 3,
+          "visibilityState": "hidden",
+          "freshAtMs": 1043,
+          "sideEffects": {
+            "didNavigateInPageEvents": 0,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "removeChildView",
+          "kind": "scroll",
+          "editedWhileDetached": false,
+          "applyTookMs": 3,
+          "visibilityState": "hidden",
+          "freshAtMs": 1027,
+          "sideEffects": {
+            "didNavigateInPageEvents": 0,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "removeChildView",
+          "kind": "scroll",
+          "editedWhileDetached": false,
+          "applyTookMs": 3,
+          "visibilityState": "hidden",
+          "freshAtMs": 1041,
+          "sideEffects": {
+            "didNavigateInPageEvents": 0,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "setVisible",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 3,
+          "visibilityState": "hidden",
+          "freshAtMs": 1042,
+          "sideEffects": {
+            "didNavigateInPageEvents": 0,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "setVisible",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 3,
+          "visibilityState": "hidden",
+          "freshAtMs": 1028,
+          "sideEffects": {
+            "didNavigateInPageEvents": 0,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "blur",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 1,
+          "visibilityState": "visible",
+          "freshAtMs": 1016,
+          "sideEffects": {
+            "didNavigateInPageEvents": 0,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "blur",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 2,
+          "visibilityState": "visible",
+          "freshAtMs": 1026,
+          "sideEffects": {
+            "didNavigateInPageEvents": 0,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceState",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 2,
+          "visibilityState": "visible",
+          "freshAtMs": 5,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceState",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 2,
+          "visibilityState": "visible",
+          "freshAtMs": 5,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceState",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 2,
+          "visibilityState": "visible",
+          "freshAtMs": 6,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceState",
+          "kind": "scroll",
+          "editedWhileDetached": false,
+          "applyTookMs": 3,
+          "visibilityState": "visible",
+          "freshAtMs": 6,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceState",
+          "kind": "scroll",
+          "editedWhileDetached": false,
+          "applyTookMs": 2,
+          "visibilityState": "visible",
+          "freshAtMs": 4,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceState",
+          "kind": "scroll",
+          "editedWhileDetached": false,
+          "applyTookMs": 2,
+          "visibilityState": "visible",
+          "freshAtMs": 5,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceStateIsolated",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 4,
+          "visibilityState": "visible",
+          "freshAtMs": 8,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceStateIsolated",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 4,
+          "visibilityState": "visible",
+          "freshAtMs": 7,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceStateIsolated",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "applyTookMs": 5,
+          "visibilityState": "visible",
+          "freshAtMs": 11,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceStateIsolated",
+          "kind": "scroll",
+          "editedWhileDetached": false,
+          "applyTookMs": 4,
+          "visibilityState": "visible",
+          "freshAtMs": 7,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceStateIsolated",
+          "kind": "scroll",
+          "editedWhileDetached": false,
+          "applyTookMs": 4,
+          "visibilityState": "visible",
+          "freshAtMs": 7,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceStateIsolated",
+          "kind": "scroll",
+          "editedWhileDetached": false,
+          "applyTookMs": 3,
+          "visibilityState": "visible",
+          "freshAtMs": 6,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceStateIsolated",
+          "kind": "form",
+          "editedWhileDetached": true,
+          "applyTookMs": 3,
+          "visibilityState": "hidden",
+          "freshAtMs": 4,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceStateIsolated",
+          "kind": "form",
+          "editedWhileDetached": true,
+          "applyTookMs": 5,
+          "visibilityState": "hidden",
+          "freshAtMs": 7,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceStateIsolated",
+          "kind": "form",
+          "editedWhileDetached": true,
+          "applyTookMs": 5,
+          "visibilityState": "hidden",
+          "freshAtMs": 6,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceStateIsolated",
+          "kind": "scroll",
+          "editedWhileDetached": true,
+          "applyTookMs": 4,
+          "visibilityState": "hidden",
+          "freshAtMs": 5,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceStateIsolated",
+          "kind": "scroll",
+          "editedWhileDetached": true,
+          "applyTookMs": 5,
+          "visibilityState": "hidden",
+          "freshAtMs": 8,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "replaceStateIsolated",
+          "kind": "scroll",
+          "editedWhileDetached": true,
+          "applyTookMs": 6,
+          "visibilityState": "hidden",
+          "freshAtMs": 8,
+          "sideEffects": {
+            "didNavigateInPageEvents": 1,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "control",
+          "kind": "form",
+          "editedWhileDetached": true,
+          "applyTookMs": 0,
+          "visibilityState": "hidden",
+          "freshAtMs": null,
+          "sideEffects": {
+            "didNavigateInPageEvents": 0,
+            "historyUnchanged": true
+          }
+        },
+        {
+          "trigger": "navigateAway",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "reads": {
+            "didStartNavigation": {
+              "ms": 5,
+              "fresh": false
+            },
+            "didNavigate": {
+              "ms": 25,
+              "fresh": true
+            },
+            "afterLoadResolved": {
+              "ms": 27,
+              "fresh": true
+            }
+          },
+          "flushedAtNavigationCommit": true
+        },
+        {
+          "trigger": "navigateAway",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "reads": {
+            "didStartNavigation": {
+              "ms": 7,
+              "fresh": false
+            },
+            "didNavigate": {
+              "ms": 35,
+              "fresh": true
+            },
+            "afterLoadResolved": {
+              "ms": 38,
+              "fresh": true
+            }
+          },
+          "flushedAtNavigationCommit": true
+        },
+        {
+          "trigger": "navigateAway",
+          "kind": "form",
+          "editedWhileDetached": false,
+          "reads": {
+            "didStartNavigation": {
+              "ms": 8,
+              "fresh": false
+            },
+            "didNavigate": {
+              "ms": 27,
+              "fresh": true
+            },
+            "afterLoadResolved": {
+              "ms": 36,
+              "fresh": true
+            }
+          },
+          "flushedAtNavigationCommit": true
+        },
+        {
+          "trigger": "navigateAway",
+          "kind": "scroll",
+          "editedWhileDetached": false,
+          "reads": {
+            "didStartNavigation": {
+              "ms": 8,
+              "fresh": false
+            },
+            "didNavigate": {
+              "ms": 32,
+              "fresh": true
+            },
+            "afterLoadResolved": {
+              "ms": 35,
+              "fresh": true
+            }
+          },
+          "flushedAtNavigationCommit": true
+        },
+        {
+          "trigger": "navigateAway",
+          "kind": "scroll",
+          "editedWhileDetached": false,
+          "reads": {
+            "didStartNavigation": {
+              "ms": 6,
+              "fresh": false
+            },
+            "didNavigate": {
+              "ms": 32,
+              "fresh": true
+            },
+            "afterLoadResolved": {
+              "ms": 35,
+              "fresh": true
+            }
+          },
+          "flushedAtNavigationCommit": true
+        },
+        {
+          "trigger": "navigateAway",
+          "kind": "scroll",
+          "editedWhileDetached": false,
+          "reads": {
+            "didStartNavigation": {
+              "ms": 6,
+              "fresh": false
+            },
+            "didNavigate": {
+              "ms": 28,
+              "fresh": true
+            },
+            "afterLoadResolved": {
+              "ms": 35,
+              "fresh": true
+            }
+          },
+          "flushedAtNavigationCommit": true
+        }
+      ],
+      "elapsedMs": 90638
+    },
+    "guard": {
+      "blockedRequests": [],
+      "permissionRequests": []
+    }
+  },
+  "rows": [
+    {
+      "name": "Q4b control (form edit)",
+      "observed": {
+        "ms_until_fresh_within_1500": [
+          1029,
+          1026
+        ],
+        "visibility": [
+          "visible"
+        ],
+        "sideEffects": [
+          "{\"didNavigateInPageEvents\":0,\"historyUnchanged\":true}"
+        ]
+      },
+      "pass": null,
+      "note": "no trigger (natural latency)"
+    },
+    {
+      "name": "Q4b removeChildView (form edit)",
+      "observed": {
+        "ms_until_fresh_within_1500": [
+          1040,
+          1039,
+          1044
+        ],
+        "visibility": [
+          "hidden"
+        ],
+        "sideEffects": [
+          "{\"didNavigateInPageEvents\":0,\"historyUnchanged\":true}"
+        ]
+      },
+      "pass": null,
+      "note": "win.contentView.removeChildView(view)"
+    },
+    {
+      "name": "Q4b removeChildView (scroll edit)",
+      "observed": {
+        "ms_until_fresh_within_1500": [
+          1043,
+          1027,
+          1041
+        ],
+        "visibility": [
+          "hidden"
+        ],
+        "sideEffects": [
+          "{\"didNavigateInPageEvents\":0,\"historyUnchanged\":true}"
+        ]
+      },
+      "pass": null,
+      "note": "win.contentView.removeChildView(view)"
+    },
+    {
+      "name": "Q4b setVisible (form edit)",
+      "observed": {
+        "ms_until_fresh_within_1500": [
+          1042,
+          1028
+        ],
+        "visibility": [
+          "hidden"
+        ],
+        "sideEffects": [
+          "{\"didNavigateInPageEvents\":0,\"historyUnchanged\":true}"
+        ]
+      },
+      "pass": null,
+      "note": "view.setVisible(false)"
+    },
+    {
+      "name": "Q4b blur (form edit)",
+      "observed": {
+        "ms_until_fresh_within_1500": [
+          1016,
+          1026
+        ],
+        "visibility": [
+          "visible"
+        ],
+        "sideEffects": [
+          "{\"didNavigateInPageEvents\":0,\"historyUnchanged\":true}"
+        ]
+      },
+      "pass": null,
+      "note": "document.activeElement.blur() after focusing #text"
+    },
+    {
+      "name": "Q4b replaceState (form edit)",
+      "observed": {
+        "ms_until_fresh_within_1500": [
+          5,
+          5,
+          6
+        ],
+        "visibility": [
+          "visible"
+        ],
+        "sideEffects": [
+          "{\"didNavigateInPageEvents\":1,\"historyUnchanged\":true}"
+        ]
+      },
+      "pass": null,
+      "note": "history.replaceState(history.state, \"\") in the page (main world)"
+    },
+    {
+      "name": "Q4b replaceState (scroll edit)",
+      "observed": {
+        "ms_until_fresh_within_1500": [
+          6,
+          4,
+          5
+        ],
+        "visibility": [
+          "visible"
+        ],
+        "sideEffects": [
+          "{\"didNavigateInPageEvents\":1,\"historyUnchanged\":true}"
+        ]
+      },
+      "pass": null,
+      "note": "history.replaceState(history.state, \"\") in the page (main world)"
+    },
+    {
+      "name": "Q4b replaceStateIsolated (form edit)",
+      "observed": {
+        "ms_until_fresh_within_1500": [
+          8,
+          7,
+          11
+        ],
+        "visibility": [
+          "visible"
+        ],
+        "sideEffects": [
+          "{\"didNavigateInPageEvents\":1,\"historyUnchanged\":true}"
+        ]
+      },
+      "pass": null,
+      "note": "history.replaceState(history.state, \"\") from an isolated world"
+    },
+    {
+      "name": "Q4b replaceStateIsolated (scroll edit)",
+      "observed": {
+        "ms_until_fresh_within_1500": [
+          7,
+          7,
+          6
+        ],
+        "visibility": [
+          "visible"
+        ],
+        "sideEffects": [
+          "{\"didNavigateInPageEvents\":1,\"historyUnchanged\":true}"
+        ]
+      },
+      "pass": null,
+      "note": "history.replaceState(history.state, \"\") from an isolated world"
+    },
+    {
+      "name": "Q4b replaceStateIsolated (form edit, view DETACHED/hidden while edited)",
+      "observed": {
+        "ms_until_fresh_within_1500": [
+          4,
+          7,
+          6
+        ],
+        "visibility": [
+          "hidden"
+        ],
+        "sideEffects": [
+          "{\"didNavigateInPageEvents\":1,\"historyUnchanged\":true}"
+        ]
+      },
+      "pass": null,
+      "note": "history.replaceState(history.state, \"\") from an isolated world"
+    },
+    {
+      "name": "Q4b replaceStateIsolated (scroll edit, view DETACHED/hidden while edited)",
+      "observed": {
+        "ms_until_fresh_within_1500": [
+          5,
+          8,
+          8
+        ],
+        "visibility": [
+          "hidden"
+        ],
+        "sideEffects": [
+          "{\"didNavigateInPageEvents\":1,\"historyUnchanged\":true}"
+        ]
+      },
+      "pass": null,
+      "note": "history.replaceState(history.state, \"\") from an isolated world"
+    },
+    {
+      "name": "Q4b control (form edit, view DETACHED/hidden while edited)",
+      "observed": {
+        "ms_until_fresh_within_1500": [
+          null
+        ],
+        "visibility": [
+          "hidden"
+        ],
+        "sideEffects": [
+          "{\"didNavigateInPageEvents\":0,\"historyUnchanged\":true}"
+        ]
+      },
+      "pass": null,
+      "note": "no trigger (natural latency)"
+    },
+    {
+      "name": "Q4b navigateAway (form edit)",
+      "observed": {
+        "fresh_at_did_start_navigation": [
+          false,
+          false,
+          false
+        ],
+        "fresh_at_did_navigate": [
+          true,
+          true,
+          true
+        ],
+        "fresh_after_loadURL_resolved": [
+          true,
+          true,
+          true
+        ]
+      },
+      "pass": null,
+      "note": "loadURL to another page; reads entry 0 (the edited page)"
+    },
+    {
+      "name": "Q4b navigateAway (scroll edit)",
+      "observed": {
+        "fresh_at_did_start_navigation": [
+          false,
+          false,
+          false
+        ],
+        "fresh_at_did_navigate": [
+          true,
+          true,
+          true
+        ],
+        "fresh_after_loadURL_resolved": [
+          true,
+          true,
+          true
+        ]
+      },
+      "pass": null,
+      "note": "loadURL to another page; reads entry 0 (the edited page)"
+    }
+  ]
+}

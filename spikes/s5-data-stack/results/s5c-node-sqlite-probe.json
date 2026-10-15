@@ -1,0 +1,285 @@
+{
+  "generatedAt": "2026-10-15T22:54:41.278Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "rows": [
+    {
+      "name": "require('node:sqlite') in Electron main without flags",
+      "observed": {
+        "ok": true,
+        "error": null,
+        "exports": [
+          "DatabaseSync",
+          "StatementSync",
+          "Session",
+          "constants",
+          "backup"
+        ],
+        "electronNode": "24.21.0",
+        "bundledSqliteVersionString": "3.53.4",
+        "execArgv": []
+      },
+      "pass": true
+    },
+    {
+      "name": "FTS5 in node:sqlite (unicode61, prefix index, bm25, highlight, secure-delete option)",
+      "observed": {
+        "hit": true,
+        "rank": -0.000004011873030444884,
+        "highlight": "\u0001PostgreSQL\u0002 \u0001index\u0002 performance",
+        "secureDeleteConfigAccepted": true
+      },
+      "pass": true
+    },
+    {
+      "name": "math functions exp/pow/ln/log2 in node:sqlite",
+      "observed": {
+        "e": 2.718281828459045,
+        "p": 8,
+        "l": 0.6931471805599453,
+        "l2": 3,
+        "sq": 1.4142135623730951
+      },
+      "pass": true
+    },
+    {
+      "name": "other schema features used by §5.3 (STRICT, json_valid, WITHOUT ROWID, dbstat) + defaults",
+      "observed": {
+        "strict": "ok",
+        "jsonValid": {
+          "v": 1
+        },
+        "dbstat": {
+          "n": 7
+        },
+        "withoutRowid": "ok",
+        "foreignKeysDefault": {
+          "foreign_keys": 1
+        },
+        "cacheSizeDefault": {
+          "cache_size": -2000
+        },
+        "journalModeMemory": {
+          "journal_mode": "memory"
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "API differences that matter for a drop-in fallback",
+      "observed": {
+        "databaseSync": [
+          "open",
+          "close",
+          "prepare",
+          "exec",
+          "function",
+          "createTagStore",
+          "location",
+          "aggregate",
+          "createSession",
+          "applyChangeset",
+          "enableLoadExtension",
+          "enableDefensive",
+          "loadExtension",
+          "serialize",
+          "deserialize",
+          "setAuthorizer"
+        ],
+        "statementSync": [
+          "iterate",
+          "all",
+          "get",
+          "run",
+          "columns",
+          "setAllowBareNamedParameters",
+          "setAllowUnknownNamedParameters",
+          "setReadBigInts",
+          "setReturnArrays"
+        ],
+        "hasInterrupt": false,
+        "hasPragmaHelper": false,
+        "hasTransactionHelper": false,
+        "hasBackup": true
+      },
+      "pass": null,
+      "note": "no pragma()/transaction() helpers; no interrupt(); backup is a top-level function"
+    },
+    {
+      "name": "process warnings seen after loading node:sqlite in main",
+      "observed": [],
+      "pass": null,
+      "note": "ExperimentalWarning means \"release candidate\" stability, not stable"
+    },
+    {
+      "name": "node:sqlite worker: ADR-0004 pragmas + §5.3 schema applied",
+      "observed": {
+        "sqlite": "3.53.4",
+        "pragmas": {
+          "journal_mode": "wal",
+          "synchronous": 1,
+          "foreign_keys": 1,
+          "busy_timeout": 5000,
+          "secure_delete": 1,
+          "auto_vacuum": 2,
+          "temp_store": 2,
+          "user_version": 1,
+          "cache_size": -2000,
+          "page_size": 4096
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "node:sqlite worker: load 10k pages, §5.4 query over postMessage, integrity",
+      "observed": {
+        "insertMs": 1093.37,
+        "rows": 183,
+        "rttMs": 3.82,
+        "integrity": [
+          "ok",
+          true
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "30x worker.terminate() mid long read with node:sqlite: process survived",
+      "observed": {
+        "k": 100,
+        "queryMs": 784.63,
+        "iterations": 30,
+        "exitCodes": [
+          1
+        ],
+        "terminateToExitMs": {
+          "n": 30,
+          "p50": 561.03,
+          "p95": 857.99,
+          "p99": 1034.31,
+          "max": 1034.31,
+          "mean": 583.53
+        },
+        "integrityAfter": "ok"
+      },
+      "pass": true
+    }
+  ],
+  "sqlite": {
+    "version": "3.53.4",
+    "compileOptionCount": 49,
+    "interesting": [
+      "COMPILER=clang-23.0.0",
+      "DEFAULT_CACHE_SIZE=-2000",
+      "ENABLE_DBSTAT_VTAB",
+      "ENABLE_FTS3",
+      "ENABLE_FTS3_PARENTHESIS",
+      "ENABLE_FTS5",
+      "ENABLE_MATH_FUNCTIONS",
+      "ENABLE_SESSION",
+      "THREADSAFE=1"
+    ]
+  },
+  "api": {
+    "databaseSync": [
+      "open",
+      "close",
+      "prepare",
+      "exec",
+      "function",
+      "createTagStore",
+      "location",
+      "aggregate",
+      "createSession",
+      "applyChangeset",
+      "enableLoadExtension",
+      "enableDefensive",
+      "loadExtension",
+      "serialize",
+      "deserialize",
+      "setAuthorizer"
+    ],
+    "statementSync": [
+      "iterate",
+      "all",
+      "get",
+      "run",
+      "columns",
+      "setAllowBareNamedParameters",
+      "setAllowUnknownNamedParameters",
+      "setReadBigInts",
+      "setReturnArrays"
+    ],
+    "hasInterrupt": false,
+    "hasPragmaHelper": false,
+    "hasTransactionHelper": false,
+    "hasBackup": true
+  },
+  "warningsMain": [],
+  "nodeSqliteWorker": {
+    "open": {
+      "driver": "node:sqlite",
+      "isNew": true,
+      "openMs": 18.866300000000024,
+      "migrationMs": 5.847000000000037,
+      "sqliteVersion": "3.53.4",
+      "pragmas": {
+        "journal_mode": "wal",
+        "synchronous": 1,
+        "foreign_keys": 1,
+        "busy_timeout": 5000,
+        "secure_delete": 1,
+        "auto_vacuum": 2,
+        "temp_store": 2,
+        "user_version": 1,
+        "cache_size": -2000,
+        "page_size": 4096
+      },
+      "compile": [
+        "ENABLE_FTS5",
+        "ENABLE_MATH_FUNCTIONS",
+        "ENABLE_DBSTAT_VTAB",
+        "THREADSAFE=1",
+        "DEFAULT_CACHE_SIZE=-2000",
+        "(no DEFAULT_FOREIGN_KEYS)"
+      ]
+    },
+    "load": {
+      "generateMs": 76.26549999999997,
+      "insertMs": 1093.369,
+      "pagesVisitsMs": 1086.1997000000001,
+      "tabsMs": 7.143800000000056,
+      "batchSize": 1000,
+      "batchMsMedian": 112.96980000000008,
+      "pages": 10000,
+      "visits": 30554,
+      "tabs": 300,
+      "visitsPerPage": 3.0554,
+      "distinctSites": 527,
+      "pagesPerSec": 9206.410202470135,
+      "totalRowsPerSec": 37365.24448745118
+    }
+  },
+  "nodeSqliteTerminate": {
+    "k": 100,
+    "queryMs": 784.63,
+    "iterations": 30,
+    "exitCodes": [
+      1
+    ],
+    "terminateToExitMs": {
+      "n": 30,
+      "p50": 561.03,
+      "p95": 857.99,
+      "p99": 1034.31,
+      "max": 1034.31,
+      "mean": 583.53
+    },
+    "integrityAfter": "ok"
+  },
+  "warningsAll": []
+}

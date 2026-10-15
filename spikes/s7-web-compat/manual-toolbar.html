@@ -1,0 +1,23 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>S7 manual browser toolbar</title>
+<style>
+  html, body { margin: 0; height: 100%; font: 14px system-ui, sans-serif; background: #f1f3f4; }
+  form { display: flex; gap: 6px; padding: 6px; box-sizing: border-box; height: 100%; }
+  button { width: 34px; border: 1px solid #c4c7c5; background: #fff; border-radius: 6px; cursor: pointer; }
+  input { flex: 1; border: 1px solid #c4c7c5; border-radius: 6px; padding: 0 10px; font: inherit; }
+</style>
+<form id="f">
+  <button type="button" id="back" title="Back">&larr;</button>
+  <button type="button" id="forward" title="Forward">&rarr;</button>
+  <button type="button" id="reload" title="Reload">&#8635;</button>
+  <input id="url" spellcheck="false" autocomplete="off" placeholder="https://...">
+</form>
+<script>
+  const url = document.getElementById('url');
+  document.getElementById('f').addEventListener('submit', (e) => { e.preventDefault(); window.nav.go(url.value.trim()); });
+  document.getElementById('back').addEventListener('click', () => window.nav.back());
+  document.getElementById('forward').addEventListener('click', () => window.nav.forward());
+  document.getElementById('reload').addEventListener('click', () => window.nav.reload());
+  window.nav.onUrl((value) => { if (document.activeElement !== url) url.value = value; });
+</script>

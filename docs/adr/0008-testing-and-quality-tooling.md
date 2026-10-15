@@ -5,7 +5,7 @@
 | **Status** | Accepted |
 | **Date** | 2026-10-16 |
 | **Implements** | The approved architecture (testing) |
-| **Validated by** | Spike S6 (test reach) |
+| **Validated by** | [Spike S6](../spikes/s6-test-reach.md) (test reach: partly confirmed; rules added to item 4, plus a new non-Playwright layer, 4a) |
 | **Details** | Technical assessment Part 9 |
 
 ## Decision
@@ -21,11 +21,24 @@
    - secure deletion;
    - crash consistency, using child processes killed mid-transaction.
 4. **End-to-end tests (Playwright, pinned version).**
-   - Tests drive the **built but unpackaged** app through `_electron.launch()`.
+   - Tests drive the **built but unpackaged** app through `_electron.launch()`, using `executablePath`. Without it, Playwright's loader adds `disable-renderer-backgrounding` and `disable-backgrounding-occluded-windows`, which changes the behavior under test.
    - `WebContentsView`s are reachable as Pages, and main-process assertions use `electronApp.evaluate`.
    - Test hooks (`advanceClock`, `getTabStates`, `setMemoryPressure`, `crashRenderer`) exist only in test builds.
    - Pages come from a deterministic local fixture server; no critical test depends on an external site.
-   - The test environment clears `ELECTRON_RUN_AS_NODE`.
+   - Before launch, the test environment asserts that `ELECTRON_RUN_AS_NODE` is unset.
+   - **Rules from [spike S6](../spikes/s6-test-reach.md):**
+     - **Find pages by identity, never by position.** Page order and `firstWindow()` are random. Use helpers `shellPage(app)` (matched by shell URL) and `pageForTab(app, tabId)`, which matches `getOrCreateDevToolsTargetId()` from `getTabStates()` against the CDP target id.
+     - **Register `waitForEvent('window')` before opening a tab.** A view becomes a Page only after its first navigation.
+     - **Act on a tab only while it's attached.** `click()` and `screenshot()` time out on detached views. `evaluate` still works.
+     - **Never `page.close()` a tab.** Close tabs through the shell or a TabManager hook.
+     - **Never assert hidden-tab behavior through Playwright.** Its per-page focus emulation makes hidden and detached tabs report `visible`, with unthrottled timers.
+4a. **Lifecycle behavior tests (no Playwright).** A small Electron-script harness, like the Phase 0 spikes, asserts the behavior Playwright masks:
+   - visibility and throttling of detached tabs;
+   - renderer release after discard;
+   - restore fidelity;
+   - `beforeunload` handling.
+
+   It runs in CI on `windows-latest`, with the test window kept always on top so native occlusion tracking can't skew results.
 5. **Installer smoke test**, without Playwright: install, launch, read back the fuses, assert that no test hooks exist, uninstall.
 6. **Security tests:**
    - a hostile fixture page;

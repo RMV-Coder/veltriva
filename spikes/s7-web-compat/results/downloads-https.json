@@ -1,0 +1,37 @@
+{
+  "generatedAt": "2026-10-15T22:37:35.689Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "rows": [
+    {
+      "name": "https download link txt",
+      "observed": {
+        "file": "https-sample.txt",
+        "state": "completed",
+        "zoneIdentifier": [
+          "[ZoneTransfer]",
+          "ZoneId=3",
+          "HostUrl=about:internet"
+        ]
+      },
+      "pass": null
+    },
+    {
+      "name": "https download link exe",
+      "observed": {
+        "file": "https-fake-installer.exe",
+        "state": "completed",
+        "zoneIdentifier": [
+          "[ZoneTransfer]",
+          "ZoneId=3",
+          "HostUrl=about:internet"
+        ]
+      },
+      "pass": null
+    }
+  ]
+}

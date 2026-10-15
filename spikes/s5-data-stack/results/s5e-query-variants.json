@@ -1,0 +1,661 @@
+{
+  "generatedAt": "2026-10-15T22:54:07.968Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "reps": 3,
+  "scales": [
+    10000,
+    50000
+  ],
+  "passes": 15,
+  "perScale": {
+    "10000": {
+      "variants": {
+        "spec": {
+          "p50": {
+            "median": 2.42,
+            "min": 2.12,
+            "max": 2.83
+          },
+          "p95": {
+            "median": 9.1,
+            "min": 7.67,
+            "max": 10.95
+          },
+          "p99": {
+            "median": 15.18,
+            "min": 8.46,
+            "max": 16.68
+          },
+          "max": {
+            "median": 37.7,
+            "min": 8.94,
+            "max": 55.85
+          },
+          "mean": {
+            "median": 3.3,
+            "min": 2.54,
+            "max": 4.02
+          }
+        },
+        "noHighlight": {
+          "p50": {
+            "median": 1.25,
+            "min": 1.21,
+            "max": 1.49
+          },
+          "p95": {
+            "median": 4.5,
+            "min": 4.4,
+            "max": 5.6
+          },
+          "p99": {
+            "median": 5.51,
+            "min": 5.43,
+            "max": 6.88
+          },
+          "max": {
+            "median": 7.09,
+            "min": 5.84,
+            "max": 8.42
+          },
+          "mean": {
+            "median": 1.54,
+            "min": 1.51,
+            "max": 1.95
+          }
+        },
+        "rankOnly": {
+          "p50": {
+            "median": 0.59,
+            "min": 0.59,
+            "max": 0.67
+          },
+          "p95": {
+            "median": 2.25,
+            "min": 2.11,
+            "max": 2.36
+          },
+          "p99": {
+            "median": 2.86,
+            "min": 2.47,
+            "max": 3.14
+          },
+          "max": {
+            "median": 3.55,
+            "min": 2.85,
+            "max": 5.05
+          },
+          "mean": {
+            "median": 0.8,
+            "min": 0.79,
+            "max": 0.9
+          }
+        },
+        "rankThenJoin": {
+          "p50": {
+            "median": 0.95,
+            "min": 0.91,
+            "max": 1.21
+          },
+          "p95": {
+            "median": 2.93,
+            "min": 2.72,
+            "max": 3.4
+          },
+          "p99": {
+            "median": 3.59,
+            "min": 3.14,
+            "max": 4.65
+          },
+          "max": {
+            "median": 5.15,
+            "min": 3.74,
+            "max": 7.53
+          },
+          "mean": {
+            "median": 1.16,
+            "min": 1.06,
+            "max": 1.4
+          }
+        },
+        "rankThenJoin+jsHighlight": {
+          "p50": {
+            "median": 1.27,
+            "min": 1.16,
+            "max": 1.33
+          },
+          "p95": {
+            "median": 3.3,
+            "min": 3.11,
+            "max": 3.39
+          },
+          "p99": {
+            "median": 3.98,
+            "min": 3.75,
+            "max": 4.16
+          },
+          "max": {
+            "median": 4.68,
+            "min": 4.08,
+            "max": 6.61
+          },
+          "mean": {
+            "median": 1.34,
+            "min": 1.28,
+            "max": 1.46
+          }
+        }
+      },
+      "perQuery": [
+        {
+          "q": "do",
+          "matches": 2837,
+          "specP50": 9,
+          "rankThenJoinP50": 3.04
+        },
+        {
+          "q": "re",
+          "matches": 2512,
+          "specP50": 8.71,
+          "rankThenJoinP50": 2.84
+        },
+        {
+          "q": "po",
+          "matches": 2016,
+          "specP50": 7.03,
+          "rankThenJoinP50": 2.4
+        },
+        {
+          "q": "postgres",
+          "matches": 1626,
+          "specP50": 6.45,
+          "rankThenJoinP50": 2.38
+        },
+        {
+          "q": "pos",
+          "matches": 1626,
+          "specP50": 6.98,
+          "rankThenJoinP50": 2.09
+        },
+        {
+          "q": "youtube",
+          "matches": 1446,
+          "specP50": 5.28,
+          "rankThenJoinP50": 1.88
+        },
+        {
+          "q": "react",
+          "matches": 910,
+          "specP50": 4.99,
+          "rankThenJoinP50": 1.72
+        },
+        {
+          "q": "docker",
+          "matches": 611,
+          "specP50": 4,
+          "rankThenJoinP50": 1.29
+        },
+        {
+          "q": "kubernetes",
+          "matches": 486,
+          "specP50": 3.59,
+          "rankThenJoinP50": 1.18
+        },
+        {
+          "q": "ku",
+          "matches": 486,
+          "specP50": 3.6,
+          "rankThenJoinP50": 1.18
+        },
+        {
+          "q": "rust",
+          "matches": 422,
+          "specP50": 3.03,
+          "rankThenJoinP50": 1.08
+        },
+        {
+          "q": "typ",
+          "matches": 414,
+          "specP50": 3.45,
+          "rankThenJoinP50": 1.09
+        },
+        {
+          "q": "wikipedia",
+          "matches": 339,
+          "specP50": 2.23,
+          "rankThenJoinP50": 0.94
+        },
+        {
+          "q": "tailwind",
+          "matches": 294,
+          "specP50": 2.52,
+          "rankThenJoinP50": 0.96
+        },
+        {
+          "q": "typescript",
+          "matches": 285,
+          "specP50": 2.62,
+          "rankThenJoinP50": 0.95
+        },
+        {
+          "q": "postgres index",
+          "matches": 183,
+          "specP50": 2.76,
+          "rankThenJoinP50": 1.33
+        },
+        {
+          "q": "post ind",
+          "matches": 183,
+          "specP50": 2.47,
+          "rankThenJoinP50": 1.22
+        },
+        {
+          "q": "css grid",
+          "matches": 105,
+          "specP50": 1.19,
+          "rankThenJoinP50": 0.58
+        },
+        {
+          "q": "election",
+          "matches": 102,
+          "specP50": 1.17,
+          "rankThenJoinP50": 0.56
+        },
+        {
+          "q": "how to install",
+          "matches": 34,
+          "specP50": 0.76,
+          "rankThenJoinP50": 0.47
+        },
+        {
+          "q": "react hooks",
+          "matches": 30,
+          "specP50": 0.81,
+          "rankThenJoinP50": 0.55
+        },
+        {
+          "q": "docker compose",
+          "matches": 24,
+          "specP50": 0.6,
+          "rankThenJoinP50": 0.41
+        },
+        {
+          "q": "react server components",
+          "matches": 19,
+          "specP50": 0.77,
+          "rankThenJoinP50": 0.56
+        },
+        {
+          "q": "rust ownership",
+          "matches": 16,
+          "specP50": 0.46,
+          "rankThenJoinP50": 0.34
+        },
+        {
+          "q": "git rebase",
+          "matches": 11,
+          "specP50": 0.4,
+          "rankThenJoinP50": 0.3
+        },
+        {
+          "q": "rust async await",
+          "matches": 7,
+          "specP50": 0.48,
+          "rankThenJoinP50": 0.46
+        },
+        {
+          "q": "python asyncio",
+          "matches": 3,
+          "specP50": 0.36,
+          "rankThenJoinP50": 0.32
+        },
+        {
+          "q": "postgres index performance",
+          "matches": 3,
+          "specP50": 0.92,
+          "rankThenJoinP50": 0.81
+        },
+        {
+          "q": "docker compose volumes",
+          "matches": 0,
+          "specP50": 0.22,
+          "rankThenJoinP50": 0.19
+        },
+        {
+          "q": "kubernetes ingress tls",
+          "matches": 0,
+          "specP50": 0.22,
+          "rankThenJoinP50": 0.18
+        }
+      ],
+      "microsecondsPerMatchSpec": 3.57
+    },
+    "50000": {
+      "variants": {
+        "spec": {
+          "p50": {
+            "median": 6.67,
+            "min": 6.58,
+            "max": 7.31
+          },
+          "p95": {
+            "median": 25.34,
+            "min": 23.75,
+            "max": 27.27
+          },
+          "p99": {
+            "median": 41.97,
+            "min": 31.82,
+            "max": 55.79
+          },
+          "max": {
+            "median": 73.36,
+            "min": 45.67,
+            "max": 83.45
+          },
+          "mean": {
+            "median": 8.97,
+            "min": 8.49,
+            "max": 9.68
+          }
+        },
+        "noHighlight": {
+          "p50": {
+            "median": 4.09,
+            "min": 4,
+            "max": 4.25
+          },
+          "p95": {
+            "median": 16.54,
+            "min": 16.09,
+            "max": 18.52
+          },
+          "p99": {
+            "median": 19.67,
+            "min": 18.4,
+            "max": 22.06
+          },
+          "max": {
+            "median": 22.5,
+            "min": 19.17,
+            "max": 27.96
+          },
+          "mean": {
+            "median": 5.39,
+            "min": 5.23,
+            "max": 5.95
+          }
+        },
+        "rankOnly": {
+          "p50": {
+            "median": 1.99,
+            "min": 1.93,
+            "max": 2.09
+          },
+          "p95": {
+            "median": 8.99,
+            "min": 8.61,
+            "max": 9.34
+          },
+          "p99": {
+            "median": 10.78,
+            "min": 10.53,
+            "max": 11.58
+          },
+          "max": {
+            "median": 13.16,
+            "min": 11.43,
+            "max": 13.41
+          },
+          "mean": {
+            "median": 2.93,
+            "min": 2.82,
+            "max": 3.05
+          }
+        },
+        "rankThenJoin": {
+          "p50": {
+            "median": 2.32,
+            "min": 2.31,
+            "max": 2.42
+          },
+          "p95": {
+            "median": 9.08,
+            "min": 8.86,
+            "max": 9.18
+          },
+          "p99": {
+            "median": 11.12,
+            "min": 11.03,
+            "max": 11.62
+          },
+          "max": {
+            "median": 12.86,
+            "min": 12.1,
+            "max": 13.76
+          },
+          "mean": {
+            "median": 3.15,
+            "min": 3.1,
+            "max": 3.33
+          }
+        },
+        "rankThenJoin+jsHighlight": {
+          "p50": {
+            "median": 2.94,
+            "min": 2.79,
+            "max": 2.99
+          },
+          "p95": {
+            "median": 10.93,
+            "min": 10.24,
+            "max": 11.5
+          },
+          "p99": {
+            "median": 14.02,
+            "min": 12.32,
+            "max": 15.76
+          },
+          "max": {
+            "median": 18.33,
+            "min": 13.54,
+            "max": 20.63
+          },
+          "mean": {
+            "median": 4.01,
+            "min": 3.67,
+            "max": 4.13
+          }
+        }
+      },
+      "perQuery": [
+        {
+          "q": "re",
+          "matches": 12408,
+          "specP50": 24.19,
+          "rankThenJoinP50": 9.57
+        },
+        {
+          "q": "do",
+          "matches": 12102,
+          "specP50": 24.39,
+          "rankThenJoinP50": 9.54
+        },
+        {
+          "q": "po",
+          "matches": 9647,
+          "specP50": 20.5,
+          "rankThenJoinP50": 7.38
+        },
+        {
+          "q": "postgres",
+          "matches": 7573,
+          "specP50": 19.12,
+          "rankThenJoinP50": 7.1
+        },
+        {
+          "q": "pos",
+          "matches": 7573,
+          "specP50": 17.69,
+          "rankThenJoinP50": 6.05
+        },
+        {
+          "q": "youtube",
+          "matches": 5940,
+          "specP50": 13.73,
+          "rankThenJoinP50": 5.16
+        },
+        {
+          "q": "react",
+          "matches": 4288,
+          "specP50": 12.88,
+          "rankThenJoinP50": 4.51
+        },
+        {
+          "q": "docker",
+          "matches": 2822,
+          "specP50": 10.73,
+          "rankThenJoinP50": 3.16
+        },
+        {
+          "q": "ku",
+          "matches": 2220,
+          "specP50": 8.68,
+          "rankThenJoinP50": 2.69
+        },
+        {
+          "q": "kubernetes",
+          "matches": 2215,
+          "specP50": 8.84,
+          "rankThenJoinP50": 2.64
+        },
+        {
+          "q": "typ",
+          "matches": 2115,
+          "specP50": 8.6,
+          "rankThenJoinP50": 2.46
+        },
+        {
+          "q": "rust",
+          "matches": 1977,
+          "specP50": 8.42,
+          "rankThenJoinP50": 2.6
+        },
+        {
+          "q": "wikipedia",
+          "matches": 1529,
+          "specP50": 5.33,
+          "rankThenJoinP50": 2.08
+        },
+        {
+          "q": "typescript",
+          "matches": 1468,
+          "specP50": 7.21,
+          "rankThenJoinP50": 2.27
+        },
+        {
+          "q": "tailwind",
+          "matches": 1390,
+          "specP50": 6.7,
+          "rankThenJoinP50": 2.23
+        },
+        {
+          "q": "postgres index",
+          "matches": 908,
+          "specP50": 8.43,
+          "rankThenJoinP50": 4.01
+        },
+        {
+          "q": "post ind",
+          "matches": 908,
+          "specP50": 8,
+          "rankThenJoinP50": 3.49
+        },
+        {
+          "q": "election",
+          "matches": 576,
+          "specP50": 4.35,
+          "rankThenJoinP50": 1.33
+        },
+        {
+          "q": "css grid",
+          "matches": 507,
+          "specP50": 4.54,
+          "rankThenJoinP50": 1.42
+        },
+        {
+          "q": "react hooks",
+          "matches": 174,
+          "specP50": 3.35,
+          "rankThenJoinP50": 1.97
+        },
+        {
+          "q": "how to install",
+          "matches": 156,
+          "specP50": 2.46,
+          "rankThenJoinP50": 1.33
+        },
+        {
+          "q": "docker compose",
+          "matches": 96,
+          "specP50": 2.07,
+          "rankThenJoinP50": 1.17
+        },
+        {
+          "q": "react server components",
+          "matches": 94,
+          "specP50": 2.82,
+          "rankThenJoinP50": 1.88
+        },
+        {
+          "q": "git rebase",
+          "matches": 66,
+          "specP50": 1.57,
+          "rankThenJoinP50": 0.83
+        },
+        {
+          "q": "rust ownership",
+          "matches": 61,
+          "specP50": 1.37,
+          "rankThenJoinP50": 0.85
+        },
+        {
+          "q": "python asyncio",
+          "matches": 37,
+          "specP50": 1.06,
+          "rankThenJoinP50": 0.73
+        },
+        {
+          "q": "rust async await",
+          "matches": 36,
+          "specP50": 1.37,
+          "rankThenJoinP50": 1.01
+        },
+        {
+          "q": "postgres index performance",
+          "matches": 10,
+          "specP50": 3.15,
+          "rankThenJoinP50": 2.85
+        },
+        {
+          "q": "docker compose volumes",
+          "matches": 0,
+          "specP50": 0.55,
+          "rankThenJoinP50": 0.44
+        },
+        {
+          "q": "kubernetes ingress tls",
+          "matches": 0,
+          "specP50": 0.43,
+          "rankThenJoinP50": 0.35
+        }
+      ],
+      "microsecondsPerMatchSpec": 3.49
+    }
+  }
+}

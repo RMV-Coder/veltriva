@@ -5,13 +5,16 @@
 | **Status** | Accepted |
 | **Date** | 2026-10-16 |
 | **Implements** | D6 (app identity) and D7 (packaging and signing) |
-| **Validated by** | Spike S5 (packaged build) |
+| **Validated by** | [Spike S5](../spikes/s5-data-stack.md) (packaged `--dir` build: worker in `asar`, native module unpacked, FTS5 working, this fuse set applied, no compiler needed) |
 | **Details** | Technical assessment §2.4, §6.2, §10.2 |
 
 ## Decision
 
 1. **Build.** electron-vite 6 (Vite 8) builds main, preload and renderer, with renderer HMR and hot restart for main and preload. If electron-vite's maintenance falters, building moves to Electron Forge 8's Vite plugin (now stable), and packaging stays on electron-builder.
-2. **Package.** electron-builder 26 produces a **per-user NSIS installer** that needs no admin rights. Native modules are unpacked from `asar` automatically. The native rebuild step is disabled, because better-sqlite3 13 ships N-API prebuilds.
+2. **Package.** electron-builder 26 produces a **per-user NSIS installer** that needs no admin rights.
+   - Native modules are unpacked from `asar` automatically. The data worker script loads from inside `app.asar` with no extra configuration (S5).
+   - **The native rebuild step stays disabled** (`npmRebuild: false`). better-sqlite3 13 ships N-API prebuilds, and with rebuilding on, electron-builder runs node-gyp and MSBuild, which need Python and Visual Studio.
+   - **A `files` filter ships only better-sqlite3's `lib/`, `package.json` and `prebuilds/win32-x64.node`.** Unfiltered, the whole package (26 MiB, every platform's binary and the C sources) lands in `app.asar.unpacked`; filtered, it's 1.9 MiB.
 3. **Fuses**, set through `electronFuses`:
    - `RunAsNode` off;
    - `EnableCookieEncryption` **on** (one-way);

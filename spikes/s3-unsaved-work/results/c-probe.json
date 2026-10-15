@@ -1,0 +1,948 @@
+{
+  "generatedAt": "2026-10-15T23:39:16.018Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "rows": [
+    {
+      "name": "C1 untouched form.html: dirty is empty, no focus, not sensitive, hasBeenActive=false",
+      "observed": {
+        "dirty": [],
+        "focusedEditable": false,
+        "sensitive": false,
+        "hasBeenActive": false
+      },
+      "pass": true
+    },
+    {
+      "name": "C1 running the probe twice does not change hasBeenActive",
+      "observed": {
+        "second": {
+          "dirty": [],
+          "focusedEditable": false,
+          "sensitive": false,
+          "hasBeenActive": false
+        },
+        "activationMain": {
+          "hasBeenActive": false,
+          "isActive": false
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "C1 after real mouseMove only: hasBeenActive still false",
+      "observed": {
+        "dirty": [],
+        "focusedEditable": false,
+        "sensitive": false,
+        "hasBeenActive": false
+      },
+      "pass": true
+    },
+    {
+      "name": "C1 click into #text (no edit): focusedEditable=true, dirty empty, hasBeenActive=true",
+      "observed": {
+        "dirty": [],
+        "focusedEditable": true,
+        "sensitive": false,
+        "hasBeenActive": true
+      },
+      "pass": true,
+      "note": "focusing an untouched field marks the tab as \"focused editable\" but not dirty"
+    },
+    {
+      "name": "C1 hasBeenActive stays false after isolated-world calls and wc.focus(), but executeJavaScript(code, userGesture=true) sets it",
+      "observed": {
+        "base": false,
+        "afterIsolatedWorldCall": false,
+        "afterFocus": false,
+        "afterUserGestureEval": true
+      },
+      "pass": true,
+      "note": "the app must never pass userGesture=true on tabs whose hasBeenActive it relies on"
+    },
+    {
+      "name": "C1 hasBeenActive survives history.pushState and resets on a cross-document navigation (same site)",
+      "observed": {
+        "afterClick": true,
+        "afterPushState": true,
+        "afterNewDocument": false
+      },
+      "pass": true
+    },
+    {
+      "name": "C1 #text edited with real input is detected",
+      "observed": {
+        "result": {
+          "dirty": [
+            "text"
+          ],
+          "focusedEditable": true,
+          "sensitive": false,
+          "hasBeenActive": true
+        },
+        "evidence": {
+          "typed": "initialx",
+          "inputAttempts": 1
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "C1 #area edited with real input is detected",
+      "observed": {
+        "result": {
+          "dirty": [
+            "area"
+          ],
+          "focusedEditable": true,
+          "sensitive": false,
+          "hasBeenActive": true
+        },
+        "evidence": {
+          "typed": "initial areya",
+          "inputAttempts": 1
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "C1 #sel changed with a real ArrowDown key press is detected",
+      "observed": {
+        "result": {
+          "dirty": [
+            "sel"
+          ],
+          "focusedEditable": false,
+          "sensitive": false,
+          "hasBeenActive": true
+        },
+        "evidence": {
+          "valueAfterRealArrowDownKey": "b"
+        }
+      },
+      "pass": true,
+      "note": "select focused programmatically (clicking opens a native popup); the change itself is a real key event"
+    },
+    {
+      "name": "C1 #chk toggled with a real click is detected",
+      "observed": {
+        "result": {
+          "dirty": [
+            "chk"
+          ],
+          "focusedEditable": true,
+          "sensitive": false,
+          "hasBeenActive": true
+        },
+        "evidence": {
+          "checked": true
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "C1 #reactish (value attribute synced on every input) typed with real input: NOT detected (false negative)",
+      "observed": {
+        "result": {
+          "dirty": [],
+          "focusedEditable": true,
+          "sensitive": false,
+          "hasBeenActive": true
+        },
+        "evidence": {
+          "typed": "hello",
+          "value": "hello",
+          "defaultValue": "hello"
+        }
+      },
+      "pass": true,
+      "note": "defaultValue tracks value, so value !== defaultValue is false even though the user typed"
+    },
+    {
+      "name": "C1 #ce before any input: focusedEditable=false, hasBeenActive=false",
+      "observed": {
+        "dirty": [],
+        "focusedEditable": false,
+        "sensitive": false,
+        "hasBeenActive": false
+      },
+      "pass": true
+    },
+    {
+      "name": "C1 #ce focused by a real click: focusedEditable=true, hasBeenActive=true",
+      "observed": {
+        "dirty": [],
+        "focusedEditable": true,
+        "sensitive": false,
+        "hasBeenActive": true
+      },
+      "pass": true
+    },
+    {
+      "name": "C1 #ce typed into: contenteditable edit itself is not in dirty[]",
+      "observed": {
+        "typedText": "editable regionedit",
+        "whileFocusedAfterTyping": {
+          "dirty": [],
+          "focusedEditable": true,
+          "sensitive": false,
+          "hasBeenActive": true
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "C1 #ce blurred after typing: edit becomes invisible to the probe (dirty=[], focusedEditable=false)",
+      "observed": {
+        "dirty": [],
+        "focusedEditable": false,
+        "sensitive": false,
+        "hasBeenActive": true
+      },
+      "pass": true,
+      "note": "the probe only checks focus for contenteditable, never content; the §4.10 wording \"focused or edited\" over-promises"
+    },
+    {
+      "name": "C1 programmatic .value change (no events) is detected; restoring the original value is not",
+      "observed": {
+        "scripted": {
+          "dirty": [
+            "text"
+          ],
+          "focusedEditable": false,
+          "sensitive": false,
+          "hasBeenActive": false
+        },
+        "restored": {
+          "dirty": [],
+          "focusedEditable": false,
+          "sensitive": false,
+          "hasBeenActive": false
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "C2 sensitive.html: sensitive=true (untouched)",
+      "observed": {
+        "dirty": [],
+        "focusedEditable": false,
+        "sensitive": true,
+        "hasBeenActive": false
+      },
+      "pass": true
+    },
+    {
+      "name": "C2 password removed: still sensitive via autocomplete=cc-number; both removed: false",
+      "observed": {
+        "withoutPassword": {
+          "dirty": [],
+          "focusedEditable": false,
+          "sensitive": true,
+          "hasBeenActive": false
+        },
+        "withoutBoth": {
+          "dirty": [],
+          "focusedEditable": false,
+          "sensitive": false,
+          "hasBeenActive": false
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "C3 window.__secret set in the main world is invisible in the probe world",
+      "observed": {
+        "mainWorld": "number",
+        "probeWorld": "undefined"
+      },
+      "pass": true
+    },
+    {
+      "name": "C3 a variable created in the probe world is invisible to the page",
+      "observed": {
+        "pageWorld": "undefined",
+        "probeWorld": "number"
+      },
+      "pass": true
+    },
+    {
+      "name": "C3 page overrides HTMLInputElement.value and navigator.userActivation: probe still reports the truth",
+      "observed": {
+        "whatThePageSees": {
+          "textValue": "initial",
+          "hasBeenActive": false
+        },
+        "probe": {
+          "dirty": [
+            "text"
+          ],
+          "focusedEditable": true,
+          "sensitive": false,
+          "hasBeenActive": true
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "C4 user activation inside the cross-site child also flips hasBeenActive in the TOP frame (seen by the top-frame probe)",
+      "observed": {
+        "activationBefore": {
+          "topFrame": false,
+          "childFrame": false
+        },
+        "activationAfter": {
+          "topFrame": true,
+          "childFrame": true
+        }
+      },
+      "pass": true,
+      "note": "so hasBeenActive covers iframe interaction that the top-frame DOM scan cannot see"
+    },
+    {
+      "name": "C4 child input was really edited (value + child-input beacons)",
+      "observed": {
+        "childValue": "child initialzz",
+        "childBeacons": 2
+      },
+      "pass": true
+    },
+    {
+      "name": "C4 main-frame probe does not see the cross-site child's edit (expected: blind)",
+      "observed": {
+        "dirty": [],
+        "focusedEditable": false,
+        "sensitive": false,
+        "hasBeenActive": true
+      },
+      "pass": true,
+      "note": "parent document.activeElement is the <iframe>; the probe does not descend into frames"
+    },
+    {
+      "name": "C4 for comparison: the same probe source run via webFrameMain.executeJavaScript in the child (main world) sees it",
+      "observed": {
+        "dirty": [
+          "child-text"
+        ],
+        "focusedEditable": true,
+        "hasBeenActive": true,
+        "sensitive": false
+      },
+      "pass": true,
+      "note": "works, but in the page's own JavaScript world"
+    },
+    {
+      "name": "C4 webFrameMain.executeJavaScript runs in a cross-process subframe, in the MAIN world (sees page globals report/mode)",
+      "observed": {
+        "subframeCrossProcess": true,
+        "worldCheck": {
+          "mode": "string",
+          "report": "function",
+          "windowReport": "function"
+        },
+        "mainFrameWorld": "number",
+        "webFrameMainHasIsolatedWorldApi": "undefined",
+        "webFrameMainMethods": [
+          "executeJavaScript"
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "C4 webFrameMain.executeJavaScript on the main frame shares the main world with webContents.executeJavaScript",
+      "observed": "number",
+      "pass": true
+    },
+    {
+      "name": "C4 webFrameMain has no isolated-world execution API (methods matching /execute|isolated|world/)",
+      "observed": [
+        "executeJavaScript"
+      ],
+      "pass": true
+    },
+    {
+      "name": "C4 exploratory: CDP Page.createIsolatedWorld + Runtime.evaluate runs the probe in the cross-process child, in an isolated world",
+      "observed": {
+        "attempted": true,
+        "sessions": [
+          {
+            "sessionId": "ECD65E88A0F579738B1297D2FA420272",
+            "type": "iframe",
+            "url": "http://b.test:57140/beforeunload.html?mode=never"
+          },
+          {
+            "sessionId": "3B1C9C79814EC5E2CAE7174CDEE7E007",
+            "type": "iframe",
+            "url": "http://b.test:57140/iframe-child.html"
+          }
+        ],
+        "evaluateMs": 0.8,
+        "result": {
+          "dirty": [
+            "child-text"
+          ],
+          "focusedEditable": true,
+          "hasBeenActive": true,
+          "sensitive": false
+        },
+        "childMainWorldSees": "number",
+        "isolatedWorldSees": "undefined"
+      },
+      "pass": true,
+      "note": "not required by S3; shows a possible route for iframe forms"
+    },
+    {
+      "name": "C6 exploratory: isolated-world input tracker sees the typing the value probe misses (#reactish and blurred #ce)",
+      "observed": {
+        "tracker": {
+          "total": 4,
+          "trusted": 4,
+          "targets": [
+            "reactish",
+            "reactish",
+            "ce",
+            "ce"
+          ]
+        },
+        "valueProbe": {
+          "dirty": [],
+          "focusedEditable": false,
+          "sensitive": false,
+          "hasBeenActive": true
+        }
+      },
+      "pass": true,
+      "note": "trusted flag is true for sendInputEvent input"
+    },
+    {
+      "name": "C6 limitation: a page-registered window capture listener that calls stopImmediatePropagation hides input from the tracker",
+      "observed": {
+        "total": 0,
+        "trusted": 0,
+        "targets": []
+      },
+      "pass": true,
+      "note": "the value probe is unaffected by this (see C3), so use both"
+    },
+    {
+      "name": "C5 probe round trip, warm, attached view (ms)",
+      "observed": {
+        "samples": [
+          0.74,
+          0.51,
+          0.29,
+          0.36,
+          0.29,
+          0.25,
+          0.29,
+          0.23,
+          0.34,
+          0.4
+        ],
+        "n": 10,
+        "missing": 0,
+        "median": 0.3,
+        "min": 0.2,
+        "max": 0.7
+      },
+      "pass": null
+    },
+    {
+      "name": "C5 probe round trip, warm, detached (hidden) view (ms)",
+      "observed": {
+        "samples": [
+          0.87,
+          0.37,
+          0.43,
+          0.33,
+          0.44,
+          0.46,
+          0.52,
+          0.43,
+          0.37,
+          0.29
+        ],
+        "n": 10,
+        "missing": 0,
+        "median": 0.4,
+        "min": 0.3,
+        "max": 0.9
+      },
+      "pass": null
+    },
+    {
+      "name": "C5 probe round trip, cold first call on a fresh page (ms)",
+      "observed": {
+        "samples": [
+          13.74,
+          16.12,
+          9.67,
+          7.73,
+          14.02,
+          8.65,
+          8.68,
+          8.51,
+          13.53,
+          9.03
+        ],
+        "n": 10,
+        "missing": 0,
+        "median": 9.3,
+        "min": 7.7,
+        "max": 16.1
+      },
+      "pass": null
+    },
+    {
+      "name": "C5 baseline: trivial executeJavaScript(\"1\") round trip (ms)",
+      "observed": {
+        "samples": [
+          0.68,
+          0.49,
+          0.36,
+          0.29,
+          0.31,
+          0.34,
+          0.28,
+          0.21,
+          0.25,
+          0.36
+        ],
+        "n": 10,
+        "missing": 0,
+        "median": 0.3,
+        "min": 0.2,
+        "max": 0.7
+      },
+      "pass": null
+    },
+    {
+      "name": "C5 heavy DOM (2000 inputs + 200 selects) probe (ms)",
+      "observed": {
+        "samples": [
+          3.88,
+          7.07,
+          10.77,
+          5.07,
+          2.57,
+          3.24,
+          4.82,
+          4.44,
+          3.36,
+          3.03
+        ],
+        "n": 10,
+        "missing": 0,
+        "median": 4.2,
+        "min": 2.6,
+        "max": 10.8,
+        "dirtyFound": 2000
+      },
+      "pass": null
+    },
+    {
+      "name": "C5 renderer busy for 700 ms: a 100 ms caller-side budget is needed (probe cannot pre-empt)",
+      "observed": {
+        "callerBudgetResult": "timed out at 100 ms",
+        "probeFinallyReturnedAfterMs": 672.6
+      },
+      "pass": true
+    }
+  ],
+  "fields": {
+    "untouched": {
+      "first": {
+        "dirty": [],
+        "focusedEditable": false,
+        "sensitive": false,
+        "hasBeenActive": false
+      },
+      "second": {
+        "dirty": [],
+        "focusedEditable": false,
+        "sensitive": false,
+        "hasBeenActive": false
+      },
+      "activationMain": {
+        "hasBeenActive": false,
+        "isActive": false
+      }
+    },
+    "afterClickOnText": {
+      "dirty": [],
+      "focusedEditable": true,
+      "sensitive": false,
+      "hasBeenActive": true
+    },
+    "activationPollution": {
+      "base": false,
+      "afterIsolatedWorldCall": false,
+      "afterFocus": false,
+      "afterUserGestureEval": true
+    },
+    "activationLifecycle": {
+      "afterClick": true,
+      "afterPushState": true,
+      "afterNewDocument": false
+    },
+    "text": {
+      "result": {
+        "dirty": [
+          "text"
+        ],
+        "focusedEditable": true,
+        "sensitive": false,
+        "hasBeenActive": true
+      },
+      "evidence": {
+        "typed": "initialx",
+        "inputAttempts": 1
+      }
+    },
+    "area": {
+      "result": {
+        "dirty": [
+          "area"
+        ],
+        "focusedEditable": true,
+        "sensitive": false,
+        "hasBeenActive": true
+      },
+      "evidence": {
+        "typed": "initial areya",
+        "inputAttempts": 1
+      }
+    },
+    "sel": {
+      "result": {
+        "dirty": [
+          "sel"
+        ],
+        "focusedEditable": false,
+        "sensitive": false,
+        "hasBeenActive": true
+      },
+      "evidence": {
+        "valueAfterRealArrowDownKey": "b"
+      }
+    },
+    "chk": {
+      "result": {
+        "dirty": [
+          "chk"
+        ],
+        "focusedEditable": true,
+        "sensitive": false,
+        "hasBeenActive": true
+      },
+      "evidence": {
+        "checked": true
+      }
+    },
+    "reactish": {
+      "result": {
+        "dirty": [],
+        "focusedEditable": true,
+        "sensitive": false,
+        "hasBeenActive": true
+      },
+      "evidence": {
+        "typed": "hello",
+        "value": "hello",
+        "defaultValue": "hello"
+      }
+    },
+    "contenteditable": {
+      "before": {
+        "dirty": [],
+        "focusedEditable": false,
+        "sensitive": false,
+        "hasBeenActive": false
+      },
+      "focused": {
+        "dirty": [],
+        "focusedEditable": true,
+        "sensitive": false,
+        "hasBeenActive": true
+      },
+      "typedText": "editable regionedit",
+      "whileFocusedAfterTyping": {
+        "dirty": [],
+        "focusedEditable": true,
+        "sensitive": false,
+        "hasBeenActive": true
+      },
+      "afterBlur": {
+        "dirty": [],
+        "focusedEditable": false,
+        "sensitive": false,
+        "hasBeenActive": true
+      }
+    },
+    "programmatic": {
+      "scripted": {
+        "dirty": [
+          "text"
+        ],
+        "focusedEditable": false,
+        "sensitive": false,
+        "hasBeenActive": false
+      },
+      "restored": {
+        "dirty": [],
+        "focusedEditable": false,
+        "sensitive": false,
+        "hasBeenActive": false
+      }
+    },
+    "inputTracker": {
+      "tracker": {
+        "total": 4,
+        "trusted": 4,
+        "targets": [
+          "reactish",
+          "reactish",
+          "ce",
+          "ce"
+        ]
+      },
+      "probeResult": {
+        "dirty": [],
+        "focusedEditable": false,
+        "sensitive": false,
+        "hasBeenActive": true
+      }
+    },
+    "inputTrackerHostilePage": {
+      "total": 0,
+      "trusted": 0,
+      "targets": []
+    }
+  },
+  "sensitive": {
+    "base": {
+      "dirty": [],
+      "focusedEditable": false,
+      "sensitive": true,
+      "hasBeenActive": false
+    },
+    "withoutPassword": {
+      "dirty": [],
+      "focusedEditable": false,
+      "sensitive": true,
+      "hasBeenActive": false
+    },
+    "withoutBoth": {
+      "dirty": [],
+      "focusedEditable": false,
+      "sensitive": false,
+      "hasBeenActive": false
+    }
+  },
+  "isolation": {
+    "globals": {
+      "mainSees": "number",
+      "probeSees": "undefined",
+      "pageSeesProbeVar": "undefined",
+      "probeSeesOwnVar": "number"
+    },
+    "tamper": {
+      "spoofedMain": {
+        "textValue": "initial",
+        "hasBeenActive": false
+      },
+      "probeResult": {
+        "dirty": [
+          "text"
+        ],
+        "focusedEditable": true,
+        "sensitive": false,
+        "hasBeenActive": true
+      }
+    }
+  },
+  "iframe": {
+    "activationPropagation": {
+      "activationBefore": {
+        "topFrame": false,
+        "childFrame": false
+      },
+      "activationAfter": {
+        "topFrame": true,
+        "childFrame": true
+      },
+      "cdpClicksNeeded": 1
+    },
+    "visibility": {
+      "childValue": "child initialzz",
+      "childBeacons": 2,
+      "mainFrameProbe": {
+        "dirty": [],
+        "focusedEditable": false,
+        "sensitive": false,
+        "hasBeenActive": true
+      },
+      "childProbeInMainWorld": {
+        "dirty": [
+          "child-text"
+        ],
+        "focusedEditable": true,
+        "hasBeenActive": true,
+        "sensitive": false
+      }
+    },
+    "world": {
+      "subframeCrossProcess": true,
+      "worldCheck": {
+        "mode": "string",
+        "report": "function",
+        "windowReport": "function"
+      },
+      "mainFrameWorld": "number",
+      "webFrameMainHasIsolatedWorldApi": "undefined",
+      "webFrameMainMethods": [
+        "executeJavaScript"
+      ]
+    },
+    "cdpIsolatedWorld": {
+      "attempted": true,
+      "sessions": [
+        {
+          "sessionId": "ECD65E88A0F579738B1297D2FA420272",
+          "type": "iframe",
+          "url": "http://b.test:57140/beforeunload.html?mode=never"
+        },
+        {
+          "sessionId": "3B1C9C79814EC5E2CAE7174CDEE7E007",
+          "type": "iframe",
+          "url": "http://b.test:57140/iframe-child.html"
+        }
+      ],
+      "evaluateMs": 0.8,
+      "result": {
+        "dirty": [
+          "child-text"
+        ],
+        "focusedEditable": true,
+        "hasBeenActive": true,
+        "sensitive": false
+      },
+      "childMainWorldSees": "number",
+      "isolatedWorldSees": "undefined"
+    }
+  },
+  "cost": {
+    "runsEach": 10,
+    "trivialMainWorldCall": {
+      "samples": [
+        0.68,
+        0.49,
+        0.36,
+        0.29,
+        0.31,
+        0.34,
+        0.28,
+        0.21,
+        0.25,
+        0.36
+      ],
+      "n": 10,
+      "missing": 0,
+      "median": 0.3,
+      "min": 0.2,
+      "max": 0.7
+    },
+    "probeWarmAttached": {
+      "samples": [
+        0.74,
+        0.51,
+        0.29,
+        0.36,
+        0.29,
+        0.25,
+        0.29,
+        0.23,
+        0.34,
+        0.4
+      ],
+      "n": 10,
+      "missing": 0,
+      "median": 0.3,
+      "min": 0.2,
+      "max": 0.7
+    },
+    "probeWarmHidden": {
+      "samples": [
+        0.87,
+        0.37,
+        0.43,
+        0.33,
+        0.44,
+        0.46,
+        0.52,
+        0.43,
+        0.37,
+        0.29
+      ],
+      "n": 10,
+      "missing": 0,
+      "median": 0.4,
+      "min": 0.3,
+      "max": 0.9
+    },
+    "probeColdFirstCallOnFreshPage": {
+      "samples": [
+        13.74,
+        16.12,
+        9.67,
+        7.73,
+        14.02,
+        8.65,
+        8.68,
+        8.51,
+        13.53,
+        9.03
+      ],
+      "n": 10,
+      "missing": 0,
+      "median": 9.3,
+      "min": 7.7,
+      "max": 16.1
+    },
+    "probeHeavyDom_2000inputs_200selects": {
+      "samples": [
+        3.88,
+        7.07,
+        10.77,
+        5.07,
+        2.57,
+        3.24,
+        4.82,
+        4.44,
+        3.36,
+        3.03
+      ],
+      "n": 10,
+      "missing": 0,
+      "median": 4.2,
+      "min": 2.6,
+      "max": 10.8,
+      "dirtyFound": 2000
+    },
+    "busyRenderer700ms": {
+      "callerBudgetResult": "timed out at 100 ms",
+      "probeFinallyReturnedAfterMs": 672.6
+    }
+  },
+  "deniedPermissionsAndNavigations": [
+    {
+      "kind": "check",
+      "permission": "background-sync"
+    }
+  ]
+}

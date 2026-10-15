@@ -1,0 +1,23 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Veltriva Shell</title>
+<style>
+  body { margin: 0; font: 13px system-ui, sans-serif; background: #1f2430; color: #e6e6e6; }
+  header { display: flex; gap: 8px; align-items: center; height: 72px; padding: 0 12px; box-sizing: border-box; }
+  input { flex: 1; padding: 4px 8px; }
+  button { padding: 4px 10px; }
+</style>
+<header data-testid="toolbar">
+  <button id="back" aria-label="Back">&larr;</button>
+  <input id="omnibox" aria-label="Address" placeholder="Search or enter address">
+  <button id="ping" aria-label="Ping">ping</button>
+  <span id="count" data-testid="ping-count">0</span>
+</header>
+<script>
+  // Stand-in for the trusted shell UI: a few stable selectors a Playwright test can drive.
+  window.__shell = { role: 'shell', pings: 0 };
+  document.getElementById('ping').addEventListener('click', () => {
+    window.__shell.pings += 1;
+    document.getElementById('count').textContent = String(window.__shell.pings);
+  });
+</script>

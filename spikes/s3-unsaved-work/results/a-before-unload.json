@@ -1,0 +1,1058 @@
+{
+  "generatedAt": "2026-10-15T23:43:21.712Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "rows": [
+    {
+      "name": "A1 untouched page, mode=always, close({waitForBeforeUnload}): will-prevent-unload emitted",
+      "observed": {
+        "count": 1,
+        "atMs": 1.78,
+        "hasBeenActiveBeforeClose": false
+      },
+      "pass": true,
+      "note": "page had no user input, yet the objection was surfaced"
+    },
+    {
+      "name": "A1 no preventDefault: page still alive 3 s later, no destroyed event",
+      "observed": {
+        "isDestroyedAtEnd": false,
+        "destroyedEventAtMs": null,
+        "observedForMs": 3002
+      },
+      "pass": true
+    },
+    {
+      "name": "A1 no modal dialog or new native window appeared",
+      "observed": {
+        "newVisibleWindows": [],
+        "before": [
+          "Chrome_WidgetWin_1|S3 unsaved-work spike|owned=false"
+        ],
+        "during": [
+          "Chrome_WidgetWin_1|S3 unsaved-work spike|owned=false"
+        ]
+      },
+      "pass": true,
+      "note": "evidence: user32 EnumWindows for this process at 1.5 s into the wait, plus the run was not blocked"
+    },
+    {
+      "name": "A1 beforeunload reached the page; pagehide did not (page stays alive)",
+      "observed": [
+        {
+          "event": "beforeunload",
+          "mode": "always",
+          "dirty": "false",
+          "objected": "true",
+          "host": "a.test:65113"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "A1 side effect: close() granted user activation to the page",
+      "observed": {
+        "before": {
+          "hasBeenActive": false,
+          "isActive": false
+        },
+        "after": {
+          "hasBeenActive": true,
+          "isActive": true
+        },
+        "pageResponsive": "beforeunload"
+      },
+      "pass": true,
+      "note": "a cancelled close attempt permanently flips navigator.userActivation.hasBeenActive"
+    },
+    {
+      "name": "A2 same page, plain close(): destroyed immediately",
+      "observed": {
+        "isDestroyedRightAfterCall": false,
+        "destroyedEventAtMs": 6.1,
+        "willPreventUnloadCount": 0
+      },
+      "pass": true
+    },
+    {
+      "name": "A2 same page, plain close(): page-side events seen by the fixture server",
+      "observed": [],
+      "pass": null,
+      "note": "beforeunload is not dispatched by plain close(); see pagehide row"
+    },
+    {
+      "name": "A2b fresh untouched page, plain close(): destroyed, beacons",
+      "observed": {
+        "destroyedEventAtMs": 5.1,
+        "isDestroyedRightAfterCall": false,
+        "beacons": []
+      },
+      "pass": true
+    },
+    {
+      "name": "A2c which page handlers ran on plain close() (localStorage / console / beacon evidence)",
+      "observed": {
+        "destroyedEventAtMs": 5.11,
+        "handlersThatRan": {
+          "visibilitychange": true
+        },
+        "consoleSeen": [],
+        "beaconSeen": [
+          "visibilitychange"
+        ]
+      },
+      "pass": null
+    },
+    {
+      "name": "A2c which page handlers ran on close({waitForBeforeUnload}) on a page that does not object (localStorage / console / beacon evidence)",
+      "observed": {
+        "destroyedEventAtMs": 12.04,
+        "handlersThatRan": {
+          "unload": true,
+          "visibilitychange": true,
+          "pagehide": true,
+          "beforeunload": true
+        },
+        "consoleSeen": [
+          "beforeunload",
+          "pagehide",
+          "visibilitychange",
+          "unload"
+        ],
+        "beaconSeen": [
+          "beforeunload",
+          "pagehide",
+          "visibilitychange",
+          "unload"
+        ]
+      },
+      "pass": null
+    },
+    {
+      "name": "A3 control: mode=dirty never touched, close({waitForBeforeUnload}) closes normally",
+      "observed": {
+        "willPreventUnloadCount": 0,
+        "destroyedEventAtMs": 12.76,
+        "beacons": [
+          {
+            "event": "beforeunload",
+            "mode": "dirty",
+            "dirty": "false",
+            "objected": "false",
+            "host": "a.test:65113"
+          },
+          {
+            "event": "pagehide",
+            "mode": "dirty",
+            "dirty": "false",
+            "host": "a.test:65113"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "A3 real input via sendInputEvent reached the page (#text value, focus, activation)",
+      "observed": {
+        "value": "hi",
+        "focused": "text",
+        "hasBeenActive": true,
+        "inputAttempts": 1,
+        "inputOk": true
+      },
+      "pass": true
+    },
+    {
+      "name": "A3 dirty after real input, close({waitForBeforeUnload}) without preventDefault: will-prevent-unload emitted",
+      "observed": {
+        "count": 1,
+        "atMs": 0.93
+      },
+      "pass": true
+    },
+    {
+      "name": "A3 ... and the page is kept alive (3 s, no destroyed event), typed text intact, still accepts input",
+      "observed": {
+        "isDestroyedAtEnd": false,
+        "destroyedEventAtMs": null,
+        "valueAfterCancel": "hi",
+        "valueAfterTypingMore": "hi!"
+      },
+      "pass": true
+    },
+    {
+      "name": "A3 ... no modal dialog or new native window",
+      "observed": {
+        "newVisibleWindows": []
+      },
+      "pass": true
+    },
+    {
+      "name": "A3 ... beforeunload beacon says dirty=true, objected=true",
+      "observed": [
+        {
+          "event": "beforeunload",
+          "mode": "dirty",
+          "dirty": "true",
+          "objected": "true",
+          "host": "a.test:65113"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "A3 same page again, handler calls event.preventDefault(): page closes",
+      "observed": {
+        "willPreventUnloadCount": 1,
+        "destroyedEventAtMs": 6.65,
+        "isDestroyedAtEnd": true,
+        "beacons": [
+          {
+            "event": "beforeunload",
+            "mode": "dirty",
+            "dirty": "true",
+            "objected": "true",
+            "host": "a.test:65113"
+          },
+          {
+            "event": "pagehide",
+            "mode": "dirty",
+            "dirty": "true",
+            "host": "a.test:65113"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "A3h precondition: real input reached the page before it was detached",
+      "observed": {
+        "value": "hi",
+        "focused": "text",
+        "hasBeenActive": true,
+        "inputAttempts": 1,
+        "inputOk": true
+      },
+      "pass": true
+    },
+    {
+      "name": "A3h detached (hidden) view, real input, close({waitForBeforeUnload}): will-prevent-unload emitted and page kept",
+      "observed": {
+        "count": 1,
+        "atMs": 2.22,
+        "aliveAfter3s": true
+      },
+      "pass": true
+    },
+    {
+      "name": "A3h detached view + preventDefault: page closes",
+      "observed": {
+        "destroyedEventAtMs": 3.66
+      },
+      "pass": true
+    },
+    {
+      "name": "A3s page dirtied by script only (no user activation), close({waitForBeforeUnload}): objection still honoured",
+      "observed": {
+        "hasBeenActiveBeforeClose": false,
+        "willPreventUnloadCount": 1,
+        "aliveAfter": true
+      },
+      "pass": null,
+      "note": "confirms that close() itself supplies the activation Chromium normally requires"
+    },
+    {
+      "name": "A4 mode=never (handler registered, never objects), close({waitForBeforeUnload}) closes normally",
+      "observed": {
+        "willPreventUnloadCount": 0,
+        "destroyedEventAtMs": 5.87,
+        "beacons": [
+          {
+            "event": "beforeunload",
+            "mode": "never",
+            "dirty": "true",
+            "objected": "false",
+            "host": "a.test:65113"
+          },
+          {
+            "event": "pagehide",
+            "mode": "never",
+            "dirty": "true",
+            "host": "a.test:65113"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "A6a cross-site child with mode=always, nothing touched: close({waitForBeforeUnload})",
+      "observed": {
+        "willPreventUnloadCount": 0,
+        "destroyedEventAtMs": 7.63,
+        "beacons": [
+          {
+            "event": "beforeunload",
+            "mode": "always",
+            "dirty": "false",
+            "objected": "true",
+            "host": "b.test:65113"
+          },
+          {
+            "event": "pagehide",
+            "mode": "always",
+            "dirty": "false",
+            "host": "b.test:65113"
+          }
+        ]
+      },
+      "pass": null,
+      "note": "close() activates only the top frame; compare with A1 where the same handler sat in the top frame"
+    },
+    {
+      "name": "A6b precondition: routed (CDP) typing reached the cross-site child input",
+      "observed": {
+        "clicksNeeded": 1,
+        "childActiveAfterClick": "text",
+        "childValue": "hi"
+      },
+      "pass": true
+    },
+    {
+      "name": "A6b cross-site child, mode=dirty, typed into via routed (CDP) input, close({waitForBeforeUnload})",
+      "observed": {
+        "childActiveAfterClick": "text",
+        "childValue": "hi",
+        "willPreventUnloadCount": 1,
+        "aliveAfter": true,
+        "beacons": [
+          {
+            "event": "beforeunload",
+            "mode": "dirty",
+            "dirty": "true",
+            "objected": "true",
+            "host": "b.test:65113"
+          }
+        ]
+      },
+      "pass": true,
+      "note": "is a subframe objection surfaced through will-prevent-unload?"
+    },
+    {
+      "name": "A5 close({waitForBeforeUnload}) -> will-prevent-unload, mode=always untouched [attached] ms",
+      "observed": {
+        "samples": [
+          3.48,
+          4.77,
+          8.23,
+          3.74,
+          5.11
+        ],
+        "n": 5,
+        "missing": 0,
+        "median": 4.8,
+        "min": 3.5,
+        "max": 8.2
+      },
+      "pass": null
+    },
+    {
+      "name": "A5 close({waitForBeforeUnload}) -> will-prevent-unload, mode=always untouched [detached] ms",
+      "observed": {
+        "samples": [
+          7.55,
+          38.34,
+          6.11,
+          34.11,
+          9.34
+        ],
+        "n": 5,
+        "missing": 0,
+        "median": 9.3,
+        "min": 6.1,
+        "max": 38.3
+      },
+      "pass": null
+    },
+    {
+      "name": "A5 close({waitForBeforeUnload}) -> will-prevent-unload, mode=dirty after real input [attached] ms",
+      "observed": {
+        "samples": [
+          0.72,
+          0.83,
+          0.77,
+          1.08,
+          0.81
+        ],
+        "n": 5,
+        "missing": 0,
+        "median": 0.8,
+        "min": 0.7,
+        "max": 1.1,
+        "inputFailures": 0
+      },
+      "pass": null
+    },
+    {
+      "name": "A5 close({waitForBeforeUnload}) -> will-prevent-unload, mode=dirty after real input [detached] ms",
+      "observed": {
+        "samples": [
+          1.77,
+          1.33,
+          1.77,
+          2.08,
+          1.92
+        ],
+        "n": 5,
+        "missing": 0,
+        "median": 1.8,
+        "min": 1.3,
+        "max": 2.1,
+        "inputFailures": 0
+      },
+      "pass": null
+    },
+    {
+      "name": "A5 close({waitForBeforeUnload}) -> destroyed, mode=never [attached] ms",
+      "observed": {
+        "samples": [
+          11.75,
+          11.92,
+          11.3,
+          14.96,
+          10.67
+        ],
+        "n": 5,
+        "missing": 0,
+        "median": 11.8,
+        "min": 10.7,
+        "max": 15
+      },
+      "pass": null
+    },
+    {
+      "name": "A5 close({waitForBeforeUnload}) -> destroyed, mode=never [detached] ms",
+      "observed": {
+        "samples": [
+          7.1,
+          110.11,
+          8.41,
+          10.69,
+          9.56
+        ],
+        "n": 5,
+        "missing": 0,
+        "median": 9.6,
+        "min": 7.1,
+        "max": 110.1
+      },
+      "pass": null
+    },
+    {
+      "name": "A5 close({waitForBeforeUnload}) + preventDefault -> destroyed, mode=always [attached] ms",
+      "observed": {
+        "samples": [
+          17.18,
+          11.27,
+          10.79,
+          15.34,
+          17.15
+        ],
+        "n": 5,
+        "missing": 0,
+        "median": 15.3,
+        "min": 10.8,
+        "max": 17.2
+      },
+      "pass": null
+    },
+    {
+      "name": "A5 close({waitForBeforeUnload}) + preventDefault -> destroyed, mode=always [detached] ms",
+      "observed": {
+        "samples": [
+          7.83,
+          8.16,
+          38.67,
+          8.88,
+          8.81
+        ],
+        "n": 5,
+        "missing": 0,
+        "median": 8.8,
+        "min": 7.8,
+        "max": 38.7
+      },
+      "pass": null
+    },
+    {
+      "name": "A5 plain close() -> destroyed, mode=always [attached] ms",
+      "observed": {
+        "samples": [
+          5,
+          4.77,
+          4.76,
+          4.93,
+          5.82
+        ],
+        "n": 5,
+        "missing": 0,
+        "median": 4.9,
+        "min": 4.8,
+        "max": 5.8
+      },
+      "pass": null
+    },
+    {
+      "name": "A5 plain close() -> destroyed, mode=always [detached] ms",
+      "observed": {
+        "samples": [
+          2.11,
+          2.1,
+          1.27,
+          1.78,
+          1.21
+        ],
+        "n": 5,
+        "missing": 0,
+        "median": 1.8,
+        "min": 1.2,
+        "max": 2.1
+      },
+      "pass": null
+    }
+  ],
+  "scenarios": {
+    "A1": {
+      "activationBefore": {
+        "hasBeenActive": false,
+        "isActive": false
+      },
+      "obs": {
+        "option": {
+          "waitForBeforeUnload": true
+        },
+        "preventDefaultInHandler": false,
+        "willPreventUnloadCount": 1,
+        "willPreventUnloadAtMs": 1.78,
+        "destroyedEventAtMs": null,
+        "isDestroyedRightAfterCall": false,
+        "isDestroyedAtEnd": false,
+        "midpointResult": [
+          "Chrome_WidgetWin_1|S3 unsaved-work spike|owned=false"
+        ],
+        "observedForMs": 3002
+      },
+      "after": {
+        "title": "beforeunload",
+        "activation": {
+          "hasBeenActive": true,
+          "isActive": true
+        }
+      },
+      "beacons": [
+        {
+          "event": "beforeunload",
+          "mode": "always",
+          "dirty": "false",
+          "objected": "true",
+          "host": "a.test:65113"
+        }
+      ],
+      "windowsBefore": [
+        "Chrome_WidgetWin_1|S3 unsaved-work spike|owned=false"
+      ],
+      "windowsDuring": [
+        "Chrome_WidgetWin_1|S3 unsaved-work spike|owned=false"
+      ]
+    },
+    "A2_samePage": {
+      "obs": {
+        "option": "none",
+        "preventDefaultInHandler": false,
+        "willPreventUnloadCount": 0,
+        "willPreventUnloadAtMs": null,
+        "destroyedEventAtMs": 6.1,
+        "isDestroyedRightAfterCall": false,
+        "isDestroyedAtEnd": true,
+        "midpointResult": null,
+        "observedForMs": 15
+      },
+      "beacons": []
+    },
+    "A2_freshPage": {
+      "obs": {
+        "option": "none",
+        "preventDefaultInHandler": false,
+        "willPreventUnloadCount": 0,
+        "willPreventUnloadAtMs": null,
+        "destroyedEventAtMs": 5.1,
+        "isDestroyedRightAfterCall": false,
+        "isDestroyedAtEnd": true,
+        "midpointResult": null,
+        "observedForMs": 21
+      },
+      "beacons": []
+    },
+    "A2c": {
+      "plain close()": {
+        "destroyedEventAtMs": 5.11,
+        "handlersThatRan": {
+          "visibilitychange": true
+        },
+        "consoleSeen": [],
+        "beaconSeen": [
+          "visibilitychange"
+        ]
+      },
+      "close({waitForBeforeUnload}) on a page that does not object": {
+        "destroyedEventAtMs": 12.04,
+        "handlersThatRan": {
+          "unload": true,
+          "visibilitychange": true,
+          "pagehide": true,
+          "beforeunload": true
+        },
+        "consoleSeen": [
+          "beforeunload",
+          "pagehide",
+          "visibilitychange",
+          "unload"
+        ],
+        "beaconSeen": [
+          "beforeunload",
+          "pagehide",
+          "visibilitychange",
+          "unload"
+        ]
+      }
+    },
+    "A3_untouched": {
+      "obs": {
+        "option": {
+          "waitForBeforeUnload": true
+        },
+        "preventDefaultInHandler": false,
+        "willPreventUnloadCount": 0,
+        "willPreventUnloadAtMs": null,
+        "destroyedEventAtMs": 12.76,
+        "isDestroyedRightAfterCall": false,
+        "isDestroyedAtEnd": true,
+        "midpointResult": null,
+        "observedForMs": 18
+      },
+      "beacons": [
+        {
+          "event": "beforeunload",
+          "mode": "dirty",
+          "dirty": "false",
+          "objected": "false",
+          "host": "a.test:65113"
+        },
+        {
+          "event": "pagehide",
+          "mode": "dirty",
+          "dirty": "false",
+          "host": "a.test:65113"
+        }
+      ]
+    },
+    "A3_realInput": {
+      "state": {
+        "value": "hi",
+        "focused": "text",
+        "hasBeenActive": true,
+        "inputAttempts": 1,
+        "inputOk": true
+      },
+      "first": {
+        "option": {
+          "waitForBeforeUnload": true
+        },
+        "preventDefaultInHandler": false,
+        "willPreventUnloadCount": 1,
+        "willPreventUnloadAtMs": 0.93,
+        "destroyedEventAtMs": null,
+        "isDestroyedRightAfterCall": false,
+        "isDestroyedAtEnd": false,
+        "midpointResult": [
+          "Chrome_WidgetWin_1|S3 unsaved-work spike|owned=false"
+        ],
+        "observedForMs": 3008
+      },
+      "stateAfterFirst": {
+        "value": "hi"
+      },
+      "typedAfterCancel": "hi!",
+      "beaconsFirst": [
+        {
+          "event": "beforeunload",
+          "mode": "dirty",
+          "dirty": "true",
+          "objected": "true",
+          "host": "a.test:65113"
+        }
+      ],
+      "second": {
+        "option": {
+          "waitForBeforeUnload": true
+        },
+        "preventDefaultInHandler": true,
+        "willPreventUnloadCount": 1,
+        "willPreventUnloadAtMs": 0.7,
+        "destroyedEventAtMs": 6.65,
+        "isDestroyedRightAfterCall": false,
+        "isDestroyedAtEnd": true,
+        "midpointResult": null,
+        "observedForMs": 10
+      },
+      "beaconsSecond": [
+        {
+          "event": "beforeunload",
+          "mode": "dirty",
+          "dirty": "true",
+          "objected": "true",
+          "host": "a.test:65113"
+        },
+        {
+          "event": "pagehide",
+          "mode": "dirty",
+          "dirty": "true",
+          "host": "a.test:65113"
+        }
+      ],
+      "windowsBefore": [
+        "Chrome_WidgetWin_1|S3 unsaved-work spike|owned=false"
+      ],
+      "windowsDuring": [
+        "Chrome_WidgetWin_1|S3 unsaved-work spike|owned=false"
+      ]
+    },
+    "A3_realInput_detachedView": {
+      "state": {
+        "value": "hi",
+        "focused": "text",
+        "hasBeenActive": true,
+        "inputAttempts": 1,
+        "inputOk": true
+      },
+      "first": {
+        "option": {
+          "waitForBeforeUnload": true
+        },
+        "preventDefaultInHandler": false,
+        "willPreventUnloadCount": 1,
+        "willPreventUnloadAtMs": 2.22,
+        "destroyedEventAtMs": null,
+        "isDestroyedRightAfterCall": false,
+        "isDestroyedAtEnd": false,
+        "midpointResult": null,
+        "observedForMs": 3007
+      },
+      "second": {
+        "option": {
+          "waitForBeforeUnload": true
+        },
+        "preventDefaultInHandler": true,
+        "willPreventUnloadCount": 1,
+        "willPreventUnloadAtMs": 1.05,
+        "destroyedEventAtMs": 3.66,
+        "isDestroyedRightAfterCall": false,
+        "isDestroyedAtEnd": true,
+        "midpointResult": null,
+        "observedForMs": 16
+      }
+    },
+    "A3_syntheticDirty": {
+      "activation": {
+        "hasBeenActive": false,
+        "isActive": false
+      },
+      "obs": {
+        "option": {
+          "waitForBeforeUnload": true
+        },
+        "preventDefaultInHandler": false,
+        "willPreventUnloadCount": 1,
+        "willPreventUnloadAtMs": 1.38,
+        "destroyedEventAtMs": null,
+        "isDestroyedRightAfterCall": false,
+        "isDestroyedAtEnd": false,
+        "midpointResult": null,
+        "observedForMs": 1506
+      }
+    },
+    "A4_never": {
+      "typing": {
+        "attempts": 1,
+        "failed": false
+      },
+      "obs": {
+        "option": {
+          "waitForBeforeUnload": true
+        },
+        "preventDefaultInHandler": false,
+        "willPreventUnloadCount": 0,
+        "willPreventUnloadAtMs": null,
+        "destroyedEventAtMs": 5.87,
+        "isDestroyedRightAfterCall": false,
+        "isDestroyedAtEnd": true,
+        "midpointResult": null,
+        "observedForMs": 10
+      },
+      "beacons": [
+        {
+          "event": "beforeunload",
+          "mode": "never",
+          "dirty": "true",
+          "objected": "false",
+          "host": "a.test:65113"
+        },
+        {
+          "event": "pagehide",
+          "mode": "never",
+          "dirty": "true",
+          "host": "a.test:65113"
+        }
+      ]
+    },
+    "A6a_childAlwaysUntouched": {
+      "obs": {
+        "option": {
+          "waitForBeforeUnload": true
+        },
+        "preventDefaultInHandler": false,
+        "willPreventUnloadCount": 0,
+        "willPreventUnloadAtMs": null,
+        "destroyedEventAtMs": 7.63,
+        "isDestroyedRightAfterCall": false,
+        "isDestroyedAtEnd": true,
+        "midpointResult": null,
+        "observedForMs": 12
+      },
+      "beacons": [
+        {
+          "event": "beforeunload",
+          "mode": "always",
+          "dirty": "false",
+          "objected": "true",
+          "host": "b.test:65113"
+        },
+        {
+          "event": "pagehide",
+          "mode": "always",
+          "dirty": "false",
+          "host": "b.test:65113"
+        }
+      ]
+    },
+    "A6b_childDirtyAfterRoutedInput": {
+      "box": {
+        "x": 10,
+        "y": 116.875
+      },
+      "inChild": {
+        "cx": 92.80000305175781,
+        "cy": 143.87500953674316
+      },
+      "clicksNeeded": 1,
+      "childActiveAfterClick": "text",
+      "childValue": "hi",
+      "first": {
+        "option": {
+          "waitForBeforeUnload": true
+        },
+        "preventDefaultInHandler": false,
+        "willPreventUnloadCount": 1,
+        "willPreventUnloadAtMs": 1.59,
+        "destroyedEventAtMs": null,
+        "isDestroyedRightAfterCall": false,
+        "isDestroyedAtEnd": false,
+        "midpointResult": null,
+        "observedForMs": 2009
+      },
+      "beacons": [
+        {
+          "event": "beforeunload",
+          "mode": "dirty",
+          "dirty": "true",
+          "objected": "true",
+          "host": "b.test:65113"
+        }
+      ]
+    }
+  },
+  "timing": {
+    "prevent_always_untouched": {
+      "title": "close({waitForBeforeUnload}) -> will-prevent-unload, mode=always untouched",
+      "attached": true,
+      "samples": [
+        3.48,
+        4.77,
+        8.23,
+        3.74,
+        5.11
+      ],
+      "n": 5,
+      "missing": 0,
+      "median": 4.8,
+      "min": 3.5,
+      "max": 8.2
+    },
+    "prevent_always_untouched__detached": {
+      "title": "close({waitForBeforeUnload}) -> will-prevent-unload, mode=always untouched",
+      "attached": false,
+      "samples": [
+        7.55,
+        38.34,
+        6.11,
+        34.11,
+        9.34
+      ],
+      "n": 5,
+      "missing": 0,
+      "median": 9.3,
+      "min": 6.1,
+      "max": 38.3
+    },
+    "prevent_dirty_realInput": {
+      "title": "close({waitForBeforeUnload}) -> will-prevent-unload, mode=dirty after real input",
+      "attached": true,
+      "samples": [
+        0.72,
+        0.83,
+        0.77,
+        1.08,
+        0.81
+      ],
+      "n": 5,
+      "missing": 0,
+      "median": 0.8,
+      "min": 0.7,
+      "max": 1.1,
+      "inputFailures": 0
+    },
+    "prevent_dirty_realInput__detached": {
+      "title": "close({waitForBeforeUnload}) -> will-prevent-unload, mode=dirty after real input",
+      "attached": false,
+      "samples": [
+        1.77,
+        1.33,
+        1.77,
+        2.08,
+        1.92
+      ],
+      "n": 5,
+      "missing": 0,
+      "median": 1.8,
+      "min": 1.3,
+      "max": 2.1,
+      "inputFailures": 0
+    },
+    "destroyed_never_wfb": {
+      "title": "close({waitForBeforeUnload}) -> destroyed, mode=never",
+      "attached": true,
+      "samples": [
+        11.75,
+        11.92,
+        11.3,
+        14.96,
+        10.67
+      ],
+      "n": 5,
+      "missing": 0,
+      "median": 11.8,
+      "min": 10.7,
+      "max": 15
+    },
+    "destroyed_never_wfb__detached": {
+      "title": "close({waitForBeforeUnload}) -> destroyed, mode=never",
+      "attached": false,
+      "samples": [
+        7.1,
+        110.11,
+        8.41,
+        10.69,
+        9.56
+      ],
+      "n": 5,
+      "missing": 0,
+      "median": 9.6,
+      "min": 7.1,
+      "max": 110.1
+    },
+    "destroyed_always_preventDefault": {
+      "title": "close({waitForBeforeUnload}) + preventDefault -> destroyed, mode=always",
+      "attached": true,
+      "samples": [
+        17.18,
+        11.27,
+        10.79,
+        15.34,
+        17.15
+      ],
+      "n": 5,
+      "missing": 0,
+      "median": 15.3,
+      "min": 10.8,
+      "max": 17.2
+    },
+    "destroyed_always_preventDefault__detached": {
+      "title": "close({waitForBeforeUnload}) + preventDefault -> destroyed, mode=always",
+      "attached": false,
+      "samples": [
+        7.83,
+        8.16,
+        38.67,
+        8.88,
+        8.81
+      ],
+      "n": 5,
+      "missing": 0,
+      "median": 8.8,
+      "min": 7.8,
+      "max": 38.7
+    },
+    "destroyed_plain_close": {
+      "title": "plain close() -> destroyed, mode=always",
+      "attached": true,
+      "samples": [
+        5,
+        4.77,
+        4.76,
+        4.93,
+        5.82
+      ],
+      "n": 5,
+      "missing": 0,
+      "median": 4.9,
+      "min": 4.8,
+      "max": 5.8
+    },
+    "destroyed_plain_close__detached": {
+      "title": "plain close() -> destroyed, mode=always",
+      "attached": false,
+      "samples": [
+        2.11,
+        2.1,
+        1.27,
+        1.78,
+        1.21
+      ],
+      "n": 5,
+      "missing": 0,
+      "median": 1.8,
+      "min": 1.2,
+      "max": 2.1
+    }
+  },
+  "nativeWindowWatcherReady": true,
+  "deniedPermissionsAndNavigations": [
+    {
+      "kind": "check",
+      "permission": "background-sync"
+    }
+  ]
+}

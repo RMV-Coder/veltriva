@@ -1,0 +1,17 @@
+{
+  "name": "veltriva-spikes",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Phase 0 throwaway spikes for Veltriva. Never shipped.",
+  "license": "MIT",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "better-sqlite3": "13.0.3",
+    "electron": "44.7.2",
+    "electron-builder": "26.17.0",
+    "playwright-core": "1.64.1"
+  }
+}

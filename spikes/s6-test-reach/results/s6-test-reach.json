@@ -1,0 +1,1065 @@
+{
+  "generatedAt": "2026-10-15T22:55:28.816Z",
+  "startedAt": "2026-10-15T22:53:08.646Z",
+  "versions": {
+    "playwrightCore": "1.64.1",
+    "electron": "44.7.2",
+    "node": "24.13.0",
+    "os": "win32 10.0.26200",
+    "cpu": "12th Gen Intel(R) Core(TM) i3-1215U"
+  },
+  "note": "Timings are indicative: other spikes may have been running Electron concurrently.",
+  "summary": {
+    "cycles": 10,
+    "okCycles": 10,
+    "failedCycles": [],
+    "nonZeroExitCodes": [],
+    "timings": {
+      "launchMs": {
+        "median": 566,
+        "min": 503,
+        "max": 762,
+        "n": 10
+      },
+      "threePagesMs": {
+        "median": 567,
+        "min": 504,
+        "max": 763,
+        "n": 10
+      },
+      "closeMs": {
+        "median": 207,
+        "min": 199,
+        "max": 671,
+        "n": 10
+      },
+      "totalMs": {
+        "median": 12260,
+        "min": 12062,
+        "max": 12891,
+        "n": 10
+      }
+    },
+    "tallies": {
+      "firstWindowKind": {
+        "B": 6,
+        "A": 2,
+        "shell": 2
+      },
+      "windowsOrder": {
+        "B,shell,A": 4,
+        "A,shell,B": 1,
+        "shell,B,A": 1,
+        "A,B,shell": 1,
+        "B,A,shell": 2,
+        "shell,A,B": 1
+      },
+      "windowsAtLaunchResolve": {
+        "3": 10
+      },
+      "setVisibleFalseVisibility": {
+        "visible": 10
+      },
+      "setVisibleFalseClick": {
+        "ok": 10
+      },
+      "focusEmulationOffVisibility": {
+        "visible": 10
+      },
+      "detachedVisibility": {
+        "visible": 10
+      },
+      "detachedClick": {
+        "error": 10
+      },
+      "blankViewReported": {
+        "false": 10
+      },
+      "pageCloseLeavesViewAsChild": {
+        "false": 10
+      },
+      "unattachedViewReported": {
+        "true": 10
+      }
+    },
+    "perCheck": {
+      "a. firstWindow() resolves right after launch": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "a. windows() lists shell + 2 tabs": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "a. context().pages() == windows()": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "a. no window events for pre-existing pages (listener added after launch)": {
+        "pass": 0,
+        "fail": 0,
+        "info": 10
+      },
+      "a. pages are distinguishable by url + title": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "a. Page -> registry tab mapping via CDP targetId": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "a. electronApp.browserWindow(page) for views inside a BaseWindow": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "b. shell: click button, read DOM": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "b. tab A: fill / check / type, confirmed from the main process": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "b. tab B (hidden view): read window.__t": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "b. tab A visibilityState": {
+        "pass": 0,
+        "fail": 0,
+        "info": 10
+      },
+      "b. screenshot of shell and visible tab": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "b. click() on element of tab B hidden with setVisible(false)": {
+        "pass": 0,
+        "fail": 0,
+        "info": 10
+      },
+      "b. tab B: setFocusEmulationEnabled(false) from a second CDP session": {
+        "pass": 0,
+        "fail": 0,
+        "info": 10
+      },
+      "c. electronApp.evaluate reaches globalThis.__veltrivaTest": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "c. arguments, promises, electron module in evaluate": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "c. main-process console.log arrives as electronApp \"console\" event": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "d. detached (removeChildView) tab: still in windows(), not closed": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "d. detached tab: page.evaluate works, timers advance (rAF delta shows whether frames are produced)": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "d. detached tab: screenshot": {
+        "pass": 0,
+        "fail": 0,
+        "info": 10
+      },
+      "d. detached tab: click() on its h1": {
+        "pass": 0,
+        "fail": 0,
+        "info": 10
+      },
+      "d. re-attached tab: same Page, evaluable, click() works": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "d. destroyed (webContents.close()) tab: Page emits close and leaves windows()": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "d. evaluate on the closed Page rejects": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "d. other pages unaffected by destroy": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "e. new attached view that never navigated: Page reported?": {
+        "pass": 0,
+        "fail": 0,
+        "info": 10
+      },
+      "e. same view after loadURL(): exactly one new Page, usable": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "e. createTab(url) after launch: waitForEvent(\"window\") yields a usable Page": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "e. interact with a tab created after launch": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "e. page.close() on a tab Page closes its WebContents; the view is no longer a window child": {
+        "pass": 10,
+        "fail": 0,
+        "info": 0
+      },
+      "e. view that navigated but was never attached to the window": {
+        "pass": 0,
+        "fail": 0,
+        "info": 10
+      }
+    }
+  },
+  "firstCycleRows": [
+    {
+      "name": "a. firstWindow() resolves right after launch",
+      "observed": {
+        "kind": "B",
+        "ms": 0
+      },
+      "pass": true,
+      "note": "which page it returns is an implementation detail (first in CDP discovery order)"
+    },
+    {
+      "name": "a. windows() lists shell + 2 tabs",
+      "observed": {
+        "count": 3,
+        "atLaunchResolve": 3
+      },
+      "pass": true
+    },
+    {
+      "name": "a. context().pages() == windows()",
+      "observed": {
+        "ctxCount": 3,
+        "sameSet": true
+      },
+      "pass": true
+    },
+    {
+      "name": "a. no window events for pre-existing pages (listener added after launch)",
+      "observed": {
+        "windowEvents": 0,
+        "pageEvents": 0
+      },
+      "pass": null,
+      "note": "pages that exist when launch() resolves are only reachable through windows()"
+    },
+    {
+      "name": "a. pages are distinguishable by url + title",
+      "observed": {
+        "described": [
+          {
+            "kind": "B",
+            "url": "http://b.test:49259/timers.html",
+            "title": "timers"
+          },
+          {
+            "kind": "shell",
+            "url": "file:///C:/GitHub/Veltriva/spikes/s6-test-reach/shell.html",
+            "title": "Veltriva Shell"
+          },
+          {
+            "kind": "A",
+            "url": "http://a.test:49259/form.html",
+            "title": "form"
+          }
+        ],
+        "order": "B,shell,A"
+      },
+      "pass": true
+    },
+    {
+      "name": "a. Page -> registry tab mapping via CDP targetId",
+      "observed": {
+        "shell": true,
+        "A": true,
+        "B": true
+      },
+      "pass": true,
+      "note": "robust alternative to matching on url"
+    },
+    {
+      "name": "a. electronApp.browserWindow(page) for views inside a BaseWindow",
+      "observed": {
+        "shell": {
+          "ctor": "BaseWindow",
+          "title": "Veltriva S6"
+        },
+        "A": {
+          "ctor": "BaseWindow",
+          "title": "Veltriva S6"
+        },
+        "B": {
+          "ctor": "BaseWindow",
+          "title": "Veltriva S6"
+        }
+      },
+      "pass": true,
+      "note": "returns the owning BaseWindow (not null, not a BrowserWindow) for the shell and for both tabs"
+    },
+    {
+      "name": "b. shell: click button, read DOM",
+      "observed": {
+        "count": "2",
+        "role": "shell"
+      },
+      "pass": true
+    },
+    {
+      "name": "b. tab A: fill / check / type, confirmed from the main process",
+      "observed": {
+        "viaPlaywright": {
+          "text": "hello veltriva",
+          "chk": true,
+          "reactish": "abc"
+        },
+        "viaMain": {
+          "text": "hello veltriva",
+          "chk": true,
+          "reactish": "abc"
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "b. tab B (hidden view): read window.__t",
+      "observed": {
+        "tick1": 5,
+        "tick2": 18,
+        "delta": 13,
+        "rafTicks": 120,
+        "visibility": "visible"
+      },
+      "pass": true,
+      "note": "setVisible(false) tab is still evaluable; delta over 1.3 s shows timer throttling (100 ms interval; S1 covers throttling in depth)"
+    },
+    {
+      "name": "b. tab A visibilityState",
+      "observed": "visible",
+      "pass": null
+    },
+    {
+      "name": "b. screenshot of shell and visible tab",
+      "observed": {
+        "shell": 2845,
+        "A": 26269
+      },
+      "pass": true
+    },
+    {
+      "name": "b. click() on element of tab B hidden with setVisible(false)",
+      "observed": "ok",
+      "pass": null,
+      "note": "90 ms"
+    },
+    {
+      "name": "b. tab B: setFocusEmulationEnabled(false) from a second CDP session",
+      "observed": {
+        "focusOff": {
+          "visibilityState": "visible",
+          "intervalTicksPer1300ms": 13,
+          "rafTicksPer1300ms": 83
+        },
+        "focusOnAgain": {
+          "visibilityState": "visible",
+          "intervalTicksPer1300ms": 14,
+          "rafTicksPer1300ms": 83
+        }
+      },
+      "pass": null,
+      "note": "does not undo Playwright's own per-page emulation, so it is not a workaround"
+    },
+    {
+      "name": "c. electronApp.evaluate reaches globalThis.__veltrivaTest",
+      "observed": {
+        "typeofHook": "object",
+        "processType": "browser",
+        "electron": "44.7.2",
+        "chrome": "152.0.7977.149",
+        "tabs": 2
+      },
+      "pass": true
+    },
+    {
+      "name": "c. arguments, promises, electron module in evaluate",
+      "observed": {
+        "sum": 42,
+        "awaitedPromise": true,
+        "windowsInMain": {
+          "base": 1,
+          "browser": 0
+        },
+        "mainEnv": {
+          "typeofDocument": "undefined",
+          "typeofRequire": "undefined",
+          "typeofProcess": "object",
+          "ready": true
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "c. main-process console.log arrives as electronApp \"console\" event",
+      "observed": [
+        "S6_APP_READY",
+        "s6-main-console-line"
+      ],
+      "pass": true
+    },
+    {
+      "name": "d. detached (removeChildView) tab: still in windows(), not closed",
+      "observed": {
+        "attached": false,
+        "stillListed": true,
+        "isClosed": false,
+        "url": "http://b.test:49259/timers.html",
+        "title": "timers",
+        "count": 3
+      },
+      "pass": true
+    },
+    {
+      "name": "d. detached tab: page.evaluate works, timers advance (rAF delta shows whether frames are produced)",
+      "observed": {
+        "tickD1": 47,
+        "tickD2": 60,
+        "delta": 13,
+        "rafDelta": 0,
+        "visibility": "visible"
+      },
+      "pass": true
+    },
+    {
+      "name": "d. detached tab: screenshot",
+      "observed": "page.screenshot: Timeout 2000ms exceeded.",
+      "pass": null
+    },
+    {
+      "name": "d. detached tab: click() on its h1",
+      "observed": "locator.click: Timeout 1500ms exceeded.",
+      "pass": null
+    },
+    {
+      "name": "d. re-attached tab: same Page, evaluable, click() works",
+      "observed": {
+        "sameListed": true,
+        "tick": 95,
+        "visibility": "visible",
+        "click": "ok"
+      },
+      "pass": true
+    },
+    {
+      "name": "d. destroyed (webContents.close()) tab: Page emits close and leaves windows()",
+      "observed": {
+        "removeChildViewOnDetachedView": "no error",
+        "closeEventMs": 6,
+        "isClosed": true,
+        "windows": 2,
+        "contextPages": 2,
+        "registryDestroyed": true
+      },
+      "pass": true
+    },
+    {
+      "name": "d. evaluate on the closed Page rejects",
+      "observed": "page.evaluate: Target page, context or browser has been closed",
+      "pass": true
+    },
+    {
+      "name": "d. other pages unaffected by destroy",
+      "observed": {
+        "Atext": "hello veltriva",
+        "shellCount": "2"
+      },
+      "pass": true
+    },
+    {
+      "name": "e. new attached view that never navigated: Page reported?",
+      "observed": {
+        "windowEvents": 0,
+        "pageEvents": 0,
+        "windows": 2
+      },
+      "pass": null,
+      "note": "Playwright docs: \"window\" is issued for windows that are created and loaded"
+    },
+    {
+      "name": "e. same view after loadURL(): exactly one new Page, usable",
+      "observed": {
+        "windowEvents": [
+          "http://b.test:49259/timers.html?late=1"
+        ],
+        "pageEvents": 1,
+        "ms": 115,
+        "windows": 3,
+        "title": "timers",
+        "ticks": 0
+      },
+      "pass": true
+    },
+    {
+      "name": "e. createTab(url) after launch: waitForEvent(\"window\") yields a usable Page",
+      "observed": {
+        "ms": 129,
+        "url": "http://a.test:49259/form.html?late=2",
+        "title": "form",
+        "eventsDuringWait": 1,
+        "windows": 4
+      },
+      "pass": true
+    },
+    {
+      "name": "e. interact with a tab created after launch",
+      "observed": "late tab ok",
+      "pass": true
+    },
+    {
+      "name": "e. page.close() on a tab Page closes its WebContents; the view is no longer a window child",
+      "observed": {
+        "closeEvent": true,
+        "windows": 3,
+        "registryDestroyed": true,
+        "viewStillChildOfWindow": false
+      },
+      "pass": true,
+      "note": "Playwright closes via webContents.close() (no removeChildView, no TabManager bookkeeping); Electron drops the dead view from contentView by itself"
+    },
+    {
+      "name": "e. view that navigated but was never attached to the window",
+      "observed": {
+        "reported": true,
+        "url": "http://b.test:49259/timers.html?orphan=1",
+        "ticks": 0
+      },
+      "pass": null
+    }
+  ],
+  "runAsNode": {
+    "playwright": {
+      "launched": false,
+      "error": [
+        "electron.launch: Process failed to launch!",
+        "Call log:",
+        "\u001b[2m  - <launching> \"C:\\GitHub\\Veltriva\\spikes\\node_modules\\electron\\dist\\electron.exe\" \"--inspect=0\" \"--remote-debugging-port=0\" \"C:\\GitHub\\Veltriva\\spikes\\s6-test-reach\\app-main.js\"\u001b[22m",
+        "\u001b[2m  - <launched> pid=30584\u001b[22m",
+        "\u001b[2m  - [pid=30584][err] C:\\GitHub\\Veltriva\\spikes\\node_modules\\electron\\dist\\electron.exe: bad option: --remote-debugging-port=0\u001b[22m",
+        "\u001b[2m  - [pid=30584] <kill>\u001b[22m",
+        "\u001b[2m  - [pid=30584] <will force kill>\u001b[22m",
+        "\u001b[2m  - [pid=30584] <process did exit: exitCode=9, signal=null>\u001b[22m",
+        "\u001b[2m  - [pid=30584] starting temporary directories cleanup\u001b[22m",
+        "\u001b[2m  - [pid=30584] finished temporary directories cleanup\u001b[22m"
+      ]
+    },
+    "unhandledRejectionsEscapingLaunch": [
+      "Process failed to launch!",
+      "Process failed to launch!",
+      "Process failed to launch!"
+    ],
+    "ms": 1093,
+    "raw": {
+      "exitCode": 9,
+      "signal": null,
+      "output": [
+        "C:\\GitHub\\Veltriva\\spikes\\node_modules\\electron\\dist\\electron.exe: bad option: --remote-debugging-port=0"
+      ]
+    }
+  },
+  "loaderMode": {
+    "launched": true,
+    "windows": [
+      "shell",
+      "A",
+      "B"
+    ],
+    "argv": [
+      "C:\\GitHub\\Veltriva\\spikes\\s6-test-reach\\app-main.js"
+    ],
+    "switches": {
+      "disableRendererBackgrounding": true,
+      "disableBackgroundingOccluded": true
+    }
+  },
+  "controlWithoutPlaywright": {
+    "exitCode": 0,
+    "results": {
+      "electron": "44.7.2",
+      "chromium": "152.0.7977.149",
+      "node": "24.21.0",
+      "os": "win32 10.0.26200",
+      "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+      "totalMemGB": 7.7,
+      "setVisibleFalseAttached": {
+        "visibilityState": "hidden",
+        "intervalTicksPer1300ms": 1,
+        "rafTicksPer1300ms": 0
+      },
+      "visibleAttached": {
+        "visibilityState": "visible",
+        "intervalTicksPer1300ms": 14,
+        "rafTicksPer1300ms": 84
+      },
+      "detached": {
+        "visibilityState": "hidden",
+        "intervalTicksPer1300ms": 1,
+        "rafTicksPer1300ms": 0
+      }
+    }
+  },
+  "focusEmulationBisect": {
+    "steps": [
+      {
+        "step": "raw CDP session attached, nothing enabled",
+        "visibilityState": "hidden",
+        "intervalTicksPer1300ms": 2,
+        "rafTicksPer1300ms": 0
+      },
+      {
+        "step": "after Emulation.setFocusEmulationEnabled(true)",
+        "visibilityState": "visible",
+        "intervalTicksPer1300ms": 13,
+        "rafTicksPer1300ms": 84
+      },
+      {
+        "step": "after Emulation.setFocusEmulationEnabled(false)",
+        "visibilityState": "hidden",
+        "intervalTicksPer1300ms": 1,
+        "rafTicksPer1300ms": 0
+      }
+    ]
+  },
+  "leftoverProcesses": 0,
+  "cycles": [
+    {
+      "index": 1,
+      "ok": true,
+      "failed": [],
+      "forcedKill": false,
+      "exitCode": 0,
+      "timings": {
+        "launchMs": 589,
+        "threePagesMs": 591,
+        "closeMs": 218,
+        "totalMs": 12416
+      },
+      "obs": {
+        "windowsAtLaunchResolve": 3,
+        "firstWindowKind": "B",
+        "windowsOrder": "B,shell,A",
+        "hiddenTimerDelta1300ms": 13,
+        "hiddenRafTicks": 120,
+        "setVisibleFalseClick": "ok",
+        "setVisibleFalseVisibility": "visible",
+        "focusEmulationOffVisibility": "visible",
+        "argv": [
+          "--inspect=0",
+          "--remote-debugging-port=0",
+          "C:\\GitHub\\Veltriva\\spikes\\s6-test-reach\\app-main.js"
+        ],
+        "mainSwitches": {
+          "disableRendererBackgrounding": false,
+          "disableBackgroundingOccluded": false
+        },
+        "detachedTimerDelta1300ms": 13,
+        "detachedRafDelta1300ms": 0,
+        "detachedVisibility": "visible",
+        "detachedClick": "error",
+        "destroyMs": 23,
+        "blankViewReported": false,
+        "pageCloseLeavesViewAsChild": false,
+        "unattachedViewReported": true
+      }
+    },
+    {
+      "index": 2,
+      "ok": true,
+      "failed": [],
+      "forcedKill": false,
+      "exitCode": 0,
+      "timings": {
+        "launchMs": 762,
+        "threePagesMs": 763,
+        "closeMs": 671,
+        "totalMs": 12891
+      },
+      "obs": {
+        "windowsAtLaunchResolve": 3,
+        "firstWindowKind": "B",
+        "windowsOrder": "B,shell,A",
+        "hiddenTimerDelta1300ms": 13,
+        "hiddenRafTicks": 113,
+        "setVisibleFalseClick": "ok",
+        "setVisibleFalseVisibility": "visible",
+        "focusEmulationOffVisibility": "visible",
+        "argv": [
+          "--inspect=0",
+          "--remote-debugging-port=0",
+          "C:\\GitHub\\Veltriva\\spikes\\s6-test-reach\\app-main.js"
+        ],
+        "mainSwitches": {
+          "disableRendererBackgrounding": false,
+          "disableBackgroundingOccluded": false
+        },
+        "detachedTimerDelta1300ms": 13,
+        "detachedRafDelta1300ms": 0,
+        "detachedVisibility": "visible",
+        "detachedClick": "error",
+        "destroyMs": 20,
+        "blankViewReported": false,
+        "pageCloseLeavesViewAsChild": false,
+        "unattachedViewReported": true
+      }
+    },
+    {
+      "index": 3,
+      "ok": true,
+      "failed": [],
+      "forcedKill": false,
+      "exitCode": 0,
+      "timings": {
+        "launchMs": 628,
+        "threePagesMs": 629,
+        "closeMs": 316,
+        "totalMs": 12443
+      },
+      "obs": {
+        "windowsAtLaunchResolve": 3,
+        "firstWindowKind": "A",
+        "windowsOrder": "A,shell,B",
+        "hiddenTimerDelta1300ms": 13,
+        "hiddenRafTicks": 113,
+        "setVisibleFalseClick": "ok",
+        "setVisibleFalseVisibility": "visible",
+        "focusEmulationOffVisibility": "visible",
+        "argv": [
+          "--inspect=0",
+          "--remote-debugging-port=0",
+          "C:\\GitHub\\Veltriva\\spikes\\s6-test-reach\\app-main.js"
+        ],
+        "mainSwitches": {
+          "disableRendererBackgrounding": false,
+          "disableBackgroundingOccluded": false
+        },
+        "detachedTimerDelta1300ms": 13,
+        "detachedRafDelta1300ms": 0,
+        "detachedVisibility": "visible",
+        "detachedClick": "error",
+        "destroyMs": 21,
+        "blankViewReported": false,
+        "pageCloseLeavesViewAsChild": false,
+        "unattachedViewReported": true
+      }
+    },
+    {
+      "index": 4,
+      "ok": true,
+      "failed": [],
+      "forcedKill": false,
+      "exitCode": 0,
+      "timings": {
+        "launchMs": 527,
+        "threePagesMs": 528,
+        "closeMs": 202,
+        "totalMs": 12202
+      },
+      "obs": {
+        "windowsAtLaunchResolve": 3,
+        "firstWindowKind": "B",
+        "windowsOrder": "B,shell,A",
+        "hiddenTimerDelta1300ms": 13,
+        "hiddenRafTicks": 110,
+        "setVisibleFalseClick": "ok",
+        "setVisibleFalseVisibility": "visible",
+        "focusEmulationOffVisibility": "visible",
+        "argv": [
+          "--inspect=0",
+          "--remote-debugging-port=0",
+          "C:\\GitHub\\Veltriva\\spikes\\s6-test-reach\\app-main.js"
+        ],
+        "mainSwitches": {
+          "disableRendererBackgrounding": false,
+          "disableBackgroundingOccluded": false
+        },
+        "detachedTimerDelta1300ms": 13,
+        "detachedRafDelta1300ms": 0,
+        "detachedVisibility": "visible",
+        "detachedClick": "error",
+        "destroyMs": 20,
+        "blankViewReported": false,
+        "pageCloseLeavesViewAsChild": false,
+        "unattachedViewReported": true
+      }
+    },
+    {
+      "index": 5,
+      "ok": true,
+      "failed": [],
+      "forcedKill": false,
+      "exitCode": 0,
+      "timings": {
+        "launchMs": 658,
+        "threePagesMs": 658,
+        "closeMs": 202,
+        "totalMs": 12267
+      },
+      "obs": {
+        "windowsAtLaunchResolve": 3,
+        "firstWindowKind": "shell",
+        "windowsOrder": "shell,B,A",
+        "hiddenTimerDelta1300ms": 13,
+        "hiddenRafTicks": 109,
+        "setVisibleFalseClick": "ok",
+        "setVisibleFalseVisibility": "visible",
+        "focusEmulationOffVisibility": "visible",
+        "argv": [
+          "--inspect=0",
+          "--remote-debugging-port=0",
+          "C:\\GitHub\\Veltriva\\spikes\\s6-test-reach\\app-main.js"
+        ],
+        "mainSwitches": {
+          "disableRendererBackgrounding": false,
+          "disableBackgroundingOccluded": false
+        },
+        "detachedTimerDelta1300ms": 13,
+        "detachedRafDelta1300ms": 0,
+        "detachedVisibility": "visible",
+        "detachedClick": "error",
+        "destroyMs": 19,
+        "blankViewReported": false,
+        "pageCloseLeavesViewAsChild": false,
+        "unattachedViewReported": true
+      }
+    },
+    {
+      "index": 6,
+      "ok": true,
+      "failed": [],
+      "forcedKill": false,
+      "exitCode": 0,
+      "timings": {
+        "launchMs": 536,
+        "threePagesMs": 537,
+        "closeMs": 208,
+        "totalMs": 12184
+      },
+      "obs": {
+        "windowsAtLaunchResolve": 3,
+        "firstWindowKind": "A",
+        "windowsOrder": "A,B,shell",
+        "hiddenTimerDelta1300ms": 13,
+        "hiddenRafTicks": 111,
+        "setVisibleFalseClick": "ok",
+        "setVisibleFalseVisibility": "visible",
+        "focusEmulationOffVisibility": "visible",
+        "argv": [
+          "--inspect=0",
+          "--remote-debugging-port=0",
+          "C:\\GitHub\\Veltriva\\spikes\\s6-test-reach\\app-main.js"
+        ],
+        "mainSwitches": {
+          "disableRendererBackgrounding": false,
+          "disableBackgroundingOccluded": false
+        },
+        "detachedTimerDelta1300ms": 13,
+        "detachedRafDelta1300ms": 0,
+        "detachedVisibility": "visible",
+        "detachedClick": "error",
+        "destroyMs": 18,
+        "blankViewReported": false,
+        "pageCloseLeavesViewAsChild": false,
+        "unattachedViewReported": true
+      }
+    },
+    {
+      "index": 7,
+      "ok": true,
+      "failed": [],
+      "forcedKill": false,
+      "exitCode": 0,
+      "timings": {
+        "launchMs": 562,
+        "threePagesMs": 563,
+        "closeMs": 199,
+        "totalMs": 12180
+      },
+      "obs": {
+        "windowsAtLaunchResolve": 3,
+        "firstWindowKind": "B",
+        "windowsOrder": "B,A,shell",
+        "hiddenTimerDelta1300ms": 13,
+        "hiddenRafTicks": 110,
+        "setVisibleFalseClick": "ok",
+        "setVisibleFalseVisibility": "visible",
+        "focusEmulationOffVisibility": "visible",
+        "argv": [
+          "--inspect=0",
+          "--remote-debugging-port=0",
+          "C:\\GitHub\\Veltriva\\spikes\\s6-test-reach\\app-main.js"
+        ],
+        "mainSwitches": {
+          "disableRendererBackgrounding": false,
+          "disableBackgroundingOccluded": false
+        },
+        "detachedTimerDelta1300ms": 13,
+        "detachedRafDelta1300ms": 0,
+        "detachedVisibility": "visible",
+        "detachedClick": "error",
+        "destroyMs": 17,
+        "blankViewReported": false,
+        "pageCloseLeavesViewAsChild": false,
+        "unattachedViewReported": true
+      }
+    },
+    {
+      "index": 8,
+      "ok": true,
+      "failed": [],
+      "forcedKill": false,
+      "exitCode": 0,
+      "timings": {
+        "launchMs": 529,
+        "threePagesMs": 530,
+        "closeMs": 204,
+        "totalMs": 12062
+      },
+      "obs": {
+        "windowsAtLaunchResolve": 3,
+        "firstWindowKind": "B",
+        "windowsOrder": "B,A,shell",
+        "hiddenTimerDelta1300ms": 14,
+        "hiddenRafTicks": 109,
+        "setVisibleFalseClick": "ok",
+        "setVisibleFalseVisibility": "visible",
+        "focusEmulationOffVisibility": "visible",
+        "argv": [
+          "--inspect=0",
+          "--remote-debugging-port=0",
+          "C:\\GitHub\\Veltriva\\spikes\\s6-test-reach\\app-main.js"
+        ],
+        "mainSwitches": {
+          "disableRendererBackgrounding": false,
+          "disableBackgroundingOccluded": false
+        },
+        "detachedTimerDelta1300ms": 13,
+        "detachedRafDelta1300ms": 0,
+        "detachedVisibility": "visible",
+        "detachedClick": "error",
+        "destroyMs": 17,
+        "blankViewReported": false,
+        "pageCloseLeavesViewAsChild": false,
+        "unattachedViewReported": true
+      }
+    },
+    {
+      "index": 9,
+      "ok": true,
+      "failed": [],
+      "forcedKill": false,
+      "exitCode": 0,
+      "timings": {
+        "launchMs": 503,
+        "threePagesMs": 504,
+        "closeMs": 206,
+        "totalMs": 12331
+      },
+      "obs": {
+        "windowsAtLaunchResolve": 3,
+        "firstWindowKind": "B",
+        "windowsOrder": "B,shell,A",
+        "hiddenTimerDelta1300ms": 13,
+        "hiddenRafTicks": 109,
+        "setVisibleFalseClick": "ok",
+        "setVisibleFalseVisibility": "visible",
+        "focusEmulationOffVisibility": "visible",
+        "argv": [
+          "--inspect=0",
+          "--remote-debugging-port=0",
+          "C:\\GitHub\\Veltriva\\spikes\\s6-test-reach\\app-main.js"
+        ],
+        "mainSwitches": {
+          "disableRendererBackgrounding": false,
+          "disableBackgroundingOccluded": false
+        },
+        "detachedTimerDelta1300ms": 13,
+        "detachedRafDelta1300ms": 0,
+        "detachedVisibility": "visible",
+        "detachedClick": "error",
+        "destroyMs": 20,
+        "blankViewReported": false,
+        "pageCloseLeavesViewAsChild": false,
+        "unattachedViewReported": true
+      }
+    },
+    {
+      "index": 10,
+      "ok": true,
+      "failed": [],
+      "forcedKill": false,
+      "exitCode": 0,
+      "timings": {
+        "launchMs": 570,
+        "threePagesMs": 570,
+        "closeMs": 230,
+        "totalMs": 12253
+      },
+      "obs": {
+        "windowsAtLaunchResolve": 3,
+        "firstWindowKind": "shell",
+        "windowsOrder": "shell,A,B",
+        "hiddenTimerDelta1300ms": 13,
+        "hiddenRafTicks": 111,
+        "setVisibleFalseClick": "ok",
+        "setVisibleFalseVisibility": "visible",
+        "focusEmulationOffVisibility": "visible",
+        "argv": [
+          "--inspect=0",
+          "--remote-debugging-port=0",
+          "C:\\GitHub\\Veltriva\\spikes\\s6-test-reach\\app-main.js"
+        ],
+        "mainSwitches": {
+          "disableRendererBackgrounding": false,
+          "disableBackgroundingOccluded": false
+        },
+        "detachedTimerDelta1300ms": 14,
+        "detachedRafDelta1300ms": 0,
+        "detachedVisibility": "visible",
+        "detachedClick": "error",
+        "destroyMs": 19,
+        "blankViewReported": false,
+        "pageCloseLeavesViewAsChild": false,
+        "unattachedViewReported": true
+      }
+    }
+  ]
+}

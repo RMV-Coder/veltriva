@@ -1,0 +1,188 @@
+{
+  "generatedAt": "2026-10-15T22:34:44.423Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "runs": 3,
+  "rows": [
+    {
+      "name": "baseline: tab page before any overlay",
+      "observed": {
+        "visibility": "visible",
+        "intervalPerSec": 9.9,
+        "rafPerSec": 64
+      },
+      "pass": null
+    },
+    {
+      "name": "A: tab page while the shell is raised above it",
+      "observed": {
+        "visibility": "hidden",
+        "intervalPerSec": 0.8,
+        "rafPerSec": 0
+      },
+      "pass": null,
+      "note": "does the page see a visibility change?"
+    },
+    {
+      "name": "A: shell has keyboard focus while overlay is open",
+      "observed": true,
+      "pass": null
+    },
+    {
+      "name": "A: capturePage latency (ms)",
+      "observed": {
+        "median": 5.1,
+        "min": 4.3,
+        "max": 10.9,
+        "n": 3
+      },
+      "pass": null
+    },
+    {
+      "name": "A: JPEG encode + base64 (ms)",
+      "observed": {
+        "median": 3.9,
+        "min": 3.3,
+        "max": 21.5,
+        "n": 3,
+        "jpegKB": 19
+      },
+      "pass": null
+    },
+    {
+      "name": "A: shell decode + paint (ms)",
+      "observed": {
+        "median": 20.5,
+        "min": 18.1,
+        "max": 77.4,
+        "n": 3
+      },
+      "pass": null
+    },
+    {
+      "name": "A: total time to overlay on screen (ms)",
+      "observed": {
+        "median": 28.8,
+        "min": 26.3,
+        "max": 109.8,
+        "n": 3
+      },
+      "pass": null
+    },
+    {
+      "name": "A: tab page after overlay closed",
+      "observed": {
+        "visibility": "visible",
+        "intervalPerSec": 10,
+        "rafPerSec": 63.9
+      },
+      "pass": null
+    },
+    {
+      "name": "A′: tab page while the transparent shell is raised above it",
+      "observed": {
+        "visibility": "visible",
+        "intervalPerSec": 10,
+        "rafPerSec": 63.8
+      },
+      "pass": null
+    },
+    {
+      "name": "A′: focus after shell.webContents.focus()",
+      "observed": {
+        "shellIsFocused": true,
+        "shell": {
+          "hasFocus": true,
+          "active": "INPUT"
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "A′: time to overlay on screen (ms)",
+      "observed": {
+        "median": 9.3,
+        "min": 9,
+        "max": 26.9,
+        "n": 3
+      },
+      "pass": null
+    },
+    {
+      "name": "A′: window capture through the transparent shell (expect red page around a white palette)",
+      "observed": {
+        "found": true,
+        "size": "900x571",
+        "redPct": 71.4,
+        "bluePct": 0,
+        "whitePct": 20.5
+      },
+      "pass": true
+    },
+    {
+      "name": "B: cold create + load + first paint of overlay view (ms)",
+      "observed": 178.6,
+      "pass": null
+    },
+    {
+      "name": "B: extra renderer cost of the overlay view",
+      "observed": {
+        "before": {
+          "tabCount": 2,
+          "tabPrivateMB": 53
+        },
+        "after": {
+          "tabCount": 3,
+          "tabPrivateMB": 76
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "B: warm show (setVisible(true) → painted) (ms)",
+      "observed": {
+        "median": 22.8,
+        "min": 22.7,
+        "max": 24.4,
+        "n": 3
+      },
+      "pass": null
+    },
+    {
+      "name": "B: tab page while the overlay view is shown",
+      "observed": {
+        "visibility": "visible",
+        "intervalPerSec": 9.9,
+        "rafPerSec": 64
+      },
+      "pass": null
+    },
+    {
+      "name": "B: focus after overlay.webContents.focus()",
+      "observed": {
+        "overlayIsFocused": true,
+        "overlay": {
+          "hasFocus": true,
+          "active": "INPUT"
+        },
+        "tabIsFocused": false
+      },
+      "pass": null
+    },
+    {
+      "name": "B: window capture through the transparent overlay (expect red around a blue palette)",
+      "observed": {
+        "found": true,
+        "size": "900x571",
+        "redPct": 68.7,
+        "bluePct": 14.5,
+        "whitePct": 11.2
+      },
+      "pass": true
+    }
+  ]
+}

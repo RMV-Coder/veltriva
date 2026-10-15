@@ -1,0 +1,11 @@
+{
+  "name": "s5-packaged-probe",
+  "version": "0.0.1",
+  "description": "Spike S5 packaged-build probe: a Worker script inside app.asar loads better-sqlite3 and runs an FTS5 query.",
+  "main": "main.js",
+  "private": true,
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "13.0.3"
+  }
+}

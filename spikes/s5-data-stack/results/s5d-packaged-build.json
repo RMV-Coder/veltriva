@@ -1,0 +1,441 @@
+{
+  "generatedAt": "2026-10-15T23:26:14.098Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "rows": [
+    {
+      "name": "[default] app.asar contains main.js + worker.js; native .node files unpacked",
+      "observed": {
+        "workerInAsar": true,
+        "asarKiB": 423,
+        "unpackedKiB": 26655,
+        "nodeFiles": [
+          "node_modules/better-sqlite3/prebuilds/darwin-arm64.node",
+          "node_modules/better-sqlite3/prebuilds/darwin-x64.node",
+          "node_modules/better-sqlite3/prebuilds/linux-arm64.node",
+          "node_modules/better-sqlite3/prebuilds/linux-x64.node",
+          "node_modules/better-sqlite3/prebuilds/linuxmusl-arm64.node",
+          "node_modules/better-sqlite3/prebuilds/linuxmusl-x64.node",
+          "node_modules/better-sqlite3/prebuilds/win32-arm64.node",
+          "node_modules/better-sqlite3/prebuilds/win32-x64.node"
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "[default] (a) worker script loads from inside app.asar and runs",
+      "observed": {
+        "workerPath": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\win-unpacked\\resources\\app.asar\\worker.js",
+        "workerFilename": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\win-unpacked\\resources\\app.asar\\worker.js",
+        "exitCodes": [
+          0,
+          0,
+          0
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "[default] (b) better-sqlite3 .node mapped from app.asar.unpacked",
+      "observed": {
+        "requireResolved": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\win-unpacked\\resources\\app.asar\\node_modules\\better-sqlite3\\lib\\index.js",
+        "mappedByWorker": [
+          "\\\\?\\C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\win-unpacked\\resources\\app.asar.unpacked\\node_modules\\better-sqlite3\\prebuilds\\win32-x64.node"
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "[default] (c) FTS5 query works in the packaged worker",
+      "observed": {
+        "sqlite": "3.53.4",
+        "journalMode": "wal",
+        "autoVacuum": 2,
+        "ftsRows": 200
+      },
+      "pass": true
+    },
+    {
+      "name": "[default] wall time of exe run (start -> report -> exit), 3 runs; first is cold",
+      "observed": [
+        995,
+        903,
+        752
+      ],
+      "pass": null
+    },
+    {
+      "name": "[default] Electron fuses in the exe",
+      "observed": {
+        "RunAsNode": "enabled",
+        "EnableCookieEncryption": "disabled",
+        "EnableNodeOptionsEnvironmentVariable": "enabled",
+        "EnableNodeCliInspectArguments": "enabled",
+        "EnableEmbeddedAsarIntegrityValidation": "disabled",
+        "OnlyLoadAppFromAsar": "disabled",
+        "LoadBrowserProcessSpecificV8Snapshot": "disabled",
+        "GrantFileProtocolExtraPrivileges": "enabled"
+      },
+      "pass": null
+    },
+    {
+      "name": "[default] worker path via app.getAppPath() also works",
+      "observed": {
+        "mode": "app.getAppPath()",
+        "exitCode": 0,
+        "ok": true,
+        "workerPath": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\win-unpacked\\resources\\app.asar\\worker.js"
+      },
+      "pass": null
+    },
+    {
+      "name": "[slim-fuses] app.asar contains main.js + worker.js; native .node files unpacked",
+      "observed": {
+        "workerInAsar": true,
+        "asarKiB": 13,
+        "unpackedKiB": 1972,
+        "nodeFiles": [
+          "node_modules/better-sqlite3/prebuilds/win32-x64.node"
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "[slim-fuses] (a) worker script loads from inside app.asar and runs",
+      "observed": {
+        "workerPath": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\slim\\win-unpacked\\resources\\app.asar\\worker.js",
+        "workerFilename": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\slim\\win-unpacked\\resources\\app.asar\\worker.js",
+        "exitCodes": [
+          0,
+          0,
+          0
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "[slim-fuses] (b) better-sqlite3 .node mapped from app.asar.unpacked",
+      "observed": {
+        "requireResolved": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\slim\\win-unpacked\\resources\\app.asar\\node_modules\\better-sqlite3\\lib\\index.js",
+        "mappedByWorker": [
+          "\\\\?\\C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\slim\\win-unpacked\\resources\\app.asar.unpacked\\node_modules\\better-sqlite3\\prebuilds\\win32-x64.node"
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "[slim-fuses] (c) FTS5 query works in the packaged worker",
+      "observed": {
+        "sqlite": "3.53.4",
+        "journalMode": "wal",
+        "autoVacuum": 2,
+        "ftsRows": 200
+      },
+      "pass": true
+    },
+    {
+      "name": "[slim-fuses] wall time of exe run (start -> report -> exit), 3 runs; first is cold",
+      "observed": [
+        831,
+        715,
+        763
+      ],
+      "pass": null
+    },
+    {
+      "name": "[slim-fuses] Electron fuses in the exe",
+      "observed": {
+        "RunAsNode": "disabled",
+        "EnableCookieEncryption": "enabled",
+        "EnableNodeOptionsEnvironmentVariable": "disabled",
+        "EnableNodeCliInspectArguments": "disabled",
+        "EnableEmbeddedAsarIntegrityValidation": "enabled",
+        "OnlyLoadAppFromAsar": "enabled",
+        "LoadBrowserProcessSpecificV8Snapshot": "disabled",
+        "GrantFileProtocolExtraPrivileges": "disabled"
+      },
+      "pass": null
+    },
+    {
+      "name": "npm ls rimraf glob boolean (run in spikes/)",
+      "observed": [
+        "veltriva-spikes@0.0.0 C:\\GitHub\\Veltriva\\spikes",
+        "`-- electron-builder@26.17.0",
+        "  `-- app-builder-lib@26.17.0",
+        "    +-- @electron/asar@3.4.1",
+        "    | `-- glob@7.2.3",
+        "    +-- @electron/get@3.1.0",
+        "    | `-- global-agent@3.0.0",
+        "    |   +-- boolean@3.2.0",
+        "    |   `-- roarr@2.15.4",
+        "    |     `-- boolean@3.2.0 deduped",
+        "    `-- electron-builder-squirrel-windows@26.17.0",
+        "      `-- electron-winstaller@5.4.0",
+        "        `-- temp@0.9.4",
+        "          `-- rimraf@2.6.3",
+        "            `-- glob@7.2.3 deduped"
+      ],
+      "pass": null
+    }
+  ],
+  "variants": {
+    "default": {
+      "name": "default",
+      "packLog": {
+        "lineCount": 10,
+        "warnings": [
+          "  • author is missed in the package.json  appPackageFile=C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\app\\package.json"
+        ],
+        "rebuildRelated": [
+          "  • skipped dependencies rebuild  reason=npmRebuild is set to false"
+        ],
+        "downloads": [
+          "  • downloaded      label=electron progress=100%",
+          "  • downloaded electron zip extracted successfully  output=C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\win-unpacked"
+        ],
+        "steps": [
+          "• electron-builder  version=26.17.0 os=10.0.26200",
+          "• author is missed in the package.json  appPackageFile=C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\app\\package.json",
+          "• skipped dependencies rebuild  reason=npmRebuild is set to false",
+          "• packaging       platform=win32 arch=x64 electron=44.7.2 appOutDir=s5-data-stack\\dist\\win-unpacked",
+          "• downloaded      label=electron progress=100%",
+          "• downloaded electron zip extracted successfully  output=C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\win-unpacked",
+          "• searching for node modules  pm=npm searchDir=C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\app",
+          "• updating asar integrity executable resource  executablePath=s5-data-stack\\dist\\win-unpacked\\s5-packaged-probe.exe",
+          "• default Electron icon is used  reason=application icon is not set",
+          "• no code signing certificate configured, signing is skipped  path=s5-data-stack\\dist\\win-unpacked\\s5-packaged-probe.exe"
+        ]
+      },
+      "layout": {
+        "exe": "s5-packaged-probe.exe",
+        "exeMiB": 234,
+        "winUnpackedMiB": 393,
+        "appAsarKiB": 423,
+        "appAsarUnpackedKiB": 26655,
+        "asarEntryCount": 100,
+        "workerInAsar": true,
+        "mainInAsar": true,
+        "betterSqlite3FilesInAsarIndex": 75,
+        "unpackedFileCount": 66,
+        "unpackedNodeFiles": [
+          "node_modules/better-sqlite3/prebuilds/darwin-arm64.node",
+          "node_modules/better-sqlite3/prebuilds/darwin-x64.node",
+          "node_modules/better-sqlite3/prebuilds/linux-arm64.node",
+          "node_modules/better-sqlite3/prebuilds/linux-x64.node",
+          "node_modules/better-sqlite3/prebuilds/linuxmusl-arm64.node",
+          "node_modules/better-sqlite3/prebuilds/linuxmusl-x64.node",
+          "node_modules/better-sqlite3/prebuilds/win32-arm64.node",
+          "node_modules/better-sqlite3/prebuilds/win32-x64.node"
+        ],
+        "unpackedTopFolders": [
+          "node_modules/better-sqlite3/LICENSE",
+          "node_modules/better-sqlite3/deps",
+          "node_modules/better-sqlite3/lib",
+          "node_modules/better-sqlite3/package.json",
+          "node_modules/better-sqlite3/prebuilds",
+          "node_modules/better-sqlite3/src"
+        ],
+        "unpackedFolderCounts": {
+          "better-sqlite3": 66
+        },
+        "nodeAddonApiPresent": true
+      },
+      "fuses": {
+        "RunAsNode": "enabled",
+        "EnableCookieEncryption": "disabled",
+        "EnableNodeOptionsEnvironmentVariable": "enabled",
+        "EnableNodeCliInspectArguments": "enabled",
+        "EnableEmbeddedAsarIntegrityValidation": "disabled",
+        "OnlyLoadAppFromAsar": "disabled",
+        "LoadBrowserProcessSpecificV8Snapshot": "disabled",
+        "GrantFileProtocolExtraPrivileges": "enabled"
+      },
+      "runs": [
+        {
+          "exitCode": 0,
+          "wallMs": 995,
+          "ok": true
+        },
+        {
+          "exitCode": 0,
+          "wallMs": 903,
+          "ok": true
+        },
+        {
+          "exitCode": 0,
+          "wallMs": 752,
+          "ok": true
+        }
+      ],
+      "report": {
+        "workerPath": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\win-unpacked\\resources\\app.asar\\worker.js",
+        "isPackaged": true,
+        "appPath": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\win-unpacked\\resources\\app.asar",
+        "electron": "44.7.2",
+        "node": "24.21.0",
+        "worker": {
+          "ok": true,
+          "info": {
+            "filename": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\win-unpacked\\resources\\app.asar\\worker.js",
+            "dirname": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\win-unpacked\\resources\\app.asar",
+            "electron": "44.7.2",
+            "node": "24.21.0",
+            "betterSqlite3Resolved": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\win-unpacked\\resources\\app.asar\\node_modules\\better-sqlite3\\lib\\index.js",
+            "journalMode": "wal",
+            "sqlite": "3.53.4",
+            "autoVacuum": 2,
+            "loadedNative": [
+              "\\\\?\\C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\win-unpacked\\resources\\app.asar.unpacked\\node_modules\\better-sqlite3\\prebuilds\\win32-x64.node"
+            ],
+            "ftsRows": 200,
+            "firstRow": {
+              "id": 1,
+              "title": "PostgreSQL index tuning 0",
+              "text_rank": -6.976211768163997,
+              "title_marked": "\u0001PostgreSQL\u0002 \u0001index\u0002 tuning 0"
+            }
+          }
+        }
+      },
+      "alternativeWorkerPath": {
+        "mode": "app.getAppPath()",
+        "exitCode": 0,
+        "ok": true,
+        "workerPath": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\win-unpacked\\resources\\app.asar\\worker.js"
+      }
+    },
+    "slim-fuses": {
+      "name": "slim-fuses",
+      "packLog": {
+        "lineCount": 12,
+        "warnings": [
+          "  • author is missed in the package.json  appPackageFile=C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\app\\package.json"
+        ],
+        "rebuildRelated": [
+          "  • skipped dependencies rebuild  reason=npmRebuild is set to false"
+        ],
+        "downloads": [
+          "  • downloaded      label=electron progress=100%",
+          "  • downloaded electron zip extracted successfully  output=C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\slim\\win-unpacked"
+        ],
+        "steps": [
+          "• electron-builder  version=26.17.0 os=10.0.26200",
+          "• loaded configuration  file=C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\builder.slim.yml",
+          "• author is missed in the package.json  appPackageFile=C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\app\\package.json",
+          "• skipped dependencies rebuild  reason=npmRebuild is set to false",
+          "• packaging       platform=win32 arch=x64 electron=44.7.2 appOutDir=s5-data-stack\\dist\\slim\\win-unpacked",
+          "• downloaded      label=electron progress=100%",
+          "• downloaded electron zip extracted successfully  output=C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\slim\\win-unpacked",
+          "• searching for node modules  pm=npm searchDir=C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\app",
+          "• updating asar integrity executable resource  executablePath=s5-data-stack\\dist\\slim\\win-unpacked\\s5-packaged-probe.exe",
+          "• executing @electron/fuses  electronPath=s5-data-stack\\dist\\slim\\win-unpacked\\s5-packaged-probe.exe",
+          "• default Electron icon is used  reason=application icon is not set",
+          "• no code signing certificate configured, signing is skipped  path=s5-data-stack\\dist\\slim\\win-unpacked\\s5-packaged-probe.exe"
+        ]
+      },
+      "layout": {
+        "exe": "s5-packaged-probe.exe",
+        "exeMiB": 234,
+        "winUnpackedMiB": 369,
+        "appAsarKiB": 13,
+        "appAsarUnpackedKiB": 1972,
+        "asarEntryCount": 35,
+        "workerInAsar": true,
+        "mainInAsar": true,
+        "betterSqlite3FilesInAsarIndex": 29,
+        "unpackedFileCount": 26,
+        "unpackedNodeFiles": [
+          "node_modules/better-sqlite3/prebuilds/win32-x64.node"
+        ],
+        "unpackedTopFolders": [
+          "node_modules/better-sqlite3/LICENSE",
+          "node_modules/better-sqlite3/lib",
+          "node_modules/better-sqlite3/package.json",
+          "node_modules/better-sqlite3/prebuilds"
+        ],
+        "unpackedFolderCounts": {
+          "better-sqlite3": 26
+        },
+        "nodeAddonApiPresent": false
+      },
+      "fuses": {
+        "RunAsNode": "disabled",
+        "EnableCookieEncryption": "enabled",
+        "EnableNodeOptionsEnvironmentVariable": "disabled",
+        "EnableNodeCliInspectArguments": "disabled",
+        "EnableEmbeddedAsarIntegrityValidation": "enabled",
+        "OnlyLoadAppFromAsar": "enabled",
+        "LoadBrowserProcessSpecificV8Snapshot": "disabled",
+        "GrantFileProtocolExtraPrivileges": "disabled"
+      },
+      "runs": [
+        {
+          "exitCode": 0,
+          "wallMs": 831,
+          "ok": true
+        },
+        {
+          "exitCode": 0,
+          "wallMs": 715,
+          "ok": true
+        },
+        {
+          "exitCode": 0,
+          "wallMs": 763,
+          "ok": true
+        }
+      ],
+      "report": {
+        "workerPath": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\slim\\win-unpacked\\resources\\app.asar\\worker.js",
+        "isPackaged": true,
+        "appPath": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\slim\\win-unpacked\\resources\\app.asar",
+        "electron": "44.7.2",
+        "node": "24.21.0",
+        "worker": {
+          "ok": true,
+          "info": {
+            "filename": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\slim\\win-unpacked\\resources\\app.asar\\worker.js",
+            "dirname": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\slim\\win-unpacked\\resources\\app.asar",
+            "electron": "44.7.2",
+            "node": "24.21.0",
+            "betterSqlite3Resolved": "C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\slim\\win-unpacked\\resources\\app.asar\\node_modules\\better-sqlite3\\lib\\index.js",
+            "journalMode": "wal",
+            "sqlite": "3.53.4",
+            "autoVacuum": 2,
+            "loadedNative": [
+              "\\\\?\\C:\\GitHub\\Veltriva\\spikes\\s5-data-stack\\dist\\slim\\win-unpacked\\resources\\app.asar.unpacked\\node_modules\\better-sqlite3\\prebuilds\\win32-x64.node"
+            ],
+            "ftsRows": 200,
+            "firstRow": {
+              "id": 1,
+              "title": "PostgreSQL index tuning 0",
+              "text_rank": -6.976211768163997,
+              "title_marked": "\u0001PostgreSQL\u0002 \u0001index\u0002 tuning 0"
+            }
+          }
+        }
+      }
+    }
+  },
+  "dependencyHygiene": [
+    "veltriva-spikes@0.0.0 C:\\GitHub\\Veltriva\\spikes",
+    "`-- electron-builder@26.17.0",
+    "  `-- app-builder-lib@26.17.0",
+    "    +-- @electron/asar@3.4.1",
+    "    | `-- glob@7.2.3",
+    "    +-- @electron/get@3.1.0",
+    "    | `-- global-agent@3.0.0",
+    "    |   +-- boolean@3.2.0",
+    "    |   `-- roarr@2.15.4",
+    "    |     `-- boolean@3.2.0 deduped",
+    "    `-- electron-builder-squirrel-windows@26.17.0",
+    "      `-- electron-winstaller@5.4.0",
+    "        `-- temp@0.9.4",
+    "          `-- rimraf@2.6.3",
+    "            `-- glob@7.2.3 deduped"
+  ]
+}

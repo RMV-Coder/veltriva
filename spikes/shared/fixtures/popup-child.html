@@ -1,0 +1,12 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>popup child</title>
+<h1>Popup child</h1>
+<p id="status"></p>
+<script>
+  // Simulates the last step of an OAuth popup: report back to the opener, then close.
+  const hasOpener = Boolean(window.opener);
+  document.getElementById('status').textContent = hasOpener ? 'opener present' : 'no opener';
+  if (hasOpener) window.opener.postMessage({ from: 'popup-child', hasOpener: true }, '*');
+  window.closeSelf = () => window.close();
+</script>

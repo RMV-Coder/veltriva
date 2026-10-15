@@ -13,6 +13,8 @@
 | **Principles** | **Velocity** (fast, resource-aware) · **Retrieval** (find anything again) · **Continuity** (resume without losing context) |
 | **Decision records** | [docs/adr](../adr/README.md). The ADRs are the source of truth from here on; this document records the original reasoning |
 
+**Revised after the Phase 0 spikes (2026-10-16).** Spike results ([docs/spikes](../spikes/README.md)) corrected §1.2, §3.3, §3.7, §4.9, §4.10, §4.12, §5.3–5.5, §6.4, §6.6 and §9.2–9.3. Where this document and an ADR disagree, the ADR wins.
+
 **How to read this.** Parts 1–11 follow the requested structure. Appendix A answers the twelve architectural questions briefly and links into the body. Appendix B lists the facts I checked against current primary documentation, with sources. Anything in the body that depends on behavior we haven't proven yet is labeled as a **spike** (Part 8.3), and no decision depends on an unproven claim.
 
 ---
@@ -81,9 +83,9 @@ Browsing itself is the easy part, because Electron embeds the same engine as Chr
 | Safe Browsing (phishing/malware) | ✓ | ✗ | document as a gap; post-MVP |
 | Password manager, autofill, sync | ✓ | ✗ | out of scope |
 | Extensions | ✓ | limited subset | out of scope |
-| PDF viewer | ✓ | ✓ built in and on by default | verify in S7 |
+| PDF viewer | ✓ | ✓ Built in and on by default. It runs in a `chrome-extension://` frame that navigation guards must allow (S7) | allow its frame (§6.4) |
 | DRM video (Widevine: Netflix, Spotify web) | ✓ | ✗ in stock builds; castlabs' "Electron for Content Security" fork adds it | out of scope; document |
-| Spellcheck | ✓ | ✓, using Hunspell dictionaries on Windows, downloaded on first use from a Chromium CDN by default | self-host the dictionaries (§6.6) |
+| Spellcheck | ✓ | ✓ On the test machine, en-US used Windows' own spellchecker (S7). Other languages download dictionaries from a Google CDN by default | self-host the dictionaries (§6.6) |
 | Security updates | automatic, by Google | arrive through Electron releases that **we must ship** | build a release pipeline |
 
 ### 1.3 The hardest engineering challenges, ranked
@@ -195,7 +197,7 @@ On top of that it adds timing that ignores time away (the engagement clock).
 |---|---|---|
 | Maturity | Mature and widely used. v13 (July 2026) moved to **N-API** | **Release candidate** (stability 1.2) in Node 24 LTS and Node 26; Electron 42+ has the RC version |
 | Electron coupling | One `win32-x64` prebuild loads in Node 22.14+ **and** Electron 35+; there's no per-Electron-ABI binary anymore | Ships *inside* Electron's Node. It has broken once: Electron 37.2.0 shipped without it until a patch release |
-| FTS5 and math functions | Both enabled; bundles SQLite 3.53.4 | Enabled in Node's build; Electron's build lists the same flags (S5 confirms at runtime) |
+| FTS5 and math functions | Both enabled; bundles SQLite 3.53.4 | Both enabled in Electron 44.7.2 (S5, observed at runtime) |
 | API | Synchronous (ideal *inside* a worker); custom functions, online backup, iteration | Synchronous; `function()`, `aggregate()`, `backup()`, `iterate()` |
 | Watch-outs | Use ≥ 13.0.2: earlier 13.x could abort the process if a worker terminated mid-call. On Windows, npm may try to compile it unless installs use `--ignore-scripts` (S5) | API still settling (classes are being renamed); a broken Electron build would block a security upgrade |
 
@@ -336,13 +338,16 @@ BaseWindow  (native Windows frame in the MVP)
 
 **Overlays.** Native views always paint above the UI view, so an HTML dropdown can't cover a page. Two features need to: omnibox suggestions and the Ctrl+Shift+K memory palette. Menus use native `Menu.popup()` (accessible, and painted above everything), and permission prompts are anchored inside the toolbar.
 
-| Option | How it works | Pros | Cons |
-|---|---|---|---|
-| **A. Snapshot takeover** (Min browser's approach, refined) | `capturePage()` the active tab, raise `uiView` above the tab view (re-adding a child view moves it to the top), and paint the snapshot plus the overlay in React. Revert on close | One renderer, one React tree, no transparency dependency. The page stays attached, so it *should* see no visibility change (S4 verifies) | The page appears frozen while the overlay is open. Capture latency (pre-capture on omnibox focus) |
-| **B. Overlay view** | A second trusted `WebContentsView` above the tab, transparent via `setBackgroundColor('#00000000')`, sized to the overlay | The page stays live underneath | An extra renderer process, cross-view focus and state sync. There are open reports of stacked views looking transparent until they load (seen on macOS) |
-| **C. Child popup window** (what Chrome does for its omnibox popup) | A frameless, non-focusable child window | Can extend outside the window | Window tracking and DPI edge cases, flicker |
+**Decision (ADR-0006, after spike S4): raise the transparent shell above the tab.** The options compared (10-run medians):
 
-**Recommendation:** start with **A**, with **B** as the fallback. Spike S4 measures latency, flicker and focus behavior before the decision is recorded.
+| Option | How it works | S4 result |
+|---|---|---|
+| A. Snapshot takeover (Min browser's approach) | `capturePage()` the tab, paint the snapshot plus the overlay in the shell, raise the shell above the tab | **Rejected.** An *opaque* view above a tab counts as occlusion: the page goes `hidden`, its timers are throttled and it stops painting. Overlay on screen in 24 ms |
+| **A′. Raise the transparent shell** (found during S4) | The shell view's background is `#00000000`. While an overlay is open, a CSS class clears the content area and the shell is re-added on top | **Adopted.** The page stays `visible` and live underneath. Overlay on screen in 12 ms. No extra renderer, and focus stays in the shell's own input |
+| B. Overlay view | A second trusted, transparent `WebContentsView` above the tab | Fallback. The page stays live, but it costs an extra renderer (about 23 MB) and cross-view state; 33 ms warm |
+| C. Child popup window (what Chrome does for its omnibox popup) | A frameless, non-focusable child window | Not needed |
+
+While raised, the shell receives all mouse input over the content area. That's correct for the modal palette. For the omnibox dropdown, a click on the page closes the dropdown and the click is consumed.
 
 ### 3.4 State ownership and data flow
 
@@ -371,7 +376,7 @@ BaseWindow  (native Windows frame in the MVP)
   2. It parses the payload with a `.strict()` schema, so unknown keys are rejected.
   3. It calls the handler.
   4. It returns `{ ok: true, value }` or `{ ok: false, code }`. Stack traces never cross to the renderer.
-- **Tab renderers have no preload and no IPC channel.** The signals we need from pages come from Electron's main-process `webContents` events, or from short, on-demand isolated-world probes (§4.10).
+- **Tab renderers have no preload and no IPC channel.** The signals we need from pages come from Electron's main-process `webContents` events, or from two small isolated-world scripts (§4.10): an on-demand probe and a passive trusted-input tracker. Neither has a channel to main.
 
 ### 3.6 Address bar (Question 8)
 
@@ -404,13 +409,13 @@ The classifier is a pure function in `src/core/url`, tested against a large tabl
 |---|---|
 | **Cookies and storage** | One persistent partition, `persist:browsing`, for all normal tabs. The cookie-encryption fuse is **on from the first build** (Windows DPAPI). Electron has no third-party-cookie switch and allows them by default; blocking them would mean rewriting headers in `webRequest`, a post-MVP privacy feature. Future private windows use in-memory partitions and never touch the profile or the database |
 | **Logins and OAuth** | In-page logins work normally. OAuth and payment popups keep `window.opener` because the window-open handler's `createWindow` hosts Chromium's pre-created contents in our own view (`new WebContentsView({ webContents: options.webContents })`, available since Electron 31). Ctrl/middle-click opens get no pre-created contents, so we create the view and load the URL ourselves |
-| **Google sign-in** | **A real compatibility risk.** Google's OAuth policy forbids *embedded* user agents, and Electron's default user agent advertises `Electron/x` plus the app name. Electron offers no way to change the JS-visible `navigator.userAgentData`. Min browser strips the tokens through `app.userAgentFallback`, and even switches to a Firefox user agent just for `accounts.google.com`. Spike S7 tests the clean-token approach first; any per-site user-agent override would be a documented, last-resort workaround |
+| **Google sign-in** | **A real compatibility risk.** Google's OAuth policy forbids *embedded* user agents, and Electron's default user agent advertises `Electron/x` plus the app name. Spike S7 found:<br>• Setting `app.userAgentFallback` before `ready` removes every trace, in the page, in workers and in request headers.<br>• Client-hint brands never mention Electron, but they don't say "Google Chrome" either.<br>• Navigations carry no `Sec-CH-UA*` headers.<br>Min browser even switches to a Firefox user agent just for `accounts.google.com`. Manual check M1 decides whether a per-site override is needed; it would be a documented last resort |
 | **HTTP authentication** | Electron cancels HTTP auth by default. MVP: a simple credential prompt in the trusted UI, never stored (should-have) |
 | **Client certificates** | Electron **auto-selects the first certificate** unless the app intervenes, and since Electron 44 also for requests that have no tab. Veltriva always intervenes. MVP: decline, with a clear error page. Post-MVP: a picker |
 | **Certificate errors** | Electron rejects invalid certificates by default; we keep that. Blocking error page with **no "proceed anyway"** in the MVP |
 | **Permissions** | With no handler installed, Electron **grants everything**, so Veltriva installs both the request handler and the synchronous check handler on every session. Deny by default; prompt (showing the punycode origin) for camera, microphone, geolocation, notifications and clipboard read; decisions remembered per origin. USB, HID and serial are denied through the device handler; Bluetooth chooser requests are cancelled |
-| **Downloads** | Saved to the Downloads folder with unique names (Electron would otherwise show a save dialog). Progress UI. Chromium writes Windows **Mark-of-the-Web** (a `Zone.Identifier` stream) itself. The deeper Attachment Execution Services hand-off to antivirus appears not to be wired up in Electron; spike S7 confirms both. Never auto-opened; executables need an extra confirmation |
-| **Popups** | `target=_blank` and background opens become tabs. Feature popups (OAuth, payments) open as small popup windows with a **read-only, always-visible URL bar**. **Electron has no popup blocker**, so Veltriva approximates Chromium's user-activation rule: a popup is allowed only within a few seconds of a trusted click or key press in that tab. Otherwise it's blocked, with an indicator to open it anyway |
+| **Downloads** | A `will-download` handler on every session always calls `setSavePath`, saving to the Downloads folder with unique names; Electron would otherwise show a save dialog. Progress UI.<br>Chromium writes Windows **Mark-of-the-Web**, verified in S7: `ZoneId=3` with `HostUrl=about:internet`, and no source or referrer recorded. Whether the antivirus hand-off happens couldn't be observed.<br>Downloads belong to the session and survive closing, discarding or crashing their tab. Never auto-opened; executables need an extra confirmation |
+| **Popups** | **Electron has no popup blocker**, and nothing tells us whether a gesture occurred, so Veltriva approximates Chromium's user-activation rule: a popup is allowed only within a few seconds of a trusted click or key press in that tab. Otherwise it's blocked, with an indicator to open it anyway. Popups are routed by `disposition`:<br>• `foreground-tab` and `background-tab` become tabs we create and load ourselves. Ctrl, middle and Shift clicks carry no pre-created contents.<br>• `new-window` feature popups (OAuth, payments) become small popup windows hosting the pre-created contents, with a **read-only, always-visible URL bar**. Their host window is closed when the page calls `window.close()`, which Electron doesn't do by itself.<br>Hosted popups don't inherit `safeDialogs`; that's a known gap (S7) |
 | **External protocols** | With no handler, Electron hands unknown schemes straight to the OS, **with no prompt and no gesture required**. Veltriva routes them through the `openExternal` permission. `mailto:`, `tel:` and app schemes (`zoommtg:` and so on) need a gesture plus a prompt, with an optional per-site "always allow". Known-dangerous schemes are always blocked (`ms-msdt:`, `search-ms:`, `ms-officecmd:` and others) |
 
 ### 3.8 Project structure
@@ -633,19 +638,27 @@ These defaults are **hypotheses**. They get tuned during dogfooding with the loc
 
 1. **Re-validate at commit time.** The tab is not selected, has no blocking protection, isn't loading, and its epoch is unchanged.
 2. **Thaw if FROZEN.** Unload handlers need a running page.
-3. **Probe.** A short isolated-world script (100 ms budget) checks for unsaved input (§4.10). If dirty, abort and add the *unsaved input* protection.
-4. **Snapshot** the navigation entries and active index (`navigationHistory.getAllEntries()`, `getActiveIndex()`), title, favicon and last committed URL. Each entry's `pageState` is Chromium's serialized page state: scroll position and form values. It's kept **in memory only**. Chromium commits page state *periodically*, so it can trail the very latest edits. That doesn't matter for automatic discards, which only touch tabs hidden for a long time. It does matter for an immediate manual "Archive now", which is why the probe in step 3 runs first.
-5. **Close.**
-   - **For a tab with real user input since its last navigation,** call `webContents.close({ waitForBeforeUnload: true })`. If the page's `beforeunload` handler objects, Electron emits `will-prevent-unload` and, unless we call `preventDefault()`, silently cancels the close without showing any dialog. We **don't override it**: the tab stays LIVE and gains the *page reports unsaved changes* protection. No `destroyed` event within 5 s also counts as blocked.
-   - **For a tab never touched since its last navigation,** close directly, without the `beforeunload` round-trip. Electron's `close()` grants the page user activation before dispatching `beforeunload`, which defeats Chromium's rule that untouched pages can't object to leaving. Without this split, a site that always registers `beforeunload` could pin every one of its tabs awake.
+3. **Probe and flush.**
+   - A short isolated-world script checks for unsaved input (§4.10) and reads `navigator.userActivation.hasBeenActive`. The caller enforces a 100 ms budget with its own timeout, because a busy page delayed the probe by about 680 ms in S3, and a timeout means "keep the tab". If anything is dirty, abort and add the *unsaved input* protection.
+   - The same script calls `history.replaceState(history.state, '')`. Chromium commits page state on its own only after about 1 s on a visible tab, or about 5 s on a hidden one; this call forces the commit in roughly 10 ms (spike S2). It triggers one `did-navigate-in-page` event, which must not count as a navigation or as engagement.
+4. **Snapshot** the navigation entries and active index (`navigationHistory.getAllEntries()`, `getActiveIndex()`), title, favicon and last committed URL. Each entry's `pageState` is Chromium's serialized page state: scroll position and form values. It's kept **in memory only**. It is about 0.7–2 KB per entry, and grows by about 2 bytes per typed character.
+5. **Close.** The probe's `hasBeenActive` reading picks the path (S3). That flag resets on navigation, and unlike our main-process input observers it also flips when the user interacts inside a cross-site iframe.
+   - **`hasBeenActive` is true:** call `webContents.close({ waitForBeforeUnload: true })`. If the page's `beforeunload` handler objects, Electron emits `will-prevent-unload` within a few milliseconds. Unless we call `preventDefault()`, it silently cancels the close, with no dialog (S3 checked the window list). We **don't override it**: the tab stays LIVE and gains the *page reports unsaved changes* protection. No `destroyed` event within 5 s also counts as blocked. The listener is removed after each attempt.
+   - **`hasBeenActive` is false:** close directly, without the `beforeunload` round-trip. Electron's `close({ waitForBeforeUnload })` grants the page user activation before dispatching `beforeunload` (S3 saw `hasBeenActive` flip from false to true), which defeats Chromium's rule that untouched pages can't object to leaving. Without this split, a site that always registers `beforeunload` could pin every one of its tabs awake. A plain `close()` delivers only `visibilitychange` to the page, not `beforeunload`, `pagehide` or `unload`.
+   - Veltriva never runs scripts in tabs with `userGesture: true`, because that would forge activation.
 6. **On `destroyed`**, drop the view, set runtime to UNLOADED, and persist the snapshot, without page state, for crash safety.
 
-**Restore** (UNLOADED → LIVE, on selection or an explicit restore):
+**Restore** (UNLOADED → LIVE, on selection or an explicit restore). The order below was verified in spike S2:
 
-1. Create a `WebContentsView` with the hardened preferences and wire its events.
-2. If a snapshot exists, call `navigationHistory.restore({ entries, index })` *before* any `loadURL`, as Electron recommends. That rebuilds back/forward history and, when in-memory page state is available, restores scroll and form values best-effort. Otherwise call `loadURL`.
-3. Attach the view if the tab is selected, and focus it.
-4. `restore()` resolves on `did-finish-load` and rejects on `did-fail-load`. A failing *navigation* leaves the tab LIVE on an error page; that's a page condition, not a lifecycle failure. A failing *creation* returns the tab to UNLOADED with a "Couldn't restore — Retry" message.
+1. **Create a brand-new `WebContentsView`** with the hardened preferences and wire its events. `restore()` only works on contents that has never loaded anything. Any earlier load, even `about:blank`, makes it reject, and an un-awaited load corrupts the history.
+2. **Attach the view first.** If the tab isn't selected, attach it with `setVisible(false)`. Restoring into a *detached* view puts the scroll position off by the display scale factor (6416 → 8020 px at 125%), and it never corrects itself.
+3. **Validate persisted entries.** URLs must parse and pass the scheme allow-list, and titles must be strings. Omit `pageState` instead of storing `''`, which is rejected.
+4. **Restore or load.** If a snapshot exists, call `navigationHistory.restore({ entries, index })`; otherwise call `loadURL`. Restore rebuilds the back/forward stack and titles. When in-memory page state is available, it also brings back the scroll position and text, textarea, select and checkbox values. It does **not** bring back React-style controlled inputs or `contenteditable` content.
+5. **Handle the three failure shapes.**
+   - A synchronous throw (bad index or empty entries), or a rejection with no `did-fail-load`, is a *creation* failure. The tab returns to UNLOADED with "Couldn't restore — Retry", and Retry uses another new view.
+   - A rejection after `did-fail-load` is a failing *navigation*. The tab stays LIVE on an error page, with its history intact; that's a page condition, not a lifecycle failure.
+   - Error pages emit `did-finish-load` too, and HTTP 404/500 responses resolve, so neither is a success signal.
+6. **Show the view** if the tab is selected, and focus it.
 
 **Archive.** The tab must be UNLOADED, so it's discarded inline first, and the archive is aborted if that discard is blocked. Then persist the placement, `archived_at` and reason, drop the in-memory page state, and show "Archived · Undo".
 
@@ -664,26 +677,26 @@ These defaults are **hypotheses**. They get tuned during dogfooding with the loc
 | Protected site | site rule | everything | hard | exact for listed sites |
 | Pinned | user flag | shelve, archive (discard per setting) | hard | exact |
 | Audio playing (and 2 min after) | `audio-state-changed` (`event.audible`), `isCurrentlyAudible()` | freeze, discard, shelve | hard | high |
-| Video playing | `media-started-playing` / `media-paused` (no payload, so we keep a per-tab counter) | freeze, discard | hard | medium; exact semantics for muted video confirmed in S1 |
+| Video playing | `media-started-playing` / `media-paused` (no payload, so we keep a per-tab counter) | freeze, discard | hard | medium. S1: the events fire as documented, and a muted tab still reports audible, so muted-but-playing tabs are protected too. Whether that should become a soft protection is a Phase 3 tuning question |
 | Camera, microphone or screen capture | permission granted to the page + `isBeingCaptured()` | everything | hard | medium: we know when it starts, not exactly when it stops, so protection lasts until navigation or close |
 | Fullscreen | `enter-html-full-screen` | everything | hard | high |
-| Page declares unsaved changes | For tabs with real input since their last navigation, `beforeunload` cancels the discard attempt and Electron emits `will-prevent-unload` | discard, archive | hard | high for sites that use `beforeunload` (Google Docs, GitHub, Jira, mail compose); blind to sites that don't |
-| Unsaved form input (heuristic) | On-demand probe through `executeJavaScriptInIsolatedWorld`: changed `input`/`textarea`/`select` (`value ≠ defaultValue`), a focused or edited `contenteditable` | discard, archive | hard | medium. Misses JavaScript-only state and canvas editors. **Top-level frame only**: Electron can't run isolated-world scripts in subframes from the main process, and we won't run probes in a page's own JavaScript world. Forms inside iframes rely on `beforeunload` and the interaction guard |
-| Recent interaction | Main-process input observers: `input-event` (every input type, including mouse moves, observe-only; the handler only stamps a time), `before-input-event` (keyboard), `before-mouse-event` | discard, shelve, archive | soft | exact within the guard window; whether input inside cross-process iframes is reported is checked in S1 |
+| Page declares unsaved changes | For tabs whose `hasBeenActive` is true, `beforeunload` cancels the discard attempt and Electron emits `will-prevent-unload`. A cross-site iframe's objection counts only if that iframe itself was interacted with (S3) | discard, archive | hard | high for sites that use `beforeunload` (Google Docs, GitHub, Jira, mail compose); blind to sites that don't |
+| Unsaved form input (heuristic) | On-demand probe through `executeJavaScriptInIsolatedWorld`:<br>• changed `input`/`textarea`/`select` (`value ≠ defaultValue`);<br>• the record of the **trusted-input tracker**, a passive isolated-world listener for trusted `input`/`change` events installed after each navigation (S3);<br>• a focused `contenteditable`, which counts only as *soft* on its own, because a plain click sets it (S3) | discard, archive | hard | medium-high. The `value` check alone misses React-style inputs, and focus alone misses a `contenteditable` once blurred; the tracker catches both (S3). Still misses JavaScript-only state and canvas editors. **Top-level frame only**: Electron can't run isolated-world scripts in subframes from the main process, so forms inside iframes rely on `beforeunload` and `hasBeenActive` |
+| Recent interaction | Main-process input observers. Names differ by event (S3):<br>• `input-event` reports every type, including `mouseMove`, wheel, `rawKeyDown`/`char`/`keyUp` and scroll gestures; the handler only stamps a time.<br>• `before-input-event` is keyboard only (`keyDown`/`keyUp`).<br>• `before-mouse-event` reports mouse but not wheel | discard, shelve, archive | soft | exact within the guard window for the top frame. Clicks into a cross-site iframe reach only `before-mouse-event`, and **keystrokes inside one aren't observed at all**, so `hasBeenActive` and `beforeunload` cover those |
 | Loading or navigation pending | `isLoading()`, `did-start-navigation` | discard, archive (deferred) | hard | exact |
 | Has an open popup (OAuth, payment) | popup registry | discard, archive | hard | exact |
 | DevTools open | `devtools-opened` | discard | hard | exact |
-| Active download started by this tab | `will-download` tracks the originating web contents until the download finishes | discard, archive | hard | exact. Downloads probably survive closing their tab (Electron's source suggests so), but until S7 confirms it we don't bet on it |
 | Site can send notifications | `notifications` permission granted to the tab's origin | discard, freeze | soft | exact; Chrome's Memory Saver exempts the same case |
 | Background-active app (title or favicon changes while hidden, e.g. chat, mail) | `page-title-updated`, `page-favicon-updated` while hidden | discard, freeze | soft | heuristic; Chrome uses similar signals |
 | Sensitive page (password or payment fields present) | probe: `input[type=password]`, `autocomplete^="cc-"` | discard; never content-indexed | soft | heuristic |
 | Upload in progress | **not detected in the MVP**; the recent-interaction guard covers typical uploads | — | — | documented gap |
+| Download in progress | *No protection needed.* S7 showed downloads belong to the session and complete after their tab is closed, discarded or crashed | — | — | verified |
 
 **Limits we state openly.** Arbitrary web apps keep state in memory that no browser can see: a half-written comment in a canvas-based editor, or a single-page app that never registers `beforeunload`. Veltriva therefore stacks four lines of defense:
 
 1. **Conservative defaults** and the vacation-proof clock.
 2. **Detection**, using the page's own `beforeunload` contract plus form probes.
-3. **Recovery**: in-run page-state restoration brings plain form values and scroll position back after a discard.
+3. **Recovery**: in-run page-state restoration brings scroll position and plain text, textarea, select and checkbox values back after a discard. It does not restore React-style controlled inputs or `contenteditable` content (S2). That's why edits the trusted-input tracker catches in those fields stay a hard protection.
 4. **User control**: protect a tab or a site, pin it, or pause automation.
 
 The UI never claims a tab is "safe". It says what Veltriva *observed* ("Kept awake: page reported unsaved changes").
@@ -709,7 +722,7 @@ The UI never claims a tab is "safe". It says what Veltriva *observed* ("Kept awa
 ### 4.12 Safeguards against data loss
 
 - Conservative defaults, measured on the vacation-proof engagement clock.
-- Hard protections: the selected tab; user or site protection; audio, capture and fullscreen; a page declaring unsaved changes; modified forms; loading; open popups; active downloads; DevTools.
+- Hard protections: the selected tab; user or site protection; audio, capture and fullscreen; a page declaring unsaved changes; modified forms; loading; open popups; DevTools.
 - Discards keep the back/forward stack, plus page state within the current run.
 - Archive is non-destructive and searchable. Every automated batch has **Undo** and appears in a "Recently archived" list.
 - Explicit closes stay recoverable for 7 days. Pages stay in history according to the retention setting.
@@ -750,8 +763,9 @@ The UI never claims a tab is "safe". It says what Veltriva *observed* ("Kept awa
 ```sql
 -- Connection pragmas, set by the data worker on open (not stored in this file):
 --   journal_mode=WAL; synchronous=NORMAL; foreign_keys=ON; busy_timeout=5000;
---   secure_delete=ON; temp_store=MEMORY
--- On a brand-new database the runner first sets: PRAGMA auto_vacuum = INCREMENTAL;
+--   secure_delete=ON; temp_store=MEMORY; cache_size=-16000 (16 MB; S5)
+-- On a brand-new database the runner sets PRAGMA auto_vacuum = INCREMENTAL *before*
+-- journal_mode=WAL; in the other order it silently stays off (S5).
 
 CREATE TABLE workspaces (
   id          TEXT    PRIMARY KEY,                    -- UUIDv7 (MVP: one default row)
@@ -785,6 +799,9 @@ CREATE TABLE pages (
 ) STRICT;
 CREATE INDEX pages_site_idx       ON pages(site);
 CREATE INDEX pages_last_visit_idx ON pages(last_visit_at DESC);
+-- Recent-and-frequent listing (empty query). The decayed score f·2^(−(now−f_at)/H) orders exactly
+-- like log2(f) + f_at/H, because the shared "now" term cancels; H = 30 days in ms (S5: 0.4 ms vs a 29–45 ms scan).
+CREATE INDEX pages_frecency_idx   ON pages((log2(frecency) + frecency_at / 2592000000.0));
 
 CREATE TABLE visits (
   id          INTEGER PRIMARY KEY,
@@ -900,21 +917,26 @@ Notes on the brief's proposed entities:
 **Retrieval** runs in the worker:
 
 ```sql
+-- Rank first, then join only the 200 candidates (S5: 50k-page p95 25 → 11 ms, p99 42 → 14 ms).
+WITH ranked AS (
+  SELECT rowid AS id, bm25(pages_fts, 10.0, 3.0, 5.0) AS text_rank   -- lower is better
+  FROM pages_fts
+  WHERE pages_fts MATCH :q
+  ORDER BY text_rank
+  LIMIT 200
+)
 SELECT p.id, p.url, p.title, p.site, p.favicon_id, p.last_visit_at, p.visit_count,
-       p.frecency, p.frecency_at, t.id AS tab_id, t.placement,
-       bm25(pages_fts, 10.0, 3.0, 5.0)           AS text_rank,     -- lower is better
-       highlight(pages_fts, 0, char(1), char(2)) AS title_marked   -- control-char markers, not HTML
-FROM pages_fts
-JOIN pages p     ON p.id = pages_fts.rowid
+       p.frecency, p.frecency_at, t.id AS tab_id, t.placement, r.text_rank
+FROM ranked r
+JOIN pages p     ON p.id = r.id
 LEFT JOIN tabs t ON t.page_id = p.id AND t.placement <> 'closed'
-WHERE pages_fts MATCH :q
-ORDER BY text_rank
-LIMIT 200;
+ORDER BY r.text_rank;
 ```
 
 - `:q` is built from the user's words. Each token is double-quoted and prefix-starred (`"postgre"* "index"*`), which gives implicit AND **and neutralizes FTS5 operator syntax**, so typing `NEAR(` or `-x` can't change the query's meaning.
-- Highlights use control-character markers that the UI splits into `<mark>` spans. Page text is never interpreted as HTML.
-- With no query, the palette shows recent and frequent pages plus open tabs.
+- **Full-text search needs at least 2 characters.** A one-character prefix matches nearly every page and cost 17–79 ms at 50k (S5); shorter input shows the recent-and-frequent list instead.
+- **Title matches are marked in shared JS** on the 200 rows. They're returned as ranges that the UI renders as `<mark>` spans, and page text is never interpreted as HTML. S5 found that SQL's `highlight()` accounted for 35–40% of query cost.
+- With no query, the palette shows recent and frequent pages (from the expression index in §5.3) plus open tabs.
 
 **Ranking** is a pure function in `src/core/search` that re-scores the 200 candidates:
 
@@ -935,7 +957,16 @@ That makes updates O(1), with no nightly recomputation.
 
 The weights are starting points, tuned against a **golden query set** (Part 9). Every result carries its score breakdown, shown in a debug panel, so ranking stays explainable. That is the brief's "simple, explainable" requirement.
 
-**Performance targets.** These are targets, not claims. End-to-end p95 search latency, excluding keystroke debounce, should be ≤ 30 ms at 10,000 pages and ≤ 50 ms at 50,000 pages on a mid-range laptop. Phase 4 benchmarks verify them, and they're adjusted after spike S5.
+**Performance targets**, revised with spike S5 measurements on a low-end Core i3 laptop shared with other spikes, using synthetic data:
+
+| End-to-end search (worker plus IPC round trip) | Target | S5 observed (median of 3 runs) |
+|---|---|---|
+| p95 at 10,000 pages | ≤ 30 ms | 12.6 ms |
+| p95 at 50,000 pages | ≤ 50 ms | 23.4 ms (about 11 ms in-worker with the restructured query) |
+| p99 at 50,000 pages | ≤ 60 ms | 29.3 ms |
+| First query after open, 50,000 pages | ≤ 100 ms | 58 ms (cold cache) |
+
+Phase 4 re-measures with real history data, and may tighten the 50k p95 target to 25 ms.
 
 ### 5.5 Write strategy
 
@@ -943,8 +974,10 @@ The weights are starting points, tuned against a **golden query set** (Part 9). 
 - **Batched persistence.** TabManager marks tabs dirty. A flush runs at most 1 s later (250 ms for structural changes such as a close or an archive), one transaction per flush.
 - **Visits** are recorded on committed main-frame navigations (`did-navigate`) and on same-document navigations whose path or query changed (`did-navigate-in-page`, for single-page-app routes). Title updates are debounced to 2 s per tab.
 - **Heartbeat.** `app_runs.last_heartbeat_at` is updated every 60 s.
-- **Shutdown.** The final flush is awaited in `before-quit`, capped at 3 s.
-- **Loss window.** A hard kill or power loss loses at most the last 1–2 s of changes. WAL plus transactions mean it never causes corruption.
+- **Every statement is unkillable** (S5). Neither driver can interrupt a running statement. `worker.terminate()` waits for it, and so do `app.quit()` and `app.exit()`. So queries are always bounded, and maintenance (integrity checks, FTS rebuilds, incremental vacuum) runs only when idle, in small chunks or on a second worker.
+- **Shutdown.** The final flush is awaited in `before-quit` against a 3 s timer. The timer runs while the event loop is alive, because one scheduled after `app.quit()` never fired in time. If the worker hasn't finished, the process hard-exits with `process.kill(process.pid)`, which took 30–180 ms in S5.
+- **Loss window.** A hard kill or power loss loses at most the last 1–2 s of changes. WAL plus transactions mean it never causes corruption. S5 killed processes mid-write five times, and each database reopened with `quick_check` and the FTS integrity check passing.
+- **Bulk import.** Drop the FTS triggers, load, then rebuild the index. That was about 1.5× faster at 50k pages (S5).
 
 ### 5.6 Migrations, backups, corruption handling
 
@@ -1106,7 +1139,7 @@ A *hostile fixture page* in the E2E suite tries to reach `window.veltriva`, `req
 | Web contents role | Navigation (`will-navigate`, `will-frame-navigate`, `will-redirect`) | `window.open` | `<webview>` | Permissions |
 |---|---|---|---|---|
 | Shell UI | always blocked | always denied | blocked | all denied |
-| Tab | `http(s):`, `about:blank`; `veltriva:` and `app:` blocked; other schemes go to the protocol guard | §3.7 policy | blocked | broker |
+| Tab | `http(s):`, `about:blank`. Subframes may also load the PDF viewer, `chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/`, since blocking it renders PDFs blank (S7); its ID is re-checked on every Electron upgrade. `veltriva:` and `app:` are blocked; other schemes go to the protocol guard | §3.7 policy, plus a scheme check (S7: `window.open('custom:…')` arrives here, not as `openExternal`) | blocked | broker |
 | Popup window | as Tab | opens tabs | blocked | broker |
 | DevTools | Electron-managed | denied | blocked | denied |
 
@@ -1126,7 +1159,7 @@ A *hostile fixture page* in the E2E suite tries to reach `window.veltriva`, `req
 **Downloads:**
 
 - Save to the Downloads folder with unique file names.
-- Mark-of-the-Web is written by Chromium itself, so Windows SmartScreen and Office Protected View engage. S7 checks the `Zone.Identifier` stream on a real build, and checks whether antivirus scanning through Attachment Execution Services happens. That hand-off appears not to be wired up in Electron.
+- Mark-of-the-Web is written by Chromium itself as `ZoneId=3` with `HostUrl=about:internet` (S7; 11 download variants, including HTTPS). It marks files as coming from the Internet zone, which SmartScreen and Office Protected View key on, but it records no source or referrer. The antivirus hand-off through Attachment Execution Services wasn't observable; the packaged-build check repeats it with Defender active.
 - Nothing is auto-opened.
 - These types need an extra confirmation: `.exe .msi .msix .appx .bat .cmd .com .scr .ps1 .vbs .js .jse .wsf .hta .lnk .reg .jar .iso .img .vhd .vhdx`.
 
@@ -1154,7 +1187,10 @@ A *hostile fixture page* in the E2E suite tries to reach `window.veltriva`, `req
 
 - No telemetry, no analytics SDKs, no crash uploads. Crash dumps, if enabled, stay local.
 - **Network activity is limited to** the user's own browsing and the search engine on submit, plus update checks once they exist, which can be turned off. There is no suggestion service.
-- **One Electron default to fix:** on first use, spellcheck downloads Hunspell dictionaries from a Chromium CDN. Veltriva points the dictionary URL at files we host alongside our releases, or ships them. Spike S7 checks that nothing else phones home.
+- **Background traffic from bare Electron** (S7: 20 s capture on a fresh profile). It made **no external HTTP requests**. It did two network-level things, which we disclose rather than suppress:
+  - **WPAD lookups:** Windows proxy auto-detection. Disabling it would break users behind proxies.
+  - **One UDP connect to `2001:4860:4860::8888`:** Chromium's IPv6 reachability probe, which sends no request data.
+- **One Electron default to fix: spellcheck dictionaries.** On the test machine, en-US used Windows' own spellchecker with no download. Languages Windows doesn't provide fetch Hunspell dictionaries from `redirector.gvt1.com` by default. Veltriva points `setSpellCheckerDictionaryDownloadURL` at dictionaries we host alongside our releases; S7 verified the override works.
 - **Logs** record tab IDs and error codes by default. URLs appear only when the user enables diagnostic logging. Files rotate at 5 × 5 MB.
 - **User controls:** clear ranges, forget a site, exclude sites, and a **"Pause memory"** toggle that stops recording history without opening a private window.
 - **Future private windows** use in-memory partitions and are barred from the database by invariant I6.
@@ -1317,6 +1353,8 @@ Each spike is time-boxed throwaway code in `spikes/`, never shipped. Each ends w
 | **S7** Web compatibility | Google sign-in (with a user-agent policy), GitHub OAuth popup, YouTube (fullscreen, background audio), PDF, downloads with Mark-of-the-Web, `window.open` without a gesture, `mailto:`/`zoommtg:`, no background network calls | 4 h | Document each gap; adjust MVP messaging |
 | **S8** Measurement method | `getAppMetrics` private bytes vs Windows process-tree counters; run-to-run variance | 3 h | Pick the stabler source; widen the run count |
 
+**Outcome (2026-10-16): all eight spikes ran.** None failed outright, and none forced a fallback platform or driver. S1, S5 (with amendments) and S8 confirmed their assumptions. S2, S3, S6 and S7 changed specific procedures, and S4 replaced the overlay plan with a better option. Each change is recorded in the ADRs; results are in [docs/spikes](../spikes/README.md). S7's four manual web-compatibility checks (Google sign-in, an OAuth popup, YouTube, a real PDF) still need a person to run them.
+
 ### 8.4 How the work splits across subagents
 
 You asked for subagent-driven development. Here is how it will run:
@@ -1372,6 +1410,13 @@ You asked for subagent-driven development. Here is how it will run:
   - **Scenarios.** Startup; tabs; navigation and history; omnibox; archive → search → restore; automation under an accelerated clock; protections holding; restart and crash recovery; downloads; permissions; popups; external-protocol prompts; find in page; shortcuts.
   - **No external sites are needed for any critical test.**
 - **Test hooks.** Test builds expose `advanceClock`, `getTabStates`, `setMemoryPressure` and `crashRenderer`. They're compiled out of production, and a packaging test asserts they're absent.
+- **Playwright rules (S6).**
+  - **Locate pages by identity, never by position.** Use the shell URL and each tab's DevTools target ID, because page order is random.
+  - **Register `waitForEvent('window')` before opening a tab.**
+  - **Act on tabs only while they're attached.** Detached views produce no frames.
+  - **Never `page.close()` a tab.**
+  - **Launch through `executablePath`.** Playwright's own loader turns off renderer backgrounding.
+- **Lifecycle behavior tests run without Playwright.** Playwright's per-page focus emulation makes hidden and detached tabs report `visible`, with unthrottled timers (S6). Visibility, throttling, renderer release, restore fidelity and `beforeunload` behavior are therefore asserted by a small Electron-script harness like the Phase 0 spikes, with the test window always on top.
 - **What E2E runs against.** Playwright's Electron launcher times out when the `EnableNodeCliInspectArguments` fuse is off, and production turns it off (§6.2). E2E therefore runs against the **built but unpackaged** app. The production installer gets its own smoke test without Playwright: install, launch, read back the fuses, check no test hooks exist, uninstall. Two more cautions from Playwright's tracker:
   - An inherited `ELECTRON_RUN_AS_NODE` breaks launches, so the test environment clears it.
   - Playwright 1.64.0 has an open regression where a packaged app's first window is sometimes not reported. We pin the Playwright version and upgrade deliberately.
@@ -1403,13 +1448,22 @@ You asked for subagent-driven development. Here is how it will run:
   - Startup time: process start → shell ready → first tab committed.
   - Database size.
 
-  Spike S8 decides whether `app.getAppMetrics()` or Windows' own counters are authoritative, and the other source cross-checks it. One trap: `getAppMetrics()` reports CPU as an average *since the previous call, by any caller*. So a single MetricsService owns all polling, and everything else reads from it.
+  **Spike S8 settled the method.** The headline number is the **sum of private bytes** across the process tree, read with `app.getAppMetrics()`:
+  - it matched Windows' own counters exactly for every process;
+  - it missed no process;
+  - it varied by only 0.5–1.3% across five fresh launches.
+
+  Working set counts shared pages once per process, so it came out about 2.3× private memory and varied by 9%; it's reported only as a secondary number. Cross-browser comparisons use the Windows counters, because they apply to any browser.
+
+  S8 reference numbers: Electron alone uses 62 MB private, 20 light fixture tabs 886 MB, and discarding 19 of them frees 762 MB (about 40 MB per tab).
+
+  One trap: `getAppMetrics()` reports CPU as an average *since the previous call, by any caller*. So a single MetricsService owns all polling, and everything else reads from it. Measurement tools must also stay out of the measured process tree, or be excluded from it.
 - **Protocol.** One warm-up run, discarded. Then 5 measured runs, reporting the median and the range. Raw CSVs and scripts are published so anyone can reproduce the results. **No number is ever published without its method.**
 - **Optional cross-browser comparison.** Run Chrome or Edge on the same corpus with the same Windows counters, with their memory savers off (for "all live") and then on (for "their automation"). Document the interpretation caveats: shared memory, GPU-process differences, and Electron's extra shell renderer.
 
 ### 9.4 Continuous integration (GitHub Actions, `windows-latest`)
 
-- **Every PR.** `npm ci`, typecheck, lint, unit, integration and E2E tests (running E2E on the Windows runner is confirmed in S6), plus a license check.
+- **Every PR.** `npm ci`, typecheck, lint, unit, integration, lifecycle-behavior and E2E tests, plus a license check. S6 ran 10 clean Playwright cycles locally; the first CI runs confirm the same on the Windows runner.
 - **`main`.** Adds an unsigned NSIS build as an artifact, with fuse verification.
 - **Manual or scheduled.** Benchmarks.
 - **Releases.** Manual tag → build → sign (once available) → **draft** GitHub release. Nothing is published automatically.

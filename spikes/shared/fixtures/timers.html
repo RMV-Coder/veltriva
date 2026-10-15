@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>timers</title>
+<h1>Timers fixture</h1>
+<p>Counts a 100 ms interval and animation frames, and logs visibility and Page Lifecycle events.</p>
+<script>
+  window.__t = {
+    intervalTicks: 0,
+    rafTicks: 0,
+    visibility: [{ state: document.visibilityState, at: performance.now() }],
+    freezes: 0,
+    resumes: 0,
+  };
+  setInterval(() => { window.__t.intervalTicks += 1; }, 100);
+  (function frame() { window.__t.rafTicks += 1; requestAnimationFrame(frame); })();
+  document.addEventListener('visibilitychange', () => {
+    window.__t.visibility.push({ state: document.visibilityState, at: performance.now() });
+  });
+  document.addEventListener('freeze', () => { window.__t.freezes += 1; });
+  document.addEventListener('resume', () => { window.__t.resumes += 1; });
+</script>

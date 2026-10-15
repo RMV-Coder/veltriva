@@ -9,7 +9,7 @@ Each ADR records one decision that shapes Veltriva: why it was made, and what it
 | [0003](0003-tab-model-and-lifecycle.md) | A four-dimension tab model, measured on an engagement clock | Accepted |
 | [0004](0004-persistence-sqlite-worker.md) | SQLite via better-sqlite3 13, in a worker thread | Accepted |
 | [0005](0005-state-ownership-and-ipc.md) | Main-process-authoritative state and a typed IPC contract | Accepted |
-| [0006](0006-overlay-strategy.md) | Overlays above web content | Proposed, pending spike S4 |
+| [0006](0006-overlay-strategy.md) | Overlays above web content: raise the transparent shell | Accepted (after spike S4) |
 | [0007](0007-build-packaging-identity.md) | Build, packaging, signing and app identity | Accepted |
 | [0008](0008-testing-and-quality-tooling.md) | Testing strategy and quality tooling | Accepted |
 | [0009](0009-mvp-product-decisions.md) | MVP product decisions: roadmap order, layout, search engine, single window | Accepted |

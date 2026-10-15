@@ -1,0 +1,181 @@
+{
+  "generatedAt": "2026-10-15T23:44:28.619Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "rows": [
+    {
+      "name": "attached view in a shown window is visible",
+      "observed": "visible",
+      "pass": true
+    },
+    {
+      "name": "visible: 100 ms interval and rAF rates",
+      "observed": {
+        "intervalPerSec": 10,
+        "rafPerSec": 64.1
+      },
+      "pass": true
+    },
+    {
+      "name": "removeChildView → page reports hidden",
+      "observed": "hidden",
+      "pass": true
+    },
+    {
+      "name": "detached: timers throttled to ~1/s and rAF stopped",
+      "observed": {
+        "intervalPerSec": 1,
+        "rafPerSec": 0
+      },
+      "pass": true
+    },
+    {
+      "name": "detached + setBackgroundThrottling(false): timer rate",
+      "observed": {
+        "intervalPerSec": 10,
+        "rafPerSec": 0
+      },
+      "pass": null,
+      "note": "informational"
+    },
+    {
+      "name": "re-added view reports visible again (Linux had a 44.x regression here)",
+      "observed": "visible",
+      "pass": true
+    },
+    {
+      "name": "re-added view resumes painting (rAF)",
+      "observed": {
+        "intervalPerSec": 10.3,
+        "rafPerSec": 64.1
+      },
+      "pass": true
+    },
+    {
+      "name": "setVisible(false) on an attached view → page visibility",
+      "observed": "hidden",
+      "pass": null,
+      "note": "informational: detaching is the hiding method we rely on"
+    },
+    {
+      "name": "fully covered by another view in the same window → page visibility and rAF",
+      "observed": {
+        "occluded": "hidden",
+        "intervalPerSec": 1,
+        "rafPerSec": 0
+      },
+      "pass": null,
+      "note": "informational for ADR-0006 option A"
+    },
+    {
+      "name": "whole window covered by another window → page visibility (native occlusion)",
+      "observed": {
+        "windowOccluded": "hidden",
+        "intervalPerSec": 1,
+        "rafPerSec": 0
+      },
+      "pass": null,
+      "note": "informational"
+    },
+    {
+      "name": "cover window removed → page visible again",
+      "observed": "visible",
+      "pass": true
+    },
+    {
+      "name": "window minimized → attached page reports hidden",
+      "observed": "hidden",
+      "pass": true
+    },
+    {
+      "name": "visibilitychange sequence seen by the page",
+      "observed": "visible → hidden → visible → hidden → visible → hidden → visible → hidden → visible → hidden → visible → hidden → visible",
+      "pass": null
+    },
+    {
+      "name": "8 live cross-site tabs (20 MB heap each)",
+      "observed": {
+        "baseline": {
+          "tabCount": 0,
+          "tabPrivateMB": 0,
+          "totalPrivateMB": 100
+        },
+        "loaded": {
+          "tabCount": 8,
+          "tabPrivateMB": 442,
+          "totalPrivateMB": 547
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "removeChildView alone releases nothing",
+      "observed": {
+        "tabCount": 8,
+        "tabPrivateMB": 442,
+        "totalPrivateMB": 547
+      },
+      "pass": true
+    },
+    {
+      "name": "removeChildView + close() releases 4 renderers",
+      "observed": {
+        "closed": {
+          "tabCount": 4,
+          "tabPrivateMB": 223,
+          "totalPrivateMB": 328
+        },
+        "privateMBFreed": 219
+      },
+      "pass": true
+    },
+    {
+      "name": "dropping references without close(): renderers still alive after 2 forced GCs over 5 s",
+      "observed": {
+        "alive": 1,
+        "of": 4,
+        "tabCount": 1,
+        "tabPrivateMB": 55,
+        "totalPrivateMB": 159
+      },
+      "pass": null,
+      "note": "release by GC is non-deterministic; explicit close() is the only predictable release (ADR-0002)"
+    },
+    {
+      "name": "after closing the leaked contents",
+      "observed": {
+        "tabCount": 0,
+        "tabPrivateMB": 0,
+        "totalPrivateMB": 104
+      },
+      "pass": null
+    },
+    {
+      "name": "media events while muted",
+      "observed": {
+        "started": "playing",
+        "events": [
+          "media-started-playing",
+          "audio-state-changed:true",
+          "media-paused",
+          "audio-state-changed:false"
+        ],
+        "audibleWhilePlayingMuted": true,
+        "audibleAfterPause": false
+      },
+      "pass": true
+    },
+    {
+      "name": "back/forward cache: page restored from memory on Back?",
+      "observed": {
+        "restoredFromBfcache": false
+      },
+      "pass": null,
+      "note": "informational"
+    }
+  ]
+}

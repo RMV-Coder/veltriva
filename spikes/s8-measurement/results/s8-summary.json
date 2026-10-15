@@ -1,0 +1,115 @@
+{
+  "generatedAt": "2026-10-15T23:47:52.527Z",
+  "runs": 5,
+  "tabs": 20,
+  "electron": "44.7.2",
+  "privateMB": {
+    "empty": {
+      "appMetrics": {
+        "median": 62,
+        "min": 62,
+        "max": 63,
+        "cvPct": 0.6
+      },
+      "windowsTree": {
+        "median": 62,
+        "min": 62,
+        "max": 63,
+        "cvPct": 0.6
+      }
+    },
+    "allLive": {
+      "appMetrics": {
+        "median": 886,
+        "min": 881,
+        "max": 893,
+        "cvPct": 0.5
+      },
+      "windowsTree": {
+        "median": 886,
+        "min": 881,
+        "max": 893,
+        "cvPct": 0.5
+      }
+    },
+    "discarded": {
+      "appMetrics": {
+        "median": 124,
+        "min": 122,
+        "max": 127,
+        "cvPct": 1.3
+      },
+      "windowsTree": {
+        "median": 124,
+        "min": 122,
+        "max": 127,
+        "cvPct": 1.3
+      }
+    }
+  },
+  "workingSetMB": {
+    "allLive": {
+      "appMetrics": {
+        "median": 2004,
+        "min": 1612,
+        "max": 2087,
+        "cvPct": 8.9
+      },
+      "windowsTree": {
+        "median": 2004,
+        "min": 1612,
+        "max": 2087,
+        "cvPct": 8.9
+      }
+    },
+    "discarded": {
+      "appMetrics": {
+        "median": 332,
+        "min": 330,
+        "max": 334,
+        "cvPct": 0.4
+      },
+      "windowsTree": {
+        "median": 332,
+        "min": 330,
+        "max": 334,
+        "cvPct": 0.4
+      }
+    }
+  },
+  "samePidAgreementMB": [
+    {
+      "electron": 881,
+      "windows": 881
+    },
+    {
+      "electron": 891,
+      "windows": 891
+    },
+    {
+      "electron": 886,
+      "windows": 886
+    },
+    {
+      "electron": 893,
+      "windows": 893
+    },
+    {
+      "electron": 884,
+      "windows": 884
+    }
+  ],
+  "missingFromAppMetrics": [
+    [],
+    [],
+    [],
+    [],
+    []
+  ],
+  "freedByDiscardMB": {
+    "median": 762,
+    "min": 756,
+    "max": 767,
+    "cvPct": 0.5
+  }
+}

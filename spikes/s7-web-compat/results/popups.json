@@ -1,0 +1,282 @@
+{
+  "generatedAt": "2026-10-15T22:45:26.246Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "visibilityState": "visible",
+  "rows": [
+    {
+      "name": "A: handler invoked for window.open during load with no gesture",
+      "observed": {
+        "invocations": 1,
+        "handlerBeforeDomReady": true,
+        "details": {
+          "url": "http://a.test:53607/popup-child.html",
+          "frameName": "child",
+          "features": "width=480,height=600",
+          "disposition": "new-window",
+          "referrer": {
+            "url": "http://a.test:53607/popup.html?onload=1",
+            "policy": "strict-origin-when-cross-origin"
+          }
+        },
+        "page": {
+          "onloadResult": "blocked-or-null",
+          "userActivationIsActive": false,
+          "userActivationHasBeenActive": false
+        }
+      },
+      "pass": true,
+      "note": "true = no built-in popup blocker; the handler still sees it"
+    },
+    {
+      "name": "B: same-site popup hosted via createWindow keeps window.opener and postMessage reaches opener",
+      "observed": {
+        "call": {
+          "details": {
+            "url": "http://a.test:53607/popup-child.html",
+            "frameName": "child",
+            "features": "width=480,height=600",
+            "disposition": "new-window",
+            "referrer": {
+              "url": "http://a.test:53607/popup.html?onload=1",
+              "policy": "strict-origin-when-cross-origin"
+            }
+          },
+          "behaviour": "host",
+          "createWindowCalled": true,
+          "optionsHadWebContents": true,
+          "optionKeys": [
+            "webContents",
+            "show",
+            "width",
+            "height",
+            "webPreferences"
+          ]
+        },
+        "child": {
+          "url": "http://a.test:53607/popup-child.html",
+          "sameSession": true,
+          "lastWebPreferences": {
+            "sandbox": true,
+            "contextIsolation": true,
+            "nodeIntegration": false,
+            "webSecurity": true,
+            "safeDialogs": false
+          },
+          "prefsNotInherited": {
+            "navigateOnDragDrop": {
+              "expected": false
+            },
+            "safeDialogs": {
+              "expected": true,
+              "got": false
+            },
+            "backgroundThrottling": {
+              "expected": true
+            }
+          },
+          "openerPrefs": {
+            "sandbox": true,
+            "contextIsolation": true,
+            "safeDialogs": true
+          },
+          "page": {
+            "hasOpener": true,
+            "status": "opener present",
+            "requireType": "undefined",
+            "processType": "undefined",
+            "name": "child"
+          }
+        },
+        "opener": {
+          "messages": [
+            {
+              "from": "popup-child",
+              "hasOpener": true
+            }
+          ],
+          "onloadResult": "opened"
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "B: window.close() inside the hosted popup",
+      "observed": {
+        "webContentsDestroyed": true,
+        "hostWindowStillOpen": true
+      },
+      "pass": null,
+      "note": "the host window must be closed by the browser; Electron does not close it for us"
+    },
+    {
+      "name": "B2: cross-site popup (a.test -> b.test) keeps window.opener; message reaches opener",
+      "observed": {
+        "call": {
+          "url": "http://b.test:53607/popup-child.html",
+          "frameName": "idp",
+          "features": "width=400,height=300",
+          "disposition": "new-window",
+          "referrer": {
+            "url": "http://a.test:53607/",
+            "policy": "strict-origin-when-cross-origin"
+          }
+        },
+        "child": {
+          "url": "http://b.test:53607/popup-child.html",
+          "openerProcessId": 28932,
+          "childProcessId": 16704,
+          "page": {
+            "hasOpener": true,
+            "status": "opener present"
+          }
+        },
+        "openerMessages": [
+          {
+            "from": "popup-child",
+            "hasOpener": true
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "B3: safeDialogs on popup when handler returns overrideBrowserWindowOptions.webPreferences.safeDialogs=true",
+      "observed": {
+        "optionsWebPreferences": [
+          "webContents",
+          "show",
+          "width",
+          "height",
+          "webPreferences"
+        ],
+        "popupSafeDialogs": false,
+        "openerSafeDialogs": true
+      },
+      "pass": null
+    },
+    {
+      "name": "C: left click on target=_blank link",
+      "observed": {
+        "label": "left click on target=_blank link",
+        "handlerInvoked": true,
+        "disposition": "foreground-tab",
+        "url": "http://a.test:53607/article?n=20&title=Opened%20in%20new%20tab",
+        "frameName": "",
+        "features": "",
+        "referrer": {
+          "url": "http://a.test:53607/popup.html",
+          "policy": "strict-origin-when-cross-origin"
+        },
+        "createWindowCalled": true,
+        "optionsHadWebContents": true,
+        "hostedUrlAfter1s": "http://a.test:53607/article?n=20&title=Opened%20in%20new%20tab",
+        "hasOpener": false,
+        "freshContentsCreatedByUs": false
+      },
+      "pass": null
+    },
+    {
+      "name": "C: ctrl+left click on target=_blank link",
+      "observed": {
+        "label": "ctrl+left click on target=_blank link",
+        "handlerInvoked": true,
+        "disposition": "background-tab",
+        "url": "http://a.test:53607/article?n=20&title=Opened%20in%20new%20tab",
+        "frameName": "",
+        "features": "",
+        "referrer": {
+          "url": "http://a.test:53607/popup.html",
+          "policy": "strict-origin-when-cross-origin"
+        },
+        "createWindowCalled": true,
+        "optionsHadWebContents": false,
+        "hostedUrlAfter1s": "",
+        "hasOpener": "no-response (nothing loaded)",
+        "freshContentsCreatedByUs": true
+      },
+      "pass": null
+    },
+    {
+      "name": "C: shift+left click on target=_blank link",
+      "observed": {
+        "label": "shift+left click on target=_blank link",
+        "handlerInvoked": true,
+        "disposition": "new-window",
+        "url": "http://a.test:53607/article?n=20&title=Opened%20in%20new%20tab",
+        "frameName": "",
+        "features": "",
+        "referrer": {
+          "url": "http://a.test:53607/popup.html",
+          "policy": "strict-origin-when-cross-origin"
+        },
+        "createWindowCalled": true,
+        "optionsHadWebContents": false,
+        "hostedUrlAfter1s": "",
+        "hasOpener": "no-response (nothing loaded)",
+        "freshContentsCreatedByUs": true
+      },
+      "pass": null
+    },
+    {
+      "name": "C: middle click on target=_blank link",
+      "observed": {
+        "label": "middle click on target=_blank link",
+        "handlerInvoked": true,
+        "disposition": "background-tab",
+        "url": "http://a.test:53607/article?n=20&title=Opened%20in%20new%20tab",
+        "frameName": "",
+        "features": "",
+        "referrer": {
+          "url": "http://a.test:53607/popup.html",
+          "policy": "strict-origin-when-cross-origin"
+        },
+        "createWindowCalled": true,
+        "optionsHadWebContents": false,
+        "hostedUrlAfter1s": "",
+        "hasOpener": "no-response (nothing loaded)",
+        "freshContentsCreatedByUs": true
+      },
+      "pass": null
+    },
+    {
+      "name": "C: left click on button that calls window.open (user gesture, features=width/height)",
+      "observed": {
+        "label": "left click on button that calls window.open (user gesture, features=width/height)",
+        "handlerInvoked": false,
+        "hostedUrlAfter1s": null,
+        "hasOpener": null,
+        "freshContentsCreatedByUs": false
+      },
+      "pass": null
+    },
+    {
+      "name": "permission requests seen during popup tests",
+      "observed": [
+        {
+          "kind": "check",
+          "permission": "window-management",
+          "origin": "http://a.test:53607/",
+          "requestingUrl": "http://a.test:53607/popup.html?onload=1"
+        },
+        {
+          "kind": "check",
+          "permission": "window-management",
+          "origin": "http://a.test:53607/",
+          "requestingUrl": "http://a.test:53607/popup.html"
+        },
+        {
+          "kind": "check",
+          "permission": "window-management",
+          "origin": "http://a.test:53607/",
+          "requestingUrl": "http://a.test:53607/popup.html"
+        }
+      ],
+      "pass": null
+    }
+  ]
+}

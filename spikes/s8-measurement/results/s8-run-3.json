@@ -1,0 +1,126 @@
+{
+  "generatedAt": "2026-10-15T23:46:55.173Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "runId": "3",
+  "tabs": 20,
+  "settleMs": 10000,
+  "page": "/page?heapMB=10&domKB=100",
+  "empty": {
+    "label": "empty window, no tabs",
+    "electron": {
+      "processes": 3,
+      "privateMB": 62,
+      "workingSetMB": 203,
+      "byType": {
+        "Browser": {
+          "count": 1,
+          "privateMB": 32
+        },
+        "GPU": {
+          "count": 1,
+          "privateMB": 18
+        },
+        "Utility": {
+          "count": 1,
+          "privateMB": 12
+        }
+      }
+    },
+    "windows": {
+      "processes": 3,
+      "privateMB": 62,
+      "workingSetMB": 204
+    },
+    "samePids": {
+      "count": 3,
+      "electronPrivateMB": 62,
+      "windowsPrivateMB": 62,
+      "electronWorkingSetMB": 203,
+      "windowsWorkingSetMB": 204
+    },
+    "missingFromAppMetrics": []
+  },
+  "allLive": {
+    "label": "20 live tabs (1 attached)",
+    "electron": {
+      "processes": 23,
+      "privateMB": 886,
+      "workingSetMB": 2004,
+      "byType": {
+        "Browser": {
+          "count": 1,
+          "privateMB": 52
+        },
+        "GPU": {
+          "count": 1,
+          "privateMB": 19
+        },
+        "Utility": {
+          "count": 1,
+          "privateMB": 14
+        },
+        "Tab": {
+          "count": 20,
+          "privateMB": 801
+        }
+      }
+    },
+    "windows": {
+      "processes": 23,
+      "privateMB": 886,
+      "workingSetMB": 2004
+    },
+    "samePids": {
+      "count": 23,
+      "electronPrivateMB": 886,
+      "windowsPrivateMB": 886,
+      "electronWorkingSetMB": 2004,
+      "windowsWorkingSetMB": 2004
+    },
+    "missingFromAppMetrics": []
+  },
+  "discarded": {
+    "label": "1 live tab, 19 discarded",
+    "electron": {
+      "processes": 4,
+      "privateMB": 124,
+      "workingSetMB": 331,
+      "byType": {
+        "Browser": {
+          "count": 1,
+          "privateMB": 49
+        },
+        "GPU": {
+          "count": 1,
+          "privateMB": 19
+        },
+        "Utility": {
+          "count": 1,
+          "privateMB": 13
+        },
+        "Tab": {
+          "count": 1,
+          "privateMB": 42
+        }
+      }
+    },
+    "windows": {
+      "processes": 4,
+      "privateMB": 124,
+      "workingSetMB": 331
+    },
+    "samePids": {
+      "count": 4,
+      "electronPrivateMB": 124,
+      "windowsPrivateMB": 124,
+      "electronWorkingSetMB": 331,
+      "windowsWorkingSetMB": 331
+    },
+    "missingFromAppMetrics": []
+  }
+}

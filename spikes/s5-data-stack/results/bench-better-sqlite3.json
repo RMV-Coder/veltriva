@@ -1,0 +1,3076 @@
+{
+  "generatedAt": "2026-10-15T22:48:58.128Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "driver": "better-sqlite3",
+  "scales": [
+    1000,
+    10000,
+    50000
+  ],
+  "reps": 3,
+  "cacheKB": "driver default",
+  "passes": 20,
+  "perScale": {
+    "1000": {
+      "scale": 1000,
+      "reps": 3,
+      "insert": {
+        "pagesPerSec": {
+          "median": 7645,
+          "min": 6221,
+          "max": 9337
+        },
+        "totalRowsPerSec": {
+          "median": 29818,
+          "min": 24189,
+          "max": 36718
+        },
+        "insertMs": {
+          "median": 143,
+          "min": 116,
+          "max": 177
+        },
+        "generateMs": {
+          "median": 28,
+          "min": 20,
+          "max": 42
+        },
+        "rows": {
+          "pages": 1000,
+          "visits": 2970,
+          "tabs": 300,
+          "distinctSites": 92,
+          "visitsPerPage": 2.97
+        }
+      },
+      "size": {
+        "dbBytes": {
+          "median": 1425408,
+          "min": 1425408,
+          "max": 1425408
+        },
+        "bytesPerPage": {
+          "median": 1425,
+          "min": 1425,
+          "max": 1425
+        },
+        "walBytesAfterTruncate": 0,
+        "byGroup": {
+          "app_runs": 4096,
+          "app_state": 4096,
+          "favicons": 4096,
+          "pages (table + indexes)": 393216,
+          "pages_fts_config": 4096,
+          "pages_fts_data": 253952,
+          "pages_fts_docsize": 16384,
+          "pages_fts_idx": 4096,
+          "permission_decisions": 4096,
+          "settings": 4096,
+          "site_rules": 4096,
+          "sqlite_autoindex_favicons_1": 4096,
+          "sqlite_autoindex_site_rules_1": 4096,
+          "tabs (table + indexes)": 471040,
+          "sqlite_autoindex_workspaces_1": 4096,
+          "sqlite_schema": 16384,
+          "visits (table + indexes)": 221184,
+          "workspaces": 4096
+        }
+      },
+      "coldFirstQueryRttMs": {
+        "median": 6.58,
+        "min": 5.98,
+        "max": 7.57
+      },
+      "inWorker": {
+        "all": {
+          "p50": {
+            "median": 0.44,
+            "min": 0.4,
+            "max": 0.58
+          },
+          "p95": {
+            "median": 2.57,
+            "min": 2.06,
+            "max": 3.93
+          },
+          "p99": {
+            "median": 3.51,
+            "min": 2.75,
+            "max": 17.41
+          },
+          "max": {
+            "median": 5.16,
+            "min": 3.41,
+            "max": 75.59
+          },
+          "mean": {
+            "median": 0.74,
+            "min": 0.66,
+            "max": 1.63
+          }
+        },
+        "groups": {
+          "oneToken": {
+            "p50": {
+              "median": 0.64,
+              "min": 0.6,
+              "max": 0.79
+            },
+            "p95": {
+              "median": 1.84,
+              "min": 1.66,
+              "max": 2.57
+            },
+            "p99": {
+              "median": 2.14,
+              "min": 1.84,
+              "max": 27.45
+            },
+            "max": {
+              "median": 2.94,
+              "min": 2.02,
+              "max": 75.59
+            },
+            "mean": {
+              "median": 0.8,
+              "min": 0.76,
+              "max": 1.94
+            }
+          },
+          "shortPrefix": {
+            "p50": {
+              "median": 1.63,
+              "min": 1.43,
+              "max": 2.25
+            },
+            "p95": {
+              "median": 3.51,
+              "min": 2.75,
+              "max": 10.1
+            },
+            "p99": {
+              "median": 4.31,
+              "min": 3.32,
+              "max": 49.84
+            },
+            "max": {
+              "median": 5.16,
+              "min": 3.41,
+              "max": 53.75
+            },
+            "mean": {
+              "median": 1.76,
+              "min": 1.47,
+              "max": 3.69
+            }
+          },
+          "twoTokens": {
+            "p50": {
+              "median": 0.24,
+              "min": 0.24,
+              "max": 0.31
+            },
+            "p95": {
+              "median": 0.57,
+              "min": 0.48,
+              "max": 0.91
+            },
+            "p99": {
+              "median": 0.73,
+              "min": 0.58,
+              "max": 14.2
+            },
+            "max": {
+              "median": 0.76,
+              "min": 0.59,
+              "max": 17.41
+            },
+            "mean": {
+              "median": 0.28,
+              "min": 0.27,
+              "max": 0.64
+            }
+          },
+          "threeTokens": {
+            "p50": {
+              "median": 0.2,
+              "min": 0.2,
+              "max": 0.28
+            },
+            "p95": {
+              "median": 0.41,
+              "min": 0.35,
+              "max": 0.52
+            },
+            "p99": {
+              "median": 0.56,
+              "min": 0.42,
+              "max": 3.62
+            },
+            "max": {
+              "median": 0.67,
+              "min": 0.43,
+              "max": 3.74
+            },
+            "mean": {
+              "median": 0.24,
+              "min": 0.22,
+              "max": 0.35
+            }
+          }
+        },
+        "slowestQueriesP50": [
+          {
+            "q": "do",
+            "p50": 3.14
+          },
+          {
+            "q": "re",
+            "p50": 2.57
+          },
+          {
+            "q": "po",
+            "p50": 1.81
+          },
+          {
+            "q": "youtube",
+            "p50": 1.72
+          },
+          {
+            "q": "pos",
+            "p50": 1.53
+          }
+        ]
+      },
+      "roundTrip": {
+        "all": {
+          "p50": {
+            "median": 1.28,
+            "min": 0.75,
+            "max": 2.1
+          },
+          "p95": {
+            "median": 6.42,
+            "min": 2.88,
+            "max": 10.41
+          },
+          "p99": {
+            "median": 11.24,
+            "min": 3.59,
+            "max": 15.89
+          },
+          "max": {
+            "median": 19.53,
+            "min": 4.95,
+            "max": 38.13
+          },
+          "mean": {
+            "median": 2.27,
+            "min": 1.06,
+            "max": 3.36
+          }
+        },
+        "groups": {
+          "oneToken": {
+            "p50": {
+              "median": 1.69,
+              "min": 1.01,
+              "max": 2.49
+            },
+            "p95": {
+              "median": 4.71,
+              "min": 2.27,
+              "max": 11.21
+            },
+            "p99": {
+              "median": 7.07,
+              "min": 2.49,
+              "max": 13.85
+            },
+            "max": {
+              "median": 10.1,
+              "min": 2.79,
+              "max": 29.71
+            },
+            "mean": {
+              "median": 2.12,
+              "min": 1.17,
+              "max": 3.61
+            }
+          },
+          "shortPrefix": {
+            "p50": {
+              "median": 3.65,
+              "min": 2.3,
+              "max": 4.15
+            },
+            "p95": {
+              "median": 10.91,
+              "min": 3.59,
+              "max": 12.52
+            },
+            "p99": {
+              "median": 17.29,
+              "min": 4.65,
+              "max": 18.59
+            },
+            "max": {
+              "median": 17.96,
+              "min": 4.95,
+              "max": 19.53
+            },
+            "mean": {
+              "median": 4.45,
+              "min": 2.16,
+              "max": 4.81
+            }
+          },
+          "twoTokens": {
+            "p50": {
+              "median": 0.83,
+              "min": 0.49,
+              "max": 0.95
+            },
+            "p95": {
+              "median": 6.06,
+              "min": 0.94,
+              "max": 9.06
+            },
+            "p99": {
+              "median": 11.24,
+              "min": 1.51,
+              "max": 14.76
+            },
+            "max": {
+              "median": 15.89,
+              "min": 1.81,
+              "max": 19.07
+            },
+            "mean": {
+              "median": 1.77,
+              "min": 0.55,
+              "max": 2.59
+            }
+          },
+          "threeTokens": {
+            "p50": {
+              "median": 0.66,
+              "min": 0.41,
+              "max": 0.72
+            },
+            "p95": {
+              "median": 3.7,
+              "min": 0.66,
+              "max": 7.75
+            },
+            "p99": {
+              "median": 5.02,
+              "min": 0.86,
+              "max": 16
+            },
+            "max": {
+              "median": 5.8,
+              "min": 1.17,
+              "max": 38.13
+            },
+            "mean": {
+              "median": 1.02,
+              "min": 0.43,
+              "max": 2.52
+            }
+          }
+        },
+        "slowestQueriesP50": [
+          {
+            "q": "do",
+            "p50": 5.15
+          },
+          {
+            "q": "re",
+            "p50": 4.24
+          },
+          {
+            "q": "po",
+            "p50": 3.17
+          },
+          {
+            "q": "youtube",
+            "p50": 3.09
+          },
+          {
+            "q": "pos",
+            "p50": 2.97
+          }
+        ]
+      },
+      "messagingOverheadP50Ms": 0.56,
+      "stress": {
+        "h": {
+          "matches": 1000,
+          "inWorkerP50": {
+            "median": 5.46,
+            "min": 4.35,
+            "max": 6.3
+          },
+          "roundTripP50": {
+            "median": 9.55,
+            "min": 5.57,
+            "max": 10.42
+          }
+        },
+        "https": {
+          "matches": 1000,
+          "inWorkerP50": {
+            "median": 4.47,
+            "min": 3.77,
+            "max": 4.74
+          },
+          "roundTripP50": {
+            "median": 6.45,
+            "min": 4.86,
+            "max": 7.03
+          }
+        },
+        "com": {
+          "matches": 656,
+          "inWorkerP50": {
+            "median": 4.08,
+            "min": 3.42,
+            "max": 4.51
+          },
+          "roundTripP50": {
+            "median": 5.65,
+            "min": 4.25,
+            "max": 6.18
+          }
+        },
+        "the": {
+          "matches": 32,
+          "inWorkerP50": {
+            "median": 0.64,
+            "min": 0.4,
+            "max": 0.65
+          },
+          "roundTripP50": {
+            "median": 0.82,
+            "min": 0.67,
+            "max": 0.91
+          }
+        }
+      },
+      "ladder": {
+        "kubernetes ingress": [
+          {
+            "chars": 1,
+            "matches": 114,
+            "p50": 1.31
+          },
+          {
+            "chars": 2,
+            "matches": 58,
+            "p50": 0.72
+          },
+          {
+            "chars": 3,
+            "matches": 58,
+            "p50": 0.66
+          },
+          {
+            "chars": 4,
+            "matches": 58,
+            "p50": 0.7
+          },
+          {
+            "chars": 5,
+            "matches": 58,
+            "p50": 0.67
+          },
+          {
+            "chars": 6,
+            "matches": 58,
+            "p50": 0.7
+          },
+          {
+            "chars": 7,
+            "matches": 58,
+            "p50": 0.7
+          },
+          {
+            "chars": 8,
+            "matches": 58,
+            "p50": 0.68
+          },
+          {
+            "chars": 9,
+            "matches": 58,
+            "p50": 0.67
+          },
+          {
+            "chars": 10,
+            "matches": 58,
+            "p50": 0.68
+          },
+          {
+            "chars": 12,
+            "matches": 42,
+            "p50": 1.05
+          },
+          {
+            "chars": 13,
+            "matches": 28,
+            "p50": 0.58
+          },
+          {
+            "chars": 14,
+            "matches": 2,
+            "p50": 0.26
+          },
+          {
+            "chars": 15,
+            "matches": 2,
+            "p50": 0.24
+          },
+          {
+            "chars": 16,
+            "matches": 2,
+            "p50": 0.23
+          },
+          {
+            "chars": 17,
+            "matches": 2,
+            "p50": 0.23
+          },
+          {
+            "chars": 18,
+            "matches": 2,
+            "p50": 0.22
+          }
+        ],
+        "postgres index": [
+          {
+            "chars": 1,
+            "matches": 469,
+            "p50": 4.2
+          },
+          {
+            "chars": 2,
+            "matches": 182,
+            "p50": 2.19
+          },
+          {
+            "chars": 3,
+            "matches": 151,
+            "p50": 1.74
+          },
+          {
+            "chars": 4,
+            "matches": 151,
+            "p50": 1.7
+          },
+          {
+            "chars": 5,
+            "matches": 151,
+            "p50": 1.78
+          },
+          {
+            "chars": 6,
+            "matches": 151,
+            "p50": 1.72
+          },
+          {
+            "chars": 7,
+            "matches": 151,
+            "p50": 1.74
+          },
+          {
+            "chars": 8,
+            "matches": 151,
+            "p50": 1.65
+          },
+          {
+            "chars": 10,
+            "matches": 86,
+            "p50": 1.45
+          },
+          {
+            "chars": 11,
+            "matches": 55,
+            "p50": 0.88
+          },
+          {
+            "chars": 12,
+            "matches": 19,
+            "p50": 0.47
+          },
+          {
+            "chars": 13,
+            "matches": 19,
+            "p50": 0.51
+          },
+          {
+            "chars": 14,
+            "matches": 19,
+            "p50": 0.48
+          }
+        ]
+      },
+      "recent": {
+        "pow": {
+          "rows": 200,
+          "inWorker": {
+            "p50": {
+              "median": 2.28,
+              "min": 2.12,
+              "max": 2.3
+            },
+            "p95": {
+              "median": 3.1,
+              "min": 2.32,
+              "max": 6.23
+            },
+            "p99": {
+              "median": 3.1,
+              "min": 2.32,
+              "max": 7.39
+            },
+            "max": {
+              "median": 3.1,
+              "min": 2.32,
+              "max": 7.39
+            },
+            "mean": {
+              "median": 2.4,
+              "min": 2.1,
+              "max": 2.73
+            }
+          },
+          "roundTrip": {
+            "p50": {
+              "median": 3.95,
+              "min": 3.86,
+              "max": 4.2
+            },
+            "p95": {
+              "median": 5.55,
+              "min": 5.46,
+              "max": 18.15
+            },
+            "p99": {
+              "median": 5.55,
+              "min": 5.46,
+              "max": 18.15
+            },
+            "max": {
+              "median": 5.55,
+              "min": 5.46,
+              "max": 18.15
+            },
+            "mean": {
+              "median": 4.1,
+              "min": 4.08,
+              "max": 6.21
+            }
+          },
+          "plan": [
+            "SCAN p",
+            "SEARCH t USING INDEX tabs_page_idx (page_id=?) LEFT-JOIN",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        "exp": {
+          "rows": 200,
+          "inWorker": {
+            "p50": {
+              "median": 2.35,
+              "min": 2.22,
+              "max": 3.44
+            },
+            "p95": {
+              "median": 3.43,
+              "min": 2.76,
+              "max": 10.54
+            },
+            "p99": {
+              "median": 3.72,
+              "min": 2.82,
+              "max": 23.95
+            },
+            "max": {
+              "median": 3.72,
+              "min": 2.82,
+              "max": 23.95
+            },
+            "mean": {
+              "median": 2.5,
+              "min": 2.29,
+              "max": 4.73
+            }
+          },
+          "roundTrip": {
+            "p50": {
+              "median": 3.57,
+              "min": 3.45,
+              "max": 9.33
+            },
+            "p95": {
+              "median": 6.42,
+              "min": 3.96,
+              "max": 16.31
+            },
+            "p99": {
+              "median": 6.42,
+              "min": 3.96,
+              "max": 16.31
+            },
+            "max": {
+              "median": 6.42,
+              "min": 3.96,
+              "max": 16.31
+            },
+            "mean": {
+              "median": 3.64,
+              "min": 3.57,
+              "max": 9.35
+            }
+          },
+          "plan": [
+            "SCAN p",
+            "SEARCH t USING INDEX tabs_page_idx (page_id=?) LEFT-JOIN",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        "windowed": {
+          "rows": 200,
+          "inWorker": {
+            "p50": {
+              "median": 1.57,
+              "min": 1.49,
+              "max": 1.67
+            },
+            "p95": {
+              "median": 3.2,
+              "min": 1.9,
+              "max": 3.97
+            },
+            "p99": {
+              "median": 4.35,
+              "min": 2.48,
+              "max": 4.48
+            },
+            "max": {
+              "median": 4.35,
+              "min": 2.48,
+              "max": 4.48
+            },
+            "mean": {
+              "median": 1.79,
+              "min": 1.55,
+              "max": 1.92
+            }
+          },
+          "roundTrip": {
+            "p50": {
+              "median": 2.81,
+              "min": 2.76,
+              "max": 5.71
+            },
+            "p95": {
+              "median": 3.96,
+              "min": 3.37,
+              "max": 6.99
+            },
+            "p99": {
+              "median": 3.96,
+              "min": 3.37,
+              "max": 6.99
+            },
+            "max": {
+              "median": 3.96,
+              "min": 3.37,
+              "max": 6.99
+            },
+            "mean": {
+              "median": 2.87,
+              "min": 2.85,
+              "max": 5.4
+            }
+          },
+          "plan": [
+            "SEARCH p USING INDEX pages_last_visit_idx (last_visit_at>?)",
+            "SEARCH t USING INDEX tabs_page_idx (page_id=?) LEFT-JOIN",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        "exprIndex": {
+          "rows": 200,
+          "inWorker": {
+            "p50": {
+              "median": 0.62,
+              "min": 0.58,
+              "max": 0.66
+            },
+            "p95": {
+              "median": 1.06,
+              "min": 1.02,
+              "max": 16.38
+            },
+            "p99": {
+              "median": 1.28,
+              "min": 1.08,
+              "max": 16.51
+            },
+            "max": {
+              "median": 1.28,
+              "min": 1.08,
+              "max": 16.51
+            },
+            "mean": {
+              "median": 0.65,
+              "min": 0.63,
+              "max": 2.37
+            }
+          },
+          "roundTrip": {
+            "p50": {
+              "median": 5.16,
+              "min": 1.94,
+              "max": 16.88
+            },
+            "p95": {
+              "median": 11.2,
+              "min": 2.88,
+              "max": 113.23
+            },
+            "p99": {
+              "median": 11.2,
+              "min": 2.88,
+              "max": 113.23
+            },
+            "max": {
+              "median": 11.2,
+              "min": 2.88,
+              "max": 113.23
+            },
+            "mean": {
+              "median": 4.8,
+              "min": 1.99,
+              "max": 27.71
+            }
+          },
+          "plan": [
+            "SCAN p USING INDEX pages_frecency_key_idx",
+            "SEARCH t USING INDEX tabs_page_idx (page_id=?) LEFT-JOIN"
+          ],
+          "indexBuildMs": {
+            "median": 1.6,
+            "min": 1.5,
+            "max": 4
+          },
+          "identicalOrderToPow": false
+        }
+      },
+      "flushTxn": {
+        "without": {
+          "p50": {
+            "median": 1.53,
+            "min": 1.52,
+            "max": 1.7
+          },
+          "p95": {
+            "median": 4.15,
+            "min": 3.98,
+            "max": 12.73
+          },
+          "p99": {
+            "median": 17.86,
+            "min": 17.18,
+            "max": 46.49
+          },
+          "max": {
+            "median": 36.09,
+            "min": 19.36,
+            "max": 67.11
+          },
+          "mean": {
+            "median": 2.23,
+            "min": 2.19,
+            "max": 4.09
+          }
+        },
+        "withExprIndex": {
+          "p50": {
+            "median": 1.52,
+            "min": 1.43,
+            "max": 1.7
+          },
+          "p95": {
+            "median": 5.27,
+            "min": 2.75,
+            "max": 5.57
+          },
+          "p99": {
+            "median": 19.25,
+            "min": 15.98,
+            "max": 20.1
+          },
+          "max": {
+            "median": 31.12,
+            "min": 19.19,
+            "max": 35.82
+          },
+          "mean": {
+            "median": 2.33,
+            "min": 1.95,
+            "max": 2.76
+          }
+        }
+      },
+      "matchCounts": {
+        "postgres": 151,
+        "react": 101,
+        "docker": 58,
+        "kubernetes": 58,
+        "rust": 53,
+        "tailwind": 29,
+        "wikipedia": 52,
+        "youtube": 186,
+        "election": 9,
+        "typescript": 38,
+        "po": 182,
+        "re": 241,
+        "do": 354,
+        "ku": 58,
+        "pos": 151,
+        "typ": 43,
+        "postgres index": 19,
+        "react hooks": 3,
+        "docker compose": 1,
+        "python asyncio": 2,
+        "rust ownership": 0,
+        "css grid": 13,
+        "git rebase": 1,
+        "post ind": 19,
+        "how to install": 2,
+        "react server components": 3,
+        "postgres index performance": 0,
+        "docker compose volumes": 0,
+        "kubernetes ingress tls": 0,
+        "rust async await": 2
+      },
+      "integrity": {
+        "quick": "ok",
+        "ftsOk": true,
+        "ftsDocsize": 1000
+      },
+      "perRep": [
+        {
+          "pagesPerSec": 6221,
+          "dbBytes": 1425408,
+          "inWorkerAll": {
+            "n": 600,
+            "p50": 0.58,
+            "p95": 3.93,
+            "p99": 17.41,
+            "max": 75.59,
+            "mean": 1.63
+          },
+          "roundTripAll": {
+            "n": 600,
+            "p50": 2.1,
+            "p95": 10.41,
+            "p99": 15.89,
+            "max": 38.13,
+            "mean": 3.36
+          }
+        },
+        {
+          "pagesPerSec": 9337,
+          "dbBytes": 1425408,
+          "inWorkerAll": {
+            "n": 600,
+            "p50": 0.4,
+            "p95": 2.06,
+            "p99": 2.75,
+            "max": 3.41,
+            "mean": 0.66
+          },
+          "roundTripAll": {
+            "n": 600,
+            "p50": 0.75,
+            "p95": 2.88,
+            "p99": 3.59,
+            "max": 4.95,
+            "mean": 1.06
+          }
+        },
+        {
+          "pagesPerSec": 7645,
+          "dbBytes": 1425408,
+          "inWorkerAll": {
+            "n": 600,
+            "p50": 0.44,
+            "p95": 2.57,
+            "p99": 3.51,
+            "max": 5.16,
+            "mean": 0.74
+          },
+          "roundTripAll": {
+            "n": 600,
+            "p50": 1.28,
+            "p95": 6.42,
+            "p99": 11.24,
+            "max": 19.53,
+            "mean": 2.27
+          }
+        }
+      ]
+    },
+    "10000": {
+      "scale": 10000,
+      "reps": 3,
+      "insert": {
+        "pagesPerSec": {
+          "median": 5921,
+          "min": 5861,
+          "max": 7859
+        },
+        "totalRowsPerSec": {
+          "median": 24025,
+          "min": 23774,
+          "max": 31859
+        },
+        "insertMs": {
+          "median": 1700,
+          "min": 1282,
+          "max": 1718
+        },
+        "generateMs": {
+          "median": 108,
+          "min": 106,
+          "max": 164
+        },
+        "rows": {
+          "pages": 10000,
+          "visits": 30554,
+          "tabs": 300,
+          "distinctSites": 527,
+          "visitsPerPage": 3.06
+        }
+      },
+      "size": {
+        "dbBytes": {
+          "median": 8581120,
+          "min": 8581120,
+          "max": 8581120
+        },
+        "bytesPerPage": {
+          "median": 858,
+          "min": 858,
+          "max": 858
+        },
+        "walBytesAfterTruncate": 0,
+        "byGroup": {
+          "app_runs": 4096,
+          "app_state": 4096,
+          "favicons": 4096,
+          "pages (table + indexes)": 3776512,
+          "pages_fts_config": 4096,
+          "pages_fts_data": 1998848,
+          "pages_fts_docsize": 114688,
+          "pages_fts_idx": 12288,
+          "permission_decisions": 4096,
+          "settings": 4096,
+          "site_rules": 4096,
+          "sqlite_autoindex_favicons_1": 4096,
+          "sqlite_autoindex_site_rules_1": 4096,
+          "tabs (table + indexes)": 446464,
+          "sqlite_autoindex_workspaces_1": 4096,
+          "sqlite_schema": 16384,
+          "visits (table + indexes)": 2158592,
+          "workspaces": 4096
+        }
+      },
+      "coldFirstQueryRttMs": {
+        "median": 23.85,
+        "min": 17.88,
+        "max": 29.76
+      },
+      "inWorker": {
+        "all": {
+          "p50": {
+            "median": 2.7,
+            "min": 2.67,
+            "max": 3.52
+          },
+          "p95": {
+            "median": 9.49,
+            "min": 9.37,
+            "max": 15.47
+          },
+          "p99": {
+            "median": 13.02,
+            "min": 11.04,
+            "max": 29.96
+          },
+          "max": {
+            "median": 26.48,
+            "min": 24.68,
+            "max": 87.21
+          },
+          "mean": {
+            "median": 3.38,
+            "min": 3.3,
+            "max": 5.35
+          }
+        },
+        "groups": {
+          "oneToken": {
+            "p50": {
+              "median": 3.8,
+              "min": 3.67,
+              "max": 5.79
+            },
+            "p95": {
+              "median": 7.97,
+              "min": 7.52,
+              "max": 15.09
+            },
+            "p99": {
+              "median": 10.5,
+              "min": 10.13,
+              "max": 23.98
+            },
+            "max": {
+              "median": 13.62,
+              "min": 11.46,
+              "max": 31.4
+            },
+            "mean": {
+              "median": 4.15,
+              "min": 4.11,
+              "max": 6.9
+            }
+          },
+          "shortPrefix": {
+            "p50": {
+              "median": 7.75,
+              "min": 7.57,
+              "max": 10.37
+            },
+            "p95": {
+              "median": 12.78,
+              "min": 11.03,
+              "max": 23.05
+            },
+            "p99": {
+              "median": 18.24,
+              "min": 14.99,
+              "max": 37.53
+            },
+            "max": {
+              "median": 26.48,
+              "min": 24.68,
+              "max": 87.21
+            },
+            "mean": {
+              "median": 7.51,
+              "min": 7.32,
+              "max": 11.76
+            }
+          },
+          "twoTokens": {
+            "p50": {
+              "median": 0.8,
+              "min": 0.77,
+              "max": 1.21
+            },
+            "p95": {
+              "median": 3.31,
+              "min": 3.27,
+              "max": 5.15
+            },
+            "p99": {
+              "median": 6.83,
+              "min": 3.9,
+              "max": 9.65
+            },
+            "max": {
+              "median": 7.32,
+              "min": 4.5,
+              "max": 9.79
+            },
+            "mean": {
+              "median": 1.36,
+              "min": 1.26,
+              "max": 1.92
+            }
+          },
+          "threeTokens": {
+            "p50": {
+              "median": 0.64,
+              "min": 0.54,
+              "max": 0.84
+            },
+            "p95": {
+              "median": 1.38,
+              "min": 1.31,
+              "max": 1.95
+            },
+            "p99": {
+              "median": 2.34,
+              "min": 1.79,
+              "max": 5.11
+            },
+            "max": {
+              "median": 5.2,
+              "min": 2.04,
+              "max": 6.75
+            },
+            "mean": {
+              "median": 0.67,
+              "min": 0.66,
+              "max": 0.92
+            }
+          }
+        },
+        "slowestQueriesP50": [
+          {
+            "q": "do",
+            "p50": 10.43
+          },
+          {
+            "q": "re",
+            "p50": 9.35
+          },
+          {
+            "q": "po",
+            "p50": 8.35
+          },
+          {
+            "q": "postgres",
+            "p50": 7.73
+          },
+          {
+            "q": "pos",
+            "p50": 7.65
+          }
+        ]
+      },
+      "roundTrip": {
+        "all": {
+          "p50": {
+            "median": 3.92,
+            "min": 3.79,
+            "max": 4.57
+          },
+          "p95": {
+            "median": 12.56,
+            "min": 11.36,
+            "max": 14.45
+          },
+          "p99": {
+            "median": 23.25,
+            "min": 15.27,
+            "max": 31.27
+          },
+          "max": {
+            "median": 84.48,
+            "min": 26.94,
+            "max": 103.1
+          },
+          "mean": {
+            "median": 5.01,
+            "min": 4.56,
+            "max": 5.96
+          }
+        },
+        "groups": {
+          "oneToken": {
+            "p50": {
+              "median": 5.15,
+              "min": 5.02,
+              "max": 6.08
+            },
+            "p95": {
+              "median": 12,
+              "min": 10.17,
+              "max": 15.26
+            },
+            "p99": {
+              "median": 16.57,
+              "min": 14.13,
+              "max": 36.28
+            },
+            "max": {
+              "median": 22.09,
+              "min": 18.09,
+              "max": 68.86
+            },
+            "mean": {
+              "median": 5.8,
+              "min": 5.62,
+              "max": 7.59
+            }
+          },
+          "shortPrefix": {
+            "p50": {
+              "median": 9.21,
+              "min": 9.06,
+              "max": 10.54
+            },
+            "p95": {
+              "median": 17.75,
+              "min": 15.2,
+              "max": 18.78
+            },
+            "p99": {
+              "median": 46.88,
+              "min": 18.81,
+              "max": 55.07
+            },
+            "max": {
+              "median": 84.48,
+              "min": 26.94,
+              "max": 103.1
+            },
+            "mean": {
+              "median": 10.42,
+              "min": 8.99,
+              "max": 11.63
+            }
+          },
+          "twoTokens": {
+            "p50": {
+              "median": 1.63,
+              "min": 1.5,
+              "max": 1.64
+            },
+            "p95": {
+              "median": 6.73,
+              "min": 5.49,
+              "max": 6.99
+            },
+            "p99": {
+              "median": 14.87,
+              "min": 8.94,
+              "max": 18.85
+            },
+            "max": {
+              "median": 15.64,
+              "min": 9.73,
+              "max": 45.16
+            },
+            "mean": {
+              "median": 2.61,
+              "min": 2.27,
+              "max": 2.72
+            }
+          },
+          "threeTokens": {
+            "p50": {
+              "median": 1.21,
+              "min": 1.08,
+              "max": 1.34
+            },
+            "p95": {
+              "median": 3.77,
+              "min": 3.74,
+              "max": 6.36
+            },
+            "p99": {
+              "median": 8.3,
+              "min": 5.34,
+              "max": 19.58
+            },
+            "max": {
+              "median": 19.6,
+              "min": 6.08,
+              "max": 24.77
+            },
+            "mean": {
+              "median": 1.49,
+              "min": 1.41,
+              "max": 1.9
+            }
+          }
+        },
+        "slowestQueriesP50": [
+          {
+            "q": "do",
+            "p50": 11.64
+          },
+          {
+            "q": "re",
+            "p50": 11.08
+          },
+          {
+            "q": "po",
+            "p50": 9.68
+          },
+          {
+            "q": "pos",
+            "p50": 8.97
+          },
+          {
+            "q": "postgres",
+            "p50": 8.87
+          }
+        ]
+      },
+      "messagingOverheadP50Ms": 1.12,
+      "stress": {
+        "h": {
+          "matches": 10000,
+          "inWorkerP50": {
+            "median": 24.14,
+            "min": 21.58,
+            "max": 30.86
+          },
+          "roundTripP50": {
+            "median": 25.57,
+            "min": 18.86,
+            "max": 48.08
+          }
+        },
+        "https": {
+          "matches": 10000,
+          "inWorkerP50": {
+            "median": 21.44,
+            "min": 19.81,
+            "max": 26.54
+          },
+          "roundTripP50": {
+            "median": 20.93,
+            "min": 17.57,
+            "max": 28.21
+          }
+        },
+        "com": {
+          "matches": 5399,
+          "inWorkerP50": {
+            "median": 16.95,
+            "min": 13.26,
+            "max": 18.98
+          },
+          "roundTripP50": {
+            "median": 16.21,
+            "min": 14.47,
+            "max": 21.29
+          }
+        },
+        "the": {
+          "matches": 316,
+          "inWorkerP50": {
+            "median": 3.71,
+            "min": 3.01,
+            "max": 3.81
+          },
+          "roundTripP50": {
+            "median": 5.75,
+            "min": 3.78,
+            "max": 14.12
+          }
+        }
+      },
+      "ladder": {
+        "kubernetes ingress": [
+          {
+            "chars": 1,
+            "matches": 1035,
+            "p50": 6.48
+          },
+          {
+            "chars": 2,
+            "matches": 486,
+            "p50": 4.29
+          },
+          {
+            "chars": 3,
+            "matches": 486,
+            "p50": 4.4
+          },
+          {
+            "chars": 4,
+            "matches": 486,
+            "p50": 3.96
+          },
+          {
+            "chars": 5,
+            "matches": 486,
+            "p50": 4.65
+          },
+          {
+            "chars": 6,
+            "matches": 486,
+            "p50": 4.55
+          },
+          {
+            "chars": 7,
+            "matches": 486,
+            "p50": 4.29
+          },
+          {
+            "chars": 8,
+            "matches": 486,
+            "p50": 4.32
+          },
+          {
+            "chars": 9,
+            "matches": 486,
+            "p50": 4.43
+          },
+          {
+            "chars": 10,
+            "matches": 486,
+            "p50": 4.63
+          },
+          {
+            "chars": 12,
+            "matches": 318,
+            "p50": 5.4
+          },
+          {
+            "chars": 13,
+            "matches": 158,
+            "p50": 2.5
+          },
+          {
+            "chars": 14,
+            "matches": 12,
+            "p50": 0.5
+          },
+          {
+            "chars": 15,
+            "matches": 12,
+            "p50": 0.49
+          },
+          {
+            "chars": 16,
+            "matches": 12,
+            "p50": 0.47
+          },
+          {
+            "chars": 17,
+            "matches": 12,
+            "p50": 0.44
+          },
+          {
+            "chars": 18,
+            "matches": 12,
+            "p50": 0.41
+          }
+        ],
+        "postgres index": [
+          {
+            "chars": 1,
+            "matches": 4868,
+            "p50": 17.28
+          },
+          {
+            "chars": 2,
+            "matches": 2016,
+            "p50": 9.99
+          },
+          {
+            "chars": 3,
+            "matches": 1626,
+            "p50": 8.95
+          },
+          {
+            "chars": 4,
+            "matches": 1626,
+            "p50": 9.14
+          },
+          {
+            "chars": 5,
+            "matches": 1626,
+            "p50": 9.6
+          },
+          {
+            "chars": 6,
+            "matches": 1626,
+            "p50": 9.36
+          },
+          {
+            "chars": 7,
+            "matches": 1626,
+            "p50": 8.77
+          },
+          {
+            "chars": 8,
+            "matches": 1626,
+            "p50": 8.36
+          },
+          {
+            "chars": 10,
+            "matches": 942,
+            "p50": 9.28
+          },
+          {
+            "chars": 11,
+            "matches": 551,
+            "p50": 6.98
+          },
+          {
+            "chars": 12,
+            "matches": 183,
+            "p50": 3.14
+          },
+          {
+            "chars": 13,
+            "matches": 183,
+            "p50": 3.18
+          },
+          {
+            "chars": 14,
+            "matches": 183,
+            "p50": 3.44
+          }
+        ]
+      },
+      "recent": {
+        "pow": {
+          "rows": 200,
+          "inWorker": {
+            "p50": {
+              "median": 8.99,
+              "min": 8.88,
+              "max": 10.1
+            },
+            "p95": {
+              "median": 10.95,
+              "min": 10.84,
+              "max": 15.51
+            },
+            "p99": {
+              "median": 11.43,
+              "min": 11.22,
+              "max": 20.18
+            },
+            "max": {
+              "median": 11.43,
+              "min": 11.22,
+              "max": 20.18
+            },
+            "mean": {
+              "median": 9.11,
+              "min": 9.01,
+              "max": 10.74
+            }
+          },
+          "roundTrip": {
+            "p50": {
+              "median": 9.94,
+              "min": 9.25,
+              "max": 10.72
+            },
+            "p95": {
+              "median": 11.73,
+              "min": 10.15,
+              "max": 12.28
+            },
+            "p99": {
+              "median": 11.73,
+              "min": 10.15,
+              "max": 12.28
+            },
+            "max": {
+              "median": 11.73,
+              "min": 10.15,
+              "max": 12.28
+            },
+            "mean": {
+              "median": 9.97,
+              "min": 9.33,
+              "max": 10.61
+            }
+          },
+          "plan": [
+            "SCAN p",
+            "SEARCH t USING INDEX tabs_page_idx (page_id=?) LEFT-JOIN",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        "exp": {
+          "rows": 200,
+          "inWorker": {
+            "p50": {
+              "median": 8.17,
+              "min": 7.38,
+              "max": 8.43
+            },
+            "p95": {
+              "median": 10.03,
+              "min": 8.47,
+              "max": 16.91
+            },
+            "p99": {
+              "median": 11.02,
+              "min": 8.67,
+              "max": 17.53
+            },
+            "max": {
+              "median": 11.02,
+              "min": 8.67,
+              "max": 17.53
+            },
+            "mean": {
+              "median": 8.64,
+              "min": 7.35,
+              "max": 8.96
+            }
+          },
+          "roundTrip": {
+            "p50": {
+              "median": 8.6,
+              "min": 8.59,
+              "max": 13.79
+            },
+            "p95": {
+              "median": 10.12,
+              "min": 9.91,
+              "max": 50.92
+            },
+            "p99": {
+              "median": 10.12,
+              "min": 9.91,
+              "max": 50.92
+            },
+            "max": {
+              "median": 10.12,
+              "min": 9.91,
+              "max": 50.92
+            },
+            "mean": {
+              "median": 8.67,
+              "min": 8.59,
+              "max": 17.55
+            }
+          },
+          "plan": [
+            "SCAN p",
+            "SEARCH t USING INDEX tabs_page_idx (page_id=?) LEFT-JOIN",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        "windowed": {
+          "rows": 200,
+          "inWorker": {
+            "p50": {
+              "median": 7.33,
+              "min": 7.19,
+              "max": 7.46
+            },
+            "p95": {
+              "median": 9.18,
+              "min": 8.69,
+              "max": 10.48
+            },
+            "p99": {
+              "median": 9.65,
+              "min": 9.06,
+              "max": 10.7
+            },
+            "max": {
+              "median": 9.65,
+              "min": 9.06,
+              "max": 10.7
+            },
+            "mean": {
+              "median": 7.39,
+              "min": 7.34,
+              "max": 7.44
+            }
+          },
+          "roundTrip": {
+            "p50": {
+              "median": 8.25,
+              "min": 7.8,
+              "max": 9.08
+            },
+            "p95": {
+              "median": 10,
+              "min": 9.13,
+              "max": 13.22
+            },
+            "p99": {
+              "median": 10,
+              "min": 9.13,
+              "max": 13.22
+            },
+            "max": {
+              "median": 10,
+              "min": 9.13,
+              "max": 13.22
+            },
+            "mean": {
+              "median": 8.35,
+              "min": 7.83,
+              "max": 8.88
+            }
+          },
+          "plan": [
+            "SEARCH p USING INDEX pages_last_visit_idx (last_visit_at>?)",
+            "SEARCH t USING INDEX tabs_page_idx (page_id=?) LEFT-JOIN",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        "exprIndex": {
+          "rows": 200,
+          "inWorker": {
+            "p50": {
+              "median": 0.42,
+              "min": 0.41,
+              "max": 0.46
+            },
+            "p95": {
+              "median": 0.65,
+              "min": 0.51,
+              "max": 0.7
+            },
+            "p99": {
+              "median": 0.71,
+              "min": 0.58,
+              "max": 0.71
+            },
+            "max": {
+              "median": 0.71,
+              "min": 0.58,
+              "max": 0.71
+            },
+            "mean": {
+              "median": 0.42,
+              "min": 0.38,
+              "max": 0.48
+            }
+          },
+          "roundTrip": {
+            "p50": {
+              "median": 1.45,
+              "min": 1.22,
+              "max": 1.47
+            },
+            "p95": {
+              "median": 1.74,
+              "min": 1.73,
+              "max": 2.71
+            },
+            "p99": {
+              "median": 1.74,
+              "min": 1.73,
+              "max": 2.71
+            },
+            "max": {
+              "median": 1.74,
+              "min": 1.73,
+              "max": 2.71
+            },
+            "mean": {
+              "median": 1.47,
+              "min": 1.18,
+              "max": 1.62
+            }
+          },
+          "plan": [
+            "SCAN p USING INDEX pages_frecency_key_idx",
+            "SEARCH t USING INDEX tabs_page_idx (page_id=?) LEFT-JOIN"
+          ],
+          "indexBuildMs": {
+            "median": 11.2,
+            "min": 10.3,
+            "max": 14.1
+          },
+          "identicalOrderToPow": true
+        }
+      },
+      "flushTxn": {
+        "without": {
+          "p50": {
+            "median": 2.12,
+            "min": 1.97,
+            "max": 2.53
+          },
+          "p95": {
+            "median": 3.36,
+            "min": 2.98,
+            "max": 5.33
+          },
+          "p99": {
+            "median": 24.28,
+            "min": 21.99,
+            "max": 36.01
+          },
+          "max": {
+            "median": 29.89,
+            "min": 24.55,
+            "max": 308.45
+          },
+          "mean": {
+            "median": 3.42,
+            "min": 2.51,
+            "max": 4.32
+          }
+        },
+        "withExprIndex": {
+          "p50": {
+            "median": 2.03,
+            "min": 1.83,
+            "max": 2.15
+          },
+          "p95": {
+            "median": 3.12,
+            "min": 2.75,
+            "max": 4.49
+          },
+          "p99": {
+            "median": 32.42,
+            "min": 22.15,
+            "max": 35.77
+          },
+          "max": {
+            "median": 38.07,
+            "min": 24.28,
+            "max": 38.44
+          },
+          "mean": {
+            "median": 2.95,
+            "min": 2.4,
+            "max": 3.26
+          }
+        }
+      },
+      "matchCounts": {
+        "postgres": 1626,
+        "react": 910,
+        "docker": 611,
+        "kubernetes": 486,
+        "rust": 422,
+        "tailwind": 294,
+        "wikipedia": 339,
+        "youtube": 1446,
+        "election": 102,
+        "typescript": 285,
+        "po": 2016,
+        "re": 2512,
+        "do": 2837,
+        "ku": 486,
+        "pos": 1626,
+        "typ": 414,
+        "postgres index": 183,
+        "react hooks": 30,
+        "docker compose": 24,
+        "python asyncio": 3,
+        "rust ownership": 16,
+        "css grid": 105,
+        "git rebase": 11,
+        "post ind": 183,
+        "how to install": 34,
+        "react server components": 19,
+        "postgres index performance": 3,
+        "docker compose volumes": 0,
+        "kubernetes ingress tls": 0,
+        "rust async await": 7
+      },
+      "integrity": {
+        "quick": "ok",
+        "ftsOk": true,
+        "ftsDocsize": 10000
+      },
+      "perRep": [
+        {
+          "pagesPerSec": 5861,
+          "dbBytes": 8581120,
+          "inWorkerAll": {
+            "n": 600,
+            "p50": 2.67,
+            "p95": 9.37,
+            "p99": 11.04,
+            "max": 26.48,
+            "mean": 3.3
+          },
+          "roundTripAll": {
+            "n": 600,
+            "p50": 3.79,
+            "p95": 11.36,
+            "p99": 15.27,
+            "max": 26.94,
+            "mean": 4.56
+          }
+        },
+        {
+          "pagesPerSec": 5921,
+          "dbBytes": 8581120,
+          "inWorkerAll": {
+            "n": 600,
+            "p50": 3.52,
+            "p95": 15.47,
+            "p99": 29.96,
+            "max": 87.21,
+            "mean": 5.35
+          },
+          "roundTripAll": {
+            "n": 600,
+            "p50": 4.57,
+            "p95": 14.45,
+            "p99": 31.27,
+            "max": 103.1,
+            "mean": 5.96
+          }
+        },
+        {
+          "pagesPerSec": 7859,
+          "dbBytes": 8581120,
+          "inWorkerAll": {
+            "n": 600,
+            "p50": 2.7,
+            "p95": 9.49,
+            "p99": 13.02,
+            "max": 24.68,
+            "mean": 3.38
+          },
+          "roundTripAll": {
+            "n": 600,
+            "p50": 3.92,
+            "p95": 12.56,
+            "p99": 23.25,
+            "max": 84.48,
+            "mean": 5.01
+          }
+        }
+      ]
+    },
+    "50000": {
+      "scale": 50000,
+      "reps": 3,
+      "insert": {
+        "pagesPerSec": {
+          "median": 4242,
+          "min": 3803,
+          "max": 4451
+        },
+        "totalRowsPerSec": {
+          "median": 17070,
+          "min": 15308,
+          "max": 17915
+        },
+        "insertMs": {
+          "median": 11803,
+          "min": 11246,
+          "max": 13162
+        },
+        "generateMs": {
+          "median": 588,
+          "min": 526,
+          "max": 695
+        },
+        "rows": {
+          "pages": 50000,
+          "visits": 151176,
+          "tabs": 300,
+          "distinctSites": 2200,
+          "visitsPerPage": 3.02
+        }
+      },
+      "size": {
+        "dbBytes": {
+          "median": 41779200,
+          "min": 41779200,
+          "max": 41779200
+        },
+        "bytesPerPage": {
+          "median": 836,
+          "min": 836,
+          "max": 836
+        },
+        "walBytesAfterTruncate": 0,
+        "byGroup": {
+          "app_runs": 4096,
+          "app_state": 4096,
+          "favicons": 4096,
+          "pages (table + indexes)": 19013632,
+          "pages_fts_config": 4096,
+          "pages_fts_data": 9617408,
+          "pages_fts_docsize": 589824,
+          "pages_fts_idx": 28672,
+          "permission_decisions": 4096,
+          "settings": 4096,
+          "site_rules": 4096,
+          "sqlite_autoindex_favicons_1": 4096,
+          "sqlite_autoindex_site_rules_1": 4096,
+          "tabs (table + indexes)": 446464,
+          "sqlite_autoindex_workspaces_1": 4096,
+          "sqlite_schema": 16384,
+          "visits (table + indexes)": 11161600,
+          "workspaces": 4096
+        }
+      },
+      "coldFirstQueryRttMs": {
+        "median": 57.73,
+        "min": 51.5,
+        "max": 88.95
+      },
+      "inWorker": {
+        "all": {
+          "p50": {
+            "median": 6.34,
+            "min": 5.89,
+            "max": 10.09
+          },
+          "p95": {
+            "median": 25.18,
+            "min": 20.28,
+            "max": 40.03
+          },
+          "p99": {
+            "median": 39.61,
+            "min": 23.55,
+            "max": 55.32
+          },
+          "max": {
+            "median": 69.04,
+            "min": 33.22,
+            "max": 81.28
+          },
+          "mean": {
+            "median": 8.58,
+            "min": 6.99,
+            "max": 14.31
+          }
+        },
+        "groups": {
+          "oneToken": {
+            "p50": {
+              "median": 8.51,
+              "min": 7.4,
+              "max": 14.24
+            },
+            "p95": {
+              "median": 20.58,
+              "min": 16.44,
+              "max": 36.28
+            },
+            "p99": {
+              "median": 37.68,
+              "min": 17.52,
+              "max": 54.84
+            },
+            "max": {
+              "median": 53.44,
+              "min": 17.63,
+              "max": 78.9
+            },
+            "mean": {
+              "median": 10.28,
+              "min": 8.39,
+              "max": 17.32
+            }
+          },
+          "shortPrefix": {
+            "p50": {
+              "median": 18.37,
+              "min": 16.47,
+              "max": 29.68
+            },
+            "p95": {
+              "median": 34.37,
+              "min": 23.55,
+              "max": 55.13
+            },
+            "p99": {
+              "median": 49.11,
+              "min": 26.14,
+              "max": 74.58
+            },
+            "max": {
+              "median": 69.04,
+              "min": 33.22,
+              "max": 81.28
+            },
+            "mean": {
+              "median": 18.68,
+              "min": 15.15,
+              "max": 29.81
+            }
+          },
+          "twoTokens": {
+            "p50": {
+              "median": 2.56,
+              "min": 2.21,
+              "max": 4.1
+            },
+            "p95": {
+              "median": 9.33,
+              "min": 7.86,
+              "max": 23.43
+            },
+            "p99": {
+              "median": 12.99,
+              "min": 8.66,
+              "max": 36.22
+            },
+            "max": {
+              "median": 39.61,
+              "min": 8.88,
+              "max": 40.03
+            },
+            "mean": {
+              "median": 4.01,
+              "min": 3.18,
+              "max": 7.06
+            }
+          },
+          "threeTokens": {
+            "p50": {
+              "median": 1.68,
+              "min": 1.65,
+              "max": 2.98
+            },
+            "p95": {
+              "median": 3.73,
+              "min": 3,
+              "max": 9.17
+            },
+            "p99": {
+              "median": 4.08,
+              "min": 3.28,
+              "max": 20.61
+            },
+            "max": {
+              "median": 4.51,
+              "min": 3.51,
+              "max": 23.05
+            },
+            "mean": {
+              "median": 1.75,
+              "min": 1.59,
+              "max": 3.44
+            }
+          }
+        },
+        "slowestQueriesP50": [
+          {
+            "q": "re",
+            "p50": 24.82
+          },
+          {
+            "q": "do",
+            "p50": 24.7
+          },
+          {
+            "q": "po",
+            "p50": 20.53
+          },
+          {
+            "q": "postgres",
+            "p50": 17.9
+          },
+          {
+            "q": "pos",
+            "p50": 17.67
+          }
+        ]
+      },
+      "roundTrip": {
+        "all": {
+          "p50": {
+            "median": 7.28,
+            "min": 6.79,
+            "max": 10.4
+          },
+          "p95": {
+            "median": 23.44,
+            "min": 22.93,
+            "max": 36.95
+          },
+          "p99": {
+            "median": 29.32,
+            "min": 27.59,
+            "max": 56.03
+          },
+          "max": {
+            "median": 51.82,
+            "min": 32.62,
+            "max": 102.72
+          },
+          "mean": {
+            "median": 8.63,
+            "min": 8.3,
+            "max": 13.65
+          }
+        },
+        "groups": {
+          "oneToken": {
+            "p50": {
+              "median": 8.82,
+              "min": 8.71,
+              "max": 12.83
+            },
+            "p95": {
+              "median": 18.79,
+              "min": 18.75,
+              "max": 33.2
+            },
+            "p99": {
+              "median": 27.17,
+              "min": 25.23,
+              "max": 54.69
+            },
+            "max": {
+              "median": 30.83,
+              "min": 27.62,
+              "max": 102.72
+            },
+            "mean": {
+              "median": 10.34,
+              "min": 10.05,
+              "max": 16.54
+            }
+          },
+          "shortPrefix": {
+            "p50": {
+              "median": 19.35,
+              "min": 18.8,
+              "max": 29.01
+            },
+            "p95": {
+              "median": 29.32,
+              "min": 27.04,
+              "max": 54.11
+            },
+            "p99": {
+              "median": 49.42,
+              "min": 27.98,
+              "max": 68.46
+            },
+            "max": {
+              "median": 51.82,
+              "min": 32.62,
+              "max": 74.65
+            },
+            "mean": {
+              "median": 18.27,
+              "min": 17.19,
+              "max": 27.49
+            }
+          },
+          "twoTokens": {
+            "p50": {
+              "median": 2.82,
+              "min": 2.67,
+              "max": 5.26
+            },
+            "p95": {
+              "median": 9.15,
+              "min": 8.9,
+              "max": 15.55
+            },
+            "p99": {
+              "median": 11.99,
+              "min": 11.39,
+              "max": 25.54
+            },
+            "max": {
+              "median": 16.3,
+              "min": 14.24,
+              "max": 27.56
+            },
+            "mean": {
+              "median": 4.15,
+              "min": 4.04,
+              "max": 6.72
+            }
+          },
+          "threeTokens": {
+            "p50": {
+              "median": 2,
+              "min": 1.82,
+              "max": 4.06
+            },
+            "p95": {
+              "median": 4.15,
+              "min": 3.78,
+              "max": 8.91
+            },
+            "p99": {
+              "median": 6.04,
+              "min": 5.11,
+              "max": 15.42
+            },
+            "max": {
+              "median": 6.13,
+              "min": 5.99,
+              "max": 18.16
+            },
+            "mean": {
+              "median": 2.17,
+              "min": 2.11,
+              "max": 4.21
+            }
+          }
+        },
+        "slowestQueriesP50": [
+          {
+            "q": "re",
+            "p50": 23.9
+          },
+          {
+            "q": "do",
+            "p50": 22.96
+          },
+          {
+            "q": "po",
+            "p50": 20.37
+          },
+          {
+            "q": "postgres",
+            "p50": 18.32
+          },
+          {
+            "q": "pos",
+            "p50": 18.21
+          }
+        ]
+      },
+      "messagingOverheadP50Ms": 0.73,
+      "stress": {
+        "h": {
+          "matches": 50000,
+          "inWorkerP50": {
+            "median": 63.65,
+            "min": 58.27,
+            "max": 112.47
+          },
+          "roundTripP50": {
+            "median": 79.38,
+            "min": 78.24,
+            "max": 80.76
+          }
+        },
+        "https": {
+          "matches": 50000,
+          "inWorkerP50": {
+            "median": 53.41,
+            "min": 49.68,
+            "max": 92.34
+          },
+          "roundTripP50": {
+            "median": 69.92,
+            "min": 68,
+            "max": 70.19
+          }
+        },
+        "com": {
+          "matches": 23563,
+          "inWorkerP50": {
+            "median": 33.91,
+            "min": 31.29,
+            "max": 65.02
+          },
+          "roundTripP50": {
+            "median": 39.23,
+            "min": 35.36,
+            "max": 67.88
+          }
+        },
+        "the": {
+          "matches": 1342,
+          "inWorkerP50": {
+            "median": 6.05,
+            "min": 5.99,
+            "max": 10.23
+          },
+          "roundTripP50": {
+            "median": 6.74,
+            "min": 5.52,
+            "max": 35.34
+          }
+        }
+      },
+      "ladder": {
+        "kubernetes ingress": [
+          {
+            "chars": 1,
+            "matches": 5067,
+            "p50": 17.48
+          },
+          {
+            "chars": 2,
+            "matches": 2220,
+            "p50": 9.47
+          },
+          {
+            "chars": 3,
+            "matches": 2216,
+            "p50": 9.92
+          },
+          {
+            "chars": 4,
+            "matches": 2215,
+            "p50": 8.9
+          },
+          {
+            "chars": 5,
+            "matches": 2215,
+            "p50": 9.44
+          },
+          {
+            "chars": 6,
+            "matches": 2215,
+            "p50": 10.35
+          },
+          {
+            "chars": 7,
+            "matches": 2215,
+            "p50": 9.07
+          },
+          {
+            "chars": 8,
+            "matches": 2215,
+            "p50": 8.92
+          },
+          {
+            "chars": 9,
+            "matches": 2215,
+            "p50": 9.3
+          },
+          {
+            "chars": 10,
+            "matches": 2215,
+            "p50": 9.14
+          },
+          {
+            "chars": 12,
+            "matches": 1417,
+            "p50": 16.76
+          },
+          {
+            "chars": 13,
+            "matches": 731,
+            "p50": 7.67
+          },
+          {
+            "chars": 14,
+            "matches": 43,
+            "p50": 1.44
+          },
+          {
+            "chars": 15,
+            "matches": 43,
+            "p50": 1.43
+          },
+          {
+            "chars": 16,
+            "matches": 43,
+            "p50": 1.24
+          },
+          {
+            "chars": 17,
+            "matches": 43,
+            "p50": 1.23
+          },
+          {
+            "chars": 18,
+            "matches": 43,
+            "p50": 1.25
+          }
+        ],
+        "postgres index": [
+          {
+            "chars": 1,
+            "matches": 23966,
+            "p50": 45.63
+          },
+          {
+            "chars": 2,
+            "matches": 9647,
+            "p50": 20.94
+          },
+          {
+            "chars": 3,
+            "matches": 7573,
+            "p50": 16.62
+          },
+          {
+            "chars": 4,
+            "matches": 7573,
+            "p50": 18.23
+          },
+          {
+            "chars": 5,
+            "matches": 7573,
+            "p50": 17.46
+          },
+          {
+            "chars": 6,
+            "matches": 7573,
+            "p50": 17.54
+          },
+          {
+            "chars": 7,
+            "matches": 7573,
+            "p50": 18.38
+          },
+          {
+            "chars": 8,
+            "matches": 7573,
+            "p50": 18.42
+          },
+          {
+            "chars": 10,
+            "matches": 4286,
+            "p50": 21.89
+          },
+          {
+            "chars": 11,
+            "matches": 2515,
+            "p50": 13.74
+          },
+          {
+            "chars": 12,
+            "matches": 908,
+            "p50": 8.21
+          },
+          {
+            "chars": 13,
+            "matches": 908,
+            "p50": 8.49
+          },
+          {
+            "chars": 14,
+            "matches": 908,
+            "p50": 7.92
+          }
+        ]
+      },
+      "recent": {
+        "pow": {
+          "rows": 200,
+          "inWorker": {
+            "p50": {
+              "median": 28.57,
+              "min": 28.32,
+              "max": 37.85
+            },
+            "p95": {
+              "median": 45.33,
+              "min": 34.92,
+              "max": 94.76
+            },
+            "p99": {
+              "median": 63.65,
+              "min": 35.84,
+              "max": 116.56
+            },
+            "max": {
+              "median": 63.65,
+              "min": 35.84,
+              "max": 116.56
+            },
+            "mean": {
+              "median": 32.1,
+              "min": 28.86,
+              "max": 46.45
+            }
+          },
+          "roundTrip": {
+            "p50": {
+              "median": 31.08,
+              "min": 29.06,
+              "max": 31.58
+            },
+            "p95": {
+              "median": 34.48,
+              "min": 31.87,
+              "max": 37.18
+            },
+            "p99": {
+              "median": 34.48,
+              "min": 31.87,
+              "max": 37.18
+            },
+            "max": {
+              "median": 34.48,
+              "min": 31.87,
+              "max": 37.18
+            },
+            "mean": {
+              "median": 31.43,
+              "min": 27.45,
+              "max": 31.58
+            }
+          },
+          "plan": [
+            "SCAN p",
+            "SEARCH t USING INDEX tabs_page_idx (page_id=?) LEFT-JOIN",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        "exp": {
+          "rows": 200,
+          "inWorker": {
+            "p50": {
+              "median": 30.72,
+              "min": 29.26,
+              "max": 32.44
+            },
+            "p95": {
+              "median": 45.13,
+              "min": 31.38,
+              "max": 59.23
+            },
+            "p99": {
+              "median": 60.11,
+              "min": 31.98,
+              "max": 118.48
+            },
+            "max": {
+              "median": 60.11,
+              "min": 31.98,
+              "max": 118.48
+            },
+            "mean": {
+              "median": 32.57,
+              "min": 29.21,
+              "max": 38.16
+            }
+          },
+          "roundTrip": {
+            "p50": {
+              "median": 31.21,
+              "min": 30.98,
+              "max": 31.51
+            },
+            "p95": {
+              "median": 43.93,
+              "min": 38.82,
+              "max": 60.31
+            },
+            "p99": {
+              "median": 43.93,
+              "min": 38.82,
+              "max": 60.31
+            },
+            "max": {
+              "median": 43.93,
+              "min": 38.82,
+              "max": 60.31
+            },
+            "mean": {
+              "median": 32.16,
+              "min": 31.8,
+              "max": 36.41
+            }
+          },
+          "plan": [
+            "SCAN p",
+            "SEARCH t USING INDEX tabs_page_idx (page_id=?) LEFT-JOIN",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        "windowed": {
+          "rows": 200,
+          "inWorker": {
+            "p50": {
+              "median": 36.95,
+              "min": 30.88,
+              "max": 62.02
+            },
+            "p95": {
+              "median": 44.28,
+              "min": 37.96,
+              "max": 145.6
+            },
+            "p99": {
+              "median": 51.37,
+              "min": 45.6,
+              "max": 174.09
+            },
+            "max": {
+              "median": 51.37,
+              "min": 45.6,
+              "max": 174.09
+            },
+            "mean": {
+              "median": 38.04,
+              "min": 31.86,
+              "max": 73.13
+            }
+          },
+          "roundTrip": {
+            "p50": {
+              "median": 33.45,
+              "min": 31.89,
+              "max": 81.19
+            },
+            "p95": {
+              "median": 38.19,
+              "min": 34.65,
+              "max": 100.13
+            },
+            "p99": {
+              "median": 38.19,
+              "min": 34.65,
+              "max": 100.13
+            },
+            "max": {
+              "median": 38.19,
+              "min": 34.65,
+              "max": 100.13
+            },
+            "mean": {
+              "median": 31.68,
+              "min": 31.38,
+              "max": 80.37
+            }
+          },
+          "plan": [
+            "SEARCH p USING INDEX pages_last_visit_idx (last_visit_at>?)",
+            "SEARCH t USING INDEX tabs_page_idx (page_id=?) LEFT-JOIN",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        "exprIndex": {
+          "rows": 200,
+          "inWorker": {
+            "p50": {
+              "median": 0.39,
+              "min": 0.38,
+              "max": 0.57
+            },
+            "p95": {
+              "median": 0.47,
+              "min": 0.41,
+              "max": 0.79
+            },
+            "p99": {
+              "median": 0.48,
+              "min": 0.41,
+              "max": 1.08
+            },
+            "max": {
+              "median": 0.48,
+              "min": 0.41,
+              "max": 1.08
+            },
+            "mean": {
+              "median": 0.39,
+              "min": 0.36,
+              "max": 0.61
+            }
+          },
+          "roundTrip": {
+            "p50": {
+              "median": 1.18,
+              "min": 1.1,
+              "max": 2.26
+            },
+            "p95": {
+              "median": 1.31,
+              "min": 1.3,
+              "max": 5.51
+            },
+            "p99": {
+              "median": 1.31,
+              "min": 1.3,
+              "max": 5.51
+            },
+            "max": {
+              "median": 1.31,
+              "min": 1.3,
+              "max": 5.51
+            },
+            "mean": {
+              "median": 1.16,
+              "min": 0.97,
+              "max": 2.56
+            }
+          },
+          "plan": [
+            "SCAN p USING INDEX pages_frecency_key_idx",
+            "SEARCH t USING INDEX tabs_page_idx (page_id=?) LEFT-JOIN"
+          ],
+          "indexBuildMs": {
+            "median": 80.2,
+            "min": 68.4,
+            "max": 130.2
+          },
+          "identicalOrderToPow": true
+        }
+      },
+      "flushTxn": {
+        "without": {
+          "p50": {
+            "median": 2.02,
+            "min": 1.85,
+            "max": 3.23
+          },
+          "p95": {
+            "median": 3.26,
+            "min": 2.85,
+            "max": 7.52
+          },
+          "p99": {
+            "median": 26.42,
+            "min": 25.59,
+            "max": 40.42
+          },
+          "max": {
+            "median": 29.54,
+            "min": 27.91,
+            "max": 49.44
+          },
+          "mean": {
+            "median": 2.5,
+            "min": 2.33,
+            "max": 4.58
+          }
+        },
+        "withExprIndex": {
+          "p50": {
+            "median": 2.52,
+            "min": 1.97,
+            "max": 3.46
+          },
+          "p95": {
+            "median": 3.83,
+            "min": 3.19,
+            "max": 26.3
+          },
+          "p99": {
+            "median": 23.83,
+            "min": 20.87,
+            "max": 62.97
+          },
+          "max": {
+            "median": 30.4,
+            "min": 29.11,
+            "max": 68.77
+          },
+          "mean": {
+            "median": 3.07,
+            "min": 2.38,
+            "max": 6.67
+          }
+        }
+      },
+      "matchCounts": {
+        "postgres": 7573,
+        "react": 4288,
+        "docker": 2822,
+        "kubernetes": 2215,
+        "rust": 1977,
+        "tailwind": 1390,
+        "wikipedia": 1529,
+        "youtube": 5940,
+        "election": 576,
+        "typescript": 1468,
+        "po": 9647,
+        "re": 12408,
+        "do": 12102,
+        "ku": 2220,
+        "pos": 7573,
+        "typ": 2115,
+        "postgres index": 908,
+        "react hooks": 174,
+        "docker compose": 96,
+        "python asyncio": 37,
+        "rust ownership": 61,
+        "css grid": 507,
+        "git rebase": 66,
+        "post ind": 908,
+        "how to install": 156,
+        "react server components": 94,
+        "postgres index performance": 10,
+        "docker compose volumes": 0,
+        "kubernetes ingress tls": 0,
+        "rust async await": 36
+      },
+      "integrity": {
+        "quick": "ok",
+        "ftsOk": true,
+        "ftsDocsize": 50000
+      },
+      "perRep": [
+        {
+          "pagesPerSec": 4242,
+          "dbBytes": 41779200,
+          "inWorkerAll": {
+            "n": 600,
+            "p50": 10.09,
+            "p95": 40.03,
+            "p99": 55.32,
+            "max": 81.28,
+            "mean": 14.31
+          },
+          "roundTripAll": {
+            "n": 600,
+            "p50": 10.4,
+            "p95": 36.95,
+            "p99": 56.03,
+            "max": 102.72,
+            "mean": 13.65
+          }
+        },
+        {
+          "pagesPerSec": 3803,
+          "dbBytes": 41779200,
+          "inWorkerAll": {
+            "n": 600,
+            "p50": 6.34,
+            "p95": 25.18,
+            "p99": 39.61,
+            "max": 69.04,
+            "mean": 8.58
+          },
+          "roundTripAll": {
+            "n": 600,
+            "p50": 7.28,
+            "p95": 23.44,
+            "p99": 29.32,
+            "max": 51.82,
+            "mean": 8.63
+          }
+        },
+        {
+          "pagesPerSec": 4451,
+          "dbBytes": 41779200,
+          "inWorkerAll": {
+            "n": 600,
+            "p50": 5.89,
+            "p95": 20.28,
+            "p99": 23.55,
+            "max": 33.22,
+            "mean": 6.99
+          },
+          "roundTripAll": {
+            "n": 600,
+            "p50": 6.79,
+            "p95": 22.93,
+            "p99": 27.59,
+            "max": 32.62,
+            "mean": 8.3
+          }
+        }
+      ]
+    }
+  },
+  "noFtsExperiment": [
+    {
+      "scale": 10000,
+      "insertWithoutFtsMs": 599,
+      "rebuildMs": 76,
+      "dbBytes": 8552448
+    },
+    {
+      "scale": 50000,
+      "insertWithoutFtsMs": 7120,
+      "rebuildMs": 659,
+      "dbBytes": 41328640
+    }
+  ]
+}

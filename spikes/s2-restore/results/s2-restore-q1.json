@@ -1,0 +1,317 @@
+{
+  "generatedAt": "2026-10-15T23:00:53.677Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "args": [
+    "--only=q1"
+  ],
+  "displayScaleFactor": 1.25,
+  "results": {
+    "window": {
+      "alwaysOnTop": true,
+      "size": [
+        800,
+        600
+      ]
+    },
+    "q1": {
+      "bareImmediate": {
+        "length": 3,
+        "activeIndex": 2,
+        "canGoBack": true,
+        "canGoForward": false,
+        "entries": [
+          {
+            "url": "/article?n=200&title=A",
+            "title": "A",
+            "pageStateType": "string",
+            "pageStateBase64Chars": 956,
+            "pageStateBytes": 716
+          },
+          {
+            "url": "/form.html",
+            "title": "form",
+            "pageStateType": "string",
+            "pageStateBase64Chars": 2248,
+            "pageStateBytes": 1684
+          },
+          {
+            "url": "/article?n=200&title=C",
+            "title": "C",
+            "pageStateType": "string",
+            "pageStateBase64Chars": 872,
+            "pageStateBytes": 652
+          }
+        ]
+      },
+      "bareAfter1500ms": {
+        "length": 3,
+        "activeIndex": 2,
+        "canGoBack": true,
+        "canGoForward": false,
+        "entries": [
+          {
+            "url": "/article?n=200&title=A",
+            "title": "A",
+            "pageStateType": "string",
+            "pageStateBase64Chars": 956,
+            "pageStateBytes": 716
+          },
+          {
+            "url": "/form.html",
+            "title": "form",
+            "pageStateType": "string",
+            "pageStateBase64Chars": 2248,
+            "pageStateBytes": 1684
+          },
+          {
+            "url": "/article?n=200&title=C",
+            "title": "C",
+            "pageStateType": "string",
+            "pageStateBase64Chars": 872,
+            "pageStateBytes": 652
+          }
+        ]
+      },
+      "interacted": {
+        "length": 3,
+        "activeIndex": 2,
+        "canGoBack": true,
+        "canGoForward": false,
+        "entries": [
+          {
+            "url": "/article?n=200&title=A",
+            "title": "A",
+            "pageStateType": "string",
+            "pageStateBase64Chars": 936,
+            "pageStateBytes": 700
+          },
+          {
+            "url": "/form.html",
+            "title": "form",
+            "pageStateType": "string",
+            "pageStateBase64Chars": 2472,
+            "pageStateBytes": 1852
+          },
+          {
+            "url": "/article?n=200&title=C",
+            "title": "C",
+            "pageStateType": "string",
+            "pageStateBase64Chars": 872,
+            "pageStateBytes": 652
+          }
+        ]
+      },
+      "interactedBuild": {
+        "quietAfterLoadMs": 0,
+        "visibilityBeforeEdit": "visible",
+        "settledAfterEditMs": 1056,
+        "visibilityState": "visible",
+        "snapshotBytes": [
+          700,
+          1852,
+          652
+        ]
+      },
+      "visibilityState": "visible",
+      "walk": [
+        {
+          "label": "goBack",
+          "url": "/form.html",
+          "length": 3,
+          "activeIndex": 1,
+          "canGoBack": true,
+          "canGoForward": true
+        },
+        {
+          "label": "goBack",
+          "url": "/article?n=200&title=A",
+          "length": 3,
+          "activeIndex": 0,
+          "canGoBack": false,
+          "canGoForward": true
+        },
+        {
+          "label": "goForward",
+          "url": "/form.html",
+          "length": 3,
+          "activeIndex": 1,
+          "canGoBack": true,
+          "canGoForward": true
+        },
+        {
+          "label": "goToIndex(2)",
+          "url": "/article?n=200&title=C",
+          "length": 3,
+          "activeIndex": 2,
+          "canGoBack": true,
+          "canGoForward": false
+        }
+      ],
+      "outOfBounds": {
+        "atLength": null,
+        "atMinusOne": null
+      },
+      "json": {
+        "fullBytes": 4590,
+        "withoutPageStateBytes": 193,
+        "keys": [
+          [
+            "url",
+            "title",
+            "pageState"
+          ],
+          [
+            "url",
+            "title",
+            "pageState"
+          ],
+          [
+            "url",
+            "title",
+            "pageState"
+          ]
+        ]
+      },
+      "largeTextarea": {
+        "bytesBefore": 628,
+        "bytesWith50KBTextarea": 101732
+      },
+      "elapsedMs": 4785
+    },
+    "guard": {
+      "blockedRequests": [],
+      "permissionRequests": []
+    }
+  },
+  "rows": [
+    {
+      "name": "Q1 getAllEntries() urls (A, form, C)",
+      "observed": [
+        "/article?n=200&title=A",
+        "/form.html",
+        "/article?n=200&title=C"
+      ],
+      "pass": true
+    },
+    {
+      "name": "Q1 getAllEntries() titles",
+      "observed": [
+        "A",
+        "form",
+        "C"
+      ],
+      "pass": true
+    },
+    {
+      "name": "Q1 pageState present on every entry (type, decoded bytes)",
+      "observed": [
+        [
+          "string",
+          700
+        ],
+        [
+          "string",
+          1852
+        ],
+        [
+          "string",
+          652
+        ]
+      ],
+      "pass": true
+    },
+    {
+      "name": "Q1 pageState size, bare tab, immediately after loads (bytes)",
+      "observed": [
+        716,
+        1684,
+        652
+      ],
+      "pass": null
+    },
+    {
+      "name": "Q1 pageState size, bare tab, 1.5 s later (bytes)",
+      "observed": [
+        716,
+        1684,
+        652
+      ],
+      "pass": null
+    },
+    {
+      "name": "Q1 pageState size, after scroll/typing, settled (bytes)",
+      "observed": [
+        700,
+        1852,
+        652
+      ],
+      "pass": null
+    },
+    {
+      "name": "Q1 length / activeIndex / canGoBack / canGoForward",
+      "observed": [
+        3,
+        2,
+        true,
+        false
+      ],
+      "pass": true
+    },
+    {
+      "name": "Q1 counters while walking back/forward (len, idx, back, fwd)",
+      "observed": [
+        "goBack: /form.html -> [3, 1, true, true]",
+        "goBack: /article?n=200&title=A -> [3, 0, false, true]",
+        "goForward: /form.html -> [3, 1, true, true]",
+        "goToIndex(2): /article?n=200&title=C -> [3, 2, true, false]"
+      ],
+      "pass": true
+    },
+    {
+      "name": "Q1 getEntryAtIndex out of bounds",
+      "observed": {
+        "atLength": null,
+        "atMinusOne": null
+      },
+      "pass": true
+    },
+    {
+      "name": "Q1 JSON size of entries with / without pageState (bytes)",
+      "observed": {
+        "fullBytes": 4590,
+        "withoutPageStateBytes": 193,
+        "keys": [
+          [
+            "url",
+            "title",
+            "pageState"
+          ],
+          [
+            "url",
+            "title",
+            "pageState"
+          ],
+          [
+            "url",
+            "title",
+            "pageState"
+          ]
+        ]
+      },
+      "pass": null
+    },
+    {
+      "name": "Q1 pageState size with 50 KB typed into the textarea (bytes)",
+      "observed": {
+        "bytesBefore": 628,
+        "bytesWith50KBTextarea": 101732
+      },
+      "pass": null
+    }
+  ]
+}

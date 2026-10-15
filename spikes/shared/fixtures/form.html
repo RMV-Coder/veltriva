@@ -1,0 +1,23 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>form</title>
+<h1>Form fixture</h1>
+<form id="f" onsubmit="return false">
+  <p><label>Text <input id="text" name="text" value="initial"></label></p>
+  <p><label>Area <textarea id="area" name="area">initial area</textarea></label></p>
+  <p><label>Select
+    <select id="sel" name="sel"><option value="a" selected>A</option><option value="b">B</option></select>
+  </label></p>
+  <p><label>Check <input id="chk" name="chk" type="checkbox"></label></p>
+  <p><label>React-style controlled input <input id="reactish" name="reactish" value=""></label></p>
+</form>
+<div id="ce" contenteditable="true" style="border:1px solid #999;padding:4px">editable region</div>
+<div style="height:4000px;background:linear-gradient(#fff,#ccd)">Tall content for scroll-restoration tests.</div>
+<p id="bottom">bottom</p>
+<script>
+  // Emulates React's controlled-input behaviour of syncing the value *attribute* on every
+  // change, which makes defaultValue track value and hides edits from a value/defaultValue probe.
+  document.getElementById('reactish').addEventListener('input', (event) => {
+    event.target.setAttribute('value', event.target.value);
+  });
+</script>

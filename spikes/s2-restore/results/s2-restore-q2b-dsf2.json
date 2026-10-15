@@ -1,0 +1,2354 @@
+{
+  "generatedAt": "2026-10-15T23:07:18.800Z",
+  "electron": "44.7.2",
+  "chromium": "152.0.7977.149",
+  "node": "24.21.0",
+  "os": "win32 10.0.26200",
+  "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+  "totalMemGB": 7.7,
+  "args": [
+    "s2-restore/main.js",
+    "--only=q2b",
+    "--tag=dsf2"
+  ],
+  "displayScaleFactor": 2,
+  "results": {
+    "window": {
+      "alwaysOnTop": true,
+      "size": [
+        800,
+        540
+      ]
+    },
+    "q2b": {
+      "group": "q2b",
+      "reps": 2,
+      "displayScaleFactor": 2,
+      "configs": {
+        "Q2b formMiddle full-settled, restore into DETACHED view (attach after)": {
+          "group": "q2b",
+          "id": "Q2b formMiddle full-settled, restore into DETACHED view (attach after)",
+          "layout": "formMiddle",
+          "mode": "full-settled",
+          "attach": "after",
+          "summary": {
+            "runs": 2,
+            "outcomes": [
+              "resolved",
+              "resolved"
+            ],
+            "checks": {
+              "stack: length 3": "2/2",
+              "stack: active index 2": "2/2",
+              "stack: canGoBack true": "2/2",
+              "stack: canGoForward false": "2/2",
+              "stack: titles preserved": "2/2",
+              "active: URL correct": "2/2",
+              "active: scroll restored": "0/2",
+              "back 1: URL correct": "2/2",
+              "back 1: form #text": "2/2",
+              "back 1: form #area": "2/2",
+              "back 1: form #sel": "2/2",
+              "back 1: form #chk": "2/2",
+              "back 1: form #reactish": "0/2",
+              "back 1: form #ce": "0/2",
+              "back 2: URL correct": "2/2",
+              "back 2: scroll restored": "2/2",
+              "forward x2: URL correct": "2/2",
+              "forward x2: scroll restored": "0/2"
+            },
+            "timings": {
+              "settledAfterEditMs": [
+                1057,
+                1060
+              ],
+              "flushedAfterMs": [
+                null,
+                null
+              ],
+              "visibilityBeforeEdit": [
+                "visible",
+                "visible"
+              ],
+              "restoreSettledAtMs": [
+                158,
+                182
+              ],
+              "activeScrollSettleMs": [
+                null,
+                null
+              ],
+              "activeScrollAtLoad": [
+                9989,
+                9989
+              ],
+              "activeScrollExpected": [
+                6440,
+                6440
+              ],
+              "restoreSettledMedian": 170
+            }
+          },
+          "firstRunDetail": {
+            "layout": "formMiddle",
+            "mode": "full-settled",
+            "attach": "after",
+            "expected": {
+              "scroll": {
+                "A": 3260,
+                "C": 6440
+              }
+            },
+            "build": {
+              "quietAfterLoadMs": 0,
+              "visibilityBeforeEdit": "visible",
+              "settledAfterEditMs": 1057,
+              "visibilityState": "visible",
+              "snapshotBytes": [
+                700,
+                1852,
+                652
+              ]
+            },
+            "discardMs": 4,
+            "outcome": {
+              "returnedPromise": true,
+              "status": "resolved",
+              "settledAtMs": 158
+            },
+            "stack": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "titles": [
+                "A",
+                "form",
+                "C"
+              ],
+              "titlesOk": true,
+              "urlsOk": true
+            },
+            "historyAfterRestore": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 2472,
+                  "pageStateBytes": 1852
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 872,
+                  "pageStateBytes": 652
+                }
+              ]
+            },
+            "pageStateRoundTrip": [
+              true,
+              true,
+              true
+            ],
+            "active": {
+              "key": "C",
+              "url": "/article?n=200&title=C",
+              "title": "C",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "scroll": {
+                "expected": 6440,
+                "atLoad": 9989,
+                "final": 9989,
+                "ok": false,
+                "settleMs": null
+              }
+            },
+            "backUrl1": "/form.html",
+            "back1": {
+              "key": "form",
+              "url": "/form.html",
+              "title": "form",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "form": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              }
+            },
+            "backUrl2": "/article?n=200&title=A",
+            "back2": {
+              "key": "A",
+              "url": "/article?n=200&title=A",
+              "title": "A",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "scroll": {
+                "expected": 3260,
+                "atLoad": 3260,
+                "final": 3260,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "forward2": {
+              "key": "C",
+              "url": "/article?n=200&title=C",
+              "title": "C",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "scroll": {
+                "expected": 6440,
+                "atLoad": 9989,
+                "final": 9989,
+                "ok": false,
+                "settleMs": null
+              }
+            },
+            "finalHistory": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 2472,
+                  "pageStateBytes": 1852
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 944,
+                  "pageStateBytes": 708
+                }
+              ]
+            },
+            "flat": {
+              "stack: length 3": true,
+              "stack: active index 2": true,
+              "stack: canGoBack true": true,
+              "stack: canGoForward false": true,
+              "stack: titles preserved": true,
+              "active: URL correct": true,
+              "active: scroll restored": false,
+              "back 1: URL correct": true,
+              "back 1: form #text": true,
+              "back 1: form #area": true,
+              "back 1: form #sel": true,
+              "back 1: form #chk": true,
+              "back 1: form #reactish": false,
+              "back 1: form #ce": false,
+              "back 2: URL correct": true,
+              "back 2: scroll restored": true,
+              "forward x2: URL correct": true,
+              "forward x2: scroll restored": false
+            }
+          },
+          "lastRunDetail": {
+            "layout": "formMiddle",
+            "mode": "full-settled",
+            "attach": "after",
+            "expected": {
+              "scroll": {
+                "A": 3260,
+                "C": 6440
+              }
+            },
+            "build": {
+              "quietAfterLoadMs": 0,
+              "visibilityBeforeEdit": "visible",
+              "settledAfterEditMs": 1060,
+              "visibilityState": "visible",
+              "snapshotBytes": [
+                700,
+                1852,
+                652
+              ]
+            },
+            "discardMs": 4,
+            "outcome": {
+              "returnedPromise": true,
+              "status": "resolved",
+              "settledAtMs": 182
+            },
+            "stack": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "titles": [
+                "A",
+                "form",
+                "C"
+              ],
+              "titlesOk": true,
+              "urlsOk": true
+            },
+            "historyAfterRestore": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 2472,
+                  "pageStateBytes": 1852
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 872,
+                  "pageStateBytes": 652
+                }
+              ]
+            },
+            "pageStateRoundTrip": [
+              true,
+              true,
+              true
+            ],
+            "active": {
+              "key": "C",
+              "url": "/article?n=200&title=C",
+              "title": "C",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "scroll": {
+                "expected": 6440,
+                "atLoad": 9989,
+                "final": 9989,
+                "ok": false,
+                "settleMs": null
+              }
+            },
+            "backUrl1": "/form.html",
+            "back1": {
+              "key": "form",
+              "url": "/form.html",
+              "title": "form",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "form": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              }
+            },
+            "backUrl2": "/article?n=200&title=A",
+            "back2": {
+              "key": "A",
+              "url": "/article?n=200&title=A",
+              "title": "A",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "scroll": {
+                "expected": 3260,
+                "atLoad": 3260,
+                "final": 3260,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "forward2": {
+              "key": "C",
+              "url": "/article?n=200&title=C",
+              "title": "C",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "scroll": {
+                "expected": 6440,
+                "atLoad": 9989,
+                "final": 9989,
+                "ok": false,
+                "settleMs": null
+              }
+            },
+            "finalHistory": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 2472,
+                  "pageStateBytes": 1852
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 944,
+                  "pageStateBytes": 708
+                }
+              ]
+            },
+            "flat": {
+              "stack: length 3": true,
+              "stack: active index 2": true,
+              "stack: canGoBack true": true,
+              "stack: canGoForward false": true,
+              "stack: titles preserved": true,
+              "active: URL correct": true,
+              "active: scroll restored": false,
+              "back 1: URL correct": true,
+              "back 1: form #text": true,
+              "back 1: form #area": true,
+              "back 1: form #sel": true,
+              "back 1: form #chk": true,
+              "back 1: form #reactish": false,
+              "back 1: form #ce": false,
+              "back 2: URL correct": true,
+              "back 2: scroll restored": true,
+              "forward x2: URL correct": true,
+              "forward x2: scroll restored": false
+            }
+          }
+        },
+        "Q2b formActive full-settled, restore into DETACHED view (attach after)": {
+          "group": "q2b",
+          "id": "Q2b formActive full-settled, restore into DETACHED view (attach after)",
+          "layout": "formActive",
+          "mode": "full-settled",
+          "attach": "after",
+          "summary": {
+            "runs": 2,
+            "outcomes": [
+              "resolved",
+              "resolved"
+            ],
+            "checks": {
+              "stack: length 3": "2/2",
+              "stack: active index 2": "2/2",
+              "stack: canGoBack true": "2/2",
+              "stack: canGoForward false": "2/2",
+              "stack: titles preserved": "2/2",
+              "active: URL correct": "2/2",
+              "active: scroll restored": "0/2",
+              "active: form #text": "2/2",
+              "active: form #area": "2/2",
+              "active: form #sel": "2/2",
+              "active: form #chk": "2/2",
+              "active: form #reactish": "0/2",
+              "active: form #ce": "0/2",
+              "back 1: URL correct": "2/2",
+              "back 1: scroll restored": "2/2",
+              "back 2: URL correct": "2/2",
+              "back 2: scroll restored": "2/2",
+              "forward x2: URL correct": "2/2",
+              "forward x2: scroll restored": "0/2",
+              "forward x2: form #text": "2/2",
+              "forward x2: form #area": "2/2",
+              "forward x2: form #sel": "2/2",
+              "forward x2: form #chk": "2/2",
+              "forward x2: form #reactish": "0/2",
+              "forward x2: form #ce": "0/2"
+            },
+            "timings": {
+              "settledAfterEditMs": [
+                1057,
+                1059
+              ],
+              "flushedAfterMs": [
+                null,
+                null
+              ],
+              "visibilityBeforeEdit": [
+                "visible",
+                "visible"
+              ],
+              "restoreSettledAtMs": [
+                146,
+                134
+              ],
+              "activeScrollSettleMs": [
+                null,
+                null
+              ],
+              "activeScrollAtLoad": [
+                3000,
+                3000
+              ],
+              "activeScrollExpected": [
+                1500,
+                1500
+              ],
+              "restoreSettledMedian": 140
+            }
+          },
+          "firstRunDetail": {
+            "layout": "formActive",
+            "mode": "full-settled",
+            "attach": "after",
+            "expected": {
+              "scroll": {
+                "A": 3260,
+                "C": 6440,
+                "form": 1500
+              }
+            },
+            "build": {
+              "quietAfterLoadMs": 1046,
+              "visibilityBeforeEdit": "visible",
+              "settledAfterEditMs": 1057,
+              "visibilityState": "visible",
+              "snapshotBytes": [
+                700,
+                708,
+                1788
+              ]
+            },
+            "discardMs": 5,
+            "outcome": {
+              "returnedPromise": true,
+              "status": "resolved",
+              "settledAtMs": 146
+            },
+            "stack": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "titles": [
+                "A",
+                "C",
+                "form"
+              ],
+              "titlesOk": true,
+              "urlsOk": true
+            },
+            "historyAfterRestore": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 944,
+                  "pageStateBytes": 708
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 840,
+                  "pageStateBytes": 628
+                }
+              ]
+            },
+            "pageStateRoundTrip": [
+              true,
+              true,
+              false
+            ],
+            "active": {
+              "key": "form",
+              "url": "/form.html",
+              "title": "form",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "scroll": {
+                "expected": 1500,
+                "atLoad": 3000,
+                "final": 3000,
+                "ok": false,
+                "settleMs": null
+              },
+              "form": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              }
+            },
+            "backUrl1": "/article?n=200&title=C",
+            "back1": {
+              "key": "C",
+              "url": "/article?n=200&title=C",
+              "title": "C",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "scroll": {
+                "expected": 6440,
+                "atLoad": 6440,
+                "final": 6440,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "backUrl2": "/article?n=200&title=A",
+            "back2": {
+              "key": "A",
+              "url": "/article?n=200&title=A",
+              "title": "A",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "scroll": {
+                "expected": 3260,
+                "atLoad": 3260,
+                "final": 3260,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "forward2": {
+              "key": "form",
+              "url": "/form.html",
+              "title": "form",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "scroll": {
+                "expected": 1500,
+                "atLoad": 3000,
+                "final": 3000,
+                "ok": false,
+                "settleMs": null
+              },
+              "form": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              }
+            },
+            "finalHistory": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 944,
+                  "pageStateBytes": 708
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 956,
+                  "pageStateBytes": 716
+                }
+              ]
+            },
+            "flat": {
+              "stack: length 3": true,
+              "stack: active index 2": true,
+              "stack: canGoBack true": true,
+              "stack: canGoForward false": true,
+              "stack: titles preserved": true,
+              "active: URL correct": true,
+              "active: scroll restored": false,
+              "active: form #text": true,
+              "active: form #area": true,
+              "active: form #sel": true,
+              "active: form #chk": true,
+              "active: form #reactish": false,
+              "active: form #ce": false,
+              "back 1: URL correct": true,
+              "back 1: scroll restored": true,
+              "back 2: URL correct": true,
+              "back 2: scroll restored": true,
+              "forward x2: URL correct": true,
+              "forward x2: scroll restored": false,
+              "forward x2: form #text": true,
+              "forward x2: form #area": true,
+              "forward x2: form #sel": true,
+              "forward x2: form #chk": true,
+              "forward x2: form #reactish": false,
+              "forward x2: form #ce": false
+            }
+          },
+          "lastRunDetail": {
+            "layout": "formActive",
+            "mode": "full-settled",
+            "attach": "after",
+            "expected": {
+              "scroll": {
+                "A": 3260,
+                "C": 6440,
+                "form": 1500
+              }
+            },
+            "build": {
+              "quietAfterLoadMs": 1047,
+              "visibilityBeforeEdit": "visible",
+              "settledAfterEditMs": 1059,
+              "visibilityState": "visible",
+              "snapshotBytes": [
+                700,
+                708,
+                1788
+              ]
+            },
+            "discardMs": 4,
+            "outcome": {
+              "returnedPromise": true,
+              "status": "resolved",
+              "settledAtMs": 134
+            },
+            "stack": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "titles": [
+                "A",
+                "C",
+                "form"
+              ],
+              "titlesOk": true,
+              "urlsOk": true
+            },
+            "historyAfterRestore": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 944,
+                  "pageStateBytes": 708
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 840,
+                  "pageStateBytes": 628
+                }
+              ]
+            },
+            "pageStateRoundTrip": [
+              true,
+              true,
+              false
+            ],
+            "active": {
+              "key": "form",
+              "url": "/form.html",
+              "title": "form",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "scroll": {
+                "expected": 1500,
+                "atLoad": 3000,
+                "final": 3000,
+                "ok": false,
+                "settleMs": null
+              },
+              "form": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              }
+            },
+            "backUrl1": "/article?n=200&title=C",
+            "back1": {
+              "key": "C",
+              "url": "/article?n=200&title=C",
+              "title": "C",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "scroll": {
+                "expected": 6440,
+                "atLoad": 6440,
+                "final": 6440,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "backUrl2": "/article?n=200&title=A",
+            "back2": {
+              "key": "A",
+              "url": "/article?n=200&title=A",
+              "title": "A",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "scroll": {
+                "expected": 3260,
+                "atLoad": 3260,
+                "final": 3260,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "forward2": {
+              "key": "form",
+              "url": "/form.html",
+              "title": "form",
+              "urlOk": true,
+              "visibilityState": "visible",
+              "scroll": {
+                "expected": 1500,
+                "atLoad": 3000,
+                "final": 3000,
+                "ok": false,
+                "settleMs": null
+              },
+              "form": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              }
+            },
+            "finalHistory": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 944,
+                  "pageStateBytes": 708
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 956,
+                  "pageStateBytes": 716
+                }
+              ]
+            },
+            "flat": {
+              "stack: length 3": true,
+              "stack: active index 2": true,
+              "stack: canGoBack true": true,
+              "stack: canGoForward false": true,
+              "stack: titles preserved": true,
+              "active: URL correct": true,
+              "active: scroll restored": false,
+              "active: form #text": true,
+              "active: form #area": true,
+              "active: form #sel": true,
+              "active: form #chk": true,
+              "active: form #reactish": false,
+              "active: form #ce": false,
+              "back 1: URL correct": true,
+              "back 1: scroll restored": true,
+              "back 2: URL correct": true,
+              "back 2: scroll restored": true,
+              "forward x2: URL correct": true,
+              "forward x2: scroll restored": false,
+              "forward x2: form #text": true,
+              "forward x2: form #area": true,
+              "forward x2: form #sel": true,
+              "forward x2: form #chk": true,
+              "forward x2: form #reactish": false,
+              "forward x2: form #ce": false
+            }
+          }
+        },
+        "Q2b formMiddle full-settled, restore into attached-but-hidden view": {
+          "group": "q2b",
+          "id": "Q2b formMiddle full-settled, restore into attached-but-hidden view",
+          "layout": "formMiddle",
+          "mode": "full-settled",
+          "attach": "before-hidden",
+          "summary": {
+            "runs": 2,
+            "outcomes": [
+              "resolved",
+              "resolved"
+            ],
+            "checks": {
+              "stack: length 3": "2/2",
+              "stack: active index 2": "2/2",
+              "stack: canGoBack true": "2/2",
+              "stack: canGoForward false": "2/2",
+              "stack: titles preserved": "2/2",
+              "active: URL correct": "2/2",
+              "active: scroll restored": "2/2",
+              "back 1: URL correct": "2/2",
+              "back 1: form #text": "2/2",
+              "back 1: form #area": "2/2",
+              "back 1: form #sel": "2/2",
+              "back 1: form #chk": "2/2",
+              "back 1: form #reactish": "0/2",
+              "back 1: form #ce": "0/2",
+              "back 2: URL correct": "2/2",
+              "back 2: scroll restored": "2/2",
+              "forward x2: URL correct": "2/2",
+              "forward x2: scroll restored": "2/2"
+            },
+            "timings": {
+              "settledAfterEditMs": [
+                1061,
+                1061
+              ],
+              "flushedAfterMs": [
+                null,
+                null
+              ],
+              "visibilityBeforeEdit": [
+                "visible",
+                "visible"
+              ],
+              "restoreSettledAtMs": [
+                132,
+                133
+              ],
+              "activeScrollSettleMs": [
+                0,
+                0
+              ],
+              "activeScrollAtLoad": [
+                6440,
+                6440
+              ],
+              "activeScrollExpected": [
+                6440,
+                6440
+              ],
+              "restoreSettledMedian": 133
+            }
+          },
+          "firstRunDetail": {
+            "layout": "formMiddle",
+            "mode": "full-settled",
+            "attach": "before-hidden",
+            "expected": {
+              "scroll": {
+                "A": 3260,
+                "C": 6440
+              }
+            },
+            "build": {
+              "quietAfterLoadMs": 0,
+              "visibilityBeforeEdit": "visible",
+              "settledAfterEditMs": 1061,
+              "visibilityState": "visible",
+              "snapshotBytes": [
+                700,
+                1852,
+                652
+              ]
+            },
+            "discardMs": 4,
+            "outcome": {
+              "returnedPromise": true,
+              "status": "resolved",
+              "settledAtMs": 132
+            },
+            "stack": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "titles": [
+                "A",
+                "form",
+                "C"
+              ],
+              "titlesOk": true,
+              "urlsOk": true
+            },
+            "historyAfterRestore": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 2472,
+                  "pageStateBytes": 1852
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 872,
+                  "pageStateBytes": 652
+                }
+              ]
+            },
+            "pageStateRoundTrip": [
+              true,
+              true,
+              true
+            ],
+            "active": {
+              "key": "C",
+              "url": "/article?n=200&title=C",
+              "title": "C",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "scroll": {
+                "expected": 6440,
+                "atLoad": 6440,
+                "final": 6440,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "backUrl1": "/form.html",
+            "back1": {
+              "key": "form",
+              "url": "/form.html",
+              "title": "form",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "form": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              }
+            },
+            "backUrl2": "/article?n=200&title=A",
+            "back2": {
+              "key": "A",
+              "url": "/article?n=200&title=A",
+              "title": "A",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "scroll": {
+                "expected": 3260,
+                "atLoad": 3260,
+                "final": 3260,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "forward2": {
+              "key": "C",
+              "url": "/article?n=200&title=C",
+              "title": "C",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "scroll": {
+                "expected": 6440,
+                "atLoad": 6440,
+                "final": 6440,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "finalHistory": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 2472,
+                  "pageStateBytes": 1852
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 944,
+                  "pageStateBytes": 708
+                }
+              ]
+            },
+            "flat": {
+              "stack: length 3": true,
+              "stack: active index 2": true,
+              "stack: canGoBack true": true,
+              "stack: canGoForward false": true,
+              "stack: titles preserved": true,
+              "active: URL correct": true,
+              "active: scroll restored": true,
+              "back 1: URL correct": true,
+              "back 1: form #text": true,
+              "back 1: form #area": true,
+              "back 1: form #sel": true,
+              "back 1: form #chk": true,
+              "back 1: form #reactish": false,
+              "back 1: form #ce": false,
+              "back 2: URL correct": true,
+              "back 2: scroll restored": true,
+              "forward x2: URL correct": true,
+              "forward x2: scroll restored": true
+            }
+          },
+          "lastRunDetail": {
+            "layout": "formMiddle",
+            "mode": "full-settled",
+            "attach": "before-hidden",
+            "expected": {
+              "scroll": {
+                "A": 3260,
+                "C": 6440
+              }
+            },
+            "build": {
+              "quietAfterLoadMs": 0,
+              "visibilityBeforeEdit": "visible",
+              "settledAfterEditMs": 1061,
+              "visibilityState": "visible",
+              "snapshotBytes": [
+                700,
+                1852,
+                652
+              ]
+            },
+            "discardMs": 5,
+            "outcome": {
+              "returnedPromise": true,
+              "status": "resolved",
+              "settledAtMs": 133
+            },
+            "stack": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "titles": [
+                "A",
+                "form",
+                "C"
+              ],
+              "titlesOk": true,
+              "urlsOk": true
+            },
+            "historyAfterRestore": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 2472,
+                  "pageStateBytes": 1852
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 872,
+                  "pageStateBytes": 652
+                }
+              ]
+            },
+            "pageStateRoundTrip": [
+              true,
+              true,
+              true
+            ],
+            "active": {
+              "key": "C",
+              "url": "/article?n=200&title=C",
+              "title": "C",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "scroll": {
+                "expected": 6440,
+                "atLoad": 6440,
+                "final": 6440,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "backUrl1": "/form.html",
+            "back1": {
+              "key": "form",
+              "url": "/form.html",
+              "title": "form",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "form": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              }
+            },
+            "backUrl2": "/article?n=200&title=A",
+            "back2": {
+              "key": "A",
+              "url": "/article?n=200&title=A",
+              "title": "A",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "scroll": {
+                "expected": 3260,
+                "atLoad": 3260,
+                "final": 3260,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "forward2": {
+              "key": "C",
+              "url": "/article?n=200&title=C",
+              "title": "C",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "scroll": {
+                "expected": 6440,
+                "atLoad": 6440,
+                "final": 6440,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "finalHistory": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 2472,
+                  "pageStateBytes": 1852
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 944,
+                  "pageStateBytes": 708
+                }
+              ]
+            },
+            "flat": {
+              "stack: length 3": true,
+              "stack: active index 2": true,
+              "stack: canGoBack true": true,
+              "stack: canGoForward false": true,
+              "stack: titles preserved": true,
+              "active: URL correct": true,
+              "active: scroll restored": true,
+              "back 1: URL correct": true,
+              "back 1: form #text": true,
+              "back 1: form #area": true,
+              "back 1: form #sel": true,
+              "back 1: form #chk": true,
+              "back 1: form #reactish": false,
+              "back 1: form #ce": false,
+              "back 2: URL correct": true,
+              "back 2: scroll restored": true,
+              "forward x2: URL correct": true,
+              "forward x2: scroll restored": true
+            }
+          }
+        },
+        "Q2b formActive full-settled, restore into attached-but-hidden view": {
+          "group": "q2b",
+          "id": "Q2b formActive full-settled, restore into attached-but-hidden view",
+          "layout": "formActive",
+          "mode": "full-settled",
+          "attach": "before-hidden",
+          "summary": {
+            "runs": 2,
+            "outcomes": [
+              "resolved",
+              "resolved"
+            ],
+            "checks": {
+              "stack: length 3": "2/2",
+              "stack: active index 2": "2/2",
+              "stack: canGoBack true": "2/2",
+              "stack: canGoForward false": "2/2",
+              "stack: titles preserved": "2/2",
+              "active: URL correct": "2/2",
+              "active: scroll restored": "2/2",
+              "active: form #text": "2/2",
+              "active: form #area": "2/2",
+              "active: form #sel": "2/2",
+              "active: form #chk": "2/2",
+              "active: form #reactish": "0/2",
+              "active: form #ce": "0/2",
+              "back 1: URL correct": "2/2",
+              "back 1: scroll restored": "2/2",
+              "back 2: URL correct": "2/2",
+              "back 2: scroll restored": "2/2",
+              "forward x2: URL correct": "2/2",
+              "forward x2: scroll restored": "2/2",
+              "forward x2: form #text": "2/2",
+              "forward x2: form #area": "2/2",
+              "forward x2: form #sel": "2/2",
+              "forward x2: form #chk": "2/2",
+              "forward x2: form #reactish": "0/2",
+              "forward x2: form #ce": "0/2"
+            },
+            "timings": {
+              "settledAfterEditMs": [
+                1059,
+                1059
+              ],
+              "flushedAfterMs": [
+                null,
+                null
+              ],
+              "visibilityBeforeEdit": [
+                "visible",
+                "visible"
+              ],
+              "restoreSettledAtMs": [
+                150,
+                170
+              ],
+              "activeScrollSettleMs": [
+                0,
+                0
+              ],
+              "activeScrollAtLoad": [
+                1500,
+                1500
+              ],
+              "activeScrollExpected": [
+                1500,
+                1500
+              ],
+              "restoreSettledMedian": 160
+            }
+          },
+          "firstRunDetail": {
+            "layout": "formActive",
+            "mode": "full-settled",
+            "attach": "before-hidden",
+            "expected": {
+              "scroll": {
+                "A": 3260,
+                "C": 6440,
+                "form": 1500
+              }
+            },
+            "build": {
+              "quietAfterLoadMs": 1055,
+              "visibilityBeforeEdit": "visible",
+              "settledAfterEditMs": 1059,
+              "visibilityState": "visible",
+              "snapshotBytes": [
+                700,
+                708,
+                1788
+              ]
+            },
+            "discardMs": 5,
+            "outcome": {
+              "returnedPromise": true,
+              "status": "resolved",
+              "settledAtMs": 150
+            },
+            "stack": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "titles": [
+                "A",
+                "C",
+                "form"
+              ],
+              "titlesOk": true,
+              "urlsOk": true
+            },
+            "historyAfterRestore": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 944,
+                  "pageStateBytes": 708
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 840,
+                  "pageStateBytes": 628
+                }
+              ]
+            },
+            "pageStateRoundTrip": [
+              true,
+              true,
+              false
+            ],
+            "active": {
+              "key": "form",
+              "url": "/form.html",
+              "title": "form",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "scroll": {
+                "expected": 1500,
+                "atLoad": 1500,
+                "final": 1500,
+                "ok": true,
+                "settleMs": 0
+              },
+              "form": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              }
+            },
+            "backUrl1": "/article?n=200&title=C",
+            "back1": {
+              "key": "C",
+              "url": "/article?n=200&title=C",
+              "title": "C",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "scroll": {
+                "expected": 6440,
+                "atLoad": 6440,
+                "final": 6440,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "backUrl2": "/article?n=200&title=A",
+            "back2": {
+              "key": "A",
+              "url": "/article?n=200&title=A",
+              "title": "A",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "scroll": {
+                "expected": 3260,
+                "atLoad": 3260,
+                "final": 3260,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "forward2": {
+              "key": "form",
+              "url": "/form.html",
+              "title": "form",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "scroll": {
+                "expected": 1500,
+                "atLoad": 1500,
+                "final": 1500,
+                "ok": true,
+                "settleMs": 0
+              },
+              "form": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              }
+            },
+            "finalHistory": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 944,
+                  "pageStateBytes": 708
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 956,
+                  "pageStateBytes": 716
+                }
+              ]
+            },
+            "flat": {
+              "stack: length 3": true,
+              "stack: active index 2": true,
+              "stack: canGoBack true": true,
+              "stack: canGoForward false": true,
+              "stack: titles preserved": true,
+              "active: URL correct": true,
+              "active: scroll restored": true,
+              "active: form #text": true,
+              "active: form #area": true,
+              "active: form #sel": true,
+              "active: form #chk": true,
+              "active: form #reactish": false,
+              "active: form #ce": false,
+              "back 1: URL correct": true,
+              "back 1: scroll restored": true,
+              "back 2: URL correct": true,
+              "back 2: scroll restored": true,
+              "forward x2: URL correct": true,
+              "forward x2: scroll restored": true,
+              "forward x2: form #text": true,
+              "forward x2: form #area": true,
+              "forward x2: form #sel": true,
+              "forward x2: form #chk": true,
+              "forward x2: form #reactish": false,
+              "forward x2: form #ce": false
+            }
+          },
+          "lastRunDetail": {
+            "layout": "formActive",
+            "mode": "full-settled",
+            "attach": "before-hidden",
+            "expected": {
+              "scroll": {
+                "A": 3260,
+                "C": 6440,
+                "form": 1500
+              }
+            },
+            "build": {
+              "quietAfterLoadMs": 1052,
+              "visibilityBeforeEdit": "visible",
+              "settledAfterEditMs": 1059,
+              "visibilityState": "visible",
+              "snapshotBytes": [
+                700,
+                708,
+                1788
+              ]
+            },
+            "discardMs": 4,
+            "outcome": {
+              "returnedPromise": true,
+              "status": "resolved",
+              "settledAtMs": 170
+            },
+            "stack": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "titles": [
+                "A",
+                "C",
+                "form"
+              ],
+              "titlesOk": true,
+              "urlsOk": true
+            },
+            "historyAfterRestore": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 944,
+                  "pageStateBytes": 708
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 840,
+                  "pageStateBytes": 628
+                }
+              ]
+            },
+            "pageStateRoundTrip": [
+              true,
+              true,
+              false
+            ],
+            "active": {
+              "key": "form",
+              "url": "/form.html",
+              "title": "form",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "scroll": {
+                "expected": 1500,
+                "atLoad": 1500,
+                "final": 1500,
+                "ok": true,
+                "settleMs": 0
+              },
+              "form": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              }
+            },
+            "backUrl1": "/article?n=200&title=C",
+            "back1": {
+              "key": "C",
+              "url": "/article?n=200&title=C",
+              "title": "C",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "scroll": {
+                "expected": 6440,
+                "atLoad": 6440,
+                "final": 6440,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "backUrl2": "/article?n=200&title=A",
+            "back2": {
+              "key": "A",
+              "url": "/article?n=200&title=A",
+              "title": "A",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "scroll": {
+                "expected": 3260,
+                "atLoad": 3260,
+                "final": 3260,
+                "ok": true,
+                "settleMs": 0
+              }
+            },
+            "forward2": {
+              "key": "form",
+              "url": "/form.html",
+              "title": "form",
+              "urlOk": true,
+              "visibilityState": "hidden",
+              "scroll": {
+                "expected": 1500,
+                "atLoad": 1500,
+                "final": 1500,
+                "ok": true,
+                "settleMs": 0
+              },
+              "form": {
+                "first": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "final": {
+                  "text": "restored",
+                  "area": "restored",
+                  "sel": "restored",
+                  "chk": "restored",
+                  "reactish": "initial",
+                  "ce": "initial"
+                },
+                "finalValues": {
+                  "text": "S2 text value",
+                  "area": "S2 area line one\nS2 area line two",
+                  "sel": "b",
+                  "chk": true,
+                  "reactish": "",
+                  "ce": "editable region"
+                },
+                "settleMs": null
+              }
+            },
+            "finalHistory": {
+              "length": 3,
+              "activeIndex": 2,
+              "canGoBack": true,
+              "canGoForward": false,
+              "entries": [
+                {
+                  "url": "/article?n=200&title=A",
+                  "title": "A",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 936,
+                  "pageStateBytes": 700
+                },
+                {
+                  "url": "/article?n=200&title=C",
+                  "title": "C",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 944,
+                  "pageStateBytes": 708
+                },
+                {
+                  "url": "/form.html",
+                  "title": "form",
+                  "pageStateType": "string",
+                  "pageStateBase64Chars": 956,
+                  "pageStateBytes": 716
+                }
+              ]
+            },
+            "flat": {
+              "stack: length 3": true,
+              "stack: active index 2": true,
+              "stack: canGoBack true": true,
+              "stack: canGoForward false": true,
+              "stack: titles preserved": true,
+              "active: URL correct": true,
+              "active: scroll restored": true,
+              "active: form #text": true,
+              "active: form #area": true,
+              "active: form #sel": true,
+              "active: form #chk": true,
+              "active: form #reactish": false,
+              "active: form #ce": false,
+              "back 1: URL correct": true,
+              "back 1: scroll restored": true,
+              "back 2: URL correct": true,
+              "back 2: scroll restored": true,
+              "forward x2: URL correct": true,
+              "forward x2: scroll restored": true,
+              "forward x2: form #text": true,
+              "forward x2: form #area": true,
+              "forward x2: form #sel": true,
+              "forward x2: form #chk": true,
+              "forward x2: form #reactish": false,
+              "forward x2: form #ce": false
+            }
+          }
+        }
+      },
+      "elapsedMs": 35916
+    },
+    "guard": {
+      "blockedRequests": [],
+      "permissionRequests": []
+    }
+  },
+  "rows": [
+    {
+      "name": "Q2b formMiddle full-settled, restore into DETACHED view (attach after)",
+      "observed": {
+        "outcomes": [
+          "resolved",
+          "resolved"
+        ],
+        "checks": {
+          "stack: length 3": "2/2",
+          "stack: active index 2": "2/2",
+          "stack: canGoBack true": "2/2",
+          "stack: canGoForward false": "2/2",
+          "stack: titles preserved": "2/2",
+          "active: URL correct": "2/2",
+          "active: scroll restored": "0/2",
+          "back 1: URL correct": "2/2",
+          "back 1: form #text": "2/2",
+          "back 1: form #area": "2/2",
+          "back 1: form #sel": "2/2",
+          "back 1: form #chk": "2/2",
+          "back 1: form #reactish": "0/2",
+          "back 1: form #ce": "0/2",
+          "back 2: URL correct": "2/2",
+          "back 2: scroll restored": "2/2",
+          "forward x2: URL correct": "2/2",
+          "forward x2: scroll restored": "0/2"
+        },
+        "timings": {
+          "settledAfterEditMs": [
+            1057,
+            1060
+          ],
+          "flushedAfterMs": [
+            null,
+            null
+          ],
+          "visibilityBeforeEdit": [
+            "visible",
+            "visible"
+          ],
+          "restoreSettledAtMs": [
+            158,
+            182
+          ],
+          "activeScrollSettleMs": [
+            null,
+            null
+          ],
+          "activeScrollAtLoad": [
+            9989,
+            9989
+          ],
+          "activeScrollExpected": [
+            6440,
+            6440
+          ],
+          "restoreSettledMedian": 170
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q2b formActive full-settled, restore into DETACHED view (attach after)",
+      "observed": {
+        "outcomes": [
+          "resolved",
+          "resolved"
+        ],
+        "checks": {
+          "stack: length 3": "2/2",
+          "stack: active index 2": "2/2",
+          "stack: canGoBack true": "2/2",
+          "stack: canGoForward false": "2/2",
+          "stack: titles preserved": "2/2",
+          "active: URL correct": "2/2",
+          "active: scroll restored": "0/2",
+          "active: form #text": "2/2",
+          "active: form #area": "2/2",
+          "active: form #sel": "2/2",
+          "active: form #chk": "2/2",
+          "active: form #reactish": "0/2",
+          "active: form #ce": "0/2",
+          "back 1: URL correct": "2/2",
+          "back 1: scroll restored": "2/2",
+          "back 2: URL correct": "2/2",
+          "back 2: scroll restored": "2/2",
+          "forward x2: URL correct": "2/2",
+          "forward x2: scroll restored": "0/2",
+          "forward x2: form #text": "2/2",
+          "forward x2: form #area": "2/2",
+          "forward x2: form #sel": "2/2",
+          "forward x2: form #chk": "2/2",
+          "forward x2: form #reactish": "0/2",
+          "forward x2: form #ce": "0/2"
+        },
+        "timings": {
+          "settledAfterEditMs": [
+            1057,
+            1059
+          ],
+          "flushedAfterMs": [
+            null,
+            null
+          ],
+          "visibilityBeforeEdit": [
+            "visible",
+            "visible"
+          ],
+          "restoreSettledAtMs": [
+            146,
+            134
+          ],
+          "activeScrollSettleMs": [
+            null,
+            null
+          ],
+          "activeScrollAtLoad": [
+            3000,
+            3000
+          ],
+          "activeScrollExpected": [
+            1500,
+            1500
+          ],
+          "restoreSettledMedian": 140
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q2b formMiddle full-settled, restore into attached-but-hidden view",
+      "observed": {
+        "outcomes": [
+          "resolved",
+          "resolved"
+        ],
+        "checks": {
+          "stack: length 3": "2/2",
+          "stack: active index 2": "2/2",
+          "stack: canGoBack true": "2/2",
+          "stack: canGoForward false": "2/2",
+          "stack: titles preserved": "2/2",
+          "active: URL correct": "2/2",
+          "active: scroll restored": "2/2",
+          "back 1: URL correct": "2/2",
+          "back 1: form #text": "2/2",
+          "back 1: form #area": "2/2",
+          "back 1: form #sel": "2/2",
+          "back 1: form #chk": "2/2",
+          "back 1: form #reactish": "0/2",
+          "back 1: form #ce": "0/2",
+          "back 2: URL correct": "2/2",
+          "back 2: scroll restored": "2/2",
+          "forward x2: URL correct": "2/2",
+          "forward x2: scroll restored": "2/2"
+        },
+        "timings": {
+          "settledAfterEditMs": [
+            1061,
+            1061
+          ],
+          "flushedAfterMs": [
+            null,
+            null
+          ],
+          "visibilityBeforeEdit": [
+            "visible",
+            "visible"
+          ],
+          "restoreSettledAtMs": [
+            132,
+            133
+          ],
+          "activeScrollSettleMs": [
+            0,
+            0
+          ],
+          "activeScrollAtLoad": [
+            6440,
+            6440
+          ],
+          "activeScrollExpected": [
+            6440,
+            6440
+          ],
+          "restoreSettledMedian": 133
+        }
+      },
+      "pass": null
+    },
+    {
+      "name": "Q2b formActive full-settled, restore into attached-but-hidden view",
+      "observed": {
+        "outcomes": [
+          "resolved",
+          "resolved"
+        ],
+        "checks": {
+          "stack: length 3": "2/2",
+          "stack: active index 2": "2/2",
+          "stack: canGoBack true": "2/2",
+          "stack: canGoForward false": "2/2",
+          "stack: titles preserved": "2/2",
+          "active: URL correct": "2/2",
+          "active: scroll restored": "2/2",
+          "active: form #text": "2/2",
+          "active: form #area": "2/2",
+          "active: form #sel": "2/2",
+          "active: form #chk": "2/2",
+          "active: form #reactish": "0/2",
+          "active: form #ce": "0/2",
+          "back 1: URL correct": "2/2",
+          "back 1: scroll restored": "2/2",
+          "back 2: URL correct": "2/2",
+          "back 2: scroll restored": "2/2",
+          "forward x2: URL correct": "2/2",
+          "forward x2: scroll restored": "2/2",
+          "forward x2: form #text": "2/2",
+          "forward x2: form #area": "2/2",
+          "forward x2: form #sel": "2/2",
+          "forward x2: form #chk": "2/2",
+          "forward x2: form #reactish": "0/2",
+          "forward x2: form #ce": "0/2"
+        },
+        "timings": {
+          "settledAfterEditMs": [
+            1059,
+            1059
+          ],
+          "flushedAfterMs": [
+            null,
+            null
+          ],
+          "visibilityBeforeEdit": [
+            "visible",
+            "visible"
+          ],
+          "restoreSettledAtMs": [
+            150,
+            170
+          ],
+          "activeScrollSettleMs": [
+            0,
+            0
+          ],
+          "activeScrollAtLoad": [
+            1500,
+            1500
+          ],
+          "activeScrollExpected": [
+            1500,
+            1500
+          ],
+          "restoreSettledMedian": 160
+        }
+      },
+      "pass": null
+    }
+  ]
+}
