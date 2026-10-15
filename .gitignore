@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+release/
+*.tsbuildinfo
+
+# Large or machine-specific spike artifacts (small results/*.json files are committed)
+spikes/**/dist/
+spikes/**/*.db
+spikes/**/*.db-wal
+spikes/**/*.db-shm
+spikes/**/netlog*.json
+spikes/**/downloads/
+spikes/**/user-data/
+
+# Test output
+coverage/
+playwright-report/
+test-results/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Local environment
+.env
+.env.*
