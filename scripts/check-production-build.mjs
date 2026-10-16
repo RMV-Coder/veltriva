@@ -7,7 +7,29 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 const OUT = 'out';
-const MARKERS = ['__veltrivaTest', 'installTestHooks', 'openTestTab'];
+/**
+ * Names that exist only in test builds. Strings (the hooks' global, env names, scenario names,
+ * messages) survive minification; function names are a second net. `setSearchTemplate` is not
+ * here on purpose: production code exports it for a future search-engine setting.
+ */
+const MARKERS = [
+  // src/main/testing/test-hooks.ts
+  '__veltrivaTest',
+  'installTestHooks',
+  'openTestTab',
+  'closeTestTabs',
+  'webContentsRoles',
+  'crashTab',
+  'forcefullyCrashRenderer',
+  // src/main/testing/lifecycle-scenarios.ts
+  'VELTRIVA_LIFECYCLE',
+  'runLifecycleScenario',
+  'background-tab-hidden',
+  'close-with-live-tabs',
+  // src/main/testing/fail-fast.ts
+  'exitOnUncaughtException',
+  'Uncaught exception in main',
+];
 
 async function* files(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
