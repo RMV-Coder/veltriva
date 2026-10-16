@@ -16,12 +16,15 @@ export function projectTab(tab: TabState): TabSnapshot {
       : tab.page.error === undefined
         ? { kind: 'internal' as const, name: tab.page.name }
         : { kind: 'internal' as const, name: tab.page.name, error: tab.page.error };
+  // A new-tab page shows an empty address bar (the shell shows a placeholder).
+  const address = tab.url === '' ? NO_ADDRESS : displayUrl(tab.url);
   return {
     id: tab.id,
     pinned: tab.pinned,
     title: tab.title,
-    // A new-tab page shows an empty address bar (the shell shows a placeholder).
-    address: tab.url === '' ? NO_ADDRESS : displayUrl(tab.url),
+    // Credentials are removed either from the committed URL (displayUrl) or, for a typed address,
+    // before loading it (TabState.credentialsRemoved). Both warn.
+    address: tab.credentialsRemoved ? { ...address, hadCredentials: true } : address,
     favicon: tab.favicon,
     loading: tab.loading,
     canGoBack: tab.canGoBack,

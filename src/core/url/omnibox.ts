@@ -10,7 +10,12 @@ import type { InternalPage } from './internal-pages';
 export const MAX_OMNIBOX_INPUT = 8192;
 
 export type OmniboxAction =
-  | { readonly kind: 'navigate'; readonly url: string }
+  | {
+      readonly kind: 'navigate';
+      readonly url: string;
+      /** The typed URL had a username or password, which `url` no longer has. */
+      readonly credentialsRemoved?: true;
+    }
   | { readonly kind: 'search'; readonly query: string }
   | { readonly kind: 'internal'; readonly page: InternalPage }
   /** Another app's scheme (mailto:, zoommtg:, ...). The external-protocol guard decides (M1.4). */
@@ -150,9 +155,16 @@ function classifyWithScheme(input: string, scheme: string): OmniboxAction {
     case 'http':
     case 'https': {
       const url = tryParse(input);
-      return url === undefined || url.hostname === ''
-        ? search(input)
-        : { kind: 'navigate', url: withoutCredentials(url) };
+      if (url === undefined || url.hostname === '') {
+        return search(input);
+      }
+      // Credentials are never sent from the address bar, and the address bar says they were
+      // removed: `https://paypal.com@evil.example` must not look like paypal.com (threat T7).
+      const hadCredentials = url.username !== '' || url.password !== '';
+      const href = withoutCredentials(url);
+      return hadCredentials
+        ? { kind: 'navigate', url: href, credentialsRemoved: true }
+        : { kind: 'navigate', url: href };
     }
     case 'about': {
       const url = tryParse(input);

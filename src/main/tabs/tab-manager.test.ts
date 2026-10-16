@@ -79,6 +79,11 @@ function setup() {
   return { manager, runtimes, runtimeOf, changes: () => changes };
 }
 
+/** A new document committing in a runtime, as Electron reports it. */
+function commit(runtime: FakeRuntime, url: string, canGoBack = false): void {
+  runtime.events.committed({ url, sameDocument: false, canGoBack, canGoForward: false });
+}
+
 /** Invariants 1–4 from tab-manager.ts. */
 function assertInvariants(manager: TabManager, runtimes: readonly FakeRuntime[]): void {
   const tabs = manager.tabs();
@@ -134,13 +139,20 @@ describe('TabManager', () => {
     manager.navigate(b, 'https://b.example/');
 
     expect(runtimeOf(a).loads).toEqual(['https://a.example/']);
-    expect(runtimeOf(a).shown).toBe(false);
-    expect(runtimeOf(b).shown).toBe(true);
+    // Until a document commits, each tab keeps its new-tab page, drawn by the shell.
     expect(manager.get(b)).toMatchObject({
       runtime: 'creating',
-      page: { kind: 'web' },
+      page: { kind: 'internal', name: 'new-tab' },
+      url: '',
       loading: true,
     });
+    expect(runtimeOf(b).shown).toBe(false);
+
+    commit(runtimeOf(a), 'https://a.example/');
+    commit(runtimeOf(b), 'https://b.example/');
+    expect(runtimeOf(a).shown).toBe(false);
+    expect(runtimeOf(b).shown).toBe(true);
+    expect(manager.get(b)).toMatchObject({ runtime: 'live', page: { kind: 'web' } });
 
     manager.select(a);
     expect(runtimeOf(a).shown).toBe(true);
@@ -362,6 +374,7 @@ describe('TabManager', () => {
     const { manager, runtimeOf } = setup();
     const a = manager.create();
     manager.navigate(a, 'https://a.example/');
+    commit(runtimeOf(a), 'https://a.example/');
     manager.setPinned(a, true);
     const b = manager.create();
     const copy = manager.duplicate(a);
@@ -393,7 +406,67 @@ describe('TabManager', () => {
       canGoForward: false,
     });
     first?.events.crashed({ code: 1, name: 'crashed' });
-    expect(manager.get(id)).toMatchObject({ url: 'https://b.example/', runtime: 'creating' });
+    // The new load hasn't committed: the tab still shows the new-tab page, untouched.
+    expect(manager.get(id)).toMatchObject({
+      url: '',
+      page: { kind: 'internal', name: 'new-tab' },
+      runtime: 'creating',
+    });
+  });
+
+  it('keeps the address of the document on display until a new one commits', () => {
+    const { manager, runtimeOf } = setup();
+    const id = manager.create();
+    manager.navigate(id, 'https://a.example/');
+    const runtime = runtimeOf(id);
+    commit(runtime, 'https://a.example/');
+
+    // Typed a new address, then stopped it: the page and address stay those of a.example.
+    manager.navigate(id, 'https://b.example/');
+    runtime.events.loadingChanged(true);
+    expect(manager.get(id)).toMatchObject({ url: 'https://a.example/', loading: true });
+    runtime.events.loadingChanged(false);
+    expect(manager.get(id)).toMatchObject({
+      url: 'https://a.example/',
+      page: { kind: 'web' },
+      loading: false,
+    });
+
+    commit(runtime, 'https://b.example/', true);
+    expect(manager.get(id).url).toBe('https://b.example/');
+  });
+
+  it('warns on the commit of a typed address whose credentials were removed, and only that one', () => {
+    const { manager, runtimeOf } = setup();
+    const id = manager.create();
+    manager.navigate(id, 'https://evil.example/', { credentialsRemoved: true });
+    const runtime = runtimeOf(id);
+    expect(manager.get(id).credentialsRemoved).toBe(false);
+
+    commit(runtime, 'https://evil.example/');
+    expect(manager.get(id).credentialsRemoved).toBe(true);
+    // A fragment change is the same document: still the address that was typed.
+    runtime.events.committed({
+      url: 'https://evil.example/#x',
+      sameDocument: true,
+      canGoBack: true,
+      canGoForward: false,
+    });
+    expect(manager.get(id).credentialsRemoved).toBe(true);
+    // The page moves on by itself: a new document, a new address.
+    commit(runtime, 'https://evil.example/next', true);
+    expect(manager.get(id).credentialsRemoved).toBe(false);
+
+    // A failed load of such an address warns too.
+    manager.navigate(id, 'https://down.example/', { credentialsRemoved: true });
+    runtime.events.loadFailed({
+      code: -105,
+      name: 'ERR_NAME_NOT_RESOLVED',
+      url: 'https://down.example/',
+    });
+    expect(manager.get(id).credentialsRemoved).toBe(true);
+    manager.showInternal(id, 'new-tab');
+    expect(manager.get(id).credentialsRemoved).toBe(false);
   });
 
   it('closes the web contents when a tab shows an internal page', () => {

@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { TabManager } from '../tabs/tab-manager';
-import type { TabRuntime } from '../tabs/tab-manager';
+import type { TabRuntime, TabRuntimeEvents } from '../tabs/tab-manager';
 import { submitAddress } from './submit';
 
 const TEMPLATE = 'http://127.0.0.1:4000/search?q={searchTerms}';
 
 function setup() {
   const loads: string[] = [];
+  let events: TabRuntimeEvents | undefined;
   const runtime: TabRuntime = {
     load: (url) => loads.push(url),
     goBack: () => undefined,
@@ -21,11 +22,18 @@ function setup() {
   };
   let next = 0;
   const tabs = new TabManager({
-    createRuntime: () => runtime,
+    createRuntime: (_tabId, tabEvents) => {
+      events = tabEvents;
+      return runtime;
+    },
     newId: () => `tab-${String((next += 1))}`,
     onChange: () => undefined,
   });
-  return { tabs, loads, id: tabs.create() };
+  /** The load commits, as Electron would report it. */
+  const commit = (url: string): void => {
+    events?.committed({ url, sameDocument: false, canGoBack: false, canGoForward: false });
+  };
+  return { tabs, loads, commit, id: tabs.create() };
 }
 
 describe('submitAddress', () => {
@@ -33,6 +41,19 @@ describe('submitAddress', () => {
     const { tabs, loads, id } = setup();
     expect(submitAddress(tabs, id, 'example.com', TEMPLATE)).toBe('navigate');
     expect(loads).toEqual(['https://example.com/']);
+  });
+
+  it('loads a typed address without its credentials, and warns once it commits', () => {
+    const { tabs, loads, commit, id } = setup();
+    expect(submitAddress(tabs, id, 'https://paypal.com@evil.example/login', TEMPLATE)).toBe(
+      'navigate',
+    );
+    expect(loads).toEqual(['https://evil.example/login']);
+    commit('https://evil.example/login');
+    expect(tabs.get(id)).toMatchObject({
+      url: 'https://evil.example/login',
+      credentialsRemoved: true,
+    });
   });
 
   it('searches for words, with the query encoded into the template', () => {

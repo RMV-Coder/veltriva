@@ -14,6 +14,7 @@ const base: TabState = {
   runtime: 'live',
   page: { kind: 'web' },
   url: 'https://user:pw@example.com/a',
+  credentialsRemoved: false,
   title: 'Example',
   favicon: null,
   loading: false,
@@ -22,6 +23,16 @@ const base: TabState = {
 };
 
 describe('projectTab', () => {
+  it('warns when credentials were removed from a typed address before it loaded', () => {
+    const typed: TabState = { ...base, url: 'https://evil.example/', credentialsRemoved: true };
+    expect(projectTab(typed).address).toEqual({
+      text: 'https://evil.example/',
+      security: 'secure',
+      hadCredentials: true,
+    });
+    expect(projectTab({ ...typed, credentialsRemoved: false }).address.hadCredentials).toBe(false);
+  });
+
   it('shows the address rebuilt from the URL, never page text', () => {
     expect(projectTab(base).address).toEqual({
       text: 'https://example.com/a',

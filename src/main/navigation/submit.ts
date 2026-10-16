@@ -14,7 +14,7 @@ export function submitAddress(
   const action = classifyOmniboxInput(text);
   switch (action.kind) {
     case 'navigate':
-      tabs.navigate(tabId, action.url);
+      tabs.navigate(tabId, action.url, { credentialsRemoved: action.credentialsRemoved === true });
       return 'navigate';
     case 'search':
       tabs.navigate(tabId, buildSearchUrl(searchTemplate, action.query));

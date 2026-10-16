@@ -21,7 +21,10 @@ describe('classifyOmniboxInput', () => {
     // Explicit http(s)
     ['https://example.com', navigate('https://example.com/')],
     ['HTTP://EXAMPLE.COM/Path', navigate('http://example.com/Path')],
-    ['https://user:pass@example.com/x', navigate('https://example.com/x')],
+    [
+      'https://user:pass@example.com/x',
+      { kind: 'navigate', url: 'https://example.com/x', credentialsRemoved: true },
+    ],
     // No scheme: real public suffixes, IPs, localhost, ports
     ['example.com', navigate('https://example.com/')],
     ['github.io', navigate('https://github.io/')],

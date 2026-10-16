@@ -33,8 +33,18 @@ export interface TabState {
   readonly placement: 'strip';
   readonly runtime: TabRuntimeState;
   readonly page: TabPage;
-  /** The committed URL, or the one being loaded. Empty for a new tab. */
+  /**
+   * The URL of the document on display: the last commit, or the load that failed. A load in
+   * progress doesn't change it, so a stopped or aborted load leaves it as it was (ADR-0002 §7).
+   * Empty for a new tab.
+   */
   readonly url: string;
+  /**
+   * Main removed a username or password from the typed address before loading it, as in a pasted
+   * `https://paypal.com@evil.example`. The address bar warns, as it does for a committed URL that
+   * carries credentials (threat T7).
+   */
+  readonly credentialsRemoved: boolean;
   /** Page-controlled, sanitized. Empty until the page sets one. */
   readonly title: string;
   /** A validated `data:image/...` URL (threat T5), or null. */
@@ -111,6 +121,8 @@ interface TabRecord {
   runtimeToken: symbol | undefined;
   /** Focus the page when the next navigation commits (it came from the address bar). */
   focusOnCommit: boolean;
+  /** `credentialsRemoved` for whatever the next navigation commits or fails with. */
+  credentialsRemovedOnCommit: boolean;
 }
 
 const NEW_TAB_PAGE: TabPage = { kind: 'internal', name: 'new-tab' };
@@ -154,6 +166,7 @@ export class TabManager {
         runtime: 'unloaded',
         page: NEW_TAB_PAGE,
         url: '',
+        credentialsRemoved: false,
         title: '',
         favicon: null,
         loading: false,
@@ -163,6 +176,7 @@ export class TabManager {
       runtime: undefined,
       runtimeToken: undefined,
       focusOnCommit: false,
+      credentialsRemovedOnCommit: false,
     };
     this.#records.set(id, record);
     if (after === undefined) {
@@ -272,8 +286,16 @@ export class TabManager {
     return id;
   }
 
-  /** Loads a web URL in a tab, creating its runtime if it has none. */
-  navigate(tabId: TabId, url: string, options: { readonly focus?: boolean } = {}): void {
+  /**
+   * Loads a web URL in a tab, creating its runtime if it has none. The tab's URL and page change
+   * only when the load commits or fails: until then it keeps showing what it showed (a new-tab or
+   * error page stays up, and the address stays that of the document on display).
+   */
+  navigate(
+    tabId: TabId,
+    url: string,
+    options: { readonly focus?: boolean; readonly credentialsRemoved?: boolean } = {},
+  ): void {
     const record = this.#record(tabId);
     if (record.runtime === undefined) {
       const token = Symbol(tabId);
@@ -281,14 +303,12 @@ export class TabManager {
       record.runtime = this.#options.createRuntime(tabId, this.#eventsFor(tabId, token));
     }
     record.focusOnCommit = options.focus ?? true;
+    record.credentialsRemovedOnCommit = options.credentialsRemoved ?? false;
     record.state = {
       ...record.state,
       runtime: record.state.runtime === 'live' ? 'live' : 'creating',
-      page: { kind: 'web' },
-      url,
       loading: true,
     };
-    this.#syncVisibility();
     record.runtime.load(url);
     this.#changed();
   }
@@ -299,11 +319,13 @@ export class TabManager {
     record.runtime?.destroy();
     record.runtime = undefined;
     record.runtimeToken = undefined;
+    record.credentialsRemovedOnCommit = false;
     record.state = {
       ...record.state,
       runtime: 'unloaded',
       page: { kind: 'internal', name },
       url: '',
+      credentialsRemoved: false,
       title: '',
       favicon: null,
       loading: false,
@@ -411,6 +433,12 @@ export class TabManager {
       }
       this.#changed();
     };
+    /** The flag `navigate` set for this load. It applies once: to this commit or failure. */
+    const takeCredentialsRemoved = (record: TabRecord): boolean => {
+      const removed = record.credentialsRemovedOnCommit;
+      record.credentialsRemovedOnCommit = false;
+      return removed;
+    };
 
     return {
       committed: ({ url, sameDocument, canGoBack, canGoForward }) => {
@@ -425,6 +453,7 @@ export class TabManager {
             : // A new document: the old site's favicon no longer applies.
               {
                 url,
+                credentialsRemoved: takeCredentialsRemoved(record),
                 canGoBack,
                 canGoForward,
                 runtime: 'live',
@@ -448,10 +477,15 @@ export class TabManager {
         update({ loading });
       },
       loadFailed: ({ code, name, url }) => {
+        const record = current();
+        if (record === undefined) {
+          return;
+        }
         update(
           {
             page: { kind: 'internal', name: 'network-error', error: { code, name } },
             url,
+            credentialsRemoved: takeCredentialsRemoved(record),
             // The previous page's title and icon belong to a page that is no longer shown.
             title: '',
             favicon: null,

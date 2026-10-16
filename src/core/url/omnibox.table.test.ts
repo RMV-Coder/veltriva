@@ -21,6 +21,12 @@ import {
 import type { OmniboxAction } from './omnibox';
 
 const nav = (url: string): OmniboxAction => ({ kind: 'navigate', url });
+/** A typed http(s) URL whose username or password the classifier removed. */
+const navCreds = (url: string): OmniboxAction => ({
+  kind: 'navigate',
+  url,
+  credentialsRemoved: true,
+});
 const search = (query: string): OmniboxAction => ({ kind: 'search', query });
 const external = (url: string): OmniboxAction => ({ kind: 'external', url });
 const NEW_TAB: OmniboxAction = { kind: 'internal', page: 'new-tab' };
@@ -75,17 +81,25 @@ describe('omnibox table', () => {
       ['https://example.com:443', nav('https://example.com/'), 'default port is dropped'],
       ['http://example.com:80/', nav('http://example.com/')],
       ['https://example.com:8443/x', nav('https://example.com:8443/x')],
-      ['https://user@example.com', nav('https://example.com/'), 'credentials are removed'],
-      ['https://:pass@example.com', nav('https://example.com/')],
-      ['https://user:@example.com', nav('https://example.com/')],
+      ['https://user@example.com', navCreds('https://example.com/'), 'credentials are removed'],
+      ['https://:pass@example.com', navCreds('https://example.com/')],
+      ['https://user:@example.com', navCreds('https://example.com/')],
       ['https://@example.com', nav('https://example.com/')],
-      ['https://user:pass@example.com:8443/p?q#f', nav('https://example.com:8443/p?q#f')],
-      ['https://a:b@c:d@example.com', nav('https://example.com/'), 'the host follows the last @'],
-      ['https://example.com@evil.example/', nav('https://evil.example/'), 'the real host is evil'],
-      ['http://example.com@evil.example', nav('http://evil.example/')],
+      ['https://user:pass@example.com:8443/p?q#f', navCreds('https://example.com:8443/p?q#f')],
+      [
+        'https://a:b@c:d@example.com',
+        navCreds('https://example.com/'),
+        'the host follows the last @',
+      ],
+      [
+        'https://example.com@evil.example/',
+        navCreds('https://evil.example/'),
+        'the real host is evil',
+      ],
+      ['http://example.com@evil.example', navCreds('http://evil.example/')],
       [
         'https://paypal.com:secret@evil.example:8443/login?x=1#y',
-        nav('https://evil.example:8443/login?x=1#y'),
+        navCreds('https://evil.example:8443/login?x=1#y'),
       ],
       [
         'https://example.com\\@evil.example/',
@@ -93,7 +107,7 @@ describe('omnibox table', () => {
         'a backslash ends the host',
       ],
       ['http://evil.example\\@example.com', nav('http://evil.example/@example.com')],
-      ['http://user@[::1]/', nav('http://[::1]/')],
+      ['http://user@[::1]/', navCreds('http://[::1]/')],
       ['http://localhost', nav('http://localhost/')],
       ['https://localhost:3000/a', nav('https://localhost:3000/a'), 'explicit https is kept'],
       ['http://[::1]/', nav('http://[::1]/')],
@@ -447,7 +461,7 @@ describe('omnibox table', () => {
       ['https://\u{ff45}xample.com', nav('https://example.com/')],
       [
         'https://\u{430}pple.com@evil.example/',
-        nav('https://evil.example/'),
+        navCreds('https://evil.example/'),
         'look-alike userinfo',
       ],
       // Full-width and other look-alike punctuation never forms a scheme or a path.
@@ -894,7 +908,7 @@ describe('omnibox table', () => {
       ['mailto:a@b.com@c.com', external('mailto:a@b.com@c.com')],
       [
         'http://user:pass@example.com',
-        nav('http://example.com/'),
+        navCreds('http://example.com/'),
         'explicit scheme: credentials go',
       ],
     ]);
