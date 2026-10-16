@@ -7,8 +7,12 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
 **Status: Phase 1.** Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 is under way:
 - Milestone 1.1 built the project scaffold and CI.
 - Milestone 1.2 built the secure shell. The UI is served from `app://shell` with a strict Content Security Policy. It talks to the main process through a typed, validated IPC contract, and every web page gets a role and a locked-down policy.
+- Milestone 1.3a made it a browser, with tabs in a vertical sidebar (pinned first; reorder by dragging or with Alt+Shift+arrow keys). Its pieces:
+  - **Address bar:** back, forward and reload, with search through DuckDuckGo by default.
+  - **Internal pages:** new-tab, network-error and crashed-tab pages.
+  - **Favicons:** validated before the shell shows them.
 
-Milestone 1.3a (tabs, navigation, the omnibox and a vertical sidebar) is in progress on its branch. The main-process side is built and tested; the shell UI and the E2E suites are being finished.
+  Find, zoom, menus, fullscreen and keyboard shortcuts come in Milestone 1.3b.
 
 ## Why
 
@@ -62,7 +66,7 @@ npm run dev
 | `npm run lint` | ESLint with type-aware typescript-eslint rules and the React hooks rules. |
 | `npm run format` / `npm run format:check` | Prettier writes or checks formatting. Markdown is excluded. |
 | `npm test` | Vitest unit tests on Node. |
-| `npm run test:e2e` | Builds the test variant, then runs the Playwright tests against the built, unpackaged app: the shell, its CSP and protocol, the IPC contract, and a hostile page in a tab. |
+| `npm run test:e2e` | Builds the test variant, then runs the Playwright tests against the built, unpackaged app. They cover the shell, its CSP and protocol, the IPC contract and a hostile page in a tab. They also cover tabs, navigation, the address bar, crashes, PDFs, the clipboard and generated (`data:`, `blob:`) documents, all on a local fixture server. |
 | `npm run test:lifecycle` | Builds the test variant, then runs the lifecycle-behavior checks without Playwright (ADR-0008 4a): a background tab is hidden and throttled, and closing the window with live tabs quits cleanly. |
 | `npm run package:dir` | Builds, checks that the build contains no test hooks, then packages an unpacked app with electron-builder into `release/win-unpacked/` (`Veltriva.exe`), with the production Electron fuses applied. It is unsigned, and no installer is built or installed. |
 

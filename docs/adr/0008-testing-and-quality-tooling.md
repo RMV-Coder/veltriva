@@ -42,6 +42,14 @@
      - **Test CSP from a later task, not inside `evaluate`.** The inspector lets `eval` run during its own `page.evaluate` call even under `script-src 'self'`. The CSP test runs `eval` from a `setTimeout` callback instead.
      - **The PDF check looks for the document frame.** Under a guard that blocks the viewer's subframes, the viewer's toolbar frame (`chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html`) still appears. The proof that PDFs render is a child frame that commits the PDF's own URL.
      - **Don't measure shutdown through Playwright.** With its inspector and CDP attached, `close()` on a loaded laptop sometimes took about 100 s, against about 25 ms for the same `app.quit()` without Playwright. The harness kills the process tree after 30 s and records a warning instead of failing the test. Shutdown speed belongs to the lifecycle harness (4a).
+   - **Rules found while writing the M1.3a suites:**
+     - **Find a tab's Page with `pageForTab(app, tabId)`** (`tests/e2e/hooks.ts`), which matches the tab's DevTools target id through a short-lived CDP session per page.
+     - **After a renderer crash, the tab's Page stays marked crashed**, even once "Reload tab" brings the page back. Check the reloaded page from main (`evaluateInTab`, `webContents.executeJavaScript`).
+     - **Wait for the address bar to take focus after "New tab"** before typing. The shell focuses it when the new tab's snapshot arrives, and earlier keystrokes are lost.
+     - **Point searches at the local fixture first** (`setSearchTemplate`), in every test that types: the default template is a real search engine. Never type a real domain; use `127.0.0.1` URLs and `.invalid` hosts.
+     - **Playwright emulates `prefers-color-scheme: light`** in `_electron.launch` unless `colorScheme` says otherwise, so `nativeTheme.themeSource` alone doesn't change what the shell renders.
+     - **Hit counts accumulate per worker.** The fixture server is shared by a worker's tests, so a spec uses its own paths or counts deltas.
+     - **Chromium refuses some navigations before Electron sees them** (top-level `data:`, `blob:null/…`). Assert "refused by Chromium or the guard", plus an unchanged URL.
 4a. **Lifecycle behavior tests (no Playwright).** A small Electron-script harness, like the Phase 0 spikes, asserts the behavior Playwright masks:
    - visibility and throttling of detached tabs;
    - renderer release after discard;
