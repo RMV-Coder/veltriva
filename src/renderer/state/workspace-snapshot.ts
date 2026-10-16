@@ -25,3 +25,26 @@ export function findSelectedTab<Tab extends { readonly id: string }>(
 ): Tab | undefined {
   return snapshot?.tabs.find((tab) => tab.id === snapshot.selectedTabId);
 }
+
+interface FullscreenSnapshot {
+  readonly fullscreen: {
+    readonly tabId: string;
+    readonly origin: string;
+    /** The shell must draw the fullscreen notice now. */
+    readonly notice: boolean;
+  } | null;
+}
+
+/**
+ * The fullscreen notice the shell must draw right now, or null. While a tab is in HTML fullscreen
+ * but its notice is over, the shell draws its normal UI, which sits underneath the page.
+ */
+export function fullscreenNotice(
+  snapshot: FullscreenSnapshot | null,
+): { readonly tabId: string; readonly origin: string } | null {
+  const fullscreen = snapshot?.fullscreen;
+  if (fullscreen?.notice !== true) {
+    return null;
+  }
+  return { tabId: fullscreen.tabId, origin: fullscreen.origin };
+}

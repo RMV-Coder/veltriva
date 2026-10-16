@@ -143,3 +143,14 @@
     overflow: hidden;
   }
 }
+
+/*
+ * While the fullscreen notice shows, main raises the shell's transparent view above the page
+ * (ADR-0006 A'), so the page, the notice and nothing else must be visible: every background the
+ * shell paints is cleared. Outside @layer so that it beats the base layer's body background.
+ */
+html[data-overlay='fullscreen-notice'],
+html[data-overlay='fullscreen-notice'] body,
+html[data-overlay='fullscreen-notice'] #root {
+  background: transparent;
+}

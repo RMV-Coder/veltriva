@@ -1,6 +1,26 @@
 import { describe, expect, it } from 'vitest';
 
-import { tabLabel, tabStatus } from './tab-display';
+import { tabLabel, tabMenuPoint, tabStatus } from './tab-display';
+
+describe('tabMenuPoint', () => {
+  const tab = { left: 8, top: 100, right: 252, bottom: 136 };
+
+  it('opens at the pointer for a right-click on the tab', () => {
+    expect(tabMenuPoint(tab, 60, 120)).toEqual({ x: 60, y: 120 });
+  });
+
+  it('opens below the label when the keyboard asked, which reports a point elsewhere', () => {
+    expect(tabMenuPoint(tab, 0, 0)).toEqual({ x: 20, y: 136 });
+    expect(tabMenuPoint(tab, 500, 900)).toEqual({ x: 20, y: 136 });
+  });
+
+  it('never gives a point outside the window', () => {
+    expect(tabMenuPoint({ left: -20, top: -40, right: 10, bottom: -4 }, 0, 0)).toEqual({
+      x: 0,
+      y: 0,
+    });
+  });
+});
 
 type Tab = Parameters<typeof tabLabel>[0];
 

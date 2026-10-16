@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { findSelectedTab, isNewerSnapshot } from './workspace-snapshot';
+import { findSelectedTab, fullscreenNotice, isNewerSnapshot } from './workspace-snapshot';
 
 describe('isNewerSnapshot', () => {
   it('accepts the first snapshot, whatever its version', () => {
@@ -37,5 +37,22 @@ describe('findSelectedTab', () => {
   it('is undefined when nothing is selected or the id matches no tab', () => {
     expect(findSelectedTab({ selectedTabId: null, tabs })).toBeUndefined();
     expect(findSelectedTab({ selectedTabId: 'gone', tabs })).toBeUndefined();
+  });
+});
+
+describe('fullscreenNotice', () => {
+  it('is the tab and origin while the notice must be drawn', () => {
+    const fullscreen = { tabId: 'a', origin: 'www.example.com', notice: true };
+    expect(fullscreenNotice({ fullscreen })).toEqual({ tabId: 'a', origin: 'www.example.com' });
+  });
+
+  it('is null once the notice is over, though the tab is still in fullscreen', () => {
+    const fullscreen = { tabId: 'a', origin: 'www.example.com', notice: false };
+    expect(fullscreenNotice({ fullscreen })).toBeNull();
+  });
+
+  it('is null when no tab is in fullscreen, or before the first snapshot', () => {
+    expect(fullscreenNotice({ fullscreen: null })).toBeNull();
+    expect(fullscreenNotice(null)).toBeNull();
   });
 });

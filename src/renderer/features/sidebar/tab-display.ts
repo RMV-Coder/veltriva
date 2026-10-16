@@ -41,3 +41,22 @@ export const TAB_STATUS_TEXT: Readonly<Record<TabStatus, string>> = {
   failed: 'Page failed to load',
   loading: 'Loading',
 };
+
+interface Box {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
+/**
+ * Where a tab's context menu opens: at the pointer for a right-click, or below the tab's label
+ * when the keyboard asked (the Menu key or Shift+F10 report a point that may be outside the tab,
+ * often 0,0). Never negative: the command accepts only points in the window.
+ */
+export function tabMenuPoint(tab: Box, clientX: number, clientY: number): { x: number; y: number } {
+  const inside =
+    clientX >= tab.left && clientX <= tab.right && clientY >= tab.top && clientY <= tab.bottom;
+  const point = inside ? { x: clientX, y: clientY } : { x: tab.left + 12, y: tab.bottom };
+  return { x: Math.max(0, point.x), y: Math.max(0, point.y) };
+}

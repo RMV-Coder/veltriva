@@ -10,6 +10,14 @@ interface UiStore {
   readonly omniboxFocusRequest: string | null;
   readonly requestOmniboxFocus: (tabId: string) => void;
   readonly clearOmniboxFocusRequest: () => void;
+  /**
+   * A request to focus the find field, when it was made (`performance.now()`), or null. Main sends
+   * `ui.focusFind` right after it opens the find state, usually before the snapshot that draws the
+   * bar. The request waits in the store until the field exists, and goes stale if it never does.
+   */
+  readonly findFocusRequest: number | null;
+  readonly requestFindFocus: () => void;
+  readonly clearFindFocusRequest: () => void;
 }
 
 export const useUiStore = create<UiStore>()((set) => ({
@@ -19,5 +27,12 @@ export const useUiStore = create<UiStore>()((set) => ({
   },
   clearOmniboxFocusRequest: () => {
     set({ omniboxFocusRequest: null });
+  },
+  findFocusRequest: null,
+  requestFindFocus: () => {
+    set({ findFocusRequest: performance.now() });
+  },
+  clearFindFocusRequest: () => {
+    set({ findFocusRequest: null });
   },
 }));

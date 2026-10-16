@@ -89,7 +89,8 @@ export function TabList() {
       case 'Enter':
       case ' ':
         event.preventDefault();
-        void selectTab(tab.id);
+        // The keyboard user stays in the sidebar; a click would move the keyboard to the page.
+        void selectTab(tab.id, { keepFocus: true });
         return;
       case 'Delete': {
         event.preventDefault();
@@ -98,7 +99,7 @@ export function TabList() {
         // which is the selected one.
         const neighbor = tabs[index + 1] ?? tabs[index - 1];
         keepFocus.current = { tabId: neighbor?.id, afterVersion: version };
-        void closeTab(tab.id);
+        void closeTab(tab.id, { keepFocus: true });
         return;
       }
     }

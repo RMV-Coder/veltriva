@@ -2,11 +2,15 @@ import { ArrowLeft, ArrowRight, RotateCw, X } from 'lucide-react';
 
 import { goBack, goForward, reloadTab, stopLoading } from '../../state/commands';
 import { useSelectedTab } from '../../state/workspace-store';
+import { FindBar } from './FindBar';
 import { LoadingBar } from './LoadingBar';
 import { Omnibox } from './Omnibox';
 import { ToolbarButton } from './ToolbarButton';
 
-/** Back, Forward, Reload or Stop, and the address bar, across the full width of the window. */
+/**
+ * Back, Forward, Reload or Stop, and the address bar, across the full width of the window. While
+ * the selected tab's find bar is open it takes the right end of the row, and the address bar shrinks.
+ */
 export function Toolbar() {
   const tab = useSelectedTab();
   const loading = tab?.loading ?? false;
@@ -45,6 +49,7 @@ export function Toolbar() {
         }}
       />
       <Omnibox />
+      <FindBar />
       <LoadingBar active={loading} />
     </header>
   );

@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 
 import type { TabSnapshot, WorkspaceSnapshot } from '../../shared/contracts/schemas';
-import { findSelectedTab, isNewerSnapshot } from './workspace-snapshot';
+import { findSelectedTab, fullscreenNotice, isNewerSnapshot } from './workspace-snapshot';
 
 interface WorkspaceStore {
   /** Null until the first snapshot arrives. */
@@ -32,6 +32,16 @@ export function useSelectedTabId(): string | null {
 
 export function useSelectedTab(): TabSnapshot | undefined {
   return useWorkspaceStore((state) => findSelectedTab(state.snapshot));
+}
+
+/**
+ * The fullscreen notice to draw right now, or null. Reads two strings, not one object, so the
+ * component using it re-renders only when the notice itself changes.
+ */
+export function useFullscreenNotice(): { readonly tabId: string; readonly origin: string } | null {
+  const tabId = useWorkspaceStore((state) => fullscreenNotice(state.snapshot)?.tabId ?? null);
+  const origin = useWorkspaceStore((state) => fullscreenNotice(state.snapshot)?.origin ?? null);
+  return tabId === null || origin === null ? null : { tabId, origin };
 }
 
 /**

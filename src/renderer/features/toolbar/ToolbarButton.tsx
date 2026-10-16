@@ -10,14 +10,22 @@ interface ToolbarButtonProps {
   readonly icon: LucideIcon;
   readonly disabled: boolean;
   readonly onClick: () => void;
+  /** `compact` fits inside a 36px pill, such as the find bar. */
+  readonly size?: 'default' | 'compact';
 }
 
 /** An icon button for the toolbar. Its tooltip is the native `title`: no HTML overlay may reach the web view. */
-export function ToolbarButton({ label, icon: Icon, disabled, onClick }: ToolbarButtonProps) {
+export function ToolbarButton({
+  label,
+  icon: Icon,
+  disabled,
+  onClick,
+  size = 'default',
+}: ToolbarButtonProps) {
   return (
     <Button
       variant="ghost"
-      size="icon"
+      size={size === 'compact' ? 'icon-sm' : 'icon'}
       aria-label={label}
       title={label}
       disabled={disabled}

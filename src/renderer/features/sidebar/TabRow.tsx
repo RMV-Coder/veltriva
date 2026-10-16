@@ -6,10 +6,10 @@ import { FOCUS_RING } from '@/lib/focus';
 import { cn } from '@/lib/utils';
 
 import type { TabSnapshot } from '../../../shared/contracts/schemas';
-import { closeTab, setTabPinned } from '../../state/commands';
+import { closeTab, setTabPinned, showTabMenu } from '../../state/commands';
 import { CONTENT_AREA_ID, tabDomId } from '../layout/ids';
 import { TabIcon } from './TabIcon';
-import { TAB_STATUS_TEXT, tabLabel, tabStatus } from './tab-display';
+import { TAB_STATUS_TEXT, tabLabel, tabMenuPoint, tabStatus } from './tab-display';
 import type { TabDragBindings } from './use-tab-reorder';
 
 interface TabRowProps {
@@ -71,6 +71,17 @@ export function TabRow({
         data-selected={selected}
         onClick={onActivate}
         onKeyDown={onKeyDown}
+        // Right-click, the Menu key or Shift+F10: main shows the tab's native menu (pin, duplicate,
+        // close, reopen), which is also how the keyboard reaches those actions.
+        onContextMenu={(event) => {
+          event.preventDefault();
+          const point = tabMenuPoint(
+            event.currentTarget.getBoundingClientRect(),
+            event.clientX,
+            event.clientY,
+          );
+          void showTabMenu(tab.id, point.x, point.y);
+        }}
         {...dragBindings}
         className={cn(
           'relative flex h-9 w-full cursor-default items-center gap-2 rounded-lg px-2.5 text-sm select-none',
@@ -92,8 +103,8 @@ export function TabRow({
       ))}
 
       {/* Mouse affordances, out of the tab order and hidden from assistive technology: the
-          tablist may only own tabs. The keyboard closes a tab with Delete; pinning by keyboard
-          comes with the tab context menu in M1.3b. */}
+          tablist may only own tabs. The keyboard closes a tab with Delete, and pins it from the
+          tab's context menu (the Menu key or Shift+F10). */}
       <div
         aria-hidden="true"
         className="absolute inset-y-0 right-1 flex items-center gap-0.5 opacity-0 group-hover/row:opacity-100 group-has-[[aria-selected=true]]/row:opacity-100"

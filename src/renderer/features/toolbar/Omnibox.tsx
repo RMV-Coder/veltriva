@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, MouseEvent, SubmitEvent } from 'react';
 import { flushSync } from 'react-dom';
 
-import { FOCUS_WITHIN_RING } from '@/lib/focus';
+import { FOCUS_FIELD_RING } from '@/lib/focus';
 import { cn } from '@/lib/utils';
 
-import { submitAddress } from '../../state/commands';
+import { submitAddress, zoomTab } from '../../state/commands';
 import { useUiStore } from '../../state/ui-store';
 import { useSelectedTab } from '../../state/workspace-store';
 import { AddressIndicator, CredentialsRemovedIndicator } from './AddressIndicator';
+import { ZoomIndicator } from './ZoomIndicator';
+import { isZoomIndicatorVisible } from './zoom-display';
 
 /** What the user has typed, and the tab they typed it in. */
 interface Draft {
@@ -74,6 +76,19 @@ export function Omnibox() {
     clearFocusRequest();
   }, [focusRequest, tabId, clearFocusRequest]);
 
+  // Main gave the shell the keyboard (Ctrl+L, Alt+D, F6, Ctrl+T): take it in the field, selected.
+  useEffect(
+    () =>
+      window.veltriva.on('ui.focusAddressBar', () => {
+        const input = inputRef.current;
+        if (input !== null && !input.disabled) {
+          input.focus();
+          input.select();
+        }
+      }),
+    [],
+  );
+
   const submit = (event: SubmitEvent<HTMLFormElement>): void => {
     event.preventDefault();
     if (tabId === null) {
@@ -123,7 +138,7 @@ export function Omnibox() {
       onSubmit={submit}
       className={cn(
         'flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full bg-muted px-3',
-        FOCUS_WITHIN_RING,
+        FOCUS_FIELD_RING,
       )}
     >
       {tab === undefined ? null : (
@@ -155,6 +170,18 @@ export function Omnibox() {
         onKeyDown={onKeyDown}
         className="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-foreground/60"
       />
+      {tab !== undefined && isZoomIndicatorVisible(tab.zoomPercent) ? (
+        <ZoomIndicator
+          percent={tab.zoomPercent}
+          onReset={(viaKeyboard) => {
+            void zoomTab(tab.id, 'reset');
+            // The indicator disappears at 100%; a keyboard user's focus moves to the field, not to nowhere.
+            if (viaKeyboard) {
+              inputRef.current?.focus();
+            }
+          }}
+        />
+      ) : null}
     </form>
   );
 }
