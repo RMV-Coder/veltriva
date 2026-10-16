@@ -2,7 +2,8 @@ import { defineConfig } from '@playwright/test';
 
 // End-to-end tests drive the built (unpackaged) app through `_electron.launch()` (ADR-0008 §4).
 // There is no web server and no browser project: tests/e2e/fixtures.ts launches Electron itself.
-// Run `npm run build` first.
+// `npm run test:e2e` builds the test variant (`electron-vite build --mode test`, which compiles in
+// the test hooks) and then runs this config; the harness refuses an unbuilt or production build.
 export default defineConfig({
   testDir: './tests/e2e',
   testMatch: '**/*.spec.ts',

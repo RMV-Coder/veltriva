@@ -7,9 +7,15 @@ import { join } from 'node:path';
 import { test as base } from '@playwright/test';
 import type { ElectronApplication, Page, TestInfo } from '@playwright/test';
 
+import { startFixtureServer } from '../fixtures/server';
+import type { FixtureServer } from '../fixtures/server';
+import { closeTestTabsInMain, openTab as openTabInApp } from './hooks';
+import type { TestTab } from './hooks';
 import { CLOSE_TIMEOUT_WARNING, closeApp, findShellPage, launchApp, shellPage } from './launch';
 
 export { expect } from '@playwright/test';
+
+export type ThemeSource = 'system' | 'light' | 'dark';
 
 interface Fixtures {
   /** A new, empty directory used as the app's userData. Removed after the app has closed. */
@@ -18,6 +24,21 @@ interface Fixtures {
   electronApp: ElectronApplication;
   /** The shell page, found by its URL. Never close it. */
   shell: Page;
+  /**
+   * Opens a tab-role view on `url` and returns it as a Page (see `openTab` in ./hooks.ts).
+   * Every tab it opened is closed through the test hook when the test ends. Never `page.close()`.
+   */
+  openTab: (url: string, options?: { readonly preload?: string }) => Promise<TestTab>;
+  /**
+   * Sets `nativeTheme.themeSource` in the app. Whatever the test did, the source is set back to
+   * 'system' afterwards, so a failure can't leave the machine's theme overridden.
+   */
+  setThemeSource: (source: ThemeSource) => Promise<void>;
+}
+
+interface WorkerFixtures {
+  /** A local HTTP server for fixture pages (tests/fixtures). One per worker. */
+  fixtureServer: FixtureServer;
 }
 
 /**
@@ -26,7 +47,20 @@ interface Fixtures {
  */
 const APP_FIXTURE_TIMEOUT_MS = 150_000;
 
-export const test = base.extend<Fixtures>({
+export const test = base.extend<Fixtures, WorkerFixtures>({
+  fixtureServer: [
+    // eslint-disable-next-line no-empty-pattern
+    async ({}, use) => {
+      const server = await startFixtureServer();
+      try {
+        await use(server);
+      } finally {
+        await server.close();
+      }
+    },
+    { scope: 'worker' },
+  ],
+
   // Playwright needs the destructuring pattern to see that this fixture has no dependencies.
   // eslint-disable-next-line no-empty-pattern
   userDataDir: async ({}, use) => {
@@ -62,6 +96,42 @@ export const test = base.extend<Fixtures>({
 
   shell: async ({ electronApp }, use) => {
     await use(await shellPage(electronApp));
+  },
+
+  openTab: async ({ electronApp }, use) => {
+    // An object, so the checker sees that the closure below can change it.
+    const state = { opened: false };
+    await use(async (url, options) => {
+      state.opened = true;
+      return openTabInApp(electronApp, url, options);
+    });
+    if (state.opened) {
+      try {
+        await closeTestTabsInMain(electronApp);
+      } catch (error) {
+        console.warn('Could not close the test tabs:', error);
+      }
+    }
+  },
+
+  setThemeSource: async ({ electronApp }, use) => {
+    const apply = (source: ThemeSource): Promise<void> =>
+      electronApp.evaluate(({ nativeTheme }, themeSource) => {
+        nativeTheme.themeSource = themeSource;
+      }, source);
+
+    const state = { changed: false };
+    await use(async (source) => {
+      state.changed = true;
+      await apply(source);
+    });
+    if (state.changed) {
+      try {
+        await apply('system');
+      } catch (error) {
+        console.warn("Could not set nativeTheme.themeSource back to 'system':", error);
+      }
+    }
   },
 });
 

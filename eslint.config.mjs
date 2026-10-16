@@ -65,6 +65,7 @@ export default defineConfig(
   // Test-only preloads are plain CommonJS: a sandboxed preload can only `require('electron')`.
   {
     files: ['tests/**/*.cjs'],
+    languageOptions: { globals: { require: 'readonly' } },
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
 

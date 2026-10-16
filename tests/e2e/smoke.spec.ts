@@ -1,28 +1,14 @@
 // Smoke tests for the M1.1 placeholder shell. Each test launches its own app (see ./fixtures.ts).
 // They are deterministic and use no network. They check app state, not timing or visibility
-// behavior, which Playwright masks (spike S6).
+// behavior, which Playwright masks (spike S6). Page globals are typed in ./page-globals.ts.
 import { normalize } from 'node:path';
 
 import type { Page } from '@playwright/test';
 import type { WebContents, WebPreferences } from 'electron';
 
-import type { ShellApi } from '../../src/shared/shell-api';
 import { expect, test } from './fixtures';
 import { observeFor } from './launch';
-
-// The page runs in a browser, but the Node-only tsconfig has no DOM types. In the page, `globalThis`
-// is the window, so describe the few globals the tests use.
-interface PageGlobals {
-  veltriva: ShellApi;
-  location: { href: string };
-  open(url: string): unknown;
-  document: {
-    querySelector(
-      selector: string,
-    ): { textContent: string | null; checkVisibility(): boolean } | null;
-  };
-}
-type PageGlobal = typeof globalThis & PageGlobals;
+import type { PageGlobal } from './page-globals';
 
 // Present on every WebContents at runtime, but missing from Electron's typings.
 interface HasLastWebPreferences {

@@ -1,7 +1,8 @@
 // Launch helpers for the Electron E2E suite. They enforce ADR-0008 item 4 and the rules from
 // spike S6 (docs/spikes/s6-test-reach.md), so a spec never has to remember them:
 //
-//  1. Fail fast when the app isn't built: out/main, out/preload and out/renderer must exist.
+//  1. Fail fast when the app isn't built, or is built without the test hooks: out/main, out/preload
+//     and out/renderer must exist, and out/main/index.js must contain the hooks' marker.
 //  2. Launch with `executablePath` (the unpackaged electron binary) and the repo root as the app
 //     argument, never in Playwright's loader mode. The loader adds `disable-renderer-backgrounding`
 //     and `disable-backgrounding-occluded-windows`, which changes the behavior under test.
@@ -22,11 +23,12 @@
 //     actions such as `click()` hang on "waiting for navigation to finish". Check the page with
 //     `evaluate` from then on.
 //
-// Also for M1.3 (see S6): register `electronApp.waitForEvent('window')` before opening a tab,
-// act on a tab (click, screenshot) only while it is attached, and never assert hidden-tab
-// behavior (visibility, timer throttling) through a Playwright Page: its focus emulation masks it.
+// Tabs (see S6): `openTab` in ./hooks.ts registers `electronApp.waitForEvent('window')` before it
+// opens a test tab and confirms the Page by URL. Act on a tab (click, screenshot) only while it is
+// attached, and never assert hidden-tab behavior (visibility, timer throttling) through a
+// Playwright Page: its focus emulation masks it. For M1.3, add `pageForTab(app, tabId)` (rule 5).
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -50,6 +52,14 @@ const USER_DATA_DIR_ENV = 'VELTRIVA_USER_DATA_DIR';
 /** Every file the app needs at runtime. The paths are relative to the repo root. */
 const BUILD_OUTPUTS = ['out/main/index.js', 'out/preload/shell.js', 'out/renderer/index.html'];
 
+/**
+ * Only `--mode test` builds contain the test hooks (src/main/testing/test-hooks.ts), and the
+ * production build check refuses a build that does. Hard-coded: importing the constant would load
+ * the hooks' Electron imports into the test runner.
+ */
+const TEST_HOOKS_MARKER = '__veltrivaTest';
+const BUILD_HINT = 'Run `npm run test:e2e`, which builds the test variant.';
+
 export interface AppPaths {
   /** The directory with package.json. Its `main` is out/main/index.js. */
   readonly repoRoot: string;
@@ -70,9 +80,12 @@ export function appPaths(): AppPaths {
 function resolveAppPaths(): AppPaths {
   const missing = BUILD_OUTPUTS.filter((relative) => !existsSync(join(REPO_ROOT, relative)));
   if (missing.length > 0) {
+    throw new Error(`The app is not built: missing ${missing.join(', ')}. ${BUILD_HINT}`);
+  }
+  // A production build also runs, but without the hooks every spec would fail in a confusing way.
+  if (!readFileSync(join(REPO_ROOT, 'out/main/index.js'), 'utf8').includes(TEST_HOOKS_MARKER)) {
     throw new Error(
-      `The app is not built: missing ${missing.join(', ')}. ` +
-        'Run `npm run build` first, then run the E2E tests again.',
+      `out/main/index.js is not a test build: it has no ${TEST_HOOKS_MARKER} hooks. ${BUILD_HINT}`,
     );
   }
 

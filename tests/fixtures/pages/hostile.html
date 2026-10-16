@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Hostile fixture</title>
+  </head>
+  <body>
+    <p>A page that tries everything a hostile site would try against the shell.</p>
+    <script>
+      // The spec drives the attacks through `window.hostile` and decides, from outside the page,
+      // whether each one failed. Every method returns plain JSON, so Playwright can serialize it.
+      window.hostile = {
+        // What a page should not be able to see: the preload API, Node and Electron's bridge.
+        globals() {
+          return {
+            veltriva: typeof window.veltriva,
+            require: typeof window.require,
+            process: typeof window.process,
+            module: typeof window.module,
+            Buffer: typeof window.Buffer,
+            ipcRenderer: typeof window.ipcRenderer,
+            ipcProbe: typeof window.__ipcProbe,
+          };
+        },
+
+        // Starts a top-level navigation and returns at once. The app may cancel it.
+        navigateTo(url) {
+          window.location.href = url;
+        },
+
+        // `window.open` returns null when the window was denied.
+        openWindow(url) {
+          return { opened: window.open(url) !== null };
+        },
+
+        // Adds an iframe and returns its id.
+        embedFrame(url) {
+          const frame = document.createElement('iframe');
+          frame.id = `frame-${String(document.querySelectorAll('iframe').length)}`;
+          frame.src = url;
+          document.body.append(frame);
+          return frame.id;
+        },
+
+        // Where an embedded frame is, as far as this page can tell.
+        frameLocation(id) {
+          const frame = document.getElementById(id);
+          try {
+            return frame.contentWindow.location.href;
+          } catch {
+            return 'cross-origin';
+          }
+        },
+
+        // A fetch either resolves with a status or rejects with an error name. In 'no-cors' mode a
+        // cross-origin request is not blocked by CORS, so it rejects only if the request itself
+        // fails (for a scheme nothing handles); a handled request resolves with an opaque response.
+        async fetchUrl(url, mode) {
+          try {
+            const response = await fetch(url, { mode });
+            return { settled: 'resolved', type: response.type, status: response.status };
+          } catch (error) {
+            return { settled: 'rejected', name: error.name };
+          }
+        },
+
+        // Loads a script from `url` and says whether it loaded or failed.
+        loadScript(url) {
+          return new Promise((resolve) => {
+            const script = document.createElement('script');
+            script.addEventListener('load', () => resolve('loaded'));
+            script.addEventListener('error', () => resolve('error'));
+            script.src = url;
+            document.head.append(script);
+          });
+        },
+
+        // Asks for powers the browser must not grant (every session denies them all).
+        async requestPowers() {
+          const result = {};
+          result.notificationRequest = await Notification.requestPermission();
+          result.notificationPermission = Notification.permission;
+          const geolocation = await navigator.permissions.query({ name: 'geolocation' });
+          result.geolocationState = geolocation.state;
+          try {
+            await navigator.mediaDevices.getUserMedia({ video: true });
+            result.getUserMedia = { settled: 'resolved' };
+          } catch (error) {
+            result.getUserMedia = {
+              settled: 'rejected',
+              name: error.name,
+              isDomException: error instanceof DOMException,
+            };
+          }
+          return result;
+        },
+
+        userAgent() {
+          return navigator.userAgent;
+        },
+
+        // The headers this page's own requests carry, as the server saw them.
+        async requestHeaders() {
+          const response = await fetch('/echo-headers');
+          return response.json();
+        },
+      };
+    </script>
+  </body>
+</html>
