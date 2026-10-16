@@ -10,7 +10,15 @@ const PAGE = 'https://zoom.example/j/123';
 function setup(options: { appName?: string; launchFails?: boolean } = {}) {
   const launched: string[] = [];
   const warnings: string[] = [];
-  const prompts = new PromptManager({ onChange: () => undefined });
+  // Each reading of the clock is a second later: every answer comes long after its question.
+  let clock = 0;
+  const prompts = new PromptManager({
+    onChange: () => undefined,
+    now: () => {
+      clock += 1_000;
+      return clock;
+    },
+  });
   const guard = new ExternalProtocolGuard({
     prompts,
     appNameFor: () => options.appName ?? 'Zoom Meetings',

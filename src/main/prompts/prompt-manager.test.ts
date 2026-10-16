@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_QUEUED_PROMPTS, PromptManager } from './prompt-manager';
+import { MAX_QUEUED_PROMPTS, MIN_VISIBLE_BEFORE_ALLOW_MS, PromptManager } from './prompt-manager';
 import type { PromptRequest } from './prompt-manager';
 
 const camera: PromptRequest = { kind: 'permission', site: 'meet.example', permissions: ['camera'] };
@@ -12,12 +12,20 @@ const mail: PromptRequest = {
   canRemember: true,
 };
 
-function setup() {
+/** Each reading of the clock is a second later, so every answer comes long after its question. */
+function setup(now?: () => number) {
   let changes = 0;
+  let clock = 0;
   const manager = new PromptManager({
     onChange: () => {
       changes += 1;
     },
+    now:
+      now ??
+      (() => {
+        clock += 1_000;
+        return clock;
+      }),
   });
   return { manager, changes: () => changes };
 }
@@ -99,6 +107,35 @@ describe('PromptManager', () => {
     void manager.ask('tab-1', camera);
     void manager.ask('tab-2', camera);
     expect(manager.current('tab-1')?.id).not.toBe(manager.current('tab-2')?.id);
+  });
+
+  it('ignores a yes that comes too soon after the question appeared, but never a no', async () => {
+    let clock = 0;
+    const { manager } = setup(() => clock);
+    const first = manager.ask('tab-1', camera);
+    void manager.ask('tab-1', mail);
+    const firstId = manager.current('tab-1')?.id ?? '';
+    clock = MIN_VISIBLE_BEFORE_ALLOW_MS - 1;
+    expect(manager.respond('tab-1', firstId, { decision: 'allow', remember: false })).toBe(false);
+    expect(manager.current('tab-1')?.id).toBe(firstId);
+    clock = MIN_VISIBLE_BEFORE_ALLOW_MS;
+    expect(manager.respond('tab-1', firstId, { decision: 'allow', remember: false })).toBe(true);
+    await expect(first).resolves.toEqual({ decision: 'allow', remember: false });
+
+    // The next question starts its own wait when it appears: a double click can't approve it.
+    const secondId = manager.current('tab-1')?.id ?? '';
+    clock += 100;
+    expect(manager.respond('tab-1', secondId, { decision: 'allow', remember: true })).toBe(false);
+    expect(manager.respond('tab-1', secondId, { decision: 'block', remember: false })).toBe(true);
+    expect(manager.current('tab-1')).toBeNull();
+  });
+
+  it('takes a dismissal at once', () => {
+    const clock = 0;
+    const { manager } = setup(() => clock);
+    void manager.ask('tab-1', camera);
+    const id = manager.current('tab-1')?.id ?? '';
+    expect(manager.respond('tab-1', id, { decision: 'dismiss', remember: false })).toBe(true);
   });
 
   it('dismisses everything on dispose', async () => {

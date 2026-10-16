@@ -151,10 +151,14 @@ export function createCommandHandlers({
       return done;
     },
 
-    'prompts.respond': ({ tabId, promptId, decision, remember }) =>
+    'prompts.respond': ({ tabId, promptId, decision, remember, keepFocus }) =>
       onTab(tabId, () => {
-        // A stale id (the page already went away, or an older question) is ignored.
-        prompts.respond(tabId, promptId, { decision, remember });
+        // A stale id, or a yes that came too soon after the question appeared, is ignored.
+        const answered = prompts.respond(tabId, promptId, { decision, remember });
+        // After a click, the keyboard goes back to the page, as after closing the find bar.
+        if (answered && keepFocus !== true && tabs.selectedTabId() === tabId) {
+          focus.focusSelected();
+        }
         return done;
       }),
     'popups.openBlocked': ({ tabId }) =>
@@ -167,9 +171,12 @@ export function createCommandHandlers({
         }
         return done;
       }),
-    'popups.dismissBlocked': ({ tabId }) =>
+    'popups.dismissBlocked': ({ tabId, keepFocus }) =>
       onTab(tabId, () => {
         blockedPopups.clear(tabId);
+        if (keepFocus !== true && tabs.selectedTabId() === tabId) {
+          focus.focusSelected();
+        }
         return done;
       }),
 

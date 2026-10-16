@@ -41,20 +41,31 @@ export interface PromptAnswer {
 /** More queued questions than this, and a page is spamming: the rest are refused at once. */
 export const MAX_QUEUED_PROMPTS = 3;
 
+/**
+ * A yes counts only once its question has been up this long. With questions queued, a double
+ * click on Allow would otherwise approve the next one too (a camera right after a location).
+ * Chrome's prompts ignore input for a double-click interval in the same way. A no is never delayed.
+ */
+export const MIN_VISIBLE_BEFORE_ALLOW_MS = 500;
+
 const GONE: PromptAnswer = { decision: 'gone', remember: false };
 
 interface Pending {
   readonly prompt: Prompt;
   readonly resolve: (answer: PromptAnswer) => void;
+  /** When it became the question shown for its tab. */
+  shownAt: number;
 }
 
 export class PromptManager {
   readonly #queues = new Map<TabId, Pending[]>();
   readonly #onChange: () => void;
+  readonly #now: () => number;
   #nextId = 0;
 
-  constructor(options: { readonly onChange: () => void }) {
+  constructor(options: { readonly onChange: () => void; readonly now?: () => number }) {
     this.#onChange = options.onChange;
+    this.#now = options.now ?? Date.now;
   }
 
   /**
@@ -69,7 +80,7 @@ export class PromptManager {
     this.#nextId += 1;
     const prompt: Prompt = { ...request, id: `prompt-${String(this.#nextId)}` };
     return new Promise((resolve) => {
-      queue.push({ prompt, resolve });
+      queue.push({ prompt, resolve, shownAt: this.#now() });
       this.#queues.set(tabId, queue);
       if (queue.length === 1) {
         this.#onChange();
@@ -84,7 +95,8 @@ export class PromptManager {
 
   /**
    * The user answered. Only the shown question can be answered: a stale id (the page already
-   * went away, or an older prompt) is ignored, so a late click can't approve something else.
+   * went away, or an older prompt) is ignored, so a late click can't approve something else. A yes
+   * that comes too soon after the question appeared is ignored too, and the question stays.
    */
   respond(tabId: TabId, promptId: string, answer: PromptAnswer): boolean {
     const queue = this.#queues.get(tabId);
@@ -92,9 +104,16 @@ export class PromptManager {
     if (queue === undefined || head?.prompt.id !== promptId) {
       return false;
     }
+    const now = this.#now();
+    if (answer.decision === 'allow' && now - head.shownAt < MIN_VISIBLE_BEFORE_ALLOW_MS) {
+      return false;
+    }
     queue.shift();
-    if (queue.length === 0) {
+    const next = queue[0];
+    if (next === undefined) {
       this.#queues.delete(tabId);
+    } else {
+      next.shownAt = now;
     }
     head.resolve(answer);
     this.#onChange();

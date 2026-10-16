@@ -195,13 +195,15 @@ export const commandSchemas = {
       promptId,
       decision: z.enum(['allow', 'block', 'dismiss']),
       remember: z.boolean(),
+      /** A keyboard answer: the shell puts focus back itself. Otherwise the page gets it. */
+      keepFocus: z.boolean().optional(),
     }),
     output: nothing,
   },
   /** Opens the tab's latest blocked popup in a new tab after it, and clears the indicator. */
   'popups.openBlocked': { input: tabRef, output: nothing },
   /** Clears the tab's "Pop-up blocked" indicator. */
-  'popups.dismissBlocked': { input: tabRef, output: nothing },
+  'popups.dismissBlocked': { input: tabFocusRef, output: nothing },
 } as const satisfies Record<CommandName, CommandSchema>;
 
 export const eventSchemas = {
