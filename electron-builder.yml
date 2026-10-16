@@ -1,0 +1,47 @@
+# electron-builder 26 (ADR-0007). `npm run package:dir` builds only the unpacked app in
+# release/win-unpacked/. The per-user NSIS installer below is configured but not built yet.
+# The identity values are one-way doors; src/main/app/identity.test.ts keeps them in sync with
+# src/shared/constants/app-identity.ts.
+appId: io.github.rmv-coder.veltriva
+productName: Veltriva Browser
+executableName: Veltriva
+copyright: Copyright © 2026 Raymond Valdepeñas
+
+directories:
+  output: release
+
+# Ship only the electron-vite output. Everything the app uses is bundled into out/, and there
+# are no runtime `dependencies` to copy.
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+
+asar: true
+
+# Never rebuild native modules: better-sqlite3 13 (Phase 2) ships N-API prebuilds, and a
+# rebuild would need Python and Visual Studio build tools (spike S5).
+npmRebuild: false
+
+# Hardened Electron fuses, flipped in the packaged binary only (ADR-0007 §3, assessment §6.2).
+# Playwright needs `enableNodeCliInspectArguments`, so E2E runs against the unpackaged build.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true # One-way: turning it off later corrupts the cookie store.
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  grantFileProtocolExtraPrivileges: false
+  loadBrowserProcessSpecificV8Snapshot: false
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+# Per-user installer that needs no admin rights (ADR-0007 §2).
+nsis:
+  oneClick: true
+  perMachine: false

@@ -6,7 +6,7 @@ import type { WebPreferences } from 'electron';
 import { fillRect } from '../../core/layout/rect';
 import { PRODUCT_NAME } from '../../shared/constants/app-identity';
 
-// Matches the shell's CSS background, so the window never flashes a different colour first.
+// Matches the shell's CSS background, so the window never flashes a different color first.
 const WINDOW_BACKGROUND = { light: '#ffffff', dark: '#0a0a0a' } as const;
 
 // The trusted shell UI (ADR-0002 §5, assessment §6.2). The renderer is sandboxed and isolated

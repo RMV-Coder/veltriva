@@ -19,7 +19,7 @@ describe('resolveUserDataDir', () => {
     );
   });
 
-  it('honours an absolute override in unpackaged builds', () => {
+  it('honors an absolute override in unpackaged builds', () => {
     expect(resolveUserDataDir({ appData, isPackaged: false, override: 'C:\\temp\\e2e' })).toBe(
       'C:\\temp\\e2e',
     );
