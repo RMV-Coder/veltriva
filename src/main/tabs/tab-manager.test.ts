@@ -733,7 +733,7 @@ describe('TabManager in M1.3b', () => {
       expect(runtime.calls.at(-1)).toBe('find:dog:forward:new');
     });
 
-    it('keeps the find bar open across a navigation, without the old matches', () => {
+    it('closes the find bar on a new document and ends the old search, as in Chrome', () => {
       const { manager, runtimeOf, webTab } = setup();
       const id = webTab('https://a.example/');
       const runtime = runtimeOf(id);
@@ -741,10 +741,39 @@ describe('TabManager in M1.3b', () => {
       manager.updateFind(id, 'cat');
       runtime.events.foundInPage({ requestId: 1, activeMatch: 2, matches: 5 });
       commit(runtime, 'https://a.example/next', true);
-      expect(manager.get(id).find).toEqual({ text: 'cat', activeMatch: 0, matches: 0 });
-      // A late result for the old document doesn't come back.
+      expect(manager.get(id).find).toBeNull();
+      // Chromium's find session would otherwise carry over into the new document.
+      expect(runtime.calls.at(-1)).toBe('stopFind:clearSelection');
+      // A late result for the old document doesn't bring the bar back.
       runtime.events.foundInPage({ requestId: 1, activeMatch: 2, matches: 5 });
-      expect(manager.get(id).find?.matches).toBe(0);
+      expect(manager.get(id).find).toBeNull();
+
+      // Ctrl+F offers the text again and searches the new page.
+      manager.openFind(id);
+      expect(manager.get(id).find).toEqual({ text: 'cat', activeMatch: 0, matches: 0 });
+      expect(runtime.calls.at(-1)).toBe('find:cat:forward:new');
+    });
+
+    it('keeps the find bar on a same-document navigation, and stops nothing without one', () => {
+      const { manager, runtimeOf, webTab } = setup();
+      const id = webTab('https://a.example/');
+      const runtime = runtimeOf(id);
+      manager.openFind(id);
+      manager.updateFind(id, 'cat');
+      runtime.events.foundInPage({ requestId: 1, activeMatch: 2, matches: 5 });
+      runtime.events.committed({
+        url: 'https://a.example/#part',
+        sameDocument: true,
+        canGoBack: true,
+        canGoForward: false,
+      });
+      expect(manager.get(id).find).toEqual({ text: 'cat', activeMatch: 2, matches: 5 });
+
+      // With the bar closed, a navigation has no search to stop.
+      manager.closeFind(id);
+      const calls = runtime.calls.length;
+      commit(runtime, 'https://a.example/next', true);
+      expect(runtime.calls.slice(calls).filter((call) => call.startsWith('stopFind'))).toEqual([]);
     });
 
     it('has nothing to search on a new-tab page, and closes when the page fails or crashes', () => {

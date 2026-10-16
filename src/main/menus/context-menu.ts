@@ -249,7 +249,7 @@ export function createContextMenus(deps: ContextMenuDependencies): ContextMenus 
     return buildTabMenu({
       pinned: tab.pinned,
       hasPage: tab.url !== '',
-      tabCount: tabs.tabs().length,
+      otherUnpinnedTabs: tabs.tabs().filter((other) => other.id !== tabId && !other.pinned).length,
       canReopenClosed: tabs.canReopenClosed(),
     });
   }
@@ -283,9 +283,10 @@ export function createContextMenus(deps: ContextMenuDependencies): ContextMenus 
         tabs.close(tabId, { focus: false });
         return;
       case 'close-others':
-        for (const other of tabs.tabs().map((tab) => tab.id)) {
-          if (other !== tabId) {
-            tabs.close(other, { focus: false });
+        // Pinned tabs stay, as in Chrome: pinning is how the user says "keep this one".
+        for (const other of tabs.tabs()) {
+          if (other.id !== tabId && !other.pinned) {
+            tabs.close(other.id, { focus: false });
           }
         }
         tabs.select(tabId, { focus: false });

@@ -114,6 +114,7 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - The shell draws the notice, raised above the page (ADR-0006 A′). Main raises it only after the shell reports that it shows nothing but the notice, with a 500 ms fallback so the notice can't be skipped.
      - A page can't trap the user. Chromium handles Esc before the page or `before-input-event` see it (measured on Electron 44). Main can also end fullscreen, on F11, on Esc in the shell, or on a tab switch. It does so through an isolated world, so a page that replaced `document.exitFullscreen` doesn't stop it. `window.setFullScreen(false)` doesn't end a page's fullscreen (measured).
      - Only the selected tab may be fullscreen. A tab switch, a close, a crash or a failed load ends it.
+     - When it ends, main also takes the window out of fullscreen, unless the user chose fullscreen with F11. Chromium does that itself when a page leaves fullscreen, but not when the page's web contents is destroyed while fullscreen (closing the tab). The E2E suite found the window left fullscreen around the browser UI.
    - **Favicons on local hosts.** Main fetches page-declared favicons as browser-initiated requests, which skip Chromium's local-network-access check, so those requests could reach this machine and the local network.
      - Main refuses favicon URLs on loopback, private and link-local addresses, and on local-only names (single labels, `.local`, `.internal`, `.home.arpa`, `.lan`).
      - The exception is a page whose own host is in the same class.

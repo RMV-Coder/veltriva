@@ -3,20 +3,21 @@
 // keyUp are both cancelled, and the command runs once, on keyDown. Every other key goes on to the
 // page (or the shell's own handlers); find and zoom come back as the hidden menu's accelerators
 // if the page doesn't take them (./page-menu.ts).
-import type { BaseWindow, Event, Input } from 'electron';
+import type { Event, Input } from 'electron';
 
 import { matchReservedShortcut } from '../../core/input/shortcuts';
 import type { ReservedCommand } from '../../core/input/shortcuts';
 import type { FocusManager } from '../focus/focus-manager';
 import type { TabId, TabManager } from '../tabs/tab-manager';
+import type { FullscreenController } from '../windows/fullscreen';
 
 /** Where a key event came from: the shell's web contents, or a tab's. */
 export type InputSource = 'shell' | { readonly tabId: TabId };
 
 export interface ShortcutDependencies {
-  readonly window: BaseWindow;
   readonly tabs: () => TabManager;
   readonly focus: FocusManager;
+  readonly fullscreen: Pick<FullscreenController, 'toggleWindow'>;
 }
 
 /** Commands a held-down key may repeat: moving through tabs and history. */
@@ -55,7 +56,7 @@ export function createShortcutHandler(deps: ShortcutDependencies): BeforeInputHa
   };
 }
 
-function createCommandRunner({ window, tabs, focus }: ShortcutDependencies) {
+function createCommandRunner({ tabs, focus, fullscreen }: ShortcutDependencies) {
   /** Selection by shortcut moves focus to the new tab's page, or its address bar. */
   const afterSwitch = (): void => {
     focus.focusSelected();
@@ -122,7 +123,7 @@ function createCommandRunner({ window, tabs, focus }: ShortcutDependencies) {
         if (manager.fullscreenTabId() !== null) {
           manager.exitFullscreen();
         } else {
-          window.setFullScreen(!window.isFullScreen());
+          fullscreen.toggleWindow();
         }
         return;
       case 'toggleDevTools':

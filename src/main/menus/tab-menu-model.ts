@@ -25,7 +25,8 @@ export interface TabMenuContext {
   readonly pinned: boolean;
   /** The tab shows a web page (or an error or crash page with a URL to load again). */
   readonly hasPage: boolean;
-  readonly tabCount: number;
+  /** How many tabs "Close other tabs" would close: the others that aren't pinned, as in Chrome. */
+  readonly otherUnpinnedTabs: number;
   readonly canReopenClosed: boolean;
 }
 
@@ -46,7 +47,7 @@ export function buildTabMenu(context: TabMenuContext): TabMenuEntry[] {
     context.pinned ? item('unpin', 'Unpin tab') : item('pin', 'Pin tab'),
     SEPARATOR,
     item('close', 'Close tab'),
-    item('close-others', 'Close other tabs', context.tabCount > 1),
+    item('close-others', 'Close other tabs', context.otherUnpinnedTabs > 0),
     SEPARATOR,
     item('reopen-closed', 'Reopen closed tab', context.canReopenClosed),
   ];

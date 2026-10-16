@@ -128,6 +128,7 @@ function start(): void {
   const focus = new FocusManager({ shell: main.shell, tabs: () => tabs, events });
   const fullscreen = new FullscreenController({
     layout,
+    window: main.window,
     urlOf: (tabId) => tabs.get(tabId).url,
     focusPage: (tabId) => {
       if (tabs.has(tabId)) {
@@ -148,7 +149,7 @@ function start(): void {
   });
 
   // Reserved shortcuts, before the shell or any page sees the key (assessment §3.9).
-  const handleShortcut = createShortcutHandler({ window: main.window, tabs: () => tabs, focus });
+  const handleShortcut = createShortcutHandler({ tabs: () => tabs, focus, fullscreen });
   main.shell.webContents.on('before-input-event', (event, input) => {
     handleShortcut('shell', event, input);
   });

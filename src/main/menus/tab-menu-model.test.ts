@@ -8,7 +8,12 @@ const shape = (entries: readonly TabMenuEntry[]): string[] =>
     entry.type === 'separator' ? '---' : `${entry.label}${entry.enabled ? '' : ' (disabled)'}`,
   );
 
-const base: TabMenuContext = { pinned: false, hasPage: true, tabCount: 3, canReopenClosed: true };
+const base: TabMenuContext = {
+  pinned: false,
+  hasPage: true,
+  otherUnpinnedTabs: 2,
+  canReopenClosed: true,
+};
 
 describe('buildTabMenu', () => {
   it('offers the tab actions, Pin for an unpinned tab', () => {
@@ -34,7 +39,14 @@ describe('buildTabMenu', () => {
 
   it('disables what has nothing to act on', () => {
     expect(
-      shape(buildTabMenu({ pinned: false, hasPage: false, tabCount: 1, canReopenClosed: false })),
+      shape(
+        buildTabMenu({
+          pinned: false,
+          hasPage: false,
+          otherUnpinnedTabs: 0,
+          canReopenClosed: false,
+        }),
+      ),
     ).toEqual([
       'New tab below',
       '---',

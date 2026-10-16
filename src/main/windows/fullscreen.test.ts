@@ -6,11 +6,20 @@ function setup(url = 'https://video.example/watch') {
   const calls: string[] = [];
   const timers: { callback: () => void; ms: number }[] = [];
   let changes = 0;
+  /** The OS window. Chromium makes it fullscreen by itself when a page goes fullscreen. */
+  const window = { fullscreen: false };
   const controller = new FullscreenController({
     layout: {
       setFullscreen: (on) => calls.push(`fullscreen:${String(on)}`),
       raiseShell: () => calls.push('raise'),
       lowerShell: () => calls.push('lower'),
+    },
+    window: {
+      isFullScreen: () => window.fullscreen,
+      setFullScreen: (on) => {
+        window.fullscreen = on;
+        calls.push(`window:${String(on)}`);
+      },
     },
     urlOf: () => url,
     focusPage: (tabId) => calls.push(`focus:${tabId}`),
@@ -36,7 +45,7 @@ function setup(url = 'https://video.example/watch') {
     expect(timer?.ms).toBe(ms);
     timer?.callback();
   };
-  return { controller, calls, timers, fire, changes: () => changes };
+  return { controller, calls, timers, fire, window, changes: () => changes };
 }
 
 describe('FullscreenController', () => {
@@ -93,6 +102,32 @@ describe('FullscreenController', () => {
     controller.update(null);
     expect(calls).toEqual(['fullscreen:true', 'fullscreen:false']);
     expect(timers).toHaveLength(0);
+  });
+
+  it('takes the window out of fullscreen with the page, which Chromium skips when the tab closes', () => {
+    const { controller, calls, window } = setup();
+    window.fullscreen = true;
+    controller.update('tab-1');
+    controller.update(null);
+    expect(calls).toEqual(['fullscreen:true', 'fullscreen:false', 'window:false']);
+    expect(window.fullscreen).toBe(false);
+  });
+
+  it("keeps the user's own fullscreen (F11) when a page leaves its fullscreen", () => {
+    const { controller, calls, window } = setup();
+    controller.toggleWindow();
+    controller.update('tab-1');
+    controller.update(null);
+    expect(calls).toEqual(['window:true', 'fullscreen:true', 'fullscreen:false']);
+    expect(window.fullscreen).toBe(true);
+
+    // F11 again ends it; after that, a page's fullscreen is the page's alone again.
+    controller.toggleWindow();
+    expect(window.fullscreen).toBe(false);
+    window.fullscreen = true;
+    controller.update('tab-2');
+    controller.update(null);
+    expect(window.fullscreen).toBe(false);
   });
 
   it('labels pages that are not on a web host plainly', () => {

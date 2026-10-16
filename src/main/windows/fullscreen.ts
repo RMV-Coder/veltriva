@@ -30,10 +30,17 @@ export interface FullscreenLayout {
   lowerShell(): void;
 }
 
+/** The OS window's own fullscreen (`BaseWindow`). */
+export interface FullscreenWindow {
+  isFullScreen(): boolean;
+  setFullScreen(fullscreen: boolean): void;
+}
+
 type Timer = ReturnType<typeof setTimeout>;
 
 export interface FullscreenControllerOptions {
   readonly layout: FullscreenLayout;
+  readonly window: FullscreenWindow;
   /** The URL of a tab's committed document. */
   readonly urlOf: (tabId: TabId) => string;
   /** Gives the page keyboard focus back (after a click on the notice took it). */
@@ -51,6 +58,8 @@ export class FullscreenController {
   #state: FullscreenState | null = null;
   #raised = false;
   #timer: Timer | undefined;
+  /** The user made the window fullscreen with F11, as opposed to a page making it so. */
+  #windowFullscreenByUser = false;
 
   constructor(options: FullscreenControllerOptions) {
     this.#options = options;
@@ -71,6 +80,13 @@ export class FullscreenController {
     return this.#raised;
   }
 
+  /** F11 while no page is fullscreen: the window's own fullscreen, on or off. */
+  toggleWindow(): void {
+    const fullscreen = !this.#options.window.isFullScreen();
+    this.#windowFullscreenByUser = fullscreen;
+    this.#options.window.setFullScreen(fullscreen);
+  }
+
   /** A tab entered HTML fullscreen (its id), or the window left it (null). From TabManager. */
   update(tabId: TabId | null): void {
     this.#clearTimer();
@@ -78,6 +94,13 @@ export class FullscreenController {
       this.#state = null;
       this.#lower();
       this.#options.layout.setFullscreen(false);
+      // Chromium takes the window out of fullscreen when the page leaves it, but not when the
+      // page's web contents is destroyed while fullscreen (closing the tab; measured on Electron
+      // 44). Unless the user chose fullscreen with F11, it was the page's: end it here too.
+      const window = this.#options.window;
+      if (!this.#windowFullscreenByUser && window.isFullScreen()) {
+        window.setFullScreen(false);
+      }
       this.#options.onChange();
       return;
     }

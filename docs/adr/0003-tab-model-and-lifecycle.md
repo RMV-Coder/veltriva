@@ -89,10 +89,15 @@ Wall-clock timers would also archive a user's workspace after a weekend away.
 10. **As built in M1.3b** (TabManager, still without Electron imports):
     - **What the browser does to a page.**
       - **Find in page:** per tab, it ignores results from an older search and offers the last text again.
+        - A new document closes the find bar, as in Chrome (a same-document navigation keeps it), and Ctrl+F reopens it with the same text.
+        - Closing it also stops Chromium's find session. Without that, Chromium's find state carried over to the new page: there, the first search on a page with 2 matches reported 2 of 2. The E2E suite found this.
+        - Chromium's own rule, kept as in Chrome: a new search whose first match is the current match moves on to the next one. Retyping the same word in another case therefore steps forward.
+        - Unlike Chrome, a reload closes the bar too. That keeps the rule simple, and Ctrl+F brings the bar back.
       - **Zoom:** Chrome's preset steps. Chromium keeps zoom per host, so TabManager re-reads every tab's zoom after a change and after each commit.
       - **HTML fullscreen:** at most one tab, and always the selected one. A switch, close, crash or failed load ends it.
       - **DevTools.**
     - **Closed tabs can be reopened** (Ctrl+Shift+T): up to 25, in memory, by URL and place, without history. This is a stopgap until Phase 2's restore and the 7-day recoverable close (item 8).
+    - **"Close other tabs" keeps pinned tabs**, as in Chrome: pinning is how the user says "keep this one". It is disabled when every other tab is pinned.
     - **Fullscreen counts as a hard protection** once the protection engine arrives (assessment §4.5). TabManager already tracks it.
 
 ## Consequences

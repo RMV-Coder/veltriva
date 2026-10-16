@@ -709,10 +709,15 @@ export class TabManager {
         }
         const leavingInternalPage = record.state.page.kind !== 'web';
         if (!sameDocument) {
-          // The old document's matches are gone; the find bar stays open with its text.
+          // A new document closes the find bar, as in Chrome; Ctrl+F reopens it with the same
+          // text, searched on the new page. Stopping also resets Chromium's find state, which
+          // otherwise carried over: the first search on a new page with 2 matches reported
+          // 2 of 2 (found by E2E).
           record.findRequestId = undefined;
+          if (record.state.find !== null) {
+            record.runtime?.stopFind('clearSelection');
+          }
         }
-        const find = record.state.find;
         update(
           sameDocument
             ? { url, canGoBack, canGoForward, runtime: 'live' }
@@ -725,7 +730,7 @@ export class TabManager {
                 runtime: 'live',
                 page: { kind: 'web' },
                 favicon: null,
-                find: find === null ? null : { text: find.text, activeMatch: 0, matches: 0 },
+                find: null,
               },
           { visibility: !sameDocument && leavingInternalPage },
         );
