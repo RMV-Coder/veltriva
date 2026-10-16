@@ -10,9 +10,14 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
 - Milestone 1.3a made it a browser, with tabs in a vertical sidebar (pinned first; reorder by dragging or with Alt+Shift+arrow keys). Its pieces:
   - **Address bar:** back, forward and reload, with search through DuckDuckGo by default.
   - **Internal pages:** new-tab, network-error and crashed-tab pages.
-  - **Favicons:** validated before the shell shows them.
-
-  Find, zoom, menus, fullscreen and keyboard shortcuts come in Milestone 1.3b.
+  - **Favicons:** validated before the shell shows them. They are never fetched from your own machine or local network unless the page itself is there.
+- Milestone 1.3b added the everyday browser controls:
+  - **Find in page:** Ctrl+F, with match counts.
+  - **Zoom:** per site, with Chrome's zoom steps and an indicator in the address bar.
+  - **Context menus:** right-click menus for pages, links, images, text fields and spelling, plus a menu for each sidebar tab.
+  - **Fullscreen:** a page that asks for fullscreen gets it, with a notice naming the site.
+  - **DevTools:** F12 opens a page's DevTools in their own window.
+  - **Keyboard shortcuts:** listed under [Keyboard shortcuts](#keyboard-shortcuts).
 
 ## Why
 
@@ -29,6 +34,36 @@ Some people keep 50 or 100 tabs open because closing one feels like losing it. V
 - **Velocity:** fast browsing with intelligent resource management.
 - **Retrieval:** effortlessly rediscover previously visited websites.
 - **Continuity:** resume browsing sessions without losing context.
+
+## Keyboard shortcuts
+
+The browser keeps these keys for itself, so a page can't block them:
+
+| Keys | Action |
+|---|---|
+| Ctrl+T | New tab |
+| Ctrl+W, Ctrl+F4 | Close the tab |
+| Ctrl+Shift+T | Reopen the last closed tab |
+| Ctrl+Tab, Ctrl+Shift+Tab | Next or previous tab |
+| Ctrl+1 to Ctrl+8, Ctrl+9 | Go to that tab, or to the last one |
+| Ctrl+L, Alt+D | Go to the address bar |
+| F6 | Switch between the address bar and the page |
+| F5, Ctrl+R | Reload |
+| Shift+F5, Ctrl+F5, Ctrl+Shift+R | Reload without the cache |
+| Alt+Left, Alt+Right | Back or forward |
+| F11 | Fullscreen (it also ends a page's fullscreen) |
+| F12 | The page's DevTools |
+| Ctrl+Shift+K | Reserved for the memory palette (Phase 4) |
+
+A page gets these keys first, and the browser acts only if the page doesn't use them. That way a web app with its own find, such as an online editor, keeps it:
+
+| Keys | Action |
+|---|---|
+| Ctrl+F | Find in page |
+| F3, Ctrl+G and Shift+F3, Ctrl+Shift+G | Next or previous match |
+| Ctrl+Plus, Ctrl+Minus, Ctrl+0 | Zoom in, zoom out, or back to 100% (also Ctrl+mouse wheel) |
+
+Esc leaves a page's fullscreen. AltGr combinations always go to the page, because they type characters on many keyboard layouts.
 
 ## Documentation
 
@@ -67,8 +102,8 @@ npm run dev
 | `npm run format` / `npm run format:check` | Prettier writes or checks formatting. Markdown is excluded. |
 | `npm test` | Vitest unit tests on Node. |
 | `npm run test:e2e` | Builds the test variant, then runs the Playwright tests against the built, unpackaged app. They cover the shell, its CSP and protocol, the IPC contract and a hostile page in a tab. They also cover tabs, navigation, the address bar, crashes, PDFs, the clipboard and generated (`data:`, `blob:`) documents, all on a local fixture server. |
-| `npm run test:lifecycle` | Builds the test variant, then runs the lifecycle-behavior checks without Playwright (ADR-0008 4a): a background tab is hidden and throttled, and closing the window with live tabs quits cleanly. |
-| `npm run package:dir` | Builds, checks that the build contains no test hooks, then packages an unpacked app with electron-builder into `release/win-unpacked/` (`Veltriva.exe`), with the production Electron fuses applied. It is unsigned, and no installer is built or installed. |
+| `npm run test:lifecycle` | Builds the test variant, then runs the lifecycle-behavior checks without Playwright (ADR-0008 4a): a background tab is hidden and throttled, closing the window with live tabs quits cleanly, and a page under the fullscreen notice stays visible and live. |
+| `npm run package:dir` | Builds, checks that the build contains no test-only code (the test hooks, the lifecycle runner and the test build's crash handler), then packages an unpacked app with electron-builder into `release/win-unpacked/` (`Veltriva.exe`), with the production Electron fuses applied. It is unsigned, and no installer is built or installed. |
 
 ### Project layout
 
