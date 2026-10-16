@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Bidi title fixture</title>
+  </head>
+  <body>
+    <p>A page whose title carries bidirectional and control characters.</p>
+    <script>
+      // Characters a sidebar label must not show, hidden in a title that reads
+      // "Bidi TitleIsolated End": U+202E (right-to-left override), U+200B (zero-width space),
+      // U+2066 and U+2069 (isolates), U+0085 (a C1 control), U+200F (right-to-left mark), U+2060
+      // (word joiner) and U+FEFF (byte order mark). Chromium itself turns ASCII controls such as
+      // the bell into spaces, so those are not worth putting here.
+      document.title =
+        'Bidi\u{202E} Title\u{200B}\u{2066}Isolated\u{2069}\u{85}\u{200F}\u{2060}\u{FEFF} End';
+    </script>
+  </body>
+</html>

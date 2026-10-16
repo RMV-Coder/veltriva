@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Clipboard fixture</title>
+  </head>
+  <body>
+    <h1>Clipboard fixture</h1>
+    <button id="copy" type="button">Copy text</button>
+    <button id="read" type="button">Read clipboard</button>
+    <p>Write: <output id="write-result" data-result="none">not tried</output></p>
+    <p>Read: <output id="read-result" data-result="none">not tried</output></p>
+    <script>
+      // The text the copy button puts on the clipboard.
+      const TEXT = 'Veltriva clipboard fixture text';
+      window.clipboardFixture = { text: TEXT };
+
+      function show(id, result, details, permission) {
+        const output = document.getElementById(id);
+        output.dataset.result = result;
+        if (permission !== undefined) {
+          output.dataset.permission = permission;
+        }
+        output.textContent = details;
+      }
+
+      document.getElementById('copy').addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(TEXT);
+          show('write-result', 'written', 'written');
+        } catch (error) {
+          show('write-result', 'denied', `denied: ${error.name}`);
+        }
+      });
+
+      document.getElementById('read').addEventListener('click', async () => {
+        // The permission state says whether the browser denied reading, as opposed to the page
+        // lacking focus (both reject with NotAllowedError).
+        let permission = 'unknown';
+        try {
+          permission = (await navigator.permissions.query({ name: 'clipboard-read' })).state;
+        } catch (error) {
+          permission = `query failed: ${error.name}`;
+        }
+        try {
+          const text = await navigator.clipboard.readText();
+          show('read-result', 'allowed', `read: ${text}`, permission);
+        } catch (error) {
+          show('read-result', 'denied', `denied: ${error.name}`, permission);
+        }
+      });
+    </script>
+  </body>
+</html>

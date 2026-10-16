@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Frames fixture</title>
+  </head>
+  <body>
+    <h1>Frames fixture</h1>
+
+    <!-- A data: document in a frame. -->
+    <iframe
+      id="data-frame"
+      title="data frame"
+      src="data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Ctitle%3Edata%20frame%3C%2Ftitle%3E%3Cp%3Edata%20frame%3C%2Fp%3E"
+    ></iframe>
+
+    <!-- A srcdoc document in a frame. -->
+    <iframe
+      id="srcdoc-frame"
+      title="srcdoc frame"
+      srcdoc="<!doctype html><title>srcdoc frame</title><p>srcdoc frame</p>"
+    ></iframe>
+
+    <!-- A sandboxed srcdoc frame has an opaque origin, so the blob: URL it makes is blob:null/...
+         It posts that URL to this page. -->
+    <iframe
+      id="opaque-frame"
+      title="opaque frame"
+      sandbox="allow-scripts"
+      srcdoc="<script>
+        const blob = new Blob(['<!doctype html><title>opaque blob</title><p>opaque blob</p>'], { type: 'text/html' });
+        parent.postMessage({ opaqueBlobUrl: URL.createObjectURL(blob) }, '*');
+      </script>"
+    ></iframe>
+
+    <script>
+      const PAGE_HTML = '<!doctype html><title>Blob page</title><p>This page is a blob.</p>';
+
+      // A blob: document in a frame, made by script. Its origin is this page's.
+      const blobFrame = document.createElement('iframe');
+      blobFrame.id = 'blob-frame';
+      blobFrame.title = 'blob frame';
+      blobFrame.src = URL.createObjectURL(
+        new Blob(['<!doctype html><title>blob frame</title><p>blob frame</p>'], {
+          type: 'text/html',
+        }),
+      );
+      document.body.append(blobFrame);
+
+      window.framesFixture = {
+        blobFrameUrl: blobFrame.src,
+        // Set when the sandboxed frame has posted its blob: URL.
+        opaqueBlobUrl: null,
+        // Navigates this page to a blob: document it makes (the origin is this page's).
+        openBlobInPlace() {
+          window.location.href = URL.createObjectURL(new Blob([PAGE_HTML], { type: 'text/html' }));
+        },
+        // Tries to navigate this page to a data: document.
+        navigateToData() {
+          window.location.href =
+            'data:text/html;charset=utf-8,' +
+            encodeURIComponent('<!doctype html><title>Data page</title><p>This page is data.</p>');
+        },
+        // Tries to navigate this page to any URL.
+        navigateTo(url) {
+          window.location.href = url;
+        },
+      };
+
+      window.addEventListener('message', (event) => {
+        if (event.data && typeof event.data.opaqueBlobUrl === 'string') {
+          window.framesFixture.opaqueBlobUrl = event.data.opaqueBlobUrl;
+        }
+      });
+    </script>
+  </body>
+</html>

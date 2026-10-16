@@ -1,17 +1,28 @@
 // A deterministic fixture server for the E2E suite (ADR-0008 §4): plain HTTP on 127.0.0.1 and an
-// OS-chosen port, with no external network. It serves the files in ./pages and three routes made
-// in code:
-//   /echo-headers  the request headers as JSON, to see what a page really sends
-//   /download      a small file with `Content-Disposition: attachment`
-//   /sample.pdf    a tiny valid PDF
-// `hits(path)` counts the requests that reached the server. Nothing is cached, and the same
-// request always gives the same response.
+// OS-chosen port (or one the test asks for), with no external network. It serves the files in
+// ./pages and these routes made in code:
+//   /echo-headers      the request headers as JSON, to see what a page really sends
+//   /download          a small file with `Content-Disposition: attachment`
+//   /sample.pdf        a tiny valid PDF
+//   /search?q=…        a local search engine: its title echoes the query (HTML-escaped)
+//   /slow[?ms=n]       an HTML page that answers after n ms (4000 by default); a closed
+//                      connection cancels it
+//   /held?key=k        an HTML page that answers when the test calls `release('k')`, so a test
+//                      decides exactly when a load starts, stays pending and ends
+//   /favicon.png       a valid 16x16 PNG
+//   /favicon.svg       an SVG image (the shell must never show it)
+//   /favicon-big.png   a PNG that is over the 64 KB limit
+//   /favicon-fake.png  HTML bytes labeled image/png (the bytes decide, not the label)
+// `hits(path)` counts the requests that reached the server for exactly that path and query;
+// `pathHits(pathname)` counts them whatever the query. Nothing is cached, and the same request
+// always gives the same response.
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 
+import { buildPng, buildOversizedPng } from './images';
 import { buildSamplePdf } from './sample-pdf';
 
 const PAGES_DIR = resolve(__dirname, 'pages');
@@ -34,16 +45,33 @@ export interface FixtureServer {
   url(pathAndQuery: string): string;
   /** How many requests arrived for exactly this path and query (the hash never reaches a server). */
   hits(pathAndQuery: string): number;
+  /** How many requests arrived for this path, whatever their query (e.g. `/search`). */
+  pathHits(pathname: string): number;
+  /** Answers every pending request to `/held?key=<key>`, and any later one at once. */
+  release(key: string): void;
+  /** Undoes a `release`: the next requests to `/held?key=<key>` are held again. */
+  rearm(key: string): void;
   close(): Promise<void>;
 }
 
-export async function startFixtureServer(): Promise<FixtureServer> {
+export interface FixtureServerOptions {
+  /** Listen on this port instead of an OS-chosen one (to bring a server back on a known address). */
+  readonly port?: number;
+}
+
+export async function startFixtureServer(
+  options: FixtureServerOptions = {},
+): Promise<FixtureServer> {
   const hitCounts = new Map<string, number>();
+  const pathCounts = new Map<string, number>();
+  const held = createHeldPages();
 
   const server = createServer((request, response) => {
     const target = request.url ?? '/';
     hitCounts.set(target, (hitCounts.get(target) ?? 0) + 1);
-    route(request, response).catch((error: unknown) => {
+    const { pathname } = new URL(target, 'http://fixture.invalid');
+    pathCounts.set(pathname, (pathCounts.get(pathname) ?? 0) + 1);
+    route(request, response, held).catch((error: unknown) => {
       console.error('Fixture server error:', error);
       if (!response.headersSent) {
         response.writeHead(500);
@@ -54,7 +82,7 @@ export async function startFixtureServer(): Promise<FixtureServer> {
 
   await new Promise<void>((resolveListening, rejectListening) => {
     server.once('error', rejectListening);
-    server.listen(0, '127.0.0.1', resolveListening);
+    server.listen(options.port ?? 0, '127.0.0.1', resolveListening);
   });
   const origin = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
 
@@ -62,6 +90,13 @@ export async function startFixtureServer(): Promise<FixtureServer> {
     origin,
     url: (pathAndQuery) => `${origin}${pathAndQuery}`,
     hits: (pathAndQuery) => hitCounts.get(pathAndQuery) ?? 0,
+    pathHits: (pathname) => pathCounts.get(pathname) ?? 0,
+    release: (key) => {
+      held.release(key);
+    },
+    rearm: (key) => {
+      held.rearm(key);
+    },
     close: () => closeServer(server),
   };
 }
@@ -82,8 +117,15 @@ function closeServer(server: Server): Promise<void> {
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
-async function route(request: IncomingMessage, response: ServerResponse): Promise<void> {
-  const { pathname } = new URL(request.url ?? '/', 'http://fixture.invalid');
+const DEFAULT_SLOW_MS = 4_000;
+const MAX_SLOW_MS = 60_000;
+
+async function route(
+  request: IncomingMessage,
+  response: ServerResponse,
+  held: HeldPages,
+): Promise<void> {
+  const { pathname, searchParams } = new URL(request.url ?? '/', 'http://fixture.invalid');
 
   switch (pathname) {
     case '/echo-headers':
@@ -97,9 +139,127 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     case '/sample.pdf':
       respond(response, 200, 'application/pdf', buildSamplePdf());
       return;
+    case '/search':
+      respond(response, 200, HTML, searchPage(searchParams.get('q') ?? ''));
+      return;
+    case '/slow':
+      slowPage(response, searchParams.get('ms'));
+      return;
+    case '/held':
+      held.hold(searchParams.get('key') ?? '', response);
+      return;
+    case '/favicon.png':
+      respond(response, 200, 'image/png', buildPng());
+      return;
+    case '/favicon.svg':
+      respond(response, 200, 'image/svg+xml', SVG_ICON);
+      return;
+    case '/favicon-big.png':
+      respond(response, 200, 'image/png', buildOversizedPng());
+      return;
+    case '/favicon-fake.png':
+      respond(response, 200, 'image/png', '<!doctype html><title>not an image</title>');
+      return;
     default:
       await serveFromPages(pathname, response);
   }
+}
+
+const HTML = 'text/html; charset=utf-8';
+const SVG_ICON =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" fill="#c00"/></svg>';
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (character) => `&#${String(character.charCodeAt(0))};`);
+}
+
+/** The title is what the specs read: "Search results for: <query>". */
+function searchPage(query: string): string {
+  const shown = escapeHtml(query);
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Search results for: ${shown}</title>
+  </head>
+  <body>
+    <h1>Search results</h1>
+    <p id="query">${shown}</p>
+  </body>
+</html>
+`;
+}
+
+/**
+ * Answers after `ms` milliseconds. If the client goes away first (Stop, a closed tab, a closed
+ * server) the timer is cleared, so a slow request never keeps the server or the test alive.
+ */
+function slowPage(response: ServerResponse, ms: string | null): void {
+  const requested = Number(ms);
+  const delay =
+    ms !== null && Number.isFinite(requested) && requested >= 0
+      ? Math.min(requested, MAX_SLOW_MS)
+      : DEFAULT_SLOW_MS;
+  const timer = setTimeout(() => {
+    respond(
+      response,
+      200,
+      HTML,
+      '<!doctype html><html lang="en"><head><meta charset="utf-8" />' +
+        '<title>Slow fixture</title></head><body><p>This page answered slowly.</p></body></html>',
+    );
+  }, delay);
+  response.once('close', () => {
+    clearTimeout(timer);
+  });
+}
+
+const HELD_PAGE =
+  '<!doctype html><html lang="en"><head><meta charset="utf-8" />' +
+  '<title>Held fixture</title></head><body><p>This page was held back.</p></body></html>';
+
+interface HeldPages {
+  /** Answers at once if `key` was released; otherwise keeps the response until it is. */
+  hold(key: string, response: ServerResponse): void;
+  release(key: string): void;
+  rearm(key: string): void;
+}
+
+function createHeldPages(): HeldPages {
+  const pending = new Map<string, Set<ServerResponse>>();
+  const released = new Set<string>();
+
+  const answer = (response: ServerResponse): void => {
+    // A client that gave up (Stop, a closed tab) has destroyed its end already.
+    if (!response.destroyed) {
+      respond(response, 200, HTML, HELD_PAGE);
+    }
+  };
+
+  return {
+    hold(key, response) {
+      if (released.has(key)) {
+        answer(response);
+        return;
+      }
+      const waiting = pending.get(key) ?? new Set<ServerResponse>();
+      pending.set(key, waiting);
+      waiting.add(response);
+      response.once('close', () => {
+        waiting.delete(response);
+      });
+    },
+    release(key) {
+      released.add(key);
+      for (const response of pending.get(key) ?? []) {
+        answer(response);
+      }
+      pending.delete(key);
+    },
+    rearm(key) {
+      released.delete(key);
+    },
+  };
 }
 
 async function serveFromPages(pathname: string, response: ServerResponse): Promise<void> {

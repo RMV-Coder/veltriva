@@ -8,6 +8,8 @@ export interface PageElement {
   textContent: string | null;
   append(...nodes: PageElement[]): void;
   checkVisibility(): boolean;
+  getAttribute(name: string): string | null;
+  querySelector(selector: string): PageElement | null;
 }
 
 export interface PageStyleSheet {
@@ -29,7 +31,10 @@ export interface PageDocument {
   readonly head: PageElement;
   readonly body: PageElement;
   readonly styleSheets: ArrayLike<PageStyleSheet>;
+  /** The focused element (the body when nothing is focused). */
+  readonly activeElement: PageElement | null;
   querySelector(selector: string): PageElement | null;
+  querySelectorAll(selector: string): ArrayLike<PageElement>;
   createElement(tagName: string): PageElement;
   addEventListener(
     type: 'securitypolicyviolation',

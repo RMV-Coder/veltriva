@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Navigates away fixture</title>
+  </head>
+  <body>
+    <h1>Navigates away fixture</h1>
+    <p>
+      A page that tries to send itself somewhere. The spec decides, from outside, what happened.
+    </p>
+    <script>
+      window.navigateAway = {
+        // Starts a top-level navigation and returns at once. The app may cancel it.
+        to(url) {
+          window.location.href = url;
+        },
+      };
+    </script>
+  </body>
+</html>
