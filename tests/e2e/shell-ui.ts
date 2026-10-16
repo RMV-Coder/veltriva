@@ -422,3 +422,95 @@ export async function expectConsistent(
     .poll(() => describeProblems(app, shell), { message, timeout: SLOW_TIMEOUT_MS })
     .toEqual([]);
 }
+
+// ── M1.3b: find, zoom, fullscreen ───────────────────────────────────────────────────────────────
+
+/** The find bar at the right end of the toolbar; it exists only while the tab's find is open. */
+export function findBar(shell: Page): Locator {
+  return shell.locator('[data-find-bar]');
+}
+export function findField(shell: Page): Locator {
+  return findBar(shell).getByRole('textbox', { name: 'Find in page', exact: true });
+}
+/** "2 of 5", "No results", "3 matches" or empty: what the bar says about the search. */
+export function findCount(shell: Page): Locator {
+  return findBar(shell).locator('[data-find-count]');
+}
+export function findNextButton(shell: Page): Locator {
+  return findBar(shell).getByRole('button', { name: 'Next match', exact: true });
+}
+export function findPreviousButton(shell: Page): Locator {
+  return findBar(shell).getByRole('button', { name: 'Previous match', exact: true });
+}
+export function findCloseButton(shell: Page): Locator {
+  return findBar(shell).getByRole('button', { name: 'Close find bar', exact: true });
+}
+/** The zoom indicator in the address bar; it exists only while the page is not at 100%. */
+export function zoomIndicator(shell: Page): Locator {
+  return shell.locator('[data-zoom-indicator]');
+}
+/** The fullscreen notice's pill, drawn by the shell while main says to. */
+export function fullscreenNotice(shell: Page): Locator {
+  return shell.locator('[data-fullscreen-notice]');
+}
+/** The notice's click target: the layer that covers the shell while the notice shows. */
+export function fullscreenNoticeLayer(shell: Page): Locator {
+  return shell.locator('[data-fullscreen-notice-layer]');
+}
+
+/** A tab loaded through the address bar: its id and its web contents id. */
+export interface LoadedTab {
+  readonly tabId: TabId;
+  readonly webContentsId: number;
+}
+
+/**
+ * `loadInNewTab`, plus the id of the tab's web contents, which is what `sendKey` and the main-side
+ * helpers take. The tab is selected and its page has the keyboard (a typed navigation that commits
+ * focuses the page).
+ */
+export async function loadTab(
+  app: ElectronApplication,
+  shell: Page,
+  url: string,
+): Promise<LoadedTab> {
+  const tabId = await loadInNewTab(app, shell, url);
+  const state = await tabState(app, tabId);
+  if (state?.webContentsId === null || state?.webContentsId === undefined) {
+    throw new Error(`Tab ${tabId} has no web contents after loading ${url}.`);
+  }
+  return { tabId, webContentsId: state.webContentsId };
+}
+
+/** What a text field exposes about its selection (the specs' Node config has no DOM types). */
+interface TextFieldElement {
+  readonly selectionStart: number | null;
+  readonly selectionEnd: number | null;
+}
+
+/** The start and end of a text field's selection: `[0, length]` means all of it is selected. */
+export function fieldSelection(field: Locator): Promise<[number | null, number | null]> {
+  return field.evaluate((input: TextFieldElement): [number | null, number | null] => [
+    input.selectionStart,
+    input.selectionEnd,
+  ]);
+}
+
+/** What a spec needs of the address bar's `<input>` to take the DOM focus away from it. */
+interface BlurrableField {
+  blur(): void;
+  setSelectionRange(start: number, end: number): void;
+}
+
+/**
+ * Takes the DOM focus (and the selection) away from the address bar. The shell document keeps
+ * `document.activeElement` while main gives the keyboard to a page, so "the address bar is focused"
+ * would stay true on its own; a spec that wants to see main move the focus resets it first.
+ */
+export async function blurAddressBar(shell: Page): Promise<void> {
+  await omnibox(shell).evaluate((input: BlurrableField) => {
+    input.blur();
+    input.setSelectionRange(0, 0);
+  });
+  await expect(omnibox(shell)).not.toBeFocused();
+}

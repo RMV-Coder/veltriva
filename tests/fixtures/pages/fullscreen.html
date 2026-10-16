@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fullscreen fixture</title>
+  </head>
+  <body>
+    <h1>Fullscreen fixture</h1>
+    <p>The specs ask this page to go fullscreen and watch what it is told.</p>
+    <script>
+      window.fullscreenFixture = {
+        /** `true` for each entry into fullscreen and `false` for each exit, oldest first. */
+        changes: [],
+        /** Replaces `document.exitFullscreen` with a function that does nothing: a page that tries to trap the user. */
+        trapExit() {
+          document.exitFullscreen = () => Promise.resolve();
+        },
+        /** True while the page is fullscreen, by its own account. */
+        isFullscreen() {
+          return document.fullscreenElement !== null;
+        },
+      };
+      document.addEventListener('fullscreenchange', () => {
+        window.fullscreenFixture.changes.push(document.fullscreenElement !== null);
+      });
+    </script>
+  </body>
+</html>

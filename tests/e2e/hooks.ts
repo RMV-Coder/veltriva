@@ -362,3 +362,348 @@ export function evaluateInTab(
     { id: webContentsId, source: code },
   );
 }
+
+// ── M1.3b: keys, focus, windows, menus ──────────────────────────────────────────────────────────
+
+/** The modifiers `webContents.sendInputEvent` takes for a keyboard event. */
+export type KeyModifier = 'shift' | 'control' | 'alt' | 'meta';
+
+/**
+ * Who receives a key from `sendKey`: a web contents by id (a tab's `webContentsId`), the shell,
+ * or whichever web contents has the keyboard right now (what a real keystroke reaches).
+ */
+export type KeyTarget = number | 'shell' | 'focused';
+
+/** The shell page's URL prefix, matched in main where this file's imports don't exist. */
+const SHELL_URL_PREFIX = 'app://shell/';
+
+/**
+ * Sends a key press (keyDown, then keyUp) to a web contents from main, with
+ * `webContents.sendInputEvent` (ADR-0008 4, "Rules found while writing M1.3b"). Playwright's
+ * keyboard goes through CDP, which skips `before-input-event`, so a browser shortcut sent that way
+ * never reaches main. `keyCode` is an Electron key name: 'F', 'Tab', 'F5', 'Left', '=', 'Escape'.
+ *
+ * Unless the target is 'focused', the web contents is focused first, as the user's keystroke goes
+ * to the one that has the keyboard. A printable key without Ctrl, Alt or Meta also sends the
+ * `char` event between the two, so it types text; a shortcut (Ctrl held) carries only a control
+ * code in a real keystroke, so it sends none.
+ */
+export async function sendKey(
+  app: ElectronApplication,
+  target: KeyTarget,
+  keyCode: string,
+  modifiers: readonly KeyModifier[] = [],
+): Promise<void> {
+  await app.evaluate(
+    ({ webContents }, { to, key, held, shellPrefix }) => {
+      const contents =
+        to === 'focused'
+          ? webContents.getFocusedWebContents()
+          : to === 'shell'
+            ? webContents
+                .getAllWebContents()
+                .find((candidate) => candidate.getURL().startsWith(shellPrefix))
+            : webContents.fromId(to);
+      if (contents === undefined || contents === null || contents.isDestroyed()) {
+        throw new Error(`sendKey: no web contents to send ${key} to (${String(to)})`);
+      }
+      if (to !== 'focused') {
+        contents.focus();
+      }
+      const typesText = key.length === 1 && held.every((name) => name === 'shift');
+      contents.sendInputEvent({ type: 'keyDown', keyCode: key, modifiers: held });
+      if (typesText) {
+        contents.sendInputEvent({ type: 'char', keyCode: key, modifiers: held });
+      }
+      contents.sendInputEvent({ type: 'keyUp', keyCode: key, modifiers: held });
+    },
+    { to: target, key: keyCode, held: [...modifiers], shellPrefix: SHELL_URL_PREFIX },
+  );
+}
+
+/** The web contents that has the keyboard right now. */
+export interface FocusedContents {
+  readonly webContentsId: number;
+  readonly url: string;
+  readonly isShell: boolean;
+}
+
+/** `webContents.getFocusedWebContents()`, or null when none has the keyboard. */
+export function focusedWebContents(app: ElectronApplication): Promise<FocusedContents | null> {
+  return app.evaluate(({ webContents }, shellPrefix) => {
+    const focused = webContents.getFocusedWebContents();
+    if (focused === null || focused.isDestroyed()) {
+      return null;
+    }
+    const url = focused.getURL();
+    return { webContentsId: focused.id, url, isShell: url.startsWith(shellPrefix) };
+  }, SHELL_URL_PREFIX);
+}
+
+/**
+ * Gives the keyboard to a web contents the way a mouse click on it would: `webContents.focus()`.
+ * Playwright's own clicks and keys go straight to the renderer and do not move it.
+ */
+export async function focusWebContents(
+  app: ElectronApplication,
+  target: Exclude<KeyTarget, 'focused'>,
+): Promise<void> {
+  await app.evaluate(
+    ({ webContents }, { to, shellPrefix }) => {
+      const contents =
+        to === 'shell'
+          ? webContents
+              .getAllWebContents()
+              .find((candidate) => candidate.getURL().startsWith(shellPrefix))
+          : webContents.fromId(to);
+      if (contents === undefined || contents.isDestroyed()) {
+        throw new Error(`focusWebContents: no web contents (${String(to)})`);
+      }
+      contents.focus();
+    },
+    { to: target, shellPrefix: SHELL_URL_PREFIX },
+  );
+}
+
+/** The shell's web contents id (the one at `app://shell/`). */
+export function shellContentsId(app: ElectronApplication): Promise<number> {
+  return app.evaluate(({ webContents }, shellPrefix) => {
+    const shell = webContents
+      .getAllWebContents()
+      .find((contents) => contents.getURL().startsWith(shellPrefix));
+    if (shell === undefined) {
+      throw new Error('The shell web contents is missing.');
+    }
+    return shell.id;
+  }, SHELL_URL_PREFIX);
+}
+
+export interface WindowInfo {
+  readonly fullScreen: boolean;
+  /** The window's content area, which the shell fills. */
+  readonly contentBounds: Rect;
+}
+
+/** The main window as the OS sees it (the only `BaseWindow`). */
+export function windowInfo(app: ElectronApplication): Promise<WindowInfo> {
+  return app.evaluate(({ BaseWindow }) => {
+    const [window] = BaseWindow.getAllWindows();
+    if (window === undefined) {
+      throw new Error('There is no window.');
+    }
+    return { fullScreen: window.isFullScreen(), contentBounds: window.getContentBounds() };
+  });
+}
+
+/** The window's views from bottom to top: 'shell', a tab's id, or 'other' (`viewStack`). */
+export function viewStack(app: ElectronApplication): Promise<string[]> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.viewStack();
+  });
+}
+
+export type FullscreenInfo = ReturnType<VeltrivaTestHooks['fullscreen']>;
+
+/** HTML fullscreen as main sees it (`fullscreen`). */
+export function fullscreenInfo(app: ElectronApplication): Promise<FullscreenInfo> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.fullscreen();
+  });
+}
+
+/**
+ * Asks a page to go fullscreen, with a user gesture: `requestFullscreen()` is refused without one.
+ * Resolves when the page's own promise does.
+ */
+export async function requestPageFullscreen(
+  app: ElectronApplication,
+  webContentsId: number,
+): Promise<void> {
+  await app.evaluate(async ({ webContents }, id) => {
+    await webContents
+      .fromId(id)
+      ?.executeJavaScript('document.documentElement.requestFullscreen()', true);
+  }, webContentsId);
+}
+
+/** Whether a web contents has DevTools open (docked or detached). */
+export function isDevToolsOpened(
+  app: ElectronApplication,
+  webContentsId: number,
+): Promise<boolean> {
+  return app.evaluate(
+    ({ webContents }, id) => webContents.fromId(id)?.isDevToolsOpened() ?? false,
+    webContentsId,
+  );
+}
+
+export type ContextMenuParams = NonNullable<Parameters<VeltrivaTestHooks['contextMenuItems']>[1]>;
+export type MenuItemId = Parameters<VeltrivaTestHooks['invokeContextMenuItem']>[2];
+export type TabMenuItemId = Parameters<VeltrivaTestHooks['invokeTabMenuItem']>[1];
+export type MenuEntry = ReturnType<VeltrivaTestHooks['contextMenuItems']>[number];
+export type TabMenuEntry = ReturnType<VeltrivaTestHooks['tabMenuItems']>[number];
+
+/** The entries a right-click with these params would show in the tab (`contextMenuItems`). */
+export function contextMenuItems(
+  app: ElectronApplication,
+  tabId: TabId,
+  params: ContextMenuParams = {},
+): Promise<MenuEntry[]> {
+  return app.evaluate(
+    (_electron, { id, given }) => {
+      const hooks = globalThis.__veltrivaTest;
+      if (hooks === undefined) {
+        throw new Error('The test hooks are missing: this is not a test build.');
+      }
+      return hooks.contextMenuItems(id, given);
+    },
+    { id: tabId, given: params },
+  );
+}
+
+/** Runs a page context-menu item as if it had been clicked (`invokeContextMenuItem`). */
+export async function invokeContextMenuItem(
+  app: ElectronApplication,
+  tabId: TabId,
+  params: ContextMenuParams,
+  itemId: MenuItemId,
+): Promise<void> {
+  await app.evaluate(
+    (_electron, { id, given, item }) => {
+      const hooks = globalThis.__veltrivaTest;
+      if (hooks === undefined) {
+        throw new Error('The test hooks are missing: this is not a test build.');
+      }
+      hooks.invokeContextMenuItem(id, given, item);
+    },
+    { id: tabId, given: params, item: itemId },
+  );
+}
+
+/** The entries of a sidebar tab's menu (`tabMenuItems`). */
+export function tabMenuItems(app: ElectronApplication, tabId: TabId): Promise<TabMenuEntry[]> {
+  return app.evaluate((_electron, id) => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.tabMenuItems(id);
+  }, tabId);
+}
+
+/** Runs a sidebar tab menu item as if it had been clicked (`invokeTabMenuItem`). */
+export async function invokeTabMenuItem(
+  app: ElectronApplication,
+  tabId: TabId,
+  itemId: TabMenuItemId,
+): Promise<void> {
+  await app.evaluate(
+    (_electron, { id, item }) => {
+      const hooks = globalThis.__veltrivaTest;
+      if (hooks === undefined) {
+        throw new Error('The test hooks are missing: this is not a test build.');
+      }
+      hooks.invokeTabMenuItem(id, item);
+    },
+    { id: tabId, item: itemId },
+  );
+}
+
+/**
+ * A key held down: one keyDown, then `repeats` more with the auto-repeat flag (what the OS sends
+ * while a key stays pressed), then one keyUp. The first event goes to `target` (focused first); the
+ * rest go to whichever web contents has the keyboard by then, as the OS's repeats do: a shortcut
+ * that closes the tab and moves focus to another one is repeated into that one.
+ */
+export async function holdKey(
+  app: ElectronApplication,
+  target: Exclude<KeyTarget, 'focused'>,
+  keyCode: string,
+  modifiers: readonly KeyModifier[],
+  repeats: number,
+): Promise<void> {
+  await app.evaluate(
+    ({ webContents }, { to, key, held, count, shellPrefix }) => {
+      const first =
+        to === 'shell'
+          ? webContents
+              .getAllWebContents()
+              .find((candidate) => candidate.getURL().startsWith(shellPrefix))
+          : webContents.fromId(to);
+      if (first === undefined || first.isDestroyed()) {
+        throw new Error(`holdKey: no web contents to send ${key} to (${String(to)})`);
+      }
+      first.focus();
+      first.sendInputEvent({ type: 'keyDown', keyCode: key, modifiers: held });
+      let last = first;
+      for (let repeat = 0; repeat < count; repeat += 1) {
+        const next = webContents.getFocusedWebContents();
+        last = next === null || next.isDestroyed() ? last : next;
+        if (last.isDestroyed()) {
+          throw new Error(`holdKey: no web contents left to repeat ${key} to`);
+        }
+        last.sendInputEvent({
+          type: 'keyDown',
+          keyCode: key,
+          modifiers: [...held, 'isautorepeat' as const],
+        });
+      }
+      if (!last.isDestroyed()) {
+        last.sendInputEvent({ type: 'keyUp', keyCode: key, modifiers: held });
+      }
+    },
+    {
+      to: target,
+      key: keyCode,
+      held: [...modifiers],
+      count: repeats,
+      shellPrefix: SHELL_URL_PREFIX,
+    },
+  );
+}
+
+/** One `before-input-event` as a later listener saw it. */
+export interface InputRecord {
+  readonly type: string;
+  readonly key: string;
+  readonly code: string;
+  readonly control: boolean;
+  readonly shift: boolean;
+  readonly alt: boolean;
+  /** True if an earlier listener (the app's shortcut handler) had cancelled the event. */
+  readonly prevented: boolean;
+}
+
+/**
+ * Records every `before-input-event` of a web contents after the app's own handler, which is
+ * registered first when the contents is created. `prevented` tells whether that handler cancelled
+ * the key, and a cancelled key never reaches the page. This is how a spec sees a reserved shortcut
+ * that closes the very tab it was sent to. The handle points at an array in main that keeps
+ * growing; `all()` copies it.
+ */
+export async function recordInputs(app: ElectronApplication, webContentsId: number) {
+  const handle = await app.evaluateHandle(({ webContents }, id) => {
+    const records: InputRecord[] = [];
+    webContents.fromId(id)?.on('before-input-event', (event, input) => {
+      records.push({
+        type: input.type,
+        key: input.key,
+        code: input.code,
+        control: input.control,
+        shift: input.shift,
+        alt: input.alt,
+        prevented: event.defaultPrevented,
+      });
+    });
+    return records;
+  }, webContentsId);
+  return { all: (): Promise<InputRecord[]> => handle.jsonValue() };
+}

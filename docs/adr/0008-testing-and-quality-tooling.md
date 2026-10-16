@@ -27,7 +27,7 @@
      - **How (M1.2):** a test build is `electron-vite build --mode test` (`npm run build:test`; `npm run test:e2e` runs it first). The hooks sit behind `import.meta.env.MODE === 'test'`, which a production build folds to `false` and drops.
      - `npm run package:dir` runs `scripts/check-production-build.mjs`, which refuses an `out/` that still contains them.
      - M1.2's hooks are `openTestTab`, `closeTestTabs` and `webContentsRoles`, on `globalThis.__veltrivaTest`. M1.3a adds `tabStates`, `selectedTabId`, `contentRect`, `crashTab` and `setSearchTemplate`, which points omnibox searches at a local fixture.
-     - M1.3b adds `contextMenuItems` and `invokeContextMenuItem`, because Playwright can't click a native menu: a test reads the entries for given params and runs one. It also adds `viewStack` (the views from bottom to top) and `fullscreen`.
+     - M1.3b adds `contextMenuItems` and `invokeContextMenuItem`, because Playwright can't click a native menu: a test reads the entries for given params and runs one. `tabMenuItems` and `invokeTabMenuItem` do the same for a sidebar tab's menu. It also adds `viewStack` (the views from bottom to top) and `fullscreen`.
      - **The production check knows every test-only name** (M1.3b): the hooks' global and names, the lifecycle runner with its env and scenario names, and the fail-fast handler and its message. `setSearchTemplate` is exempt: production code exports it for the Phase 5 setting. CI runs the check right after its production build, and `package:dir` runs it before packaging.
      - **An uncaught exception in main exits a test build with code 70** (`src/main/testing/fail-fast.ts`). Electron's default opens a modal error dialog and keeps the app running, which every harness would only see as a hang.
    - Pages come from a deterministic local fixture server; no critical test depends on an external site.
@@ -55,6 +55,9 @@
    - **Rules found while writing M1.3b:**
      - **Send browser shortcuts with `webContents.sendInputEvent`**, from main, to the web contents that has focus. Playwright's keyboard goes through CDP, which skips `before-input-event` (measured), so a reserved shortcut sent that way never reaches main.
      - **Fullscreen needs a user gesture.** Use `executeJavaScript('…requestFullscreen()', true)` from main, or a real click in an attached tab.
+     - **A cancelled key has no keyUp.** Once `before-input-event` cancels a keyDown, Chromium drops the matching keyUp itself, so `before-input-event` never sees it (measured). A spec checks that the keyDown was cancelled; `recordInputs` (`tests/e2e/hooks.ts`) records each key in main after the app's own handler, with `prevented`.
+     - **Ctrl+wheel needs `wheelTicksY`.** A synthetic `mouseWheel` event zooms only with `wheelTicksY` set. On Electron 44.7.2, one synthetic event gives two `zoom-changed` events, so the zoom spec checks the direction and the presets, not the number of steps. Real wheel notches are checked by hand.
+     - **Ask main which web contents has the keyboard** (`webContents.getFocusedWebContents()`, `focusedWebContents` in the hooks). The shell keeps its `document.activeElement` while a page has the keyboard, and Playwright's focus emulation reports any element it focused as focused. Playwright's clicks and keys also move no OS-level focus, so a spec gives the shell the keyboard as a real click would (`focusWebContents`).
 4a. **Lifecycle behavior tests (no Playwright).** A small Electron-script harness, like the Phase 0 spikes, asserts the behavior Playwright masks:
    - visibility and throttling of detached tabs;
    - renderer release after discard;
