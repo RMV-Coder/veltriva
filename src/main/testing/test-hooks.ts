@@ -8,6 +8,7 @@ import type { WebContentsView } from 'electron';
 import type { Rect } from '../../core/layout/rect';
 import type { ContextMenus } from '../menus/context-menu';
 import type { MenuEntry, MenuItemId, MenuParams } from '../menus/context-menu-model';
+import type { TabMenuEntry, TabMenuItemId } from '../menus/tab-menu-model';
 import { setSearchTemplate } from '../navigation/search-engine';
 import type { TabId, TabManager, TabState } from '../tabs/tab-manager';
 import { createViewWithRole, roleOf } from '../web/roles';
@@ -63,6 +64,9 @@ export interface VeltrivaTestHooks {
   contextMenuItems(tabId: TabId, params?: Partial<MenuParams>): MenuEntry[];
   /** Runs a context-menu item for the tab as if it had been clicked. */
   invokeContextMenuItem(tabId: TabId, params: Partial<MenuParams>, itemId: MenuItemId): void;
+  /** The context menu of a tab in the sidebar, and running one of its items. */
+  tabMenuItems(tabId: TabId): TabMenuEntry[];
+  invokeTabMenuItem(tabId: TabId, itemId: TabMenuItemId): void;
   /** The window's views from bottom to top: `shell`, a tab's id, or `other` (a test tab). */
   viewStack(): string[];
   /** HTML fullscreen as main sees it. */
@@ -190,6 +194,14 @@ export function installTestHooks({
 
     invokeContextMenuItem(tabId, params, itemId) {
       contextMenus.runForTab(tabId, paramsFrom(params), itemId);
+    },
+
+    tabMenuItems(tabId) {
+      return contextMenus.sidebarTabEntries(tabId);
+    },
+
+    invokeTabMenuItem(tabId, itemId) {
+      contextMenus.runForSidebarTab(tabId, itemId);
     },
 
     viewStack() {

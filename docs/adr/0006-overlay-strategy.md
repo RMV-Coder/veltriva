@@ -36,6 +36,9 @@ Web pages are native views painted *above* the shell, so HTML can't cover them. 
   - It then sends `fullscreen.noticeShown`, and only then does main re-add the shell view above the tab, so the shell's chrome never flashes over the page. A 500 ms fallback raises it anyway, so the notice is never skipped.
   - After 4 s, or on a click, main re-adds the tab view on top and gives the page its keyboard focus back. Keyboard focus never leaves the page while the shell is raised.
   - The find bar sits in the toolbar row, and context menus are native, so neither needs A′.
+  - **Measured constraint:** A′ works only while the shell's document root (html and body) is transparent. Chromium takes a view's opacity from its document's root background color. A shell raised in its normal, opaque state counts as occlusion and hides the page, whatever its view background is. The lifecycle check found this.
+    - The notice mode clears html, body and `#root`, and the handshake raises the shell only after that has painted.
+    - The lifecycle check (ADR-0008, 4a) now takes this real path and requires the page under the notice to stay `visible` and unthrottled.
 
 ## Consequences
 

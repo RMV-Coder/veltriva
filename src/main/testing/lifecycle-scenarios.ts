@@ -5,6 +5,7 @@
 import { app } from 'electron';
 
 import type { TabId, TabManager } from '../tabs/tab-manager';
+import type { FullscreenController } from '../windows/fullscreen';
 import type { MainWindow } from '../windows/main-window';
 import type { WebContentsView } from 'electron';
 
@@ -14,6 +15,7 @@ export const LIFECYCLE_RESULT_PREFIX = 'VELTRIVA_LIFECYCLE_RESULT ';
 interface ScenarioContext {
   readonly main: MainWindow;
   readonly tabs: TabManager;
+  readonly fullscreen: FullscreenController;
   readonly views: ReadonlyMap<TabId, WebContentsView>;
 }
 
@@ -108,7 +110,43 @@ interface Scenario {
   readonly endsByClosingWindow?: boolean;
 }
 
+/**
+ * ADR-0006 A′: with the shell raised above it, the page must stay `visible` and unthrottled.
+ * Chromium hides a page under an opaque view (spike S1), and it takes a view's opacity from its
+ * document's root background, so A′ works only while the shell's html and body are transparent.
+ * The scenario therefore takes the real path: the page goes fullscreen, the shell draws only the
+ * notice (transparent around it) and asks to be raised, and the page is measured under it.
+ */
+async function raisedShellKeepsPageVisible({
+  main,
+  tabs,
+  views,
+  fullscreen,
+}: ScenarioContext): Promise<unknown> {
+  main.window.setAlwaysOnTop(true);
+  const tab = tabs.create();
+  tabs.navigate(tab, 'about:blank');
+  const view = await waitForView(views, tab);
+  await view.webContents.executeJavaScript(INSTALL_COUNTER);
+  await view.webContents.executeJavaScript('document.documentElement.requestFullscreen()', true);
+  const deadline = Date.now() + 5_000;
+  while (!fullscreen.shellRaised()) {
+    if (Date.now() > deadline) {
+      throw new Error('The shell was not raised for the fullscreen notice');
+    }
+    await wait(50);
+  }
+  // Measure while the notice is up: it stays for NOTICE_MS (4 s) after the raise.
+  await wait(500);
+  await view.webContents.executeJavaScript(RESET_COUNTER);
+  const windowMs = 2_500;
+  await wait(windowMs);
+  const raised = (await view.webContents.executeJavaScript(READ_COUNTER)) as unknown;
+  return { windowMs, raised, stillRaised: fullscreen.shellRaised() };
+}
+
 const SCENARIOS: ReadonlyMap<string, Scenario> = new Map([
+  ['raised-shell-keeps-page-visible', { run: raisedShellKeepsPageVisible }],
   ['background-tab-hidden', { run: backgroundTabHidden }],
   ['close-with-live-tabs', { run: closeWithLiveTabs, endsByClosingWindow: true }],
 ]);

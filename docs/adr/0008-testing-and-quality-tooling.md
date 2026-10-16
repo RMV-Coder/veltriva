@@ -68,6 +68,9 @@
    - **Two checks so far:**
      - A tab that isn't selected reports `hidden` and is throttled: a 100 ms interval ticks about 3 times in 3 s, against about 30 times in the selected tab, which stays `visible`.
      - Closing the window with live tabs quits cleanly, with exit code 0, within 10 s. This check found a real bug: closing tabs after the window was destroyed threw, and Electron's error dialog kept the app open.
+   - **M1.3b adds a third check:** a page under the raised shell (ADR-0006 A′) stays `visible` and unthrottled.
+     - It takes the real path: a page goes fullscreen, the shell draws the notice and asks to be raised, and the page is measured under it.
+     - Its first version raised the shell in its normal, opaque state, and the page went `hidden`. That is how we learned that A′ depends on a transparent document root.
 5. **Installer smoke test**, without Playwright: install, launch, read back the fuses, assert that no test hooks exist, uninstall.
 6. **Security tests:**
    - a hostile fixture page;

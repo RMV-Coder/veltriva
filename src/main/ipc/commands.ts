@@ -4,6 +4,7 @@ import { app } from 'electron';
 
 import { PRODUCT_NAME } from '../../shared/constants/app-identity';
 import type { FocusManager } from '../focus/focus-manager';
+import type { ContextMenus } from '../menus/context-menu';
 import { submitAddress } from '../navigation/submit';
 import type { TabId, TabManager } from '../tabs/tab-manager';
 import type { WorkspaceProjector } from '../tabs/workspace-projector';
@@ -18,6 +19,7 @@ export interface CommandContext {
   readonly projector: WorkspaceProjector;
   readonly focus: FocusManager;
   readonly fullscreen: FullscreenController;
+  readonly contextMenus: ContextMenus;
   readonly searchTemplate: () => string;
 }
 
@@ -27,6 +29,7 @@ export function createCommandHandlers({
   projector,
   focus,
   fullscreen,
+  contextMenus,
   searchTemplate,
 }: CommandContext): CommandHandlers {
   /** Runs `action` on an existing tab, or answers `not_found`. */
@@ -75,6 +78,11 @@ export function createCommandHandlers({
     'tabs.zoom': ({ tabId, direction }) =>
       onTab(tabId, () => {
         tabs.zoom(tabId, direction);
+        return done;
+      }),
+    'tabs.showMenu': ({ tabId, x, y }) =>
+      onTab(tabId, () => {
+        contextMenus.forSidebarTab(tabId, x, y);
         return done;
       }),
 

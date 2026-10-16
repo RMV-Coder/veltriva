@@ -128,6 +128,18 @@ export const commandSchemas = {
     input: z.strictObject({ tabId, direction: z.enum(['in', 'out', 'reset']) }),
     output: nothing,
   },
+  /**
+   * The context menu of a tab in the sidebar (right-click, the Menu key, Shift+F10), at a point in
+   * the shell's view, which is the window's. Main builds and shows the native menu.
+   */
+  'tabs.showMenu': {
+    input: z.strictObject({
+      tabId,
+      x: z.number().min(0).max(100_000),
+      y: z.number().min(0).max(100_000),
+    }),
+    output: nothing,
+  },
   /** The find bar's text changed: search again from the top (an empty text clears the search). */
   'find.update': {
     input: z.strictObject({ tabId, text: z.string().max(MAX_FIND_TEXT) }),

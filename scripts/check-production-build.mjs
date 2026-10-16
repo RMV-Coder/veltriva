@@ -23,12 +23,15 @@ const MARKERS = [
   'forcefullyCrashRenderer',
   'contextMenuItems',
   'invokeContextMenuItem',
+  'tabMenuItems',
+  'invokeTabMenuItem',
   'viewStack',
   // src/main/testing/lifecycle-scenarios.ts
   'VELTRIVA_LIFECYCLE',
   'runLifecycleScenario',
   'background-tab-hidden',
   'close-with-live-tabs',
+  'raised-shell-keeps-page-visible',
   // src/main/testing/fail-fast.ts
   'exitOnUncaughtException',
   'Uncaught exception in main',

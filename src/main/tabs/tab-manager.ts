@@ -290,6 +290,11 @@ export class TabManager {
     this.#changed();
   }
 
+  /** Whether Ctrl+Shift+T has a closed tab to bring back. */
+  canReopenClosed(): boolean {
+    return this.#closed.length > 0;
+  }
+
   /**
    * Reopens the most recently closed tab where it was and loads its last address (Ctrl+Shift+T).
    * In memory only, and without its history: Phase 2 brings session restore.

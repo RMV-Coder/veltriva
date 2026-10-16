@@ -28,6 +28,7 @@ export const COMMAND_NAMES = [
   'navigation.stop',
   'layout.setInsets',
   'tabs.zoom',
+  'tabs.showMenu',
   'find.update',
   'find.next',
   'find.close',

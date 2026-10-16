@@ -14,6 +14,8 @@ import type { TabId, TabManager } from '../tabs/tab-manager';
 import { isNavigationAllowed } from '../web/navigation-policy';
 import { buildContextMenu } from './context-menu-model';
 import type { MenuEntry, MenuItemId, MenuParams } from './context-menu-model';
+import { buildTabMenu } from './tab-menu-model';
+import type { TabMenuEntry, TabMenuItemId } from './tab-menu-model';
 
 export interface ContextMenuDependencies {
   readonly window: BaseWindow;
@@ -34,6 +36,12 @@ export interface ContextMenus {
   entriesForTab(tabId: TabId, params: MenuParams): MenuEntry[];
   /** Runs an item as if it had been clicked in the tab's menu (test hook). */
   runForTab(tabId: TabId, params: MenuParams, id: MenuItemId): void;
+  /** The menu of a tab in the sidebar, at a point in the window (`tabs.showMenu`). */
+  forSidebarTab(tabId: TabId, x: number, y: number): void;
+  /** The sidebar tab menu's entries, without showing them (test hook). */
+  sidebarTabEntries(tabId: TabId): TabMenuEntry[];
+  /** Runs a sidebar tab menu item as if it had been clicked (test hook). */
+  runForSidebarTab(tabId: TabId, id: TabMenuItemId): void;
 }
 
 /** Whether main may open a page-supplied URL in a tab: what a page could navigate a tab to. */
@@ -211,5 +219,80 @@ export function createContextMenus(deps: ContextMenuDependencies): ContextMenus 
     },
     entriesForTab: tabEntries,
     runForTab,
+    forSidebarTab(tabId, x, y) {
+      if (!deps.tabs().has(tabId) || deps.window.isDestroyed()) {
+        return;
+      }
+      const menu = Menu.buildFromTemplate(
+        sidebarTabEntries(tabId).map((entry) =>
+          entry.type === 'separator'
+            ? { type: 'separator' as const }
+            : {
+                label: entry.label,
+                enabled: entry.enabled,
+                click: () => {
+                  runForSidebarTab(tabId, entry.id);
+                },
+              },
+        ),
+      );
+      // The shell's view fills the window from its top-left corner: its points are the window's.
+      menu.popup({ window: deps.window, x: Math.round(x), y: Math.round(y) });
+    },
+    sidebarTabEntries,
+    runForSidebarTab,
   };
+
+  function sidebarTabEntries(tabId: TabId): TabMenuEntry[] {
+    const tabs = deps.tabs();
+    const tab = tabs.get(tabId);
+    return buildTabMenu({
+      pinned: tab.pinned,
+      hasPage: tab.url !== '',
+      tabCount: tabs.tabs().length,
+      canReopenClosed: tabs.canReopenClosed(),
+    });
+  }
+
+  /**
+   * The menu was opened from the sidebar, so keyboard focus stays there (`focus: false`): a
+   * keyboard user keeps working in the tab list.
+   */
+  function runForSidebarTab(tabId: TabId, id: TabMenuItemId): void {
+    const tabs = deps.tabs();
+    if (!tabs.has(tabId)) {
+      return;
+    }
+    switch (id) {
+      case 'new-tab-below':
+        tabs.create({ afterTabId: tabId });
+        return;
+      case 'reload':
+        tabs.reload(tabId);
+        return;
+      case 'duplicate':
+        tabs.duplicate(tabId);
+        return;
+      case 'pin':
+        tabs.setPinned(tabId, true);
+        return;
+      case 'unpin':
+        tabs.setPinned(tabId, false);
+        return;
+      case 'close':
+        tabs.close(tabId, { focus: false });
+        return;
+      case 'close-others':
+        for (const other of tabs.tabs().map((tab) => tab.id)) {
+          if (other !== tabId) {
+            tabs.close(other, { focus: false });
+          }
+        }
+        tabs.select(tabId, { focus: false });
+        return;
+      case 'reopen-closed':
+        tabs.reopenClosed();
+        return;
+    }
+  }
 }

@@ -201,6 +201,7 @@ function start(): void {
       projector,
       focus,
       fullscreen,
+      contextMenus,
       searchTemplate,
     }),
     allowedOrigins: new Set(
@@ -229,7 +230,7 @@ function start(): void {
     installTestHooks({ main, tabs, layout, views: runtimes.views, contextMenus, fullscreen });
     const scenario = process.env[LIFECYCLE_SCENARIO_ENV];
     if (scenario !== undefined && scenario !== '') {
-      runLifecycleScenario(scenario, { main, tabs, views: runtimes.views });
+      runLifecycleScenario(scenario, { main, tabs, fullscreen, views: runtimes.views });
     }
   }
 
