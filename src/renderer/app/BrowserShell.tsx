@@ -2,13 +2,16 @@ import { useRef } from 'react';
 
 import { useContentInsets } from '../features/layout/use-content-insets';
 import { ContentArea } from '../features/pages/ContentArea';
+import { PromptStrip } from '../features/prompts/PromptStrip';
 import { Sidebar } from '../features/sidebar/Sidebar';
 import { Toolbar } from '../features/toolbar/Toolbar';
 
 /**
- * The shell's normal UI: a toolbar across the top, the tab sidebar below it on the left, and the
- * content area filling the rest (ADR-0009). Main places the selected tab's native web view over
- * the content area, so nothing the shell draws there is visible while a web page shows.
+ * The shell's normal UI: a toolbar across the top, then the prompt strip while the selected tab has
+ * a question or a blocked popup, then the tab sidebar on the left and the content area filling the
+ * rest (ADR-0009). Main places the selected tab's native web view over the content area, so nothing
+ * the shell draws there is visible while a web page shows. That is why the strip is part of the
+ * chrome above it: the content area, and with it the page, gets smaller while the strip shows.
  *
  * It is its own component so that it mounts afresh when the fullscreen notice gives way to it:
  * `useContentInsets` measures the content area that exists then.
@@ -19,8 +22,11 @@ export function BrowserShell() {
   useContentInsets(contentRef);
 
   return (
-    <div className="grid h-screen grid-cols-[260px_minmax(0,1fr)] grid-rows-[48px_minmax(0,1fr)] overflow-hidden bg-background text-foreground">
-      <Toolbar />
+    <div className="grid h-screen grid-cols-[260px_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background text-foreground">
+      <div className="col-span-2">
+        <Toolbar />
+        <PromptStrip />
+      </div>
       <Sidebar />
       <ContentArea ref={contentRef} />
     </div>

@@ -1149,10 +1149,11 @@ A *hostile fixture page* in the E2E suite tries to reach `window.veltriva`, `req
 **The permission broker.** Electron forwards every Chromium permission type, about 46 names today. The broker therefore uses an **allow-list**: anything not named below is denied.
 
 - **Prompt**, remembering the decision per origin, for `media` (camera and microphone), `geolocation`, `notifications` and `clipboard-read`.
-- **Allow** `clipboard-sanitized-write`, `fullscreen` (with an exit notice that shows the origin), and `pointerLock` after a gesture.
-- **Until the broker exists** (M1.4), the browsing session grants only `clipboard-sanitized-write` (M1.3a) and, from M1.3b, `fullscreen` with its notice. Everything else is denied (ADR-0002, item 7).
+- **Allow** `clipboard-sanitized-write`, and `fullscreen` in tabs (with an exit notice that shows the origin).
+- **`pointerLock` stays denied in the MVP** (decided in M1.4a): a hidden, captured pointer helps a page pass itself off as the desktop (T6), and there is no notice for it yet. Revisit with a fullscreen-style notice if users need it.
+- **No prompt for embedded pages from other sites,** popup windows or insecure origins: those requests are denied without asking (ADR-0002, item 9).
 - **Deny** in the MVP, among others: `display-capture` (Windows needs a custom `desktopCapturer` picker, after the MVP), `midiSysex`, `hid`, `serial`, `usb`, `idle-detection`, `window-management`, `local-network-access`, `storage-access`, `top-level-storage-access`.
-- `openExternal` is decided by the protocol guard below.
+- `openExternal` is refused as a backstop. Page navigations to other apps are caught in `will-frame-navigate` and `will-redirect`, which name the frame correctly, and handed to the protocol guard below (measured in M1.4a).
 
 **The external-protocol guard:**
 

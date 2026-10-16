@@ -100,8 +100,14 @@ export function Omnibox() {
     // Main moves keyboard focus to the page when the navigation commits.
     inputRef.current?.blur();
     void submitAddress(tabId, text).then((action) => {
-      // Nothing is going to load for these, so show the tab's address again now.
-      if (action === undefined || action === 'none' || action === 'internal') {
+      // Nothing is going to load for these, so show the tab's address again now. (An external
+      // link is a question in the prompt strip; the tab stays where it is.)
+      if (
+        action === undefined ||
+        action === 'none' ||
+        action === 'internal' ||
+        action === 'external'
+      ) {
         setSubmitted((held) => (held?.tabId === tabId && held.text === text ? null : held));
       }
     });

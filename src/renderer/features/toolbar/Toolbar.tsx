@@ -16,7 +16,7 @@ export function Toolbar() {
   const loading = tab?.loading ?? false;
 
   return (
-    <header className="relative col-span-2 flex items-center gap-1 border-b bg-background px-2 select-none">
+    <header className="relative flex h-12 items-center gap-1 border-b bg-background px-2 select-none">
       <ToolbarButton
         label="Back"
         icon={ArrowLeft}

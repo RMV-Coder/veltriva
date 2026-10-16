@@ -132,3 +132,46 @@ export async function dismissFullscreenNotice(): Promise<boolean> {
   return (await run('fullscreen.dismissNotice', () => window.veltriva.fullscreen.dismissNotice()))
     .ok;
 }
+
+/**
+ * Answers the question the toolbar shows for a tab. Only the question with `promptId` can be
+ * answered: if the page has gone away or another one took its place, main ignores this.
+ * `remember` is the external-protocol prompt's "always allow", and it is false for every answer
+ * that isn't `allow`.
+ */
+export async function respondToPrompt(
+  tabId: string,
+  promptId: string,
+  decision: CommandInput<'prompts.respond'>['decision'],
+  remember: boolean,
+  options?: FocusOptions,
+): Promise<boolean> {
+  return (
+    await run('prompts.respond', () =>
+      window.veltriva.prompts.respond({
+        tabId,
+        promptId,
+        decision,
+        remember,
+        keepFocus: options?.keepFocus === true,
+      }),
+    )
+  ).ok;
+}
+
+/** Opens the tab's latest blocked popup in a new tab after it, and clears the notice. */
+export async function openBlockedPopup(tabId: string): Promise<boolean> {
+  return (await run('popups.openBlocked', () => window.veltriva.popups.openBlocked({ tabId }))).ok;
+}
+
+/** Clears the tab's "Pop-up blocked" notice without opening anything. */
+export async function dismissBlockedPopups(
+  tabId: string,
+  options?: FocusOptions,
+): Promise<boolean> {
+  return (
+    await run('popups.dismissBlocked', () =>
+      window.veltriva.popups.dismissBlocked(withFocus(tabId, options)),
+    )
+  ).ok;
+}

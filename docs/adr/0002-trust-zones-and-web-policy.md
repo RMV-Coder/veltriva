@@ -77,7 +77,7 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - Unclaimed contents of type `remote` are DevTools. Anything else is `unknown` and can't navigate at all.
    - **Tab navigation** also allows `about:srcdoc` in subframes, which is how `<iframe srcdoc>` loads. `data:` and `blob:` frames were denied in M1.2; M1.3a allows them (item 7).
    - **The guard cancels in `will-frame-navigate`.** Electron emits it before `will-navigate`, so a cancelled navigation never reaches `will-navigate`.
-   - **The session baseline is deny-all until M1.4.** It covers:
+   - **The session baseline is deny-all until M1.4.** M1.4a replaces the browsing session's permission handlers with the broker (item 9). It covers:
      - permission request and check handlers;
      - the device and display-media handlers (display media is denied with `callback(null)`);
      - Bluetooth pairing;
@@ -126,6 +126,29 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - "Search for" builds its URL through the validated search template.
      - Page text in a menu label loses controls and bidi formatting, is cut short, and cannot create a Windows access key (`&`).
    - **DevTools for pages** open detached on F12 or "Inspect". The shell's DevTools stay dev-only: Ctrl+Shift+I in `npm run dev` builds.
+
+9. **As built in M1.4a** (the code is in `src/core/permissions`, `src/core/url/external-protocol.ts`, `src/core/input/user-activation.ts`, `src/main/permissions`, `src/main/external`, `src/main/popups`, `src/main/prompts` and `src/main/windows/popup-windows.ts`). Two probes on Electron 44.7.2 settled the design; their findings are marked *measured*.
+   - **The permission broker** replaces the deny-all request and check handlers on the browsing session. It works from an allow-list:
+     - **Granted without asking:** `clipboard-sanitized-write`, and `fullscreen` in tabs (with its origin notice).
+     - **Asked in the toolbar:** camera and microphone (`media`, by `mediaTypes`), `geolocation`, `notifications` and `clipboard-read`. Decisions are remembered per origin, in memory until Phase 2's `permission_decisions` table. Three dismissals of the same question count as a block for the session, as Chrome's embargo does.
+     - **Denied:** everything else. That includes the device choosers and `display-capture`, and **pointer lock**: a hidden, captured pointer helps a page pass itself off as the desktop (threat T6), and Veltriva has no notice for it yet.
+     - **The check handler** answers from the same rules and decisions, so `navigator.permissions.query` and `Notification.permission` agree with what a request would get.
+     - **Embedded pages from other sites never prompt.** Their request arrives with `isMainFrame: false` and the frame's own URL (*measured*). A prompt would appear in the name of the site in the address bar, so they are denied without asking, like requests from insecure origins (a prompt needs `https:`, or `http:` on loopback).
+     - **Popup windows never prompt** and get no fullscreen: they have no trusted place for a question or a notice.
+   - **Prompts** live in a strip under the toolbar, outside the page area (threat T6), one at a time per tab. They name the site with `originLabel`, from main's record of the URL. A new document, a crash, a failed load or closing the tab dismisses them. A late answer to an old prompt is ignored.
+   - **The external-protocol guard** is the only way to open another app.
+     - **Always blocked:** `ms-msdt`, `search-ms`, `search`, `ms-officecmd`, `ms-cxh`, `ms-cxh-full`, `ms-appinstaller`, `vbscript`, `javascript`, `jar` and `file`, plus Chrome's own never-launched list (`shell`, `hcp`, `ms-help`, `res` and others).
+     - **Everything else** needs a trusted gesture in that page within 5 s, then the user's yes in the toolbar ("site wants to open *App*", with the app name from `app.getApplicationNameForProtocol`, cleaned). A per-site "always allow" skips the question, never the gesture. A page with no site (`about:blank`, `data:`, `file:`) can't ask at all.
+     - **Typed input** counts as a gesture; its prompt names no site and offers no "always allow".
+     - **The launch** gets only the parsed URL, percent-encoded like Chrome's (spaces, quotes, controls, non-ASCII) and capped at 2046 characters, as Electron's quoted ShellExecute call allows. Test builds record launches instead of making them.
+     - **Where requests come from:** a page's navigation to another app's URL fires `will-frame-navigate`, or `will-redirect` for a redirect, with the right frame (*measured*). The guard cancels it there and asks the protocol guard, for the top frame only. Once it is cancelled, no `openExternal` request follows (*measured*). `openExternal` itself is refused as a backstop: S7 found it reports an iframe as the main frame. `window.open('custom:…')` reaches the window-open handler (S7, *measured* again).
+   - **Popups.**
+     - **The gesture rule.** A popup or new tab needs a trusted mouse-down, tap or key press in that page within the last 5 s, and uses it up: one gesture, one popup. Main sees input through `input-event`, which never fires for a shortcut cancelled in `before-input-event` (*measured*), so browser shortcuts don't count. Without a gesture, the popup is recorded and the toolbar offers "Open pop-up", which opens it as a tab.
+     - **Routing.** `foreground-tab` and `background-tab` become TabManager tabs after the opener. A `new-window` with size features, or a form post to a new tab, becomes a popup window. Shift+click, and anything a popup window opens, becomes a tab.
+     - **Roles.** The window-open handler claims `popup` just before it returns `allow`. Electron then emits `web-contents-created` for the pre-created contents and calls `createWindow`, all in the same task (*measured*). `createWindow` checks the role, and on a mismatch closes the contents and throws. A claim no contents took is dropped on the next turn of the event loop.
+     - **Popup windows** are centered on the browser, whatever position the page asked for. A trusted, read-only address bar sits above the page: `app://shell/popup-bar.html` on the shell's session, with no preload or IPC. Main pushes it a JSON string literal of the committed URL's display text, starting at `about:blank`. So a page that writes into a blank popup can't pass it off as another site. The window title is the site.
+     - **Lifecycle.** A popup window closes when its page calls `window.close()` or its renderer dies, and closing the window closes the page. Popups outlive their opener, as in Chrome. Ctrl+W closes a popup window.
+     - **Known gap (S7):** hosted popups don't inherit `safeDialogs`, and overriding the options doesn't help. A popup window is a separate, closable window with its own address bar.
 
 ## Consequences
 
