@@ -26,6 +26,12 @@ The tab lifecycle mixes asynchronous Chromium events, user commands, a scheduler
    3. **Run the handler.**
    4. **Return** `{ ok: true, value }` or `{ ok: false, code }`. Stack traces never cross processes.
 6. **UI state.** Zustand stores hold the projection of main-process state, plus purely local UI state.
+7. **As built in M1.2:**
+   - **Transport.** Commands use one channel, `veltriva:invoke`, with arguments `(command, input)`. Events use `veltriva:event`, with arguments `(name, payload)`, and are sent to the shell's web contents only.
+   - **The contract is split in two.** `src/shared/contracts/ipc.ts` holds the names, channels, error codes and the `Result` type, with no Zod. `src/shared/contracts/schemas.ts` holds the Zod schemas; the type checker requires every name to have a schema and every schema a name. The preload and the renderer import only types from the schema file, so Zod never ships in the shell, where its JIT would also trip the CSP.
+   - **The preload API** is `window.veltriva.<namespace>.<method>(input?)` for each command, plus `on(event, listener)`, which returns an unsubscribe function and throws for names outside the contract. A command whose schema has no keys can be called without an argument.
+   - **Order of checks.** The sender is checked first: role `shell` (from the web-contents guard), main frame, and an allowed origin. Then the command name, then strict input parsing, then the handler. The output is validated before it's returned.
+   - **Error codes** are `forbidden`, `unknown_command`, `invalid_input` and `internal`. An untrusted sender gets `forbidden` even for a name that doesn't exist, so it learns nothing about the contract. Handler errors are logged by name only; their messages never cross processes.
 
 ## Consequences
 

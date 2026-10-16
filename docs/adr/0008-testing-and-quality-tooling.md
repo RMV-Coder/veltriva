@@ -24,6 +24,9 @@
    - Tests drive the **built but unpackaged** app through `_electron.launch()`, using `executablePath`. Without it, Playwright's loader adds `disable-renderer-backgrounding` and `disable-backgrounding-occluded-windows`, which changes the behavior under test.
    - `WebContentsView`s are reachable as Pages, and main-process assertions use `electronApp.evaluate`.
    - Test hooks (`advanceClock`, `getTabStates`, `setMemoryPressure`, `crashRenderer`) exist only in test builds.
+     - **How (M1.2):** a test build is `electron-vite build --mode test` (`npm run build:test`; `npm run test:e2e` runs it first). The hooks sit behind `import.meta.env.MODE === 'test'`, which a production build folds to `false` and drops.
+     - `npm run package:dir` runs `scripts/check-production-build.mjs`, which refuses an `out/` that still contains them.
+     - M1.2's hooks are `openTestTab`, `closeTestTabs` and `webContentsRoles`, on `globalThis.__veltrivaTest`.
    - Pages come from a deterministic local fixture server; no critical test depends on an external site.
    - Before launch, the test harness removes `ELECTRON_RUN_AS_NODE` from the app's environment and asserts that it's gone. An empty value still counts as set.
    - **Rules from [spike S6](../spikes/s6-test-reach.md):**
@@ -34,6 +37,9 @@
      - **Never assert hidden-tab behavior through Playwright.** Its per-page focus emulation makes hidden and detached tabs report `visible`, with unthrottled timers.
    - **Rules found while building the M1.1 smoke test:**
      - **After the app cancels a navigation, check the page with `evaluate`.** Playwright never learns that `will-navigate` was cancelled, so actions such as `click()` wait forever ("waiting for navigation to finish"). `evaluate` and simple reads still work.
+     - **Observe cancelled navigations on `will-frame-navigate`.** The guard cancels there (M1.2), and Electron then never emits `will-navigate`.
+     - **Test CSP from a later task, not inside `evaluate`.** The inspector lets `eval` run during its own `page.evaluate` call even under `script-src 'self'`. The CSP test runs `eval` from a `setTimeout` callback instead.
+     - **The PDF check looks for the document frame.** Under a guard that blocks the viewer's subframes, the viewer's toolbar frame (`chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html`) still appears. The proof that PDFs render is a child frame that commits the PDF's own URL.
      - **Don't measure shutdown through Playwright.** With its inspector and CDP attached, `close()` on a loaded laptop sometimes took about 100 s, against about 25 ms for the same `app.quit()` without Playwright. The harness kills the process tree after 30 s and records a warning instead of failing the test. Shutdown speed belongs to the lifecycle harness (4a).
 4a. **Lifecycle behavior tests (no Playwright).** A small Electron-script harness, like the Phase 0 spikes, asserts the behavior Playwright masks:
    - visibility and throttling of detached tabs;

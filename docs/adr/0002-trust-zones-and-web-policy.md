@@ -61,6 +61,34 @@ A browser loads hostile content by definition. Electron's defaults assume truste
    - Electron fuses as listed in ADR-0007.
    - The shell's CSP is sent as a response header by the `app://` handler.
 
+6. **As built in M1.2** (refinements; the code is in `src/main/shell` and `src/main/web`):
+   - **The shell session** is the in-memory partition `veltriva-shell`. It keeps no web storage, and clearing browsing data can't touch it.
+   - **`app://`** is registered as privileged with `standard`, `secure` and `supportFetchAPI` only: no CORS, no service workers, no CSP bypass. Its handler exists only on the shell session.
+     - The handler serves only `GET`.
+     - It decodes the path and rejects NUL bytes, backslashes and colons (drive letters and NTFS streams).
+     - It resolves the path under the renderer folder and requires the result to stay inside it.
+     - It serves only an allow-list of file types.
+     - Every response carries the §6.2 CSP and `X-Content-Type-Options: nosniff`.
+   - **Development** loads the Vite dev server instead. Its URL must be plain `http` on loopback.
+     - A dev CSP is injected through the shell session's `webRequest`. It adds `'unsafe-inline'` for scripts and styles and the dev server's WebSocket.
+     - Production builds contain none of this, because `import.meta.env.DEV` is a build-time constant.
+   - **Roles.** Every web contents is `shell`, `tab`, `popup`, `devtools` or `unknown`.
+     - Creation code claims the role while it constructs the view. Electron 44 emits `web-contents-created` synchronously inside the constructor, and `createViewWithRole` verifies the claim every time.
+     - Unclaimed contents of type `remote` are DevTools. Anything else is `unknown` and can't navigate at all.
+   - **Tab navigation** also allows `about:srcdoc` in subframes, which is how `<iframe srcdoc>` loads. `data:` and `blob:` frames are denied for now; M1.3 re-checks web compatibility on real sites.
+   - **The guard cancels in `will-frame-navigate`.** Electron emits it before `will-navigate`, so a cancelled navigation never reaches `will-navigate`.
+   - **The session baseline is deny-all until M1.4.** It covers:
+     - permission request and check handlers;
+     - the device and display-media handlers (display media is denied with `callback(null)`);
+     - Bluetooth pairing;
+     - the HID, serial, USB and Bluetooth choosers;
+     - downloads, which are cancelled;
+     - client certificates, which are declined;
+     - HTTP and proxy authentication, which are cancelled.
+
+     Spellcheck dictionary downloads point at the loopback discard port, `http://127.0.0.1:9/`, until we host dictionaries; Windows' own spellchecker still works. The shell itself has spellcheck off.
+   - **The user agent** loses everything Electron puts between `(KHTML, like Gecko)` and `Chrome/`, plus the `Electron/x.y.z` token, through `app.userAgentFallback` before `ready`. Electron's app token is the product name without spaces, so for us it's `VeltrivaBrowser/0.0.0`.
+
 ## Consequences
 
 - **Positive:** web pages can't reach any Veltriva API by construction, and privileged UI never lives inside the tab system.

@@ -55,7 +55,12 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: E2E smoke test
+      # A production build must not contain the E2E test hooks (ADR-0008 §4).
+      - name: Check the production build
+        run: node scripts/check-production-build.mjs
+
+      # Builds the test variant (--mode test) itself, then runs Playwright.
+      - name: E2E tests
         run: npm run test:e2e
 
       - name: Upload Playwright report

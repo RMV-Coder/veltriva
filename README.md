@@ -4,7 +4,11 @@
 
 Veltriva is a local-first, Chromium-powered desktop browser that intelligently manages inactive tabs, preserves browsing context, and makes previously visited pages instantly searchable.
 
-**Status: Phase 1.** Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 is under way: Milestone 1.1 (project scaffold and CI) gives a runnable placeholder shell, one window that says "Veltriva Browser", but no browsing yet. Tabs and navigation arrive in Milestone 1.3.
+**Status: Phase 1.** Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 is under way:
+- Milestone 1.1 built the project scaffold and CI.
+- Milestone 1.2 built the secure shell. The UI is served from `app://shell` with a strict Content Security Policy. It talks to the main process through a typed, validated IPC contract, and every web page gets a role and a locked-down policy.
+
+There's no browsing yet: tabs and navigation arrive in Milestone 1.3.
 
 ## Why
 
@@ -53,12 +57,13 @@ npm run dev
 |---|---|
 | `npm run dev` | Starts electron-vite, which serves the renderer with hot reload and opens the app window. Changes to main or preload rebuild and restart the app. |
 | `npm run build` | Production build of main, preload and renderer into `out/`. |
+| `npm run build:test` | The same build with the E2E test hooks compiled in (`--mode test`). Never package it. |
 | `npm run typecheck` | `tsc -b` over every target's tsconfig (core, main, preload, renderer and node tooling). |
 | `npm run lint` | ESLint with type-aware typescript-eslint rules and the React hooks rules. |
 | `npm run format` / `npm run format:check` | Prettier writes or checks formatting. Markdown is excluded. |
 | `npm test` | Vitest unit tests on Node. |
-| `npm run test:e2e` | The Playwright smoke test, against the built, unpackaged app. Run `npm run build` first. |
-| `npm run package:dir` | Builds, then packages an unpacked app with electron-builder into `release/win-unpacked/` (`Veltriva.exe`), with the production Electron fuses applied. It is unsigned, and no installer is built or installed. |
+| `npm run test:e2e` | Builds the test variant, then runs the Playwright tests against the built, unpackaged app: the shell, its CSP and protocol, the IPC contract, and a hostile page in a tab. |
+| `npm run package:dir` | Builds, checks that the build contains no test hooks, then packages an unpacked app with electron-builder into `release/win-unpacked/` (`Veltriva.exe`), with the production Electron fuses applied. It is unsigned, and no installer is built or installed. |
 
 ### Project layout
 
@@ -89,7 +94,8 @@ The full plan is in [technical assessment §3.8](docs/architecture/technical-ass
 - **E2E runs against the unpackaged app.** Tests launch it through Playwright's `_electron.launch` with `executablePath`. Playwright can't drive a packaged build, because the packaged app turns off the `EnableNodeCliInspectArguments` fuse. See [ADR-0008](docs/adr/0008-testing-and-quality-tooling.md).
 - **`ELECTRON_RUN_AS_NODE` must not be set** when you run `npm run dev`, because it makes Electron run as plain Node. The E2E test removes it from the app's environment and checks that it's gone before launch.
 - **A separate profile for development.** Unpackaged builds (development and E2E) accept `VELTRIVA_USER_DATA_DIR=<absolute path>`. Packaged builds ignore it and always use `%APPDATA%\Veltriva`.
-- **CI.** GitHub Actions on `windows-latest` runs typecheck, lint, the format check, unit tests, the build and the E2E smoke test on every push to `main` and every pull request (`.github/workflows/ci.yml`).
+- **The shell loads from `app://shell`** in builds, and from the Vite dev server (with a development CSP) under `npm run dev`. Commands and events between the shell and main are defined in `src/shared/contracts`; see [ADR-0005](docs/adr/0005-state-ownership-and-ipc.md).
+- **CI.** GitHub Actions on `windows-latest` runs typecheck, lint, the format check, unit tests, the production build with its no-test-hooks check, and the E2E tests on every push to `main` and every pull request (`.github/workflows/ci.yml`).
 
 ## License
 
