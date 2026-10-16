@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| **Status** | **Approved 2026-10-16**: decisions D1–D8 accepted as recommended, recorded as [ADRs 0001–0009](../adr/README.md). Phase 0 spikes in progress |
+| **Status** | **Approved 2026-10-16**: decisions D1–D8 accepted as recommended, recorded as [ADRs 0001–0009](../adr/README.md). Phase 0 spikes done (S7's manual checks pending); Phase 1 under way |
 | **Date** | 2026-10-16 |
 | **Scope** | MVP for Windows 10/11 x64 |
 | **Identity** | Project *Veltriva* · repo `veltriva` · app *Veltriva Browser* · MIT license (after dependency license review) |

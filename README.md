@@ -4,7 +4,7 @@
 
 Veltriva is a local-first, Chromium-powered desktop browser that intelligently manages inactive tabs, preserves browsing context, and makes previously visited pages instantly searchable.
 
-**Status: Phase 0.** The architecture is approved and technical spikes are in progress. There is no runnable browser yet.
+**Status: Phase 1.** Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 is under way: Milestone 1.1 (project scaffold and CI) gives a runnable placeholder shell, one window that says "Veltriva Browser", but no browsing yet. Tabs and navigation arrive in Milestone 1.3.
 
 ## Why
 
@@ -30,7 +30,66 @@ Some people keep 50 or 100 tabs open because closing one feels like losing it. V
 
 ## Platform and stack
 
-Windows 10/11 x64. Electron (`BaseWindow` + `WebContentsView`), TypeScript, React, SQLite with FTS5.
+Windows 10/11 x64. Electron 44 (`BaseWindow` + `WebContentsView`), TypeScript 6 (strict), React 19, Tailwind CSS 4 with shadcn/ui, built with electron-vite and packaged with electron-builder. Tested with Vitest and Playwright. SQLite with FTS5 arrives in Phase 2 (persistence and session restore).
+
+## Development
+
+### Requirements
+
+Windows 10 or 11 x64, Node.js 24 (24.13 or later in the 24 line; `.nvmrc` names the version CI uses), npm 11 and Git. Setup installs nothing system-wide, and no Python or Visual Studio build tools are needed.
+
+### Setup
+
+```bash
+npm run setup
+npm run dev
+```
+
+`npm run setup` runs `npm ci` and then downloads Electron's binary explicitly with `node node_modules/electron/install.js`. The repository's `.npmrc` sets `ignore-scripts=true`, so dependency install scripts never run, and `save-exact=true`, so every dependency is pinned to an exact version.
+
+### Scripts
+
+| Script | What it does |
+|---|---|
+| `npm run dev` | Starts electron-vite, which serves the renderer with hot reload and opens the app window. Changes to main or preload rebuild and restart the app. |
+| `npm run build` | Production build of main, preload and renderer into `out/`. |
+| `npm run typecheck` | `tsc -b` over every target's tsconfig (core, main, preload, renderer and node tooling). |
+| `npm run lint` | ESLint with type-aware typescript-eslint rules and the React hooks rules. |
+| `npm run format` / `npm run format:check` | Prettier writes or checks formatting. Markdown is excluded. |
+| `npm test` | Vitest unit tests on Node. |
+| `npm run test:e2e` | The Playwright smoke test, against the built, unpackaged app. Run `npm run build` first. |
+| `npm run package:dir` | Builds, then packages an unpacked app with electron-builder into `release/win-unpacked/` (`Veltriva.exe`), with the production Electron fuses applied. It is unsigned, and no installer is built or installed. |
+
+### Project layout
+
+```text
+veltriva/
+├─ src/
+│  ├─ core/
+│  ├─ main/
+│  ├─ preload/
+│  │  └─ shell.ts
+│  ├─ renderer/
+│  └─ shared/
+└─ tests/
+   └─ e2e/
+```
+
+- `src/core/`: pure TypeScript with no Electron or Node imports, enforced by ESLint and by its own tsconfig.
+- `src/main/`: the Electron main process, which owns all state.
+- `src/preload/shell.ts`: the preload for the shell UI. Web pages never get a preload.
+- `src/renderer/`: the React shell UI.
+- `src/shared/`: constants and types shared by several processes. Also pure.
+- `tests/e2e/`: Playwright tests.
+
+The full plan is in [technical assessment §3.8](docs/architecture/technical-assessment.md#38-project-structure).
+
+### Notes
+
+- **E2E runs against the unpackaged app.** Tests launch it through Playwright's `_electron.launch` with `executablePath`. Playwright can't drive a packaged build, because the packaged app turns off the `EnableNodeCliInspectArguments` fuse. See [ADR-0008](docs/adr/0008-testing-and-quality-tooling.md).
+- **`ELECTRON_RUN_AS_NODE` must not be set** when you run `npm run dev`, because it makes Electron run as plain Node. The E2E test removes it from the app's environment and checks that it's gone before launch.
+- **A separate profile for development.** Unpackaged builds (development and E2E) accept `VELTRIVA_USER_DATA_DIR=<absolute path>`. Packaged builds ignore it and always use `%APPDATA%\Veltriva`.
+- **CI.** GitHub Actions on `windows-latest` runs typecheck, lint, the format check, unit tests, the build and the E2E smoke test on every push to `main` and every pull request (`.github/workflows/ci.yml`).
 
 ## License
 

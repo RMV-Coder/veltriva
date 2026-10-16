@@ -20,7 +20,7 @@ A future macOS or Linux port should keep the same engine.
 
 ## Decision
 
-Build on **Electron**, tracking the newest stable major. That's 44.7.2 today (Chromium 152); 45.0.0 is scheduled for 2026-10-20, and Phase 1 starts on it.
+Build on **Electron**, tracking the newest stable major. That's 44.7.2 today (Chromium 152). 45.0.0 is scheduled for 2026-10-20, but it was still in beta when Phase 1 began on 2026-10-16, so Milestone 1.1 pins 44.7.2. The move to 45 follows the upgrade policy below.
 
 Every web page is a `WebContentsView` inside a single `BaseWindow`. We don't use `BrowserView` (deprecated since Electron 30), `<webview>`, or iframes for browsing.
 
