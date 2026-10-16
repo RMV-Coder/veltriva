@@ -30,13 +30,16 @@ export class LayoutManager {
   }
 
   contentRect(): Rect {
+    if (this.#window.isDestroyed()) {
+      return { x: 0, y: 0, width: 0, height: 0 };
+    }
     const { width, height } = this.#window.getContentBounds();
     return insetRect({ width, height }, this.#insets);
   }
 
   /** Shows a tab's view in the content area, replacing whichever view was there. */
   showContent(view: WebContentsView): void {
-    if (this.#content === view) {
+    if (this.#content === view || this.#window.isDestroyed()) {
       return;
     }
     if (this.#content !== undefined) {
@@ -47,13 +50,19 @@ export class LayoutManager {
     view.setBounds(this.contentRect());
   }
 
-  /** Detaches a tab's view, if it's the one shown. The view stays alive (ADR-0002 §2). */
+  /**
+   * Detaches a tab's view, if it's the one shown. The view stays alive (ADR-0002 §2). Tabs are
+   * closed after the window is destroyed (its `closed` event), and then there is nothing left to
+   * detach from: touching the window would throw "Object has been destroyed".
+   */
   hideContent(view: WebContentsView): void {
     if (this.#content !== view) {
       return;
     }
-    this.#window.contentView.removeChildView(view);
     this.#content = undefined;
+    if (!this.#window.isDestroyed()) {
+      this.#window.contentView.removeChildView(view);
+    }
   }
 
   #layout(): void {

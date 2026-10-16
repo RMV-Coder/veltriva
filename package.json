@@ -21,6 +21,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:e2e": "npm run build:test && playwright test",
+    "test:lifecycle": "npm run build:test && vitest run --config vitest.lifecycle.config.mts",
     "package:dir": "electron-vite build && node scripts/check-production-build.mjs && electron-builder --win --x64 --dir"
   },
   "devDependencies": {

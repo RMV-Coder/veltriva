@@ -63,6 +63,11 @@ jobs:
       - name: E2E tests
         run: npm run test:e2e
 
+      # Hidden-tab visibility and throttling, and shutdown with live tabs, measured without
+      # Playwright, which masks them (ADR-0008 4a). Builds the test variant itself.
+      - name: Lifecycle tests
+        run: npm run test:lifecycle
+
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

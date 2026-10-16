@@ -64,9 +64,12 @@ export function createWorkspaceProjector(options: {
     };
   };
 
+  let disposed = false;
+
   return {
     markDirty() {
-      if (pending !== undefined) {
+      // Closing the window disposes the projector, then closes every tab, which marks it dirty.
+      if (disposed || pending !== undefined) {
         return;
       }
       pending = schedule(() => {
@@ -76,6 +79,7 @@ export function createWorkspaceProjector(options: {
     },
     snapshot,
     dispose() {
+      disposed = true;
       if (pending !== undefined) {
         cancel(pending);
         pending = undefined;

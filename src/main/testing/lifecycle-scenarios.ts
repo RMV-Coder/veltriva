@@ -31,18 +31,29 @@ const INSTALL_COUNTER = `(() => {
 const READ_COUNTER = `({ ticks: window.__veltrivaTicks, visibility: document.visibilityState })`;
 const RESET_COUNTER = `(() => { window.__veltrivaTicks = 0; return true; })()`;
 
+/** A fresh renderer on a loaded CI runner can take several seconds, even for about:blank. */
+const LOAD_TIMEOUT_MS = 30_000;
+
 async function waitForView(
   views: ScenarioContext['views'],
   tabId: TabId,
 ): Promise<WebContentsView> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+  const deadline = Date.now() + LOAD_TIMEOUT_MS;
+  while (Date.now() < deadline) {
     const view = views.get(tabId);
     if (view !== undefined && !view.webContents.isLoading() && view.webContents.getURL() !== '') {
       return view;
     }
     await wait(100);
   }
-  throw new Error(`Tab ${tabId} did not finish loading`);
+  const view = views.get(tabId);
+  const state =
+    view === undefined
+      ? 'no view'
+      : `loading: ${String(view.webContents.isLoading())}, url: ${view.webContents.getURL()}`;
+  throw new Error(
+    `Tab ${tabId} did not finish loading in ${String(LOAD_TIMEOUT_MS)} ms (${state})`,
+  );
 }
 
 /**
@@ -77,23 +88,49 @@ async function backgroundTabHidden({ main, tabs, views }: ScenarioContext): Prom
   return { windowMs, selected, hidden };
 }
 
-const SCENARIOS: Readonly<Record<string, (context: ScenarioContext) => Promise<unknown>>> = {
-  'background-tab-hidden': backgroundTabHidden,
-};
+/**
+ * Two tabs with live documents, so closing the window has views and renderers to tear down. The
+ * scenario ends by closing the window as a user would; the harness times the quit that follows.
+ */
+async function closeWithLiveTabs({ main, tabs, views }: ScenarioContext): Promise<unknown> {
+  main.window.setAlwaysOnTop(true);
+  const first = tabs.create();
+  tabs.navigate(first, 'about:blank');
+  const second = tabs.create();
+  tabs.navigate(second, 'about:blank');
+  await Promise.all([waitForView(views, first), waitForView(views, second)]);
+  return { liveTabs: views.size };
+}
+
+interface Scenario {
+  run(context: ScenarioContext): Promise<unknown>;
+  /** After reporting, close the window and let the app quit on its own, not `app.exit()`. */
+  readonly endsByClosingWindow?: boolean;
+}
+
+const SCENARIOS: ReadonlyMap<string, Scenario> = new Map([
+  ['background-tab-hidden', { run: backgroundTabHidden }],
+  ['close-with-live-tabs', { run: closeWithLiveTabs, endsByClosingWindow: true }],
+]);
 
 export function runLifecycleScenario(name: string, context: ScenarioContext): void {
-  const scenario = SCENARIOS[name];
-  const finish = (result: unknown): void => {
-    process.stdout.write(`${LIFECYCLE_RESULT_PREFIX}${JSON.stringify(result)}\n`);
-    app.exit(0);
+  const scenario = SCENARIOS.get(name);
+  const finish = (report: unknown, closeWindow = false): void => {
+    process.stdout.write(`${LIFECYCLE_RESULT_PREFIX}${JSON.stringify(report)}\n`);
+    if (closeWindow) {
+      context.main.window.close();
+    } else {
+      app.exit(0);
+    }
   };
   if (scenario === undefined) {
     finish({ error: `unknown scenario ${name}` });
     return;
   }
-  scenario(context)
+  scenario
+    .run(context)
     .then((result) => {
-      finish({ scenario: name, result });
+      finish({ scenario: name, result }, scenario.endsByClosingWindow);
     })
     .catch((error: unknown) => {
       finish({ scenario: name, error: error instanceof Error ? error.message : String(error) });

@@ -121,4 +121,13 @@ describe('WorkspaceProjector', () => {
     flush();
     expect(published).toHaveLength(0);
   });
+
+  it('schedules nothing once disposed, though the tabs keep changing as they close', () => {
+    const { projector, published, flush, timers } = setup();
+    projector.dispose();
+    projector.markDirty();
+    expect(timers).toHaveLength(0);
+    flush();
+    expect(published).toHaveLength(0);
+  });
 });

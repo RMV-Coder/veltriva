@@ -20,6 +20,7 @@ import { createFaviconService } from './tabs/favicons';
 import { TabManager } from './tabs/tab-manager';
 import { createTabRuntimes } from './tabs/tab-runtime';
 import { createWorkspaceProjector } from './tabs/workspace-projector';
+import { exitOnUncaughtException } from './testing/fail-fast';
 import { LIFECYCLE_SCENARIO_ENV, runLifecycleScenario } from './testing/lifecycle-scenarios';
 import { installTestHooks } from './testing/test-hooks';
 import { installWebContentsGuard } from './web/guard';
@@ -46,6 +47,10 @@ registerShellScheme();
 // Every web contents and every session gets its policy the moment it exists.
 installWebContentsGuard(consoleLogger);
 installSessionBaseline();
+// Test builds only: an uncaught exception fails the run instead of opening a modal dialog.
+if (import.meta.env.MODE === 'test') {
+  exitOnUncaughtException();
+}
 
 app.on('window-all-closed', () => {
   app.quit();
