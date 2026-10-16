@@ -2,6 +2,7 @@
 // does with hostile input, and how main's events reach it. The sender checks are in
 // ipc-sender.spec.ts.
 import { PRODUCT_NAME } from '../../src/shared/constants/app-identity';
+import { COMMAND_NAMES } from '../../src/shared/contracts/ipc';
 import { expect, test } from './fixtures';
 import type { PageGlobal } from './page-globals';
 
@@ -16,48 +17,74 @@ interface ThemeProbe {
 type ProbedGlobal = PageGlobal & { __themeProbe?: ThemeProbe };
 
 test.describe('window.veltriva', () => {
-  test('exposes exactly app and on, frozen, and nothing that reaches IPC directly', async ({
+  test('exposes exactly the contract’s commands and on, frozen, and nothing that reaches IPC', async ({
     shell,
   }) => {
     const names = ['ipcRenderer', 'send', 'invoke', 'require', 'process', 'module'];
     const surface = await shell.evaluate((forbidden) => {
       const page = globalThis as PageGlobal;
-      const api = page.veltriva;
+      const api = page.veltriva as unknown as Record<string, unknown>;
       const loose = page as unknown as Record<string, unknown>;
+      const namespaces = Object.keys(api).filter((key) => key !== 'on');
       return {
         keys: Object.keys(api),
         ownNames: Object.getOwnPropertyNames(api),
         ownSymbols: Object.getOwnPropertySymbols(api).length,
-        appKeys: Object.keys(api.app),
         apiFrozen: Object.isFrozen(api),
-        appFrozen: Object.isFrozen(api.app),
         // Writes must fail, not just look frozen. `Reflect` reports failure instead of throwing.
         mutations: [
           Reflect.set(api, 'injected', 1),
           Reflect.set(api, 'app', {}),
           Reflect.deleteProperty(api, 'on'),
-          Reflect.set(api.app, 'getInfo', () => 1),
-          Reflect.set(api.app, 'send', () => 1),
         ],
+        namespaces: Object.fromEntries(
+          namespaces.map((namespace) => {
+            const methods = api[namespace] as Record<string, unknown>;
+            const first = Object.keys(methods)[0] ?? 'none';
+            return [
+              namespace,
+              {
+                methods: Object.keys(methods),
+                frozen: Object.isFrozen(methods),
+                allFunctions: Object.values(methods).every((value) => typeof value === 'function'),
+                mutations: [
+                  Reflect.set(methods, first, () => 1),
+                  Reflect.set(methods, 'send', () => 1),
+                  Reflect.deleteProperty(methods, first),
+                ],
+                forbidden: forbidden.filter((name) => name in methods),
+              },
+            ];
+          }),
+        ),
         forbiddenOnApi: forbidden.filter((name) => name in api),
-        forbiddenOnApp: forbidden.filter((name) => name in api.app),
         forbiddenOnWindow: forbidden.filter((name) => typeof loose[name] !== 'undefined'),
-        typeofGetInfo: typeof api.app.getInfo,
         typeofOn: typeof api.on,
       };
     }, names);
 
-    expect(surface.keys).toEqual(['app', 'on']);
-    expect(surface.ownNames).toEqual(['app', 'on']);
+    // One namespace per command group and one method per command: the contract, nothing more.
+    const expected = new Map<string, string[]>();
+    for (const command of COMMAND_NAMES) {
+      const [namespace = '', method = ''] = command.split('.');
+      expected.set(namespace, [...(expected.get(namespace) ?? []), method]);
+    }
+    expect(surface.keys).toEqual([...expected.keys(), 'on']);
+    expect(surface.ownNames).toEqual([...expected.keys(), 'on']);
     expect(surface.ownSymbols).toBe(0);
-    expect(surface.appKeys).toEqual(['getInfo']);
     expect(surface.apiFrozen).toBe(true);
-    expect(surface.appFrozen).toBe(true);
-    expect(surface.mutations).toEqual([false, false, false, false, false]);
+    expect(surface.mutations).toEqual([false, false, false]);
+    for (const [namespace, methods] of expected) {
+      expect(surface.namespaces[namespace]).toEqual({
+        methods,
+        frozen: true,
+        allFunctions: true,
+        mutations: [false, false, false],
+        forbidden: [],
+      });
+    }
     expect(surface.forbiddenOnApi).toEqual([]);
-    expect(surface.forbiddenOnApp).toEqual([]);
     expect(surface.forbiddenOnWindow).toEqual([]);
-    expect(surface.typeofGetInfo).toBe('function');
     expect(surface.typeofOn).toBe('function');
   });
 

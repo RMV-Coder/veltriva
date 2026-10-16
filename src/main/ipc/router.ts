@@ -10,6 +10,7 @@ import type { CommandName, ErrorCode, Result } from '../../shared/contracts/ipc'
 import { commandSchemas } from '../../shared/contracts/schemas';
 import type { CommandInput, CommandOutput } from '../../shared/contracts/schemas';
 import type { Logger } from '../platform/logger';
+import { CommandError } from './command-error';
 import type { SenderVerdict } from './sender';
 
 export type CommandHandlers = {
@@ -74,6 +75,9 @@ export function createIpcRouter<Event>({
       }
       return { ok: true, value: parsedOutput.data };
     } catch (error) {
+      if (error instanceof CommandError) {
+        return failure(error.code);
+      }
       logger.error('ipc.handlerFailed', {
         command,
         error: error instanceof Error ? error.name : typeof error,

@@ -1,7 +1,6 @@
 import { BaseWindow, nativeTheme } from 'electron';
 import type { Session, WebContentsView } from 'electron';
 
-import { fillRect } from '../../core/layout/rect';
 import { PRODUCT_NAME } from '../../shared/constants/app-identity';
 import { createViewWithRole } from '../web/roles';
 import { shellWebPreferences } from '../web/web-preferences';
@@ -18,10 +17,12 @@ export interface MainWindow {
   readonly shell: WebContentsView;
 }
 
-/** One `BaseWindow` holding the shell view. Tabs arrive in M1.3. */
+/**
+ * The one `BaseWindow` (ADR-0009 D8) and the shell view under everything else. Sizing is the
+ * LayoutManager's job; the caller loads the shell once its IPC handlers are in place.
+ */
 export function createMainWindow(options: {
   readonly shellSession: Session;
-  readonly shellUrl: string;
   readonly preload: string;
 }): MainWindow {
   const window = new BaseWindow({
@@ -43,21 +44,5 @@ export function createMainWindow(options: {
   // overlay can later clear it to show the tab underneath.
   shell.setBackgroundColor('#00000000');
   window.contentView.addChildView(shell);
-
-  const layout = (): void => {
-    const { width, height } = window.getContentBounds();
-    shell.setBounds(fillRect({ width, height }));
-  };
-  layout();
-  window.on('resize', layout);
-
-  // A BaseWindow never destroys its views' web contents (ADR-0002 §2): close them explicitly.
-  window.on('closed', () => {
-    shell.webContents.close();
-  });
-
-  shell.webContents.loadURL(options.shellUrl).catch((error: unknown) => {
-    console.error('The shell UI failed to load:', error);
-  });
   return { window, shell };
 }

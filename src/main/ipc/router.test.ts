@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { COMMAND_NAMES } from '../../shared/contracts/ipc';
 import type { Logger } from '../platform/logger';
+import { CommandError } from './command-error';
 import { createIpcRouter } from './router';
 import type { CommandHandlers } from './router';
 import type { SenderVerdict } from './sender';
@@ -18,13 +20,24 @@ const INFO = {
   versions: { electron: '44.7.2', chrome: '152.0.7977.149', node: '24.21.0' },
 };
 
+/** Every other command throws: these tests only exercise `app.getInfo`. */
+function withOnly(getInfo: CommandHandlers['app.getInfo']): CommandHandlers {
+  const unused = (): never => {
+    throw new Error('not used in this test');
+  };
+  return {
+    ...Object.fromEntries(COMMAND_NAMES.map((name) => [name, unused])),
+    'app.getInfo': getInfo,
+  } as CommandHandlers;
+}
+
 function setup(getInfo: CommandHandlers['app.getInfo'] = () => INFO) {
   const warn = vi.fn<Logger['warn']>();
   const error = vi.fn<Logger['error']>();
   const logger: Logger = { warn, error };
   const handler = vi.fn(getInfo);
   const route = createIpcRouter<FakeEvent>({
-    handlers: { 'app.getInfo': handler },
+    handlers: withOnly(handler),
     verifySender: (event) => event.verdict,
     logger,
   });
@@ -56,7 +69,7 @@ describe('IpcRouter', () => {
   it('fails closed if the sender check itself throws', async () => {
     const { handler, logger } = setup();
     const route = createIpcRouter<FakeEvent>({
-      handlers: { 'app.getInfo': handler },
+      handlers: withOnly(handler),
       verifySender: () => {
         throw new Error('frame disposed');
       },
@@ -124,5 +137,18 @@ describe('IpcRouter', () => {
   it('awaits asynchronous handlers', async () => {
     const { route } = setup(() => Promise.resolve(INFO));
     await expect(route(TRUSTED, 'app.getInfo', {})).resolves.toEqual({ ok: true, value: INFO });
+  });
+});
+
+describe('IpcRouter with CommandError', () => {
+  it('answers a CommandError with its code and logs nothing', async () => {
+    const { route, error } = setup(() => {
+      throw new CommandError('not_found');
+    });
+    await expect(route(TRUSTED, 'app.getInfo', {})).resolves.toEqual({
+      ok: false,
+      code: 'not_found',
+    });
+    expect(error).not.toHaveBeenCalled();
   });
 });
