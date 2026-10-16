@@ -1,0 +1,22 @@
+import type { TabSnapshot } from '../../../shared/contracts/schemas';
+import { CrashedPage } from './CrashedPage';
+import { NetworkErrorPage } from './NetworkErrorPage';
+import { NewTabPage } from './NewTabPage';
+
+/** The page the shell draws itself for a tab whose page is internal. Nothing for a web page. */
+export function InternalPage({ tab }: { readonly tab: TabSnapshot }) {
+  const { page } = tab;
+  if (page.kind !== 'internal') {
+    return null;
+  }
+  switch (page.name) {
+    case 'new-tab':
+      return <NewTabPage tabId={tab.id} />;
+    case 'network-error':
+      return (
+        <NetworkErrorPage tabId={tab.id} address={tab.address.text} errorName={page.error?.name} />
+      );
+    case 'crashed':
+      return <CrashedPage tabId={tab.id} reason={page.error?.name} />;
+  }
+}

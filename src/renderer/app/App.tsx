@@ -1,79 +1,30 @@
-import { Info } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { useContentInsets } from '../features/layout/use-content-insets';
+import { ContentArea } from '../features/pages/ContentArea';
+import { Sidebar } from '../features/sidebar/Sidebar';
+import { Toolbar } from '../features/toolbar/Toolbar';
+import { startWorkspaceSync } from '../state/workspace-store';
 
-import type { CommandOutput } from '../../shared/contracts/schemas';
-
-type BuildInfo = CommandOutput<'app.getInfo'>;
-
-const BUILD_DETAILS_ID = 'build-details';
-
-/** Placeholder shell. The real chrome (tabs, address bar, memory) arrives in later milestones. */
+/**
+ * The shell: a toolbar across the top, the tab sidebar below it on the left, and the content area
+ * filling the rest (ADR-0009). Main places the selected tab's native web view over the content
+ * area, so nothing the shell draws there is visible while a web page shows.
+ *
+ * The shell is advisory. It renders the workspace snapshots main sends and answers with typed
+ * commands; main decides every tab and navigation outcome (ADR-0005).
+ */
 export function App() {
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [info, setInfo] = useState<BuildInfo | 'unavailable' | undefined>(undefined);
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  const toggleDetails = (): void => {
-    const opening = !detailsOpen;
-    setDetailsOpen(opening);
-    if (opening && info === undefined) {
-      window.veltriva.app
-        .getInfo()
-        .then((result) => {
-          setInfo(result.ok ? result.value : 'unavailable');
-        })
-        .catch(() => {
-          setInfo('unavailable');
-        });
-    }
-  };
+  useEffect(() => startWorkspaceSync(), []);
+  useContentInsets(contentRef);
 
   return (
-    <main className="flex min-h-screen flex-col items-center gap-8 px-6 pt-[28vh] text-center">
-      <header className="flex flex-col items-center gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Veltriva Browser</h1>
-        <p className="text-muted-foreground">Browse freely. Remember effortlessly.</p>
-      </header>
-
-      <Button
-        variant="outline"
-        aria-expanded={detailsOpen}
-        aria-controls={BUILD_DETAILS_ID}
-        onClick={toggleDetails}
-      >
-        <Info data-icon="inline-start" aria-hidden="true" />
-        About this build
-      </Button>
-
-      {detailsOpen ? <BuildDetails info={info} /> : null}
-    </main>
-  );
-}
-
-function BuildDetails({ info }: { info: BuildInfo | 'unavailable' | undefined }) {
-  return (
-    <section
-      id={BUILD_DETAILS_ID}
-      aria-label="Build details"
-      aria-busy={info === undefined}
-      className="w-full max-w-sm rounded-xl border bg-card p-4 text-left text-sm text-card-foreground"
-    >
-      {info === undefined ? <p className="text-muted-foreground">Loading…</p> : null}
-      {info === 'unavailable' ? (
-        <p className="text-muted-foreground">Build details are unavailable.</p>
-      ) : null}
-      {info !== undefined && info !== 'unavailable' ? (
-        <ul className="flex flex-col gap-1 font-mono">
-          <li>{`${info.productName} ${info.version}`}</li>
-          <li>{`Electron ${info.versions.electron}`}</li>
-          <li>{`Chromium ${info.versions.chrome}`}</li>
-        </ul>
-      ) : null}
-      <p className="mt-3 text-muted-foreground">
-        This is the Milestone 1.2 secure shell. Tabs, the address bar and memory come in later
-        milestones.
-      </p>
-    </section>
+    <div className="grid h-screen grid-cols-[260px_minmax(0,1fr)] grid-rows-[48px_minmax(0,1fr)] overflow-hidden bg-background text-foreground">
+      <Toolbar />
+      <Sidebar />
+      <ContentArea ref={contentRef} />
+    </div>
   );
 }
