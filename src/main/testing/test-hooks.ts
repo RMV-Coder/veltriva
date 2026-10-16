@@ -17,6 +17,8 @@ import { TAB_WEB_PREFERENCES } from '../web/web-preferences';
 import type { FullscreenController, FullscreenState } from '../windows/fullscreen';
 import type { LayoutManager } from '../windows/layout-manager';
 import type { MainWindow } from '../windows/main-window';
+import type { PopupWindowInfo, PopupWindows } from '../windows/popup-windows';
+import { recordedExternalLaunches } from './external-launches';
 
 export const TEST_HOOKS_MARKER = '__veltrivaTest';
 
@@ -71,6 +73,13 @@ export interface VeltrivaTestHooks {
   viewStack(): string[];
   /** HTML fullscreen as main sees it. */
   fullscreen(): { readonly state: FullscreenState | null; readonly shellRaised: boolean };
+  /**
+   * Every URL the external-protocol guard launched. Test builds record them instead of opening
+   * any app (src/main/testing/external-launches.ts).
+   */
+  externalLaunches(): string[];
+  /** The open popup windows, with what their address bar shows and their layout. */
+  popupWindows(): PopupWindowInfo[];
 }
 
 declare global {
@@ -84,6 +93,7 @@ export interface TestHookContext {
   readonly views: ReadonlyMap<TabId, WebContentsView>;
   readonly contextMenus: ContextMenus;
   readonly fullscreen: FullscreenController;
+  readonly popupWindows: PopupWindows;
 }
 
 /** A plain right-click on the page, at the top-left corner of the view. */
@@ -115,6 +125,7 @@ export function installTestHooks({
   views,
   contextMenus,
   fullscreen,
+  popupWindows,
 }: TestHookContext): void {
   const testTabs = new Set<WebContentsView>();
   const paramsFrom = (params: Partial<MenuParams> = {}): MenuParams => ({
@@ -214,6 +225,14 @@ export function installTestHooks({
 
     fullscreen() {
       return { state: fullscreen.state(), shellRaised: fullscreen.shellRaised() };
+    },
+
+    externalLaunches() {
+      return recordedExternalLaunches();
+    },
+
+    popupWindows() {
+      return popupWindows.list();
     },
   };
 

@@ -17,7 +17,16 @@ export default defineConfig({
     },
   },
   renderer: {
-    // Root: src/renderer (electron-vite's default). Output: out/renderer.
+    // Root: src/renderer (electron-vite's default). Output: out/renderer. Two pages: the shell,
+    // and the read-only address bar of popup windows (src/main/windows/popup-windows.ts).
+    build: {
+      rolldownOptions: {
+        input: {
+          index: resolve('src/renderer/index.html'),
+          'popup-bar': resolve('src/renderer/popup-bar.html'),
+        },
+      },
+    },
     resolve: {
       alias: { '@': resolve('src/renderer') },
     },

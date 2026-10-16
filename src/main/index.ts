@@ -2,11 +2,15 @@ import { getRandomValues } from 'node:crypto';
 import { join } from 'node:path';
 
 import { app, Menu, nativeTheme, session } from 'electron';
+import type { WebContents } from 'electron';
 
 import { uuidv7 } from '../core/id/uuidv7';
+import { ActivationTracker } from '../core/input/user-activation';
 import { APP_USER_MODEL_ID, BROWSING_PARTITION } from '../shared/constants/app-identity';
 import { cleanUserAgent } from './app/user-agent';
 import { resolveUserDataDir, USER_DATA_DIR_OVERRIDE_ENV } from './app/user-data-dir';
+import { systemLauncher } from './external/launcher';
+import { ExternalProtocolGuard } from './external/protocol-guard';
 import { FocusManager } from './focus/focus-manager';
 import { installPageMenu } from './input/page-menu';
 import { createShortcutHandler } from './input/shortcuts';
@@ -15,7 +19,12 @@ import { createShellEvents } from './ipc/events';
 import { installIpcRouter } from './ipc/install';
 import { createContextMenus } from './menus/context-menu';
 import { searchEngineName, searchTemplate } from './navigation/search-engine';
+import { installPermissionBroker } from './permissions/permission-broker';
 import { consoleLogger } from './platform/logger';
+import { BlockedPopups } from './popups/blocked-popups';
+import { createWindowOpenHandler } from './popups/popup-policy';
+import type { WindowOpenHandler, WindowOpenSource } from './popups/popup-policy';
+import { PromptManager } from './prompts/prompt-manager';
 import { SHELL_ORIGIN, SHELL_URL } from './shell/assets';
 import { parseDevServerUrl } from './shell/dev-server';
 import { registerShellScheme } from './shell/protocol';
@@ -24,14 +33,16 @@ import { createFaviconService } from './tabs/favicons';
 import { TabManager } from './tabs/tab-manager';
 import { createTabRuntimes } from './tabs/tab-runtime';
 import { createWorkspaceProjector } from './tabs/workspace-projector';
+import { recordExternalLaunch } from './testing/external-launches';
 import { exitOnUncaughtException } from './testing/fail-fast';
 import { LIFECYCLE_SCENARIO_ENV, runLifecycleScenario } from './testing/lifecycle-scenarios';
 import { installTestHooks } from './testing/test-hooks';
-import { installWebContentsGuard } from './web/guard';
-import { grantTabPermissions, hardenSession, installSessionBaseline } from './web/session-baseline';
+import { installWebContentsGuard, setExternalNavigationHandler } from './web/guard';
+import { hardenSession, installSessionBaseline } from './web/session-baseline';
 import { FullscreenController } from './windows/fullscreen';
 import { LayoutManager } from './windows/layout-manager';
 import { createMainWindow, windowBackground } from './windows/main-window';
+import { PopupWindows } from './windows/popup-windows';
 
 // ── Before `ready` (ADR-0002 §4–5, ADR-0007 §6). Moving any of these later silently weakens them.
 // The profile location, the Windows identity and the sandbox for every renderer.
@@ -77,7 +88,7 @@ function start(): void {
   // Created lazily by Electron; harden them explicitly too (hardenSession is idempotent).
   hardenSession(session.defaultSession);
   const browsing = session.fromPartition(BROWSING_PARTITION);
-  grantTabPermissions(browsing);
+  hardenSession(browsing);
 
   const shellSession = createShellSession({
     rendererRoot: join(__dirname, '../renderer'),
@@ -94,6 +105,78 @@ function start(): void {
   );
   // The parts below refer to each other through closures that run only after start() returns:
   // TabManager notifies the projector and the fullscreen controller, which read it back.
+
+  // M1.4: what pages may ask of the user (ADR-0002 §4). Trusted input per web contents decides
+  // whether a popup or another app's link had a gesture; questions go to the toolbar.
+  const activation = new ActivationTracker<number>();
+  const prompts = new PromptManager({
+    onChange: () => {
+      projector.markDirty();
+    },
+  });
+  const blockedPopups = new BlockedPopups({
+    onChange: () => {
+      projector.markDirty();
+    },
+  });
+  const external = new ExternalProtocolGuard({
+    prompts,
+    appNameFor: (url) => app.getApplicationNameForProtocol(url),
+    // Test builds never launch a real app.
+    launch: import.meta.env.MODE === 'test' ? recordExternalLaunch : systemLauncher,
+    logger: consoleLogger,
+  });
+  const tabIdOf = (contents: WebContents): string | undefined => {
+    for (const [tabId, view] of runtimes.views) {
+      if (view.webContents === contents) {
+        return tabId;
+      }
+    }
+    return undefined;
+  };
+  // Before any tab exists: the broker replaces the baseline's deny-all on the browsing session.
+  installPermissionBroker(browsing, { prompts, tabIdOf, logger: consoleLogger });
+  setExternalNavigationHandler((contents, url) => {
+    const tabId = tabIdOf(contents);
+    if (tabId === undefined) {
+      // Popup windows don't open other apps (their prompt would have nowhere trusted to go).
+      consoleLogger.warn('external.fromPopupRefused');
+      return;
+    }
+    void external.request({
+      tabId,
+      url,
+      pageUrl: contents.getURL(),
+      gesture: activation.consume(contents.id, Date.now()),
+    });
+  });
+  const windowOpenHandler = (source: WindowOpenSource): WindowOpenHandler =>
+    createWindowOpenHandler(
+      {
+        activation,
+        now: Date.now,
+        tabs: () => tabs,
+        blocked: blockedPopups,
+        external,
+        popupWindows: () => popupWindows,
+        logger: consoleLogger,
+      },
+      source,
+    );
+  const popupWindows: PopupWindows = new PopupWindows({
+    parent: () => main.window,
+    shellSession,
+    barUrl:
+      devServer === undefined
+        ? `${SHELL_ORIGIN}/popup-bar.html`
+        : new URL('popup-bar.html', devServer.url).href,
+    activation,
+    windowOpenHandler,
+    tabFor: (openerTabId) =>
+      tabs.has(openerTabId) ? openerTabId : (tabs.selectedTabId() ?? undefined),
+    logger: consoleLogger,
+  });
+
   const runtimes = createTabRuntimes({
     host: layout,
     favicons,
@@ -106,11 +189,17 @@ function start(): void {
         contextMenus.forTab(tabId, params);
       },
     },
+    activation,
+    windowOpenHandler,
   });
   const projector = createWorkspaceProjector({
     tabs: () => tabs.tabs(),
     selectedTabId: () => tabs.selectedTabId(),
     fullscreen: () => fullscreen.state(),
+    extrasFor: (tabId) => ({
+      prompt: prompts.current(tabId),
+      blockedPopups: blockedPopups.get(tabId),
+    }),
     publish: (snapshot) => {
       events.emit('workspace.changed', snapshot);
     },
@@ -123,6 +212,10 @@ function start(): void {
     },
     onFullscreenChange: (tabId) => {
       fullscreen.update(tabId);
+    },
+    onPageGone: (tabId) => {
+      prompts.dismissAll(tabId);
+      blockedPopups.clear(tabId);
     },
   });
   const focus = new FocusManager({ shell: main.shell, tabs: () => tabs, events });
@@ -203,6 +296,9 @@ function start(): void {
       focus,
       fullscreen,
       contextMenus,
+      prompts,
+      blockedPopups,
+      external,
       searchTemplate,
     }),
     allowedOrigins: new Set(
@@ -223,12 +319,22 @@ function start(): void {
     nativeTheme.off('updated', onThemeUpdated);
     projector.dispose();
     fullscreen.dispose();
+    prompts.dispose();
+    popupWindows.closeAll();
     tabs.closeAll();
     main.shell.webContents.close();
   });
 
   if (import.meta.env.MODE === 'test') {
-    installTestHooks({ main, tabs, layout, views: runtimes.views, contextMenus, fullscreen });
+    installTestHooks({
+      main,
+      tabs,
+      layout,
+      views: runtimes.views,
+      contextMenus,
+      fullscreen,
+      popupWindows,
+    });
     const scenario = process.env[LIFECYCLE_SCENARIO_ENV];
     if (scenario !== undefined && scenario !== '') {
       runLifecycleScenario(scenario, { main, tabs, fullscreen, views: runtimes.views });

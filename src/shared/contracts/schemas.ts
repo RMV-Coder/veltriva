@@ -4,6 +4,7 @@
 import { z } from 'zod';
 
 import { UUID_V7_PATTERN } from '../../core/id/uuidv7';
+import { PROMPTED_PERMISSIONS } from '../../core/permissions/permission-policy';
 import { INTERNAL_PAGES } from '../../core/url/internal-pages';
 import type { CommandName, EventName } from './ipc';
 
@@ -27,6 +28,9 @@ export const MAX_FIND_TEXT = 1024;
 const inset = z.number().min(0).max(10_000);
 
 /** A favicon is always a validated raster image that main encoded itself (threat T5). */
+/** A toolbar question's id (src/main/prompts/prompt-manager.ts). */
+const promptId = z.string().regex(/^prompt-[0-9]{1,15}$/);
+
 const faviconDataUrl = z
   .string()
   .max(90_000)
@@ -68,6 +72,33 @@ const tabSnapshot = z.strictObject({
       activeMatch: z.number().int().nonnegative(),
       matches: z.number().int().nonnegative(),
     })
+    .nullable(),
+  /**
+   * The question the toolbar asks about this tab's page, if any (ADR-0002 §4). `site` is main's
+   * `originLabel` of the page's URL, never page text; null for a typed address.
+   */
+  prompt: z
+    .discriminatedUnion('kind', [
+      z.strictObject({
+        id: promptId,
+        kind: z.literal('permission'),
+        site: z.string().max(300),
+        permissions: z.array(z.enum(PROMPTED_PERMISSIONS)).min(1).max(PROMPTED_PERMISSIONS.length),
+      }),
+      z.strictObject({
+        id: promptId,
+        kind: z.literal('external-protocol'),
+        site: z.string().max(300).nullable(),
+        scheme: z.string().regex(/^[a-z][a-z0-9+.-]{0,63}$/),
+        /** The app Windows would open, or '' when it's unknown. */
+        appName: z.string().max(64),
+        canRemember: z.boolean(),
+      }),
+    ])
+    .nullable(),
+  /** Popups blocked for lack of a gesture: how many, and the latest one's address text. */
+  blockedPopups: z
+    .strictObject({ count: z.number().int().min(1), latest: z.string().max(4096) })
     .nullable(),
 });
 
@@ -113,7 +144,9 @@ export const commandSchemas = {
   'navigation.submit': {
     // What the user typed. Main classifies it (src/core/url/omnibox.ts); the shell never does.
     input: z.strictObject({ tabId, text: z.string().max(16_384) }),
-    output: z.strictObject({ action: z.enum(['navigate', 'search', 'internal', 'none']) }),
+    output: z.strictObject({
+      action: z.enum(['navigate', 'search', 'internal', 'external', 'none']),
+    }),
   },
   'navigation.back': { input: tabRef, output: nothing },
   'navigation.forward': { input: tabRef, output: nothing },
@@ -152,6 +185,23 @@ export const commandSchemas = {
   'fullscreen.noticeShown': { input: nothing, output: nothing },
   /** The user clicked the fullscreen notice: hide it now. */
   'fullscreen.dismissNotice': { input: nothing, output: nothing },
+  /**
+   * The user answered the toolbar's question about a tab. Only the question shown can be
+   * answered: an old id is ignored. `remember` is the external-protocol prompt's "always allow".
+   */
+  'prompts.respond': {
+    input: z.strictObject({
+      tabId,
+      promptId,
+      decision: z.enum(['allow', 'block', 'dismiss']),
+      remember: z.boolean(),
+    }),
+    output: nothing,
+  },
+  /** Opens the tab's latest blocked popup in a new tab after it, and clears the indicator. */
+  'popups.openBlocked': { input: tabRef, output: nothing },
+  /** Clears the tab's "Pop-up blocked" indicator. */
+  'popups.dismissBlocked': { input: tabRef, output: nothing },
 } as const satisfies Record<CommandName, CommandSchema>;
 
 export const eventSchemas = {

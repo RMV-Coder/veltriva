@@ -26,6 +26,10 @@ const MARKERS = [
   'tabMenuItems',
   'invokeTabMenuItem',
   'viewStack',
+  'externalLaunches',
+  // src/main/testing/external-launches.ts: test builds record app launches instead of making them
+  'recordExternalLaunch',
+  'recordedExternalLaunches',
   // src/main/testing/lifecycle-scenarios.ts
   'VELTRIVA_LIFECYCLE',
   'runLifecycleScenario',

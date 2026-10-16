@@ -29,6 +29,38 @@ export function assignRole(contents: WebContents, role: WebContentsRole): void {
   roles.set(contents, role);
 }
 
+/**
+ * A popup window's web contents is created by Chromium, not by us. Measured on Electron 44: the
+ * window-open handler returns, then `web-contents-created` fires for the new contents, then
+ * `createWindow` runs, all in the same task. So the handler claims `popup` here just before it
+ * returns `allow`, and `createWindow` checks the claim landed (`assertPopupContents`). A claim
+ * that no contents took (Chromium declined after all) is dropped on the next turn of the event
+ * loop, so it can never reach a later, unrelated web contents.
+ */
+export function claimNextPopupContents(): void {
+  pendingClaim = 'popup';
+  setImmediate(() => {
+    if (pendingClaim === 'popup') {
+      pendingClaim = undefined;
+    }
+  });
+}
+
+/**
+ * Fails loudly if Chromium's pre-created popup contents didn't get the `popup` role: it would
+ * otherwise load with the wrong policy (or `unknown`, which can't navigate at all). The contents
+ * is closed first, so it never loads anything.
+ */
+export function assertPopupContents(contents: WebContents): void {
+  if (roles.get(contents) === 'popup') {
+    return;
+  }
+  contents.close();
+  throw new Error(
+    `A popup's web contents has the role ${roles.get(contents) ?? 'none'}, not popup; refusing it`,
+  );
+}
+
 /** The only way Veltriva creates a WebContentsView. */
 export function createViewWithRole(
   role: ClaimableRole,

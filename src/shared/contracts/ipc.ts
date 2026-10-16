@@ -34,6 +34,9 @@ export const COMMAND_NAMES = [
   'find.close',
   'fullscreen.noticeShown',
   'fullscreen.dismissNotice',
+  'prompts.respond',
+  'popups.openBlocked',
+  'popups.dismissBlocked',
 ] as const;
 export type CommandName = (typeof COMMAND_NAMES)[number];
 

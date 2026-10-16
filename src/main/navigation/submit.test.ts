@@ -74,12 +74,23 @@ describe('submitAddress', () => {
     expect(loads).toEqual(['http://127.0.0.1:4000/search?q=javascript%3Aalert(1)']);
   });
 
-  it.each(['ms-msdt:/id', 'zoommtg:join?confno=1', 'user:pass@example.com'])(
-    'does nothing with another app’s scheme until the external-protocol guard exists: %s',
-    (text) => {
+  it.each([
+    ['ms-msdt:/id', 'ms-msdt:/id'],
+    ['zoommtg:join?confno=1', 'zoommtg:join?confno=1'],
+    ['user:pass@example.com', 'user:pass@example.com'],
+  ])(
+    'hands another app’s scheme to the external-protocol guard, never to a search: %s',
+    (text, url) => {
       const { tabs, loads, id } = setup();
-      expect(submitAddress(tabs, id, text, TEMPLATE)).toBe('none');
-      // Neither opened nor searched for: the text may hold a password.
+      const external: string[] = [];
+      expect(
+        submitAddress(tabs, id, text, TEMPLATE, (asked) => {
+          external.push(asked);
+        }),
+      ).toBe('external');
+      // The guard decides (an always-blocked scheme never launches); nothing is loaded or
+      // searched for, since the text may hold a password.
+      expect(external).toEqual([url]);
       expect(loads).toEqual([]);
     },
   );

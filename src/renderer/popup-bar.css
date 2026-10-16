@@ -1,0 +1,80 @@
+/* The popup window's read-only address bar. Plain CSS: it's one line of text and an icon. */
+:root {
+  color-scheme: light dark;
+  --bar-bg: #f4f4f5;
+  --bar-border: #e4e4e7;
+  --text: #18181b;
+  --muted: #71717a;
+  --secure: #15803d;
+  --warning: #b45309;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bar-bg: #18181b;
+    --bar-border: #27272a;
+    --text: #fafafa;
+    --muted: #a1a1aa;
+    --secure: #4ade80;
+    --warning: #fbbf24;
+  }
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bar-bg);
+  font:
+    13px/1 'Segoe UI',
+    system-ui,
+    sans-serif;
+  color: var(--text);
+  user-select: none;
+}
+
+.bar {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--bar-border);
+}
+
+.security {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.security[data-state='secure'] {
+  background: var(--secure);
+}
+
+.security[data-state='not-secure'] {
+  background: var(--warning);
+}
+
+.address {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  /* Left to right always: a URL is never reordered by bidi text around it. */
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.site {
+  color: var(--text);
+}
+
+.rest {
+  color: var(--muted);
+}

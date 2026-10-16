@@ -2,14 +2,22 @@
 // renders. Changes are coalesced: however many arrive, at most one snapshot goes out per frame.
 import { displayUrl } from '../../core/url/display';
 import type { TabSnapshot, WorkspaceSnapshot } from '../../shared/contracts/schemas';
-import type { TabState } from './tab-manager';
+import type { BlockedPopupsState } from '../popups/blocked-popups';
+import type { Prompt } from '../prompts/prompt-manager';
+import type { TabId, TabState } from './tab-manager';
 
 /** About one animation frame. */
 export const SNAPSHOT_INTERVAL_MS = 16;
 
 const NO_ADDRESS = { text: '', security: 'neutral', hadCredentials: false } as const;
 
-export function projectTab(tab: TabState): TabSnapshot {
+/** What other parts of main add to a tab's snapshot: the toolbar's question, blocked popups. */
+export interface TabExtras {
+  readonly prompt?: Prompt | null;
+  readonly blockedPopups?: BlockedPopupsState | null;
+}
+
+export function projectTab(tab: TabState, extras: TabExtras = {}): TabSnapshot {
   const page =
     tab.page.kind === 'web'
       ? { kind: 'web' as const }
@@ -33,7 +41,31 @@ export function projectTab(tab: TabState): TabSnapshot {
     page,
     zoomPercent: Math.min(Math.max(tab.zoomPercent, 25), 500),
     find: tab.find,
+    prompt: projectPrompt(extras.prompt ?? null),
+    blockedPopups:
+      extras.blockedPopups === undefined || extras.blockedPopups === null
+        ? null
+        : {
+            count: extras.blockedPopups.count,
+            latest: displayUrl(extras.blockedPopups.latestUrl).text,
+          },
   };
+}
+
+function projectPrompt(prompt: Prompt | null): TabSnapshot['prompt'] {
+  if (prompt === null) {
+    return null;
+  }
+  return prompt.kind === 'permission'
+    ? { id: prompt.id, kind: prompt.kind, site: prompt.site, permissions: [...prompt.permissions] }
+    : {
+        id: prompt.id,
+        kind: prompt.kind,
+        site: prompt.site,
+        scheme: prompt.scheme,
+        appName: prompt.appName,
+        canRemember: prompt.canRemember,
+      };
 }
 
 /** Which tab is in HTML fullscreen, and whether the shell should draw the notice (T6). */
@@ -51,6 +83,7 @@ export function createWorkspaceProjector(options: {
   readonly tabs: () => readonly TabState[];
   readonly selectedTabId: () => string | null;
   readonly fullscreen?: () => FullscreenSnapshot;
+  readonly extrasFor?: (tabId: TabId) => TabExtras;
   readonly publish: (snapshot: WorkspaceSnapshot) => void;
   readonly schedule?: (callback: () => void, ms: number) => unknown;
   readonly cancel?: (handle: unknown) => void;
@@ -69,7 +102,7 @@ export function createWorkspaceProjector(options: {
     return {
       version,
       selectedTabId: options.selectedTabId(),
-      tabs: options.tabs().map(projectTab),
+      tabs: options.tabs().map((tab) => projectTab(tab, options.extrasFor?.(tab.id) ?? {})),
       fullscreen: options.fullscreen?.() ?? null,
     };
   };

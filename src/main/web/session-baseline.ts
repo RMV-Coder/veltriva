@@ -1,11 +1,10 @@
 // The baseline every session gets (ADR-0002 §4, assessment §3.7). Electron's defaults grant
 // every permission, pick the first client certificate and show a save dialog for downloads, so
-// each of those is overridden. For now everything is denied; the permission broker, the download
-// manager and the external-protocol guard (M1.4) replace these deny-alls with real policy.
+// each of those is overridden, and everything is denied. The browsing session's permission
+// handlers are then replaced by the permission broker (src/main/permissions/permission-broker.ts);
+// downloads, client certificates and HTTP auth get real policy in M1.4b.
 import { app } from 'electron';
 import type { Session } from 'electron';
-
-import { isTabPermissionGranted } from './permission-policy';
 
 /**
  * Hunspell dictionaries for languages Windows can't spellcheck would come from Google's CDN
@@ -51,18 +50,6 @@ export function hardenSession(session: Session): void {
     event.preventDefault();
   });
   session.setSpellCheckerDictionaryDownloadURL(SPELLCHECK_DICTIONARY_PLACEHOLDER);
-}
-
-/**
- * The browsing session (tabs) additionally gets the few permissions Chrome grants without a
- * prompt (./permission-policy.ts). Call right after hardening it, before any tab exists.
- */
-export function grantTabPermissions(session: Session): void {
-  hardenSession(session);
-  session.setPermissionRequestHandler((_contents, permission, callback) => {
-    callback(isTabPermissionGranted(permission));
-  });
-  session.setPermissionCheckHandler((_contents, permission) => isTabPermissionGranted(permission));
 }
 
 /** Install before `ready`, so no session or request is created without the baseline. */

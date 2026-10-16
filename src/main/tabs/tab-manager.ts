@@ -139,6 +139,11 @@ export interface TabManagerOptions {
   readonly onChange: () => void;
   /** Called when a tab enters HTML fullscreen (its id) or the window leaves it (null). */
   readonly onFullscreenChange?: (tabId: TabId | null) => void;
+  /**
+   * The page a tab showed is gone: a new document committed, it failed or crashed, an internal
+   * page replaced it, or the tab closed. Its permission prompts and blocked popups no longer apply.
+   */
+  readonly onPageGone?: (tabId: TabId) => void;
 }
 
 /** How many closed tabs Ctrl+Shift+T can bring back. */
@@ -274,6 +279,7 @@ export class TabManager {
     }
     record.runtime?.destroy();
     record.runtime = undefined;
+    this.#options.onPageGone?.(tabId);
 
     if (this.#order.length === 0) {
       this.#selected = null;
@@ -315,9 +321,10 @@ export class TabManager {
 
   /** Closes every tab without opening a new one. For shutdown only. */
   closeAll(): void {
-    for (const record of this.#records.values()) {
+    for (const [tabId, record] of this.#records) {
       record.runtime?.destroy();
       record.runtime = undefined;
+      this.#options.onPageGone?.(tabId);
     }
     this.#records.clear();
     this.#order.length = 0;
@@ -461,6 +468,7 @@ export class TabManager {
     record.runtime = undefined;
     record.runtimeToken = undefined;
     record.credentialsRemovedOnCommit = false;
+    this.#options.onPageGone?.(tabId);
     record.findRequestId = undefined;
     record.state = {
       ...record.state,
@@ -717,6 +725,7 @@ export class TabManager {
           if (record.state.find !== null) {
             record.runtime?.stopFind('clearSelection');
           }
+          this.#options.onPageGone?.(tabId);
         }
         update(
           sameDocument
@@ -761,6 +770,7 @@ export class TabManager {
         if (this.#fullscreen === tabId) {
           this.#setFullscreen(null);
         }
+        this.#options.onPageGone?.(tabId);
         update(
           {
             page: { kind: 'internal', name: 'network-error', error: { code, name } },
@@ -785,6 +795,7 @@ export class TabManager {
         if (this.#fullscreen === tabId) {
           this.#setFullscreen(null);
         }
+        this.#options.onPageGone?.(tabId);
         update(
           {
             page: { kind: 'internal', name: 'crashed', error: { code, name } },

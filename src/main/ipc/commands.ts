@@ -3,13 +3,17 @@
 import { app } from 'electron';
 
 import { PRODUCT_NAME } from '../../shared/constants/app-identity';
+import type { ExternalProtocolGuard } from '../external/protocol-guard';
 import type { FocusManager } from '../focus/focus-manager';
 import type { ContextMenus } from '../menus/context-menu';
 import { submitAddress } from '../navigation/submit';
+import type { BlockedPopups } from '../popups/blocked-popups';
+import type { PromptManager } from '../prompts/prompt-manager';
 import type { TabId, TabManager } from '../tabs/tab-manager';
 import type { WorkspaceProjector } from '../tabs/workspace-projector';
 import type { FullscreenController } from '../windows/fullscreen';
 import type { LayoutManager } from '../windows/layout-manager';
+import { isNavigationAllowed } from '../web/navigation-policy';
 import { CommandError } from './command-error';
 import type { CommandHandlers } from './router';
 
@@ -20,6 +24,9 @@ export interface CommandContext {
   readonly focus: FocusManager;
   readonly fullscreen: FullscreenController;
   readonly contextMenus: ContextMenus;
+  readonly prompts: PromptManager;
+  readonly blockedPopups: BlockedPopups;
+  readonly external: ExternalProtocolGuard;
   readonly searchTemplate: () => string;
 }
 
@@ -30,6 +37,9 @@ export function createCommandHandlers({
   focus,
   fullscreen,
   contextMenus,
+  prompts,
+  blockedPopups,
+  external,
   searchTemplate,
 }: CommandContext): CommandHandlers {
   /** Runs `action` on an existing tab, or answers `not_found`. */
@@ -87,7 +97,11 @@ export function createCommandHandlers({
       }),
 
     'navigation.submit': ({ tabId, text }) =>
-      onTab(tabId, () => ({ action: submitAddress(tabs, tabId, text, searchTemplate()) })),
+      onTab(tabId, () => ({
+        action: submitAddress(tabs, tabId, text, searchTemplate(), (url) => {
+          void external.request({ tabId, url, pageUrl: null, gesture: true });
+        }),
+      })),
     'navigation.back': ({ tabId }) =>
       onTab(tabId, () => {
         tabs.goBack(tabId);
@@ -136,6 +150,28 @@ export function createCommandHandlers({
       fullscreen.dismissNotice();
       return done;
     },
+
+    'prompts.respond': ({ tabId, promptId, decision, remember }) =>
+      onTab(tabId, () => {
+        // A stale id (the page already went away, or an older question) is ignored.
+        prompts.respond(tabId, promptId, { decision, remember });
+        return done;
+      }),
+    'popups.openBlocked': ({ tabId }) =>
+      onTab(tabId, () => {
+        const url = blockedPopups.take(tabId);
+        // Checked when it was blocked; checked again, as for every tab navigation main starts.
+        if (url !== null && isNavigationAllowed('tab', { url, isMainFrame: true })) {
+          const id = tabs.create({ afterTabId: tabId, select: true });
+          tabs.navigate(id, url);
+        }
+        return done;
+      }),
+    'popups.dismissBlocked': ({ tabId }) =>
+      onTab(tabId, () => {
+        blockedPopups.clear(tabId);
+        return done;
+      }),
 
     'layout.setInsets': (insets) => {
       layout.setInsets(insets);

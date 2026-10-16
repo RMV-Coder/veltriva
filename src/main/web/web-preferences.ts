@@ -29,6 +29,29 @@ export function shellWebPreferences(options: {
   };
 }
 
+/**
+ * A popup window's address bar (src/main/windows/popup-windows.ts): trusted UI on the shell's
+ * session and protocol, but with no preload and so no IPC. Main pushes the text it shows.
+ */
+export function popupBarWebPreferences(session: Session): WebPreferences {
+  return {
+    session,
+    sandbox: true,
+    contextIsolation: true,
+    nodeIntegration: false,
+    nodeIntegrationInWorker: false,
+    nodeIntegrationInSubFrames: false,
+    webSecurity: true,
+    allowRunningInsecureContent: false,
+    experimentalFeatures: false,
+    webviewTag: false,
+    navigateOnDragDrop: false,
+    safeDialogs: true,
+    spellcheck: false,
+    devTools: !app.isPackaged,
+  };
+}
+
 /** Untrusted web content. Deliberately no `preload`: tabs have no channel to main. */
 export const TAB_WEB_PREFERENCES = {
   partition: BROWSING_PARTITION,

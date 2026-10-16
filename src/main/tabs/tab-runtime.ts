@@ -7,10 +7,15 @@
 //   found-in-page                                     → foundInPage
 //   zoom-changed (Ctrl+wheel, pinch)                  → zoomRequested
 //   enter-html-full-screen / leave-html-full-screen   → fullscreenChanged
+// M1.4: `input-event` feeds the user-activation tracker, and the window-open handler is the popup
+// policy (src/main/popups/popup-policy.ts), set before the view loads anything.
 // `did-start-navigation` is deliberately unused (see TabRuntimeEvents in ./tab-manager.ts).
 import type { ContextMenuParams, Event, Input, WebContentsView } from 'electron';
 
+import { isActivationInput } from '../../core/input/user-activation';
+import type { ActivationTracker } from '../../core/input/user-activation';
 import type { Logger } from '../platform/logger';
+import type { WindowOpenHandler, WindowOpenSource } from '../popups/popup-policy';
 import { createViewWithRole } from '../web/roles';
 import { TAB_WEB_PREFERENCES } from '../web/web-preferences';
 import type { FaviconService } from './favicons';
@@ -49,6 +54,9 @@ export function createTabRuntimes(options: {
   readonly host: ContentHost;
   readonly favicons: FaviconService;
   readonly input: TabInputHandlers;
+  /** Trusted input per web contents, for the popup and external-protocol gesture rule. */
+  readonly activation: ActivationTracker<number>;
+  readonly windowOpenHandler: (source: WindowOpenSource) => WindowOpenHandler;
   readonly logger: Logger;
 }): TabRuntimes {
   const views = new Map<TabId, WebContentsView>();
@@ -60,6 +68,15 @@ export function createTabRuntimes(options: {
     let destroyed = false;
     /** Increases with each cross-document commit; stale favicon lookups are dropped. */
     let document = 0;
+
+    contents.setWindowOpenHandler(
+      options.windowOpenHandler({ contents, tabId: () => tabId, fromPopupWindow: false }),
+    );
+    contents.on('input-event', (_event, input) => {
+      if (!destroyed && isActivationInput(input)) {
+        options.activation.record(contents.id, Date.now());
+      }
+    });
 
     const history = (): { canGoBack: boolean; canGoForward: boolean } => ({
       canGoBack: contents.navigationHistory.canGoBack(),
@@ -229,6 +246,7 @@ export function createTabRuntimes(options: {
         if (contents.isDevToolsOpened()) {
           contents.closeDevTools();
         }
+        options.activation.forget(contents.id);
         contents.close();
         views.delete(tabId);
       },
