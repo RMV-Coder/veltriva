@@ -26,7 +26,8 @@
    - Test hooks (`advanceClock`, `getTabStates`, `setMemoryPressure`, `crashRenderer`) exist only in test builds.
      - **How (M1.2):** a test build is `electron-vite build --mode test` (`npm run build:test`; `npm run test:e2e` runs it first). The hooks sit behind `import.meta.env.MODE === 'test'`, which a production build folds to `false` and drops.
      - `npm run package:dir` runs `scripts/check-production-build.mjs`, which refuses an `out/` that still contains them.
-     - M1.2's hooks are `openTestTab`, `closeTestTabs` and `webContentsRoles`, on `globalThis.__veltrivaTest`.
+     - M1.2's hooks are `openTestTab`, `closeTestTabs` and `webContentsRoles`, on `globalThis.__veltrivaTest`. M1.3a adds `tabStates`, `selectedTabId`, `contentRect`, `crashTab` and `setSearchTemplate`, which points omnibox searches at a local fixture.
+     - **An uncaught exception in main exits a test build with code 70** (`src/main/testing/fail-fast.ts`). Electron's default opens a modal error dialog and keeps the app running, which every harness would only see as a hang.
    - Pages come from a deterministic local fixture server; no critical test depends on an external site.
    - Before launch, the test harness removes `ELECTRON_RUN_AS_NODE` from the app's environment and asserts that it's gone. An empty value still counts as set.
    - **Rules from [spike S6](../spikes/s6-test-reach.md):**
@@ -48,6 +49,12 @@
    - `beforeunload` handling.
 
    It runs in CI on `windows-latest`, with the test window kept always on top so native occlusion tracking can't skew results.
+
+   **As built in M1.3a:**
+   - **How it runs.** `npm run test:lifecycle` builds the test variant, then Vitest (`vitest.lifecycle.config.mts`, specs in `tests/lifecycle`) starts the app once per check with `VELTRIVA_LIFECYCLE_SCENARIO` set. The app runs that scenario (`src/main/testing/lifecycle-scenarios.ts`), prints one result line and exits. CI runs it after the E2E tests.
+   - **Two checks so far:**
+     - A tab that isn't selected reports `hidden` and is throttled: a 100 ms interval ticks about 3 times in 3 s, against about 30 times in the selected tab, which stays `visible`.
+     - Closing the window with live tabs quits cleanly, with exit code 0, within 10 s. This check found a real bug: closing tabs after the window was destroyed threw, and Electron's error dialog kept the app open.
 5. **Installer smoke test**, without Playwright: install, launch, read back the fuses, assert that no test hooks exist, uninstall.
 6. **Security tests:**
    - a hostile fixture page;

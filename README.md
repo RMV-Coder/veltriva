@@ -8,7 +8,7 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
 - Milestone 1.1 built the project scaffold and CI.
 - Milestone 1.2 built the secure shell. The UI is served from `app://shell` with a strict Content Security Policy. It talks to the main process through a typed, validated IPC contract, and every web page gets a role and a locked-down policy.
 
-There's no browsing yet: tabs and navigation arrive in Milestone 1.3.
+Milestone 1.3a (tabs, navigation, the omnibox and a vertical sidebar) is in progress on its branch. The main-process side is built and tested; the shell UI and the E2E suites are being finished.
 
 ## Why
 
@@ -63,6 +63,7 @@ npm run dev
 | `npm run format` / `npm run format:check` | Prettier writes or checks formatting. Markdown is excluded. |
 | `npm test` | Vitest unit tests on Node. |
 | `npm run test:e2e` | Builds the test variant, then runs the Playwright tests against the built, unpackaged app: the shell, its CSP and protocol, the IPC contract, and a hostile page in a tab. |
+| `npm run test:lifecycle` | Builds the test variant, then runs the lifecycle-behavior checks without Playwright (ADR-0008 4a): a background tab is hidden and throttled, and closing the window with live tabs quits cleanly. |
 | `npm run package:dir` | Builds, checks that the build contains no test hooks, then packages an unpacked app with electron-builder into `release/win-unpacked/` (`Veltriva.exe`), with the production Electron fuses applied. It is unsigned, and no installer is built or installed. |
 
 ### Project layout
@@ -77,7 +78,8 @@ veltriva/
 │  ├─ renderer/
 │  └─ shared/
 └─ tests/
-   └─ e2e/
+   ├─ e2e/
+   └─ lifecycle/
 ```
 
 - `src/core/`: pure TypeScript with no Electron or Node imports, enforced by ESLint and by its own tsconfig.
@@ -86,6 +88,7 @@ veltriva/
 - `src/renderer/`: the React shell UI.
 - `src/shared/`: constants and types shared by several processes. Also pure.
 - `tests/e2e/`: Playwright tests.
+- `tests/lifecycle/`: lifecycle-behavior checks that run the app without Playwright.
 
 The full plan is in [technical assessment §3.8](docs/architecture/technical-assessment.md#38-project-structure).
 
@@ -95,7 +98,7 @@ The full plan is in [technical assessment §3.8](docs/architecture/technical-ass
 - **`ELECTRON_RUN_AS_NODE` must not be set** when you run `npm run dev`, because it makes Electron run as plain Node. The E2E test removes it from the app's environment and checks that it's gone before launch.
 - **A separate profile for development.** Unpackaged builds (development and E2E) accept `VELTRIVA_USER_DATA_DIR=<absolute path>`. Packaged builds ignore it and always use `%APPDATA%\Veltriva`.
 - **The shell loads from `app://shell`** in builds, and from the Vite dev server (with a development CSP) under `npm run dev`. Commands and events between the shell and main are defined in `src/shared/contracts`; see [ADR-0005](docs/adr/0005-state-ownership-and-ipc.md).
-- **CI.** GitHub Actions on `windows-latest` runs typecheck, lint, the format check, unit tests, the production build with its no-test-hooks check, and the E2E tests on every push to `main` and every pull request (`.github/workflows/ci.yml`).
+- **CI.** GitHub Actions on `windows-latest` runs typecheck, lint, the format check, unit tests, the production build with its no-test-hooks check, the E2E tests and the lifecycle checks on every push to `main` and every pull request (`.github/workflows/ci.yml`).
 
 ## License
 

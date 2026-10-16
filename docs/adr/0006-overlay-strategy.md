@@ -30,6 +30,7 @@ Web pages are native views painted *above* the shell, so HTML can't cover them. 
   3. focus goes to the shell.
 - **Closing reverses it:** remove the class, then re-add the tab view on top.
 - **The scrim, palette and dropdown are ordinary React components** in the shell's single tree, with no second renderer and no cross-view state.
+- **As built in M1.3a:** nothing overlays web content yet. The omnibox shows no suggestion list, and the sidebar uses inline buttons and native `title` tooltips, so nothing in the shell reaches into the content area. A′ lands with the first overlay that needs it.
 
 ## Consequences
 

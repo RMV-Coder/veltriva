@@ -32,6 +32,22 @@ The tab lifecycle mixes asynchronous Chromium events, user commands, a scheduler
    - **The preload API** is `window.veltriva.<namespace>.<method>(input?)` for each command, plus `on(event, listener)`, which returns an unsubscribe function and throws for names outside the contract. A command whose schema has no keys can be called without an argument.
    - **Order of checks.** The sender is checked first: role `shell` (from the web-contents guard), main frame, and an allowed origin. Then the command name, then strict input parsing, then the handler. The output is validated before it's returned.
    - **Error codes** are `forbidden`, `unknown_command`, `invalid_input` and `internal`. An untrusted sender gets `forbidden` even for a name that doesn't exist, so it learns nothing about the contract. Handler errors are logged by name only; their messages never cross processes.
+8. **As built in M1.3a:**
+   - **Commands.**
+     - `workspace.getSnapshot`.
+     - `tabs.create`, `tabs.close`, `tabs.select`, `tabs.move`, `tabs.setPinned` and `tabs.duplicate`.
+     - `navigation.submit`, `navigation.back`, `navigation.forward`, `navigation.reload` and `navigation.stop`.
+     - `layout.setInsets`.
+   - **The event** `workspace.changed` carries the whole workspace snapshot.
+   - **A new error code, `not_found`:** the input was valid but named a tab that doesn't exist, such as one closed a moment ago.
+   - **Snapshots** are versioned and coalesced to one per 16 ms by the WorkspaceProjector. The shell subscribes first, then asks for the current snapshot, and applies only versions newer than the one it has.
+   - **Main builds everything the shell shows**, and the schema bounds each piece:
+     - the address text, from the parsed URL (punycode host, no credentials);
+     - a security state;
+     - a sanitized title: no controls or bidi overrides, at most 1,024 characters;
+     - a validated favicon `data:` URL.
+   - **`navigation.submit` carries the typed text, not a URL.** Main classifies it (`src/core/url/omnibox.ts`); the shell never decides what a string means.
+   - **`layout.setInsets`** reports how far the shell's chrome reaches into the window. Main places the selected tab's view in the rest (LayoutManager).
 
 ## Consequences
 

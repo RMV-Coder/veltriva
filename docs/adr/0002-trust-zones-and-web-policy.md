@@ -75,7 +75,7 @@ A browser loads hostile content by definition. Electron's defaults assume truste
    - **Roles.** Every web contents is `shell`, `tab`, `popup`, `devtools` or `unknown`.
      - Creation code claims the role while it constructs the view. Electron 44 emits `web-contents-created` synchronously inside the constructor, and `createViewWithRole` verifies the claim every time.
      - Unclaimed contents of type `remote` are DevTools. Anything else is `unknown` and can't navigate at all.
-   - **Tab navigation** also allows `about:srcdoc` in subframes, which is how `<iframe srcdoc>` loads. `data:` and `blob:` frames are denied for now; M1.3 re-checks web compatibility on real sites.
+   - **Tab navigation** also allows `about:srcdoc` in subframes, which is how `<iframe srcdoc>` loads. `data:` and `blob:` frames were denied in M1.2; M1.3a allows them (item 7).
    - **The guard cancels in `will-frame-navigate`.** Electron emits it before `will-navigate`, so a cancelled navigation never reaches `will-navigate`.
    - **The session baseline is deny-all until M1.4.** It covers:
      - permission request and check handlers;
@@ -89,12 +89,27 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      Spellcheck dictionary downloads point at the loopback discard port, `http://127.0.0.1:9/`, until we host dictionaries; Windows' own spellchecker still works. The shell itself has spellcheck off.
    - **The user agent** loses everything Electron puts between `(KHTML, like Gecko)` and `Chrome/`, plus the `Electron/x.y.z` token, through `app.userAgentFallback` before `ready`. Electron's app token is the product name without spaces, so for us it's `VeltrivaBrowser/0.0.0`.
 
+7. **As built in M1.3a** (the code is in `src/main/tabs`, `src/main/navigation`, `src/main/web` and `src/core/url`):
+   - **Frames and generated documents.** Tab navigation allows `data:` and `blob:` documents in subframes, as Chrome does. A tab may also show a `blob:` document in place when the blob's origin is a web origin (`blob:https://…`), so the address bar names the site that made it.
+     - Top-level `data:` stays blocked for renderer-initiated navigations, as in Chrome: the address bar would show attacker-chosen text.
+     - So does an opaque-origin blob (`blob:null/…`, made by a sandboxed or `data:` frame), which would also put content on screen under no site's name.
+   - **Permissions.** The browsing session grants `clipboard-sanitized-write` (a site's copy button) without a prompt, as Chrome does. Reading the clipboard stays denied. `fullscreen` follows in M1.3b, with its origin notice (threat T6). Everything else stays denied until the M1.4 broker.
+   - **The address bar changes only when a document commits or fails.** Electron 44 emits `did-start-navigation` before `will-frame-navigate`, even for a navigation the guard then cancels (measured). Showing the URL at that point would let a page flash any address. TabManager takes the URL only from `did-navigate`, `did-navigate-in-page` and `did-fail-load`.
+   - **Favicons (threat T5).**
+     - Main fetches the page's first http(s) or `data:` candidate through the browsing session, with a 10 s timeout and a 64 KB cap enforced while streaming.
+     - It accepts only raster formats it recognizes by their magic bytes: PNG, ICO, GIF, JPEG, WebP and BMP. SVG is never accepted.
+     - The shell receives a `data:` URL that main built itself, and the IPC contract re-checks its form.
+     - Decoding and re-encoding the image in main would go further; that's left for later.
+   - **The omnibox opens only local drive paths.** A typed Windows path or `file:` URL opens only as `file:///C:/…`. Network paths (`\\server\share`, `file://server/share`, `file:////server/share`) become searches: Windows would connect over SMB and may send the user's NTLM credentials to that server.
+   - **Other apps' schemes do nothing yet.** Until the M1.4 protocol guard can ask, typed `zoommtg:`, `mailto:` and similar input is neither opened nor searched for. A search would send `user:pass@host`, which reads exactly like `xmpp:user@host`, to the search engine.
+   - **No default application menu.** Its accelerators would act on the browser itself: Ctrl+W would close the window and Ctrl+R would reload the shell. Browser shortcuts arrive in M1.3b, through `before-input-event`.
+
 ## Consequences
 
 - **Positive:** web pages can't reach any Veltriva API by construction, and privileged UI never lives inside the tab system.
 - **Positive:** page signals come only from main-process events (`input-event`, `before-mouse-event`, media and fullscreen events) and two small isolated-world scripts. One is an on-demand probe; the other is a passive trusted-input tracker installed after each navigation (ADR-0003). Neither has any channel to main, and page scripts can't see them.
 - **Negative:** more code than a typical Electron app. We own the permission broker, protocol guard, popup policy and download manager.
-- **Negative:** the shell renderer still parses untrusted data (titles, URLs, favicons). Re-encoding favicons is a planned hardening step (threat T5).
+- **Negative:** the shell renderer still parses untrusted data (titles, URLs, favicons). Main sanitizes titles, rebuilds the address text from the parsed URL, and passes favicons only as validated raster `data:` URLs (item 7). Re-encoding favicons remains a further hardening step (threat T5).
 
 ## Alternatives considered
 

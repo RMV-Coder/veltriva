@@ -69,6 +69,23 @@ Wall-clock timers would also archive a user's workspace after a weekend away.
 
 8. **Explicit closes stay recoverable for 7 days.**
 
+9. **As built in M1.3a** (live tabs only; the code is in `src/main/tabs`):
+   - **The dimensions so far.**
+     - Placement is always `strip`.
+     - Runtime is `unloaded`, `creating`, `live` or `crashed`; `frozen` and `discarding` arrive with lifecycle automation in Phase 3.
+     - Activity and protection aren't tracked yet.
+   - **TabManager owns the strip.**
+     - Ids are UUIDv7 (`src/core/id`), and pinned tabs come first.
+     - A non-empty strip always has exactly one selected tab. Unit tests check this, including a 2,000-step random walk.
+     - Closing the last tab opens a new one.
+   - **One web contents per tab**, created with the `tab` role when the tab first loads a web page.
+     - Internal pages (new tab, network error, crashed) have no web contents of their own: the tab's view is detached and the shell draws the page.
+     - Only the selected tab's view is attached.
+   - **Destruction stays explicit** (ADR-0002 §2): `removeChildView`, then `webContents.close()`, then drop every reference. When the window closes, its tabs are closed in the window's `closed` event, after the window is destroyed; LayoutManager then skips the detach, because touching the window would throw. A lifecycle check (ADR-0008, 4a) closes a window with live tabs and requires a clean, prompt exit.
+   - **A crashed renderer** (`render-process-gone`) puts the tab in `crashed` and shows the crashed page. Reload restarts the renderer with `reload()`; we measured that this works after a crash.
+   - **A failed load** (`did-fail-load`, except `ERR_ABORTED`) shows the network-error page with Chromium's error code and name, and clears the previous page's title and icon. A 404 is an ordinary commit.
+   - **Stale events are ignored.** Each runtime carries a token, and events from a replaced runtime are dropped.
+
 ## Consequences
 
 - **Positive:** both product-critical states are first-class, the policy is unit-testable without Electron, and every automatic action can be explained.

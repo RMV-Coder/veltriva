@@ -1139,7 +1139,7 @@ A *hostile fixture page* in the E2E suite tries to reach `window.veltriva`, `req
 | Web contents role | Navigation (`will-navigate`, `will-frame-navigate`, `will-redirect`) | `window.open` | `<webview>` | Permissions |
 |---|---|---|---|---|
 | Shell UI | always blocked | always denied | blocked | all denied |
-| Tab | `http(s):`, `about:blank`. Subframes may also load the PDF viewer, `chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/`, since blocking it renders PDFs blank (S7); its ID is re-checked on every Electron upgrade. `veltriva:` and `app:` are blocked; other schemes go to the protocol guard | §3.7 policy, plus a scheme check (S7: `window.open('custom:…')` arrives here, not as `openExternal`) | blocked | broker |
+| Tab | `http(s):`, `about:blank`, and `blob:` documents whose origin is a web origin (M1.3a). Subframes may also load `about:srcdoc`, `data:`, any `blob:`, and the PDF viewer, `chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/`, since blocking it renders PDFs blank (S7); its ID is re-checked on every Electron upgrade. Top-level `data:` and opaque `blob:null/…` documents are blocked, as are `veltriva:` and `app:`; other schemes go to the protocol guard | §3.7 policy, plus a scheme check (S7: `window.open('custom:…')` arrives here, not as `openExternal`) | blocked | broker |
 | Popup window | as Tab | opens tabs | blocked | broker |
 | DevTools | Electron-managed | denied | blocked | denied |
 
@@ -1147,6 +1147,7 @@ A *hostile fixture page* in the E2E suite tries to reach `window.veltriva`, `req
 
 - **Prompt**, remembering the decision per origin, for `media` (camera and microphone), `geolocation`, `notifications` and `clipboard-read`.
 - **Allow** `clipboard-sanitized-write`, `fullscreen` (with an exit notice that shows the origin), and `pointerLock` after a gesture.
+- **Until the broker exists** (M1.4), the browsing session grants only `clipboard-sanitized-write` (M1.3a) and, from M1.3b, `fullscreen` with its notice. Everything else is denied (ADR-0002, item 7).
 - **Deny** in the MVP, among others: `display-capture` (Windows needs a custom `desktopCapturer` picker, after the MVP), `midiSysex`, `hid`, `serial`, `usb`, `idle-detection`, `window-management`, `local-network-access`, `storage-access`, `top-level-storage-access`.
 - `openExternal` is decided by the protocol guard below.
 
@@ -1171,7 +1172,7 @@ A *hostile fixture page* in the E2E suite tries to reach `window.veltriva`, `req
 | T2 | A page reaches privileged APIs | Preload or IPC exposure | No preload for web content; sender and schema checks; hostile-page E2E test | None known by design |
 | T3 | A page pivots into the shell | Shell navigation, `window.open` from the shell | Shell navigation blocked, popups denied, CSP | Low |
 | T4 | XSS in our UI via page data | Titles, URLs | React escaping; lint ban on `dangerouslySetInnerHTML`; highlight markers aren't HTML | Low |
-| T5 | Shell compromise through image decoding | Malicious favicon | Main fetches favicons with size and type caps and serves them from `app://` (no remote loads in the shell). Post-MVP: decode and re-encode with a memory-safe JS decoder | Moderate until re-encoding lands. Impact: history readable through IPC |
+| T5 | Shell compromise through image decoding | Malicious favicon | Main fetches favicons through the browsing session with a 64 KB cap, accepts only raster formats it recognizes by their magic bytes (no SVG), and hands the shell a `data:` URL it built itself, so the shell never loads a remote image (M1.3a). Post-MVP: decode and re-encode with a memory-safe JS decoder | Moderate until re-encoding lands. Impact: history readable through IPC |
 | T6 | UI spoofing | Fake browser chrome in fullscreen, chromeless popups, imitation prompts | Fullscreen notice with origin; popups always show a URL bar; prompts anchored in the toolbar, outside the page area | Low |
 | T7 | Phishing and homographs | IDN hosts, `user@host` URLs | Punycode display; userinfo stripped and warned | No Safe Browsing list (documented gap) |
 | T8 | Malicious downloads | Drive-by downloads | No auto-open, Mark-of-the-Web and SmartScreen, dangerous-type confirmation | A user can still choose to run malware |
