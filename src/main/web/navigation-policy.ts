@@ -38,11 +38,21 @@ function isWebNavigationAllowed({ url: raw, isMainFrame }: NavigationTarget): bo
     case 'about:':
       // `about:srcdoc` is how `<iframe srcdoc>` documents load; it only exists in subframes.
       return url.pathname === 'blank' || (!isMainFrame && url.pathname === 'srcdoc');
+    case 'data:':
+      // Like Chrome: data: frames load, but a page can't navigate a tab to a data: document
+      // (a phishing vector, since the address bar would show attacker-chosen content).
+      return !isMainFrame;
+    case 'blob:':
+      // A blob: document keeps its creator's origin. Sites show generated files (reports,
+      // previews) in frames or in place. A tab only shows one whose origin the address bar can
+      // name: an opaque one ("blob:null/...", made by a sandboxed or data: frame) would, like
+      // data:, put content on screen under no site's name.
+      return !isMainFrame || /^https?:\/\//.test(url.origin);
     case 'chrome-extension:':
       return !isMainFrame && url.host === PDF_VIEWER_EXTENSION_ID;
     default:
-      // veltriva:, app:, file:, data:, blob:, javascript: and every external scheme. The
-      // external-protocol guard (M1.4) will route some of these to a prompt.
+      // veltriva:, app:, file:, javascript: and every external scheme. The external-protocol
+      // guard (M1.4) will route some of these to a prompt.
       return false;
   }
 }

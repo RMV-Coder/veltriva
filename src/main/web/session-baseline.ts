@@ -5,6 +5,8 @@
 import { app } from 'electron';
 import type { Session } from 'electron';
 
+import { isTabPermissionGranted } from './permission-policy';
+
 /**
  * Hunspell dictionaries for languages Windows can't spellcheck would come from Google's CDN
  * (spike S7). Until we host them, point downloads at the discard port on loopback, so the
@@ -49,6 +51,18 @@ export function hardenSession(session: Session): void {
     event.preventDefault();
   });
   session.setSpellCheckerDictionaryDownloadURL(SPELLCHECK_DICTIONARY_PLACEHOLDER);
+}
+
+/**
+ * The browsing session (tabs) additionally gets the few permissions Chrome grants without a
+ * prompt (./permission-policy.ts). Call right after hardening it, before any tab exists.
+ */
+export function grantTabPermissions(session: Session): void {
+  hardenSession(session);
+  session.setPermissionRequestHandler((_contents, permission, callback) => {
+    callback(isTabPermissionGranted(permission));
+  });
+  session.setPermissionCheckHandler((_contents, permission) => isTabPermissionGranted(permission));
 }
 
 /** Install before `ready`, so no session or request is created without the baseline. */
