@@ -1,0 +1,10 @@
+{
+  // Tooling and tests that run on plain Node: config files, unit tests, Playwright specs.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024"],
+    "types": ["node"],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo"
+  },
+  "include": ["*.config.ts", "*.config.mts", "src/**/*.test.ts", "tests/**/*.ts"]
+}

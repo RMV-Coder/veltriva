@@ -1,0 +1,13 @@
+{
+  // src/core and src/shared: pure TypeScript that runs anywhere (main, preload, renderer,
+  // tests, a future extension). No DOM and no Node types, so `window`, `process`, timers and
+  // `node:` imports fail to type-check here. ESLint enforces the same rule on imports.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024"],
+    "types": [],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.core.tsbuildinfo"
+  },
+  "include": ["src/core/**/*.ts", "src/shared/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

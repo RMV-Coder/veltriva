@@ -1,0 +1,12 @@
+{
+  // Shell preload: runs sandboxed in the shell renderer, so it has the DOM and only the
+  // `electron` renderer modules. Node built-ins are unavailable at runtime (ESLint bans them).
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM"],
+    "types": [],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.preload.tsbuildinfo"
+  },
+  "include": ["src/preload/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

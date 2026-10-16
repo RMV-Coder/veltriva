@@ -1,0 +1,18 @@
+{
+  // Solution file: `tsc -b` checks every target below. Each target has its own lib and types.
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.core.json" },
+    { "path": "./tsconfig.main.json" },
+    { "path": "./tsconfig.preload.json" },
+    { "path": "./tsconfig.renderer.json" },
+    { "path": "./tsconfig.node.json" }
+  ],
+  // Read only by the shadcn CLI, which resolves its import aliases from this file.
+  // The renderer's real alias lives in tsconfig.renderer.json and electron.vite.config.ts.
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/renderer/*"]
+    }
+  }
+}

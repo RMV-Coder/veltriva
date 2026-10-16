@@ -1,0 +1,13 @@
+# Generated output
+out/
+release/
+dist/
+coverage/
+playwright-report/
+test-results/
+package-lock.json
+
+# Hand-written prose follows the docs' own style guide; throwaway spike code is frozen.
+*.md
+docs/
+spikes/
