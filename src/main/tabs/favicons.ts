@@ -2,6 +2,11 @@
 // page's own requests; the body is read only up to 64 KB, and the result is used only if its
 // bytes are a raster image (./favicon-format.ts). Results are cached per URL. Nothing about a
 // favicon ever reaches the page, and failures are silent: the shell shows a generic icon.
+//
+// These are browser-initiated requests, which skip Chromium's local-network-access checks, so a
+// page could name a favicon on this machine or the local network to make main request it. Local
+// hosts are refused unless the page itself is on the same kind of host (src/core/url/local-network.ts).
+import { isFaviconUrlAllowed } from '../../core/url/local-network';
 import type { Logger } from '../platform/logger';
 import { decodeDataUrl, faviconDataUrl, MAX_FAVICON_BYTES } from './favicon-format';
 
@@ -14,8 +19,11 @@ export type FaviconFetch = (
 ) => Promise<Response>;
 
 export interface FaviconService {
-  /** The first usable favicon among a page's candidates, as a `data:` URL, or null. */
-  resolve(candidates: readonly string[]): Promise<string | null>;
+  /**
+   * The first usable favicon among the candidates of the page at `pageUrl`, as a `data:` URL, or
+   * null. Candidates on local hosts that the page may not reach are skipped.
+   */
+  resolve(candidates: readonly string[], pageUrl: string): Promise<string | null>;
 }
 
 export function createFaviconService(fetchFavicon: FaviconFetch, logger: Logger): FaviconService {
@@ -46,9 +54,13 @@ export function createFaviconService(fetchFavicon: FaviconFetch, logger: Logger)
   };
 
   return {
-    async resolve(candidates) {
-      const url = candidates.find((candidate) => /^(?:https?|data):/i.test(candidate));
+    async resolve(candidates, pageUrl) {
+      const fetchable = candidates.filter((candidate) => /^(?:https?|data):/i.test(candidate));
+      const url = fetchable.find((candidate) => isFaviconUrlAllowed(candidate, pageUrl));
       if (url === undefined) {
+        if (fetchable.length > 0) {
+          logger.warn('favicon.localNetworkRefused');
+        }
         return null;
       }
       let result = cache.get(url);

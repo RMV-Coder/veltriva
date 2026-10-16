@@ -87,8 +87,9 @@ export function createTabRuntimes(options: {
     });
     contents.on('page-favicon-updated', (_event, candidates) => {
       const forDocument = document;
+      // The committed page decides which local hosts its favicon may come from.
       options.favicons
-        .resolve(candidates)
+        .resolve(candidates, contents.getURL())
         .then((favicon) => {
           if (!destroyed && forDocument === document) {
             events.faviconChanged(favicon);
