@@ -12,3 +12,6 @@ export const USER_DATA_DIR_NAME = 'Veltriva';
 
 /** Packaged executable name, without the `.exe` extension. */
 export const EXECUTABLE_NAME = 'Veltriva';
+
+/** The on-disk session every normal tab uses. Renaming it would log every user out. */
+export const BROWSING_PARTITION = 'persist:browsing';

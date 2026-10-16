@@ -57,10 +57,15 @@ export default defineConfig(
     },
   },
 
-  // Plain JavaScript (this file) is outside every tsconfig.
+  // Plain JavaScript (this file, scripts/) is outside every tsconfig.
   {
     files: ['**/*.{js,mjs,cjs}'],
     extends: [tseslint.configs.disableTypeChecked],
+  },
+  // Test-only preloads are plain CommonJS: a sandboxed preload can only `require('electron')`.
+  {
+    files: ['tests/**/*.cjs'],
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
 
   // No raw-HTML sinks anywhere.

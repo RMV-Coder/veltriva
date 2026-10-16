@@ -29,12 +29,14 @@ interface HasLastWebPreferences {
   getLastWebPreferences(): Pick<WebPreferences, 'sandbox' | 'contextIsolation' | 'nodeIntegration'>;
 }
 
-/** Reads `window.veltriva.runtime` as the page sees it. */
-function readRuntime(shell: Page): Promise<ShellApi['runtime']> {
-  return shell.evaluate(() => {
-    const { electron, chrome } = (globalThis as PageGlobal).veltriva.runtime;
-    return { electron, chrome };
-  });
+/** Reads the Electron and Chromium versions through `window.veltriva.app.getInfo()`. */
+async function readRuntime(shell: Page): Promise<{ electron: string; chrome: string }> {
+  const result = await shell.evaluate(() => (globalThis as PageGlobal).veltriva.app.getInfo());
+  if (!result.ok) {
+    throw new Error(`app.getInfo failed: ${result.code}`);
+  }
+  const { electron, chrome } = result.value.versions;
+  return { electron, chrome };
 }
 
 /** The page's `<h1>`, read with `evaluate`. See the navigation test for why not a locator. */
@@ -94,7 +96,7 @@ test.describe('Veltriva shell', () => {
         process: typeof process,
         module: typeof module,
         apiFrozen: Object.isFrozen(veltriva),
-        runtimeFrozen: Object.isFrozen(veltriva.runtime),
+        appFrozen: Object.isFrozen(veltriva.app),
       };
     });
     expect(page).toEqual({
@@ -102,7 +104,7 @@ test.describe('Veltriva shell', () => {
       process: 'undefined',
       module: 'undefined',
       apiFrozen: true,
-      runtimeFrozen: true,
+      appFrozen: true,
     });
 
     // In main: the shell's web contents is matched by URL, never by index.
@@ -132,13 +134,14 @@ test.describe('Veltriva shell', () => {
     const shellUrl = shell.url();
     await expect(shell.getByRole('heading', { level: 1, name: 'Veltriva Browser' })).toBeVisible();
 
-    // Count the `will-navigate` events the shell sees. The app's own handler is registered first,
-    // so `defaultPrevented` tells whether it cancelled the navigation.
+    // Count the `will-frame-navigate` events the shell sees. The guard cancels there, so a
+    // cancelled navigation never reaches `will-navigate`. The guard's handler is registered
+    // first, so `defaultPrevented` tells whether it cancelled the navigation.
     const navigations = await electronApp.evaluateHandle(({ webContents }, url) => {
       const counts = { attempted: 0, cancelled: 0 };
       for (const wc of webContents.getAllWebContents()) {
         if (wc.getURL() === url) {
-          wc.on('will-navigate', (event) => {
+          wc.on('will-frame-navigate', (event) => {
             counts.attempted += 1;
             if (event.defaultPrevented) {
               counts.cancelled += 1;

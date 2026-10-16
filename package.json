@@ -14,13 +14,14 @@
     "setup": "npm ci && node node_modules/electron/install.js",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "build:test": "electron-vite build --mode test",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:e2e": "playwright test",
-    "package:dir": "electron-vite build && electron-builder --win --x64 --dir"
+    "test:e2e": "npm run build:test && playwright test",
+    "package:dir": "electron-vite build && node scripts/check-production-build.mjs && electron-builder --win --x64 --dir"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -48,6 +49,7 @@
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.2",
     "vite": "8.3.4",
-    "vitest": "5.0.5"
+    "vitest": "5.0.5",
+    "zod": "4.6.7"
   }
 }

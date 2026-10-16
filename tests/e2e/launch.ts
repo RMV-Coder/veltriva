@@ -26,14 +26,15 @@
 // act on a tab (click, screenshot) only while it is attached, and never assert hidden-tab
 // behavior (visibility, timer throttling) through a Playwright Page: its focus emulation masks it.
 import { spawnSync } from 'node:child_process';
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { pathToFileURL } from 'node:url';
 
 import { _electron as electron } from '@playwright/test';
 import type { ElectronApplication, Page } from '@playwright/test';
+
+import { SHELL_URL } from '../../src/main/shell/assets';
 
 /** The first launch on a CI runner can be slow. */
 const LAUNCH_TIMEOUT_MS = 60_000;
@@ -48,15 +49,12 @@ const USER_DATA_DIR_ENV = 'VELTRIVA_USER_DATA_DIR';
 
 /** Every file the app needs at runtime. The paths are relative to the repo root. */
 const BUILD_OUTPUTS = ['out/main/index.js', 'out/preload/shell.js', 'out/renderer/index.html'];
-const SHELL_HTML = 'out/renderer/index.html';
 
 export interface AppPaths {
   /** The directory with package.json. Its `main` is out/main/index.js. */
   readonly repoRoot: string;
   /** What `require('electron')` returns in Node: the path of the electron binary. */
   readonly electronBinary: string;
-  /** Decoded, lower-cased pathnames the shell's `file:` URL can have. See `isShellUrl`. */
-  readonly shellPathnames: ReadonlySet<string>;
 }
 
 const REPO_ROOT = resolve(__dirname, '..', '..');
@@ -78,13 +76,7 @@ function resolveAppPaths(): AppPaths {
     );
   }
 
-  const shellHtml = join(REPO_ROOT, SHELL_HTML);
-  // The OS can report the same file through a junction or a differently cased drive letter.
-  const shellPathnames = new Set(
-    [shellHtml, realpathSync.native(shellHtml)].map((path) => comparablePathname(path)),
-  );
-
-  return { repoRoot: REPO_ROOT, electronBinary: resolveElectronBinary(), shellPathnames };
+  return { repoRoot: REPO_ROOT, electronBinary: resolveElectronBinary() };
 }
 
 /**
@@ -109,11 +101,6 @@ function resolveElectronBinary(): string {
     throw new Error(`The electron binary is missing: ${exported}. Run \`npm run setup\`.`);
   }
   return exported;
-}
-
-/** The decoded pathname of a path's `file:` URL, lower-cased: Windows paths ignore case. */
-function comparablePathname(path: string): string {
-  return decodeURIComponent(pathToFileURL(path).pathname).toLowerCase();
 }
 
 /**
@@ -147,7 +134,7 @@ export async function launchApp(userDataDir: string): Promise<ElectronApplicatio
   });
 }
 
-/** True if `url` is the `file:` URL of out/renderer/index.html. Ignores the query and hash. */
+/** True if `url` is the shell page, app://shell/index.html. Ignores the query and hash. */
 export function isShellUrl(url: string): boolean {
   let parsed: URL;
   try {
@@ -155,14 +142,13 @@ export function isShellUrl(url: string): boolean {
   } catch {
     return false; // e.g. an empty string
   }
-  if (parsed.protocol !== 'file:') {
-    return false;
-  }
-  try {
-    return appPaths().shellPathnames.has(decodeURIComponent(parsed.pathname).toLowerCase());
-  } catch {
-    return false; // a malformed percent escape cannot be the shell
-  }
+  const shell = new URL(SHELL_URL);
+  // Node gives non-special schemes an opaque origin, so compare the parts instead.
+  return (
+    parsed.protocol === shell.protocol &&
+    parsed.host === shell.host &&
+    parsed.pathname === shell.pathname
+  );
 }
 
 /** The shell page if it exists right now. Matched by URL, never by position. */
@@ -185,7 +171,7 @@ export async function shellPage(
     if (Date.now() >= deadline) {
       const seen = app.windows().map((candidate) => candidate.url());
       throw new Error(
-        `The shell page (${pathToFileURL(join(REPO_ROOT, SHELL_HTML)).href}) did not appear ` +
+        `The shell page (${SHELL_URL}) did not appear ` +
           `within ${String(timeoutMs)} ms. URLs seen: ${seen.length > 0 ? seen.join(', ') : 'none'}.`,
       );
     }
