@@ -27,6 +27,8 @@
      - **How (M1.2):** a test build is `electron-vite build --mode test` (`npm run build:test`; `npm run test:e2e` runs it first). The hooks sit behind `import.meta.env.MODE === 'test'`, which a production build folds to `false` and drops.
      - `npm run package:dir` runs `scripts/check-production-build.mjs`, which refuses an `out/` that still contains them.
      - M1.2's hooks are `openTestTab`, `closeTestTabs` and `webContentsRoles`, on `globalThis.__veltrivaTest`. M1.3a adds `tabStates`, `selectedTabId`, `contentRect`, `crashTab` and `setSearchTemplate`, which points omnibox searches at a local fixture.
+     - M1.3b adds `contextMenuItems` and `invokeContextMenuItem`, because Playwright can't click a native menu: a test reads the entries for given params and runs one. It also adds `viewStack` (the views from bottom to top) and `fullscreen`.
+     - **The production check knows every test-only name** (M1.3b): the hooks' global and names, the lifecycle runner with its env and scenario names, and the fail-fast handler and its message. `setSearchTemplate` is exempt: production code exports it for the Phase 5 setting. CI runs the check right after its production build, and `package:dir` runs it before packaging.
      - **An uncaught exception in main exits a test build with code 70** (`src/main/testing/fail-fast.ts`). Electron's default opens a modal error dialog and keeps the app running, which every harness would only see as a hang.
    - Pages come from a deterministic local fixture server; no critical test depends on an external site.
    - Before launch, the test harness removes `ELECTRON_RUN_AS_NODE` from the app's environment and asserts that it's gone. An empty value still counts as set.
@@ -50,6 +52,9 @@
      - **Playwright emulates `prefers-color-scheme: light`** in `_electron.launch` unless `colorScheme` says otherwise, so `nativeTheme.themeSource` alone doesn't change what the shell renders.
      - **Hit counts accumulate per worker.** The fixture server is shared by a worker's tests, so a spec uses its own paths or counts deltas.
      - **Chromium refuses some navigations before Electron sees them** (top-level `data:`, `blob:null/…`). Assert "refused by Chromium or the guard", plus an unchanged URL.
+   - **Rules found while writing M1.3b:**
+     - **Send browser shortcuts with `webContents.sendInputEvent`**, from main, to the web contents that has focus. Playwright's keyboard goes through CDP, which skips `before-input-event` (measured), so a reserved shortcut sent that way never reaches main.
+     - **Fullscreen needs a user gesture.** Use `executeJavaScript('…requestFullscreen()', true)` from main, or a real click in an attached tab.
 4a. **Lifecycle behavior tests (no Playwright).** A small Electron-script harness, like the Phase 0 spikes, asserts the behavior Playwright masks:
    - visibility and throttling of detached tabs;
    - renderer release after discard;

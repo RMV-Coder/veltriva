@@ -86,6 +86,15 @@ Wall-clock timers would also archive a user's workspace after a weekend away.
    - **A failed load** (`did-fail-load`, except `ERR_ABORTED`) shows the network-error page with Chromium's error code and name, and clears the previous page's title and icon. A 404 is an ordinary commit.
    - **Stale events are ignored.** Each runtime carries a token, and events from a replaced runtime are dropped.
 
+10. **As built in M1.3b** (TabManager, still without Electron imports):
+    - **What the browser does to a page.**
+      - **Find in page:** per tab, it ignores results from an older search and offers the last text again.
+      - **Zoom:** Chrome's preset steps. Chromium keeps zoom per host, so TabManager re-reads every tab's zoom after a change and after each commit.
+      - **HTML fullscreen:** at most one tab, and always the selected one. A switch, close, crash or failed load ends it.
+      - **DevTools.**
+    - **Closed tabs can be reopened** (Ctrl+Shift+T): up to 25, in memory, by URL and place, without history. This is a stopgap until Phase 2's restore and the 7-day recoverable close (item 8).
+    - **Fullscreen counts as a hard protection** once the protection engine arrives (assessment §4.5). TabManager already tracks it.
+
 ## Consequences
 
 - **Positive:** both product-critical states are first-class, the policy is unit-testable without Electron, and every automatic action can be explained.

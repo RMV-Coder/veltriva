@@ -107,6 +107,25 @@ A browser loads hostile content by definition. Electron's defaults assume truste
    - **Other apps' schemes do nothing yet.** Until the M1.4 protocol guard can ask, typed `zoommtg:`, `mailto:` and similar input is neither opened nor searched for. A search would send `user:pass@host`, which reads exactly like `xmpp:user@host`, to the search engine.
    - **No default application menu.** Its accelerators would act on the browser itself: Ctrl+W would close the window and Ctrl+R would reload the shell. Browser shortcuts arrive in M1.3b, through `before-input-event`.
 
+8. **As built in M1.3b** (the code is in `src/main/windows`, `src/main/input`, `src/main/menus` and `src/core/url/local-network.ts`):
+   - **HTML fullscreen (threat T6).**
+     - The browsing session grants `fullscreen`. Chromium still requires a user gesture, and pointer and keyboard lock stay denied.
+     - The selected tab fills the window. For 4 s a notice names the page's origin (`originLabel`: the host in punycode, from the committed URL) and says how to leave.
+     - The shell draws the notice, raised above the page (ADR-0006 A′). Main raises it only after the shell reports that it shows nothing but the notice, with a 500 ms fallback so the notice can't be skipped.
+     - A page can't trap the user. Chromium handles Esc before the page or `before-input-event` see it (measured on Electron 44). Main can also end fullscreen, on F11, on Esc in the shell, or on a tab switch. It does so through an isolated world, so a page that replaced `document.exitFullscreen` doesn't stop it. `window.setFullScreen(false)` doesn't end a page's fullscreen (measured).
+     - Only the selected tab may be fullscreen. A tab switch, a close, a crash or a failed load ends it.
+   - **Favicons on local hosts.** Main fetches page-declared favicons as browser-initiated requests, which skip Chromium's local-network-access check, so those requests could reach this machine and the local network.
+     - Main refuses favicon URLs on loopback, private and link-local addresses, and on local-only names (single labels, `.local`, `.internal`, `.home.arpa`, `.lan`).
+     - The exception is a page whose own host is in the same class.
+     - The check parses hosts the way the URL parser does, so `127.1`, hex and decimal IPv4, and IPv4-mapped and NAT64 IPv6 are caught.
+     - DNS rebinding remains (threat T5).
+   - **Context-menu actions** work on page-controlled data:
+     - "Open link/image in new tab" appears, and runs, only for a URL the tab navigation policy would allow. It is checked again when the action runs, so `javascript:`, `data:` and `file:` links get no such item.
+     - Copy actions write the clipboard only on the user's click.
+     - "Search for" builds its URL through the validated search template.
+     - Page text in a menu label loses controls and bidi formatting, is cut short, and cannot create a Windows access key (`&`).
+   - **DevTools for pages** open detached on F12 or "Inspect". The shell's DevTools stay dev-only: Ctrl+Shift+I in `npm run dev` builds.
+
 ## Consequences
 
 - **Positive:** web pages can't reach any Veltriva API by construction, and privileged UI never lives inside the tab system.

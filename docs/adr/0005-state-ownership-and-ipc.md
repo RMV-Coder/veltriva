@@ -48,6 +48,16 @@ The tab lifecycle mixes asynchronous Chromium events, user commands, a scheduler
      - a validated favicon `data:` URL.
    - **`navigation.submit` carries the typed text, not a URL.** Main classifies it (`src/core/url/omnibox.ts`); the shell never decides what a string means.
    - **`layout.setInsets`** reports how far the shell's chrome reaches into the window. Main places the selected tab's view in the rest (LayoutManager).
+9. **As built in M1.3b:**
+   - **New commands.**
+     - `find.update`, `find.next`, `find.close`: the find bar, whose state per tab is main's.
+     - `tabs.zoom`: one preset step, or a reset.
+     - `fullscreen.noticeShown`: the shell draws only the fullscreen notice, so main may raise it above the page.
+     - `fullscreen.dismissNotice`: a click on the notice.
+   - **Focus.** `tabs.select` and `tabs.close` take an optional `keepFocus`. Without it, the newly selected page gets keyboard focus, as after a click; with it, focus stays in the sidebar, for keyboard users.
+   - **Events** `ui.focusAddressBar` and `ui.focusFind`: main has already given the shell's view keyboard focus (Ctrl+L, Alt+D, F6, Ctrl+T, Ctrl+F), and the shell focuses that field.
+   - **Snapshot fields.** `zoomPercent` and `find` per tab. `fullscreen` (tab, origin label, notice) on the workspace.
+   - **Shortcuts never travel over IPC.** Main matches them from `before-input-event` and from the hidden menu's accelerators, so the shell has no shortcut handlers of its own (assessment §3.9).
 
 ## Consequences
 

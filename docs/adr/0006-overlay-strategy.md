@@ -31,6 +31,11 @@ Web pages are native views painted *above* the shell, so HTML can't cover them. 
 - **Closing reverses it:** remove the class, then re-add the tab view on top.
 - **The scrim, palette and dropdown are ordinary React components** in the shell's single tree, with no second renderer and no cross-view state.
 - **As built in M1.3a:** nothing overlays web content yet. The omnibox shows no suggestion list, and the sidebar uses inline buttons and native `title` tooltips, so nothing in the shell reaches into the content area. A′ lands with the first overlay that needs it.
+- **As built in M1.3b:** the first overlay is the HTML-fullscreen notice (threat T6).
+  - While `fullscreen.notice` is set, the shell renders only the notice, on a transparent page.
+  - It then sends `fullscreen.noticeShown`, and only then does main re-add the shell view above the tab, so the shell's chrome never flashes over the page. A 500 ms fallback raises it anyway, so the notice is never skipped.
+  - After 4 s, or on a click, main re-adds the tab view on top and gives the page its keyboard focus back. Keyboard focus never leaves the page while the shell is raised.
+  - The find bar sits in the toolbar row, and context menus are native, so neither needs A′.
 
 ## Consequences
 
