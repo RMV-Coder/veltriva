@@ -27,11 +27,26 @@ export const COMMAND_NAMES = [
   'navigation.reload',
   'navigation.stop',
   'layout.setInsets',
+  'tabs.zoom',
+  'find.update',
+  'find.next',
+  'find.close',
+  'fullscreen.noticeShown',
+  'fullscreen.dismissNotice',
 ] as const;
 export type CommandName = (typeof COMMAND_NAMES)[number];
 
-/** `workspace.changed` carries a versioned, coalesced snapshot: at most one per ~16 ms. */
-export const EVENT_NAMES = ['app.themeChanged', 'workspace.changed'] as const;
+/**
+ * `workspace.changed` carries a versioned, coalesced snapshot: at most one per ~16 ms.
+ * `ui.focusAddressBar` and `ui.focusFind` come after main gave the shell keyboard focus (Ctrl+L,
+ * Ctrl+F): the shell focuses that field.
+ */
+export const EVENT_NAMES = [
+  'app.themeChanged',
+  'workspace.changed',
+  'ui.focusAddressBar',
+  'ui.focusFind',
+] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 
 /**

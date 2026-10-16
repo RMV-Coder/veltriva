@@ -4,10 +4,10 @@
 //
 // - `clipboard-sanitized-write`: a site's "copy" button (navigator.clipboard.writeText). Writing
 //   sanitized text is harmless; reading the clipboard stays denied.
-//
-// `fullscreen` joins this list in M1.3b, together with the origin notice (threat T6) and the
-// layout that lets a tab fill the window.
-const GRANTED_TO_TABS: ReadonlySet<string> = new Set(['clipboard-sanitized-write']);
+// - `fullscreen` (M1.3b): a video's or a slide deck's fullscreen button. Chromium still requires a
+//   user gesture, Esc always leaves, and the shell names the page's origin for a few seconds
+//   (threat T6, src/main/windows/fullscreen.ts). Pointer lock stays denied.
+const GRANTED_TO_TABS: ReadonlySet<string> = new Set(['clipboard-sanitized-write', 'fullscreen']);
 
 export function isTabPermissionGranted(permission: string): boolean {
   return GRANTED_TO_TABS.has(permission);

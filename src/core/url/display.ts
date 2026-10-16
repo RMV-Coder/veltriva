@@ -30,6 +30,31 @@ export function displayUrl(raw: string): UrlDisplay {
   return { text, security: securityOf(url), hadCredentials };
 }
 
+/**
+ * Who is full screen, for the exit notice (threat T6): the page's host as the address bar would
+ * show it (punycode, with a non-default port), or what kind of document it is. Built from the
+ * parsed URL, never from page text.
+ */
+export function originLabel(raw: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return 'This page';
+  }
+  switch (url.protocol) {
+    case 'http:':
+    case 'https:':
+      return url.host;
+    case 'blob:':
+      return /^https?:\/\//.test(url.origin) ? originLabel(url.origin) : 'This page';
+    case 'file:':
+      return 'A local file';
+    default:
+      return 'This page';
+  }
+}
+
 function securityOf(url: URL): SecurityState {
   switch (url.protocol) {
     case 'https:':

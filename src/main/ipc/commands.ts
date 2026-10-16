@@ -3,9 +3,11 @@
 import { app } from 'electron';
 
 import { PRODUCT_NAME } from '../../shared/constants/app-identity';
+import type { FocusManager } from '../focus/focus-manager';
 import { submitAddress } from '../navigation/submit';
 import type { TabId, TabManager } from '../tabs/tab-manager';
 import type { WorkspaceProjector } from '../tabs/workspace-projector';
+import type { FullscreenController } from '../windows/fullscreen';
 import type { LayoutManager } from '../windows/layout-manager';
 import { CommandError } from './command-error';
 import type { CommandHandlers } from './router';
@@ -14,6 +16,8 @@ export interface CommandContext {
   readonly tabs: TabManager;
   readonly layout: LayoutManager;
   readonly projector: WorkspaceProjector;
+  readonly focus: FocusManager;
+  readonly fullscreen: FullscreenController;
   readonly searchTemplate: () => string;
 }
 
@@ -21,6 +25,8 @@ export function createCommandHandlers({
   tabs,
   layout,
   projector,
+  focus,
+  fullscreen,
   searchTemplate,
 }: CommandContext): CommandHandlers {
   /** Runs `action` on an existing tab, or answers `not_found`. */
@@ -45,14 +51,14 @@ export function createCommandHandlers({
     'workspace.getSnapshot': () => projector.snapshot(),
 
     'tabs.create': () => ({ tabId: tabs.create() }),
-    'tabs.close': ({ tabId }) =>
+    'tabs.close': ({ tabId, keepFocus }) =>
       onTab(tabId, () => {
-        tabs.close(tabId);
+        tabs.close(tabId, { focus: keepFocus !== true });
         return done;
       }),
-    'tabs.select': ({ tabId }) =>
+    'tabs.select': ({ tabId, keepFocus }) =>
       onTab(tabId, () => {
-        tabs.select(tabId);
+        tabs.select(tabId, { focus: keepFocus !== true });
         return done;
       }),
     'tabs.move': ({ tabId, toIndex }) =>
@@ -66,6 +72,11 @@ export function createCommandHandlers({
         return done;
       }),
     'tabs.duplicate': ({ tabId }) => onTab(tabId, () => ({ tabId: tabs.duplicate(tabId) })),
+    'tabs.zoom': ({ tabId, direction }) =>
+      onTab(tabId, () => {
+        tabs.zoom(tabId, direction);
+        return done;
+      }),
 
     'navigation.submit': ({ tabId, text }) =>
       onTab(tabId, () => ({ action: submitAddress(tabs, tabId, text, searchTemplate()) })),
@@ -89,6 +100,34 @@ export function createCommandHandlers({
         tabs.stop(tabId);
         return done;
       }),
+
+    'find.update': ({ tabId, text }) =>
+      onTab(tabId, () => {
+        tabs.updateFind(tabId, text);
+        return done;
+      }),
+    'find.next': ({ tabId, forward }) =>
+      onTab(tabId, () => {
+        tabs.findNext(tabId, forward);
+        return done;
+      }),
+    'find.close': ({ tabId }) =>
+      onTab(tabId, () => {
+        tabs.closeFind(tabId);
+        if (tabs.selectedTabId() === tabId) {
+          focus.focusSelected();
+        }
+        return done;
+      }),
+
+    'fullscreen.noticeShown': () => {
+      fullscreen.noticeShown();
+      return done;
+    },
+    'fullscreen.dismissNotice': () => {
+      fullscreen.dismissNotice();
+      return done;
+    },
 
     'layout.setInsets': (insets) => {
       layout.setInsets(insets);

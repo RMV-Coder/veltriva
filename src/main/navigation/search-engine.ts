@@ -14,3 +14,15 @@ export function setSearchTemplate(next: string): void {
   }
   template = next;
 }
+
+/** What to call the search engine in menus: "DuckDuckGo", or the template's host. */
+export function searchEngineName(): string {
+  if (template === DEFAULT_SEARCH_TEMPLATE) {
+    return 'DuckDuckGo';
+  }
+  try {
+    return new URL(template.replaceAll('{searchTerms}', 'x')).host;
+  } catch {
+    return 'the web';
+  }
+}

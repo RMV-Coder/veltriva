@@ -7,9 +7,12 @@ describe('isTabPermissionGranted', () => {
     expect(isTabPermissionGranted('clipboard-sanitized-write')).toBe(true);
   });
 
+  it('grants HTML fullscreen, which comes with an origin notice (T6)', () => {
+    expect(isTabPermissionGranted('fullscreen')).toBe(true);
+  });
+
   it.each([
     'clipboard-read',
-    'fullscreen',
     'media',
     'geolocation',
     'notifications',
@@ -20,9 +23,11 @@ describe('isTabPermissionGranted', () => {
     'usb',
     'midiSysex',
     'pointerLock',
+    'keyboardLock',
     'unknown',
     '',
     'CLIPBOARD-SANITIZED-WRITE',
+    'FULLSCREEN',
   ])('denies %s until the permission broker (M1.4)', (permission) => {
     expect(isTabPermissionGranted(permission)).toBe(false);
   });

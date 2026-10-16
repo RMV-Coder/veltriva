@@ -6,11 +6,14 @@ import { webContents } from 'electron';
 import type { WebContentsView } from 'electron';
 
 import type { Rect } from '../../core/layout/rect';
+import type { ContextMenus } from '../menus/context-menu';
+import type { MenuEntry, MenuItemId, MenuParams } from '../menus/context-menu-model';
 import { setSearchTemplate } from '../navigation/search-engine';
 import type { TabId, TabManager, TabState } from '../tabs/tab-manager';
 import { createViewWithRole, roleOf } from '../web/roles';
 import type { WebContentsRole } from '../web/web-contents-role';
 import { TAB_WEB_PREFERENCES } from '../web/web-preferences';
+import type { FullscreenController, FullscreenState } from '../windows/fullscreen';
 import type { LayoutManager } from '../windows/layout-manager';
 import type { MainWindow } from '../windows/main-window';
 
@@ -53,6 +56,17 @@ export interface VeltrivaTestHooks {
   crashTab(tabId: TabId): void;
   /** Points the omnibox's searches at a template, e.g. a local fixture. */
   setSearchTemplate(template: string): void;
+  /**
+   * The context menu a right-click with these params would show in the tab (Playwright can't
+   * click native menus). Params not given are those of a plain click on the page.
+   */
+  contextMenuItems(tabId: TabId, params?: Partial<MenuParams>): MenuEntry[];
+  /** Runs a context-menu item for the tab as if it had been clicked. */
+  invokeContextMenuItem(tabId: TabId, params: Partial<MenuParams>, itemId: MenuItemId): void;
+  /** The window's views from bottom to top: `shell`, a tab's id, or `other` (a test tab). */
+  viewStack(): string[];
+  /** HTML fullscreen as main sees it. */
+  fullscreen(): { readonly state: FullscreenState | null; readonly shellRaised: boolean };
 }
 
 declare global {
@@ -64,10 +78,46 @@ export interface TestHookContext {
   readonly tabs: TabManager;
   readonly layout: LayoutManager;
   readonly views: ReadonlyMap<TabId, WebContentsView>;
+  readonly contextMenus: ContextMenus;
+  readonly fullscreen: FullscreenController;
 }
 
-export function installTestHooks({ main, tabs, layout, views }: TestHookContext): void {
+/** A plain right-click on the page, at the top-left corner of the view. */
+const PLAIN_CLICK: MenuParams = {
+  x: 0,
+  y: 0,
+  linkURL: '',
+  srcURL: '',
+  mediaType: 'none',
+  hasImageContents: false,
+  isEditable: false,
+  selectionText: '',
+  misspelledWord: '',
+  dictionarySuggestions: [],
+  editFlags: {
+    canUndo: false,
+    canRedo: false,
+    canCut: false,
+    canCopy: false,
+    canPaste: false,
+    canSelectAll: false,
+  },
+};
+
+export function installTestHooks({
+  main,
+  tabs,
+  layout,
+  views,
+  contextMenus,
+  fullscreen,
+}: TestHookContext): void {
   const testTabs = new Set<WebContentsView>();
+  const paramsFrom = (params: Partial<MenuParams> = {}): MenuParams => ({
+    ...PLAIN_CLICK,
+    ...params,
+    editFlags: { ...PLAIN_CLICK.editFlags, ...params.editFlags },
+  });
 
   const hooks: VeltrivaTestHooks = {
     async openTestTab({ url, preload }) {
@@ -132,6 +182,26 @@ export function installTestHooks({ main, tabs, layout, views }: TestHookContext)
 
     setSearchTemplate(template) {
       setSearchTemplate(template);
+    },
+
+    contextMenuItems(tabId, params) {
+      return contextMenus.entriesForTab(tabId, paramsFrom(params));
+    },
+
+    invokeContextMenuItem(tabId, params, itemId) {
+      contextMenus.runForTab(tabId, paramsFrom(params), itemId);
+    },
+
+    viewStack() {
+      const owners = new Map<unknown, string>([[main.shell, 'shell']]);
+      for (const [tabId, view] of views) {
+        owners.set(view, tabId);
+      }
+      return main.window.contentView.children.map((child) => owners.get(child) ?? 'other');
+    },
+
+    fullscreen() {
+      return { state: fullscreen.state(), shellRaised: fullscreen.shellRaised() };
     },
   };
 

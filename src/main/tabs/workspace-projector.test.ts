@@ -20,6 +20,8 @@ const base: TabState = {
   loading: false,
   canGoBack: true,
   canGoForward: false,
+  zoomPercent: 100,
+  find: null,
 };
 
 describe('projectTab', () => {
@@ -68,7 +70,14 @@ describe('projectTab', () => {
   });
 
   it('produces snapshots that satisfy the contract', () => {
-    const snapshot: WorkspaceSnapshot = { version: 1, selectedTabId: ID, tabs: [projectTab(base)] };
+    const snapshot: WorkspaceSnapshot = {
+      version: 1,
+      selectedTabId: ID,
+      tabs: [
+        projectTab({ ...base, zoomPercent: 110, find: { text: 'a', activeMatch: 1, matches: 3 } }),
+      ],
+      fullscreen: { tabId: ID, origin: 'example.com', notice: true },
+    };
     expect(commandSchemas['workspace.getSnapshot'].output.safeParse(snapshot).success).toBe(true);
   });
 });

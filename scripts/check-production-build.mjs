@@ -21,6 +21,9 @@ const MARKERS = [
   'webContentsRoles',
   'crashTab',
   'forcefullyCrashRenderer',
+  'contextMenuItems',
+  'invokeContextMenuItem',
+  'viewStack',
   // src/main/testing/lifecycle-scenarios.ts
   'VELTRIVA_LIFECYCLE',
   'runLifecycleScenario',

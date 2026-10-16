@@ -1,6 +1,10 @@
 // LayoutManager (assessment §3.2): sizes the shell to the whole window and the selected tab's
 // view to the content area, which is the window minus the chrome the shell reports
 // (`layout.setInsets`). Tab views are added after the shell, so they paint above it (§3.3).
+//
+// Two more modes (M1.3b): in HTML fullscreen the tab fills the whole window, and for something
+// the shell must draw over the page (the fullscreen notice) the transparent shell is raised above
+// the tab (ADR-0006, option A′). The page stays visible and live underneath.
 import type { BaseWindow, WebContentsView } from 'electron';
 
 import { fillRect, insetRect } from '../../core/layout/rect';
@@ -14,6 +18,8 @@ export class LayoutManager {
   readonly #shell: WebContentsView;
   #insets: Insets = DEFAULT_INSETS;
   #content: WebContentsView | undefined;
+  #fullscreen = false;
+  #shellRaised = false;
 
   constructor(window: BaseWindow, shell: WebContentsView) {
     this.#window = window;
@@ -29,12 +35,20 @@ export class LayoutManager {
     this.#layout();
   }
 
+  /** In HTML fullscreen the tab fills the window: no chrome around it. */
+  setFullscreen(fullscreen: boolean): void {
+    this.#fullscreen = fullscreen;
+    this.#layout();
+  }
+
   contentRect(): Rect {
     if (this.#window.isDestroyed()) {
       return { x: 0, y: 0, width: 0, height: 0 };
     }
     const { width, height } = this.#window.getContentBounds();
-    return insetRect({ width, height }, this.#insets);
+    return this.#fullscreen
+      ? fillRect({ width, height })
+      : insetRect({ width, height }, this.#insets);
   }
 
   /** Shows a tab's view in the content area, replacing whichever view was there. */
@@ -48,6 +62,9 @@ export class LayoutManager {
     this.#content = view;
     this.#window.contentView.addChildView(view);
     view.setBounds(this.contentRect());
+    if (this.#shellRaised) {
+      this.#window.contentView.addChildView(this.#shell);
+    }
   }
 
   /**
@@ -62,6 +79,31 @@ export class LayoutManager {
     this.#content = undefined;
     if (!this.#window.isDestroyed()) {
       this.#window.contentView.removeChildView(view);
+    }
+  }
+
+  /**
+   * Puts the shell above the tab (A′). The shell's view background is transparent, and while it is
+   * raised it must draw nothing but what belongs over the page. It gets every click over the
+   * content area until it is lowered; keyboard focus stays where it was.
+   */
+  raiseShell(): void {
+    if (this.#window.isDestroyed()) {
+      return;
+    }
+    this.#shellRaised = true;
+    // Adding a child view it already has moves it to the top.
+    this.#window.contentView.addChildView(this.#shell);
+  }
+
+  /** Puts the tab back above the shell. */
+  lowerShell(): void {
+    if (this.#window.isDestroyed()) {
+      return;
+    }
+    this.#shellRaised = false;
+    if (this.#content !== undefined) {
+      this.#window.contentView.addChildView(this.#content);
     }
   }
 

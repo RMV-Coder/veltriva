@@ -4,8 +4,11 @@
 //   did-navigate / did-navigate-in-page (main frame)  → committed
 //   did-fail-load (main frame, except ERR_ABORTED)    → loadFailed (no page commits then)
 //   render-process-gone                               → crashed
+//   found-in-page                                     → foundInPage
+//   zoom-changed (Ctrl+wheel, pinch)                  → zoomRequested
+//   enter-html-full-screen / leave-html-full-screen   → fullscreenChanged
 // `did-start-navigation` is deliberately unused (see TabRuntimeEvents in ./tab-manager.ts).
-import type { WebContentsView } from 'electron';
+import type { ContextMenuParams, Event, Input, WebContentsView } from 'electron';
 
 import type { Logger } from '../platform/logger';
 import { createViewWithRole } from '../web/roles';
@@ -19,17 +22,33 @@ export interface ContentHost {
   hideContent(view: WebContentsView): void;
 }
 
+/** What other parts of main need from a tab's input (src/main/input, src/main/menus). */
+export interface TabInputHandlers {
+  /** Every key before the page sees it: the reserved shortcuts (assessment §3.9). */
+  beforeInput(tabId: TabId, event: Event, input: Input): void;
+  /** The user asked for the page's context menu. */
+  contextMenu(tabId: TabId, params: ContextMenuParams): void;
+}
+
 const ERR_ABORTED = -3;
+
+/**
+ * An isolated world of our own (the page can't touch its globals) for the one script main runs in
+ * a page: leaving fullscreen. World 0 is the page's own and 999 is Electron's.
+ */
+const BROWSER_WORLD_ID = 1001;
+const EXIT_FULLSCREEN = 'document.fullscreenElement ? document.exitFullscreen() : undefined';
 
 export interface TabRuntimes {
   readonly factory: TabRuntimeFactory;
-  /** The live view of each tab that has one. For test hooks and diagnostics only. */
+  /** The live view of each tab that has one. For main's own controllers and test hooks. */
   readonly views: ReadonlyMap<TabId, WebContentsView>;
 }
 
 export function createTabRuntimes(options: {
   readonly host: ContentHost;
   readonly favicons: FaviconService;
+  readonly input: TabInputHandlers;
   readonly logger: Logger;
 }): TabRuntimes {
   const views = new Map<TabId, WebContentsView>();
@@ -97,6 +116,40 @@ export function createTabRuntimes(options: {
         })
         .catch(() => undefined);
     });
+    contents.on('found-in-page', (_event, result) => {
+      if (!destroyed) {
+        events.foundInPage({
+          requestId: result.requestId,
+          activeMatch: result.activeMatchOrdinal,
+          matches: result.matches,
+        });
+      }
+    });
+    contents.on('zoom-changed', (_event, direction) => {
+      if (!destroyed) {
+        events.zoomRequested(direction);
+      }
+    });
+    contents.on('enter-html-full-screen', () => {
+      if (!destroyed) {
+        events.fullscreenChanged(true);
+      }
+    });
+    contents.on('leave-html-full-screen', () => {
+      if (!destroyed) {
+        events.fullscreenChanged(false);
+      }
+    });
+    contents.on('before-input-event', (event, input) => {
+      if (!destroyed) {
+        options.input.beforeInput(tabId, event, input);
+      }
+    });
+    contents.on('context-menu', (_event, params) => {
+      if (!destroyed) {
+        options.input.contextMenu(tabId, params);
+      }
+    });
 
     const runtime: TabRuntime = {
       load(url) {
@@ -109,11 +162,49 @@ export function createTabRuntimes(options: {
       goForward() {
         contents.navigationHistory.goForward();
       },
-      reload() {
-        contents.reload();
+      reload({ ignoreCache = false } = {}) {
+        if (ignoreCache) {
+          contents.reloadIgnoringCache();
+        } else {
+          contents.reload();
+        }
       },
       stop() {
         contents.stop();
+      },
+      find(text, { forward, newSearch }) {
+        // Electron's `findNext` means "start a new search session", despite its name.
+        return contents.findInPage(text, { forward, findNext: newSearch });
+      },
+      stopFind(action) {
+        contents.stopFindInPage(action);
+      },
+      zoomFactor() {
+        return destroyed ? 1 : contents.getZoomFactor();
+      },
+      setZoomFactor(factor) {
+        if (!destroyed) {
+          contents.setZoomFactor(factor);
+        }
+      },
+      toggleDevTools() {
+        if (destroyed) {
+          return;
+        }
+        if (contents.isDevToolsOpened()) {
+          contents.closeDevTools();
+        } else {
+          contents.openDevTools({ mode: 'detach', activate: true });
+        }
+      },
+      exitFullscreen() {
+        if (destroyed) {
+          return;
+        }
+        // In our own world, so a page that replaced document.exitFullscreen can't trap the user.
+        contents
+          .executeJavaScriptInIsolatedWorld(BROWSER_WORLD_ID, [{ code: EXIT_FULLSCREEN }], true)
+          .catch(() => undefined);
       },
       show() {
         if (!destroyed) {
@@ -135,6 +226,9 @@ export function createTabRuntimes(options: {
         destroyed = true;
         // ADR-0002 §2: detach, close, drop every reference.
         options.host.hideContent(view);
+        if (contents.isDevToolsOpened()) {
+          contents.closeDevTools();
+        }
         contents.close();
         views.delete(tabId);
       },

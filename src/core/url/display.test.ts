@@ -1,6 +1,26 @@
 import { describe, expect, it } from 'vitest';
 
-import { displayUrl, MAX_DISPLAY_LENGTH } from './display';
+import { displayUrl, MAX_DISPLAY_LENGTH, originLabel } from './display';
+
+describe('originLabel', () => {
+  it.each([
+    ['https://www.example.com/watch?v=1', 'www.example.com'],
+    ['http://127.0.0.1:4173/page', '127.0.0.1:4173'],
+    ['https://example.com:443/', 'example.com'],
+    // Homographs show in punycode, as in the address bar.
+    ['https://аpple.com/', 'xn--pple-43d.com'],
+    // Credentials never make it into the notice.
+    ['https://paypal.com@evil.example/', 'evil.example'],
+    ['blob:https://video.example/0b8a', 'video.example'],
+    ['blob:null/0b8a', 'This page'],
+    ['file:///C:/movie.html', 'A local file'],
+    ['about:blank', 'This page'],
+    ['data:text/html,<title>fake.com</title>', 'This page'],
+    ['not a url', 'This page'],
+  ])('%s is %s', (url, expected) => {
+    expect(originLabel(url)).toBe(expected);
+  });
+});
 
 describe('displayUrl', () => {
   it.each([

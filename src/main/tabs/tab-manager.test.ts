@@ -3,17 +3,24 @@ import { describe, expect, it } from 'vitest';
 import { sanitizeTitle, TabManager, TabNotFoundError } from './tab-manager';
 import type { TabId, TabRuntime, TabRuntimeEvents } from './tab-manager';
 
+/** Zoom per host, as Chromium keeps it: shared by every fake runtime of one test. */
+type ZoomByHost = Map<string, number>;
+
 /** A runtime that records what TabManager asked of it. */
 class FakeRuntime implements TabRuntime {
   shown = false;
   destroyed = false;
   focused = 0;
+  /** The host of the document on display, for per-host zoom. Tests set it. */
+  host = '';
   readonly loads: string[] = [];
   readonly calls: string[] = [];
+  #nextFindId = 0;
 
   constructor(
     readonly tabId: TabId,
     readonly events: TabRuntimeEvents,
+    readonly zoomByHost: ZoomByHost,
   ) {}
 
   load(url: string): void {
@@ -26,11 +33,33 @@ class FakeRuntime implements TabRuntime {
   goForward(): void {
     this.calls.push('forward');
   }
-  reload(): void {
-    this.calls.push('reload');
+  reload(options: { readonly ignoreCache?: boolean } = {}): void {
+    this.calls.push(options.ignoreCache === true ? 'reload:ignoreCache' : 'reload');
   }
   stop(): void {
     this.calls.push('stop');
+  }
+  find(text: string, options: { readonly forward: boolean; readonly newSearch: boolean }): number {
+    this.#nextFindId += 1;
+    this.calls.push(
+      `find:${text}:${options.forward ? 'forward' : 'backward'}:${options.newSearch ? 'new' : 'next'}`,
+    );
+    return this.#nextFindId;
+  }
+  stopFind(action: string): void {
+    this.calls.push(`stopFind:${action}`);
+  }
+  zoomFactor(): number {
+    return this.zoomByHost.get(this.host) ?? 1;
+  }
+  setZoomFactor(factor: number): void {
+    this.zoomByHost.set(this.host, factor);
+  }
+  toggleDevTools(): void {
+    this.calls.push('devtools');
+  }
+  exitFullscreen(): void {
+    this.calls.push('exitFullscreen');
   }
   show(): void {
     this.assertAlive();
@@ -55,17 +84,22 @@ class FakeRuntime implements TabRuntime {
 
 function setup() {
   const runtimes: FakeRuntime[] = [];
+  const zoomByHost: ZoomByHost = new Map();
+  const fullscreenChanges: (TabId | null)[] = [];
   let changes = 0;
   let nextId = 0;
   const manager = new TabManager({
     createRuntime: (tabId, events) => {
-      const runtime = new FakeRuntime(tabId, events);
+      const runtime = new FakeRuntime(tabId, events, zoomByHost);
       runtimes.push(runtime);
       return runtime;
     },
     newId: () => `tab-${String((nextId += 1))}`,
     onChange: () => {
       changes += 1;
+    },
+    onFullscreenChange: (tabId) => {
+      fullscreenChanges.push(tabId);
     },
   });
   const runtimeOf = (tabId: TabId): FakeRuntime => {
@@ -76,7 +110,23 @@ function setup() {
     }
     return runtime;
   };
-  return { manager, runtimes, runtimeOf, changes: () => changes };
+  /** A tab showing a committed web page at `url` (its runtime's host set to match). */
+  const webTab = (url: string, options: { readonly select?: boolean } = {}): TabId => {
+    const id = manager.create(options);
+    manager.navigate(id, url);
+    const runtime = runtimeOf(id);
+    runtime.host = new URL(url).host;
+    commit(runtime, url);
+    return id;
+  };
+  return {
+    manager,
+    runtimes,
+    runtimeOf,
+    webTab,
+    fullscreenChanges,
+    changes: () => changes,
+  };
 }
 
 /** A new document committing in a runtime, as Electron reports it. */
@@ -624,5 +674,289 @@ describe('sanitizeTitle', () => {
   it('removes controls and bidi overrides, trims and caps the length', () => {
     expect(sanitizeTitle('‮gnp.exe‬  Invoice\u0007\n')).toBe('gnp.exe  Invoice');
     expect(sanitizeTitle('x'.repeat(5000))).toHaveLength(1024);
+  });
+});
+
+describe('TabManager in M1.3b', () => {
+  describe('find in page', () => {
+    it('opens the find bar on a web page, searches as the text changes and reports matches', () => {
+      const { manager, runtimeOf, webTab } = setup();
+      const id = webTab('https://a.example/');
+      const runtime = runtimeOf(id);
+
+      expect(manager.openFind(id)).toBe(true);
+      expect(manager.get(id).find).toEqual({ text: '', activeMatch: 0, matches: 0 });
+      // An empty find bar searches for nothing.
+      expect(runtime.calls).toEqual([]);
+
+      manager.updateFind(id, 'cat');
+      expect(runtime.calls).toEqual(['find:cat:forward:new']);
+      runtime.events.foundInPage({ requestId: 1, activeMatch: 1, matches: 4 });
+      expect(manager.get(id).find).toEqual({ text: 'cat', activeMatch: 1, matches: 4 });
+
+      manager.findNext(id, true);
+      manager.findNext(id, false);
+      expect(runtime.calls.slice(1)).toEqual(['find:cat:forward:next', 'find:cat:backward:next']);
+      runtime.events.foundInPage({ requestId: 3, activeMatch: 4, matches: 4 });
+      expect(manager.get(id).find?.activeMatch).toBe(4);
+    });
+
+    it('ignores results of an older search once the text has changed', () => {
+      const { manager, runtimeOf, webTab } = setup();
+      const id = webTab('https://a.example/');
+      const runtime = runtimeOf(id);
+      manager.openFind(id);
+      manager.updateFind(id, 'ca');
+      manager.updateFind(id, 'cat');
+      runtime.events.foundInPage({ requestId: 1, activeMatch: 1, matches: 9 });
+      expect(manager.get(id).find).toEqual({ text: 'cat', activeMatch: 0, matches: 0 });
+      runtime.events.foundInPage({ requestId: 2, activeMatch: 1, matches: 2 });
+      expect(manager.get(id).find).toEqual({ text: 'cat', activeMatch: 1, matches: 2 });
+    });
+
+    it('clears an emptied search, closes keeping the selection, and offers the text again', () => {
+      const { manager, runtimeOf, webTab } = setup();
+      const id = webTab('https://a.example/');
+      const runtime = runtimeOf(id);
+      manager.openFind(id);
+      manager.updateFind(id, 'dog');
+      manager.updateFind(id, '');
+      expect(runtime.calls.at(-1)).toBe('stopFind:clearSelection');
+      manager.updateFind(id, 'dog');
+      manager.closeFind(id);
+      expect(runtime.calls.at(-1)).toBe('stopFind:keepSelection');
+      expect(manager.get(id).find).toBeNull();
+
+      // Reopening offers the last text, and searches for it right away.
+      manager.openFind(id);
+      expect(manager.get(id).find?.text).toBe('dog');
+      expect(runtime.calls.at(-1)).toBe('find:dog:forward:new');
+    });
+
+    it('keeps the find bar open across a navigation, without the old matches', () => {
+      const { manager, runtimeOf, webTab } = setup();
+      const id = webTab('https://a.example/');
+      const runtime = runtimeOf(id);
+      manager.openFind(id);
+      manager.updateFind(id, 'cat');
+      runtime.events.foundInPage({ requestId: 1, activeMatch: 2, matches: 5 });
+      commit(runtime, 'https://a.example/next', true);
+      expect(manager.get(id).find).toEqual({ text: 'cat', activeMatch: 0, matches: 0 });
+      // A late result for the old document doesn't come back.
+      runtime.events.foundInPage({ requestId: 1, activeMatch: 2, matches: 5 });
+      expect(manager.get(id).find?.matches).toBe(0);
+    });
+
+    it('has nothing to search on a new-tab page, and closes when the page fails or crashes', () => {
+      const { manager, runtimeOf, webTab } = setup();
+      expect(manager.openFind(manager.create())).toBe(false);
+
+      const failed = webTab('https://a.example/');
+      manager.openFind(failed);
+      runtimeOf(failed).events.loadFailed({
+        code: -105,
+        name: 'ERR_NAME_NOT_RESOLVED',
+        url: 'https://b.example/',
+      });
+      expect(manager.get(failed).find).toBeNull();
+      expect(manager.openFind(failed)).toBe(false);
+
+      const crashed = webTab('https://c.example/');
+      manager.openFind(crashed);
+      runtimeOf(crashed).events.crashed({ code: 1, name: 'crashed' });
+      expect(manager.get(crashed).find).toBeNull();
+    });
+  });
+
+  describe('zoom', () => {
+    it('steps through the presets and resets', () => {
+      const { manager, webTab } = setup();
+      const id = webTab('https://a.example/');
+      expect(manager.get(id).zoomPercent).toBe(100);
+      manager.zoom(id, 'in');
+      manager.zoom(id, 'in');
+      expect(manager.get(id).zoomPercent).toBe(125);
+      manager.zoom(id, 'out');
+      expect(manager.get(id).zoomPercent).toBe(110);
+      manager.zoom(id, 'reset');
+      expect(manager.get(id).zoomPercent).toBe(100);
+    });
+
+    it('shows a zoom change on every tab of the same host, as Chromium applies it', () => {
+      const { manager, webTab } = setup();
+      const first = webTab('https://a.example/one');
+      const second = webTab('https://a.example/two');
+      const other = webTab('https://b.example/');
+      manager.zoom(first, 'out');
+      expect(manager.get(first).zoomPercent).toBe(90);
+      expect(manager.get(second).zoomPercent).toBe(90);
+      expect(manager.get(other).zoomPercent).toBe(100);
+    });
+
+    it('zooms on a Ctrl+wheel request, and reads the new host zoom after a navigation', () => {
+      const { manager, runtimeOf, webTab } = setup();
+      const id = webTab('https://a.example/');
+      const runtime = runtimeOf(id);
+      runtime.events.zoomRequested('in');
+      expect(manager.get(id).zoomPercent).toBe(110);
+      runtime.host = 'b.example';
+      commit(runtime, 'https://b.example/', true);
+      expect(manager.get(id).zoomPercent).toBe(100);
+    });
+
+    it('leaves tabs without a web page alone', () => {
+      const { manager } = setup();
+      const id = manager.create();
+      manager.zoom(id, 'in');
+      expect(manager.get(id).zoomPercent).toBe(100);
+    });
+  });
+
+  describe('HTML fullscreen', () => {
+    it('tracks the selected tab entering and leaving fullscreen', () => {
+      const { manager, runtimeOf, webTab, fullscreenChanges } = setup();
+      const id = webTab('https://video.example/');
+      runtimeOf(id).events.fullscreenChanged(true);
+      expect(manager.fullscreenTabId()).toBe(id);
+      runtimeOf(id).events.fullscreenChanged(false);
+      expect(manager.fullscreenTabId()).toBeNull();
+      expect(fullscreenChanges).toEqual([id, null]);
+    });
+
+    it('makes a background tab leave fullscreen at once: only the selected tab may have it', () => {
+      const { manager, runtimeOf, webTab, fullscreenChanges } = setup();
+      const background = webTab('https://a.example/');
+      webTab('https://b.example/');
+      runtimeOf(background).events.fullscreenChanged(true);
+      expect(runtimeOf(background).calls).toContain('exitFullscreen');
+      expect(manager.fullscreenTabId()).toBeNull();
+      expect(fullscreenChanges).toEqual([]);
+    });
+
+    it('leaves fullscreen when another tab is selected, closed, crashes or fails', () => {
+      const { manager, runtimeOf, webTab } = setup();
+      const a = webTab('https://a.example/');
+      const b = webTab('https://b.example/');
+
+      runtimeOf(b).events.fullscreenChanged(true);
+      manager.select(a);
+      expect(runtimeOf(b).calls).toContain('exitFullscreen');
+      expect(manager.fullscreenTabId()).toBeNull();
+
+      runtimeOf(a).events.fullscreenChanged(true);
+      runtimeOf(a).events.crashed({ code: 1, name: 'crashed' });
+      expect(manager.fullscreenTabId()).toBeNull();
+
+      manager.select(b);
+      runtimeOf(b).events.fullscreenChanged(true);
+      runtimeOf(b).events.loadFailed({ code: -105, name: 'ERR_FAILED', url: 'https://b.example/' });
+      expect(manager.fullscreenTabId()).toBeNull();
+
+      runtimeOf(b).events.fullscreenChanged(true);
+      manager.close(b);
+      expect(manager.fullscreenTabId()).toBeNull();
+    });
+
+    it('can be ended from main (F11, Esc in the shell)', () => {
+      const { manager, runtimeOf, webTab } = setup();
+      const id = webTab('https://video.example/');
+      runtimeOf(id).events.fullscreenChanged(true);
+      manager.exitFullscreen();
+      expect(runtimeOf(id).calls).toContain('exitFullscreen');
+      expect(manager.fullscreenTabId()).toBeNull();
+    });
+  });
+
+  describe('selection by shortcut, and focus', () => {
+    it('moves through the strip with wrap-around, and by index', () => {
+      const { manager } = setup();
+      const ids = [manager.create(), manager.create(), manager.create()];
+      manager.selectIndex(0);
+      manager.selectRelative(1);
+      expect(manager.selectedTabId()).toBe(ids[1]);
+      manager.selectRelative(-2);
+      expect(manager.selectedTabId()).toBe(ids[2]);
+      manager.selectRelative(1);
+      expect(manager.selectedTabId()).toBe(ids[0]);
+      manager.selectLast();
+      expect(manager.selectedTabId()).toBe(ids[2]);
+      manager.selectIndex(7);
+      expect(manager.selectedTabId()).toBe(ids[2]);
+    });
+
+    it('focuses the newly selected page unless asked not to', () => {
+      const { manager, runtimeOf, webTab } = setup();
+      const a = webTab('https://a.example/');
+      const b = webTab('https://b.example/');
+      const before = runtimeOf(a).focused;
+      manager.select(a, { focus: false });
+      expect(runtimeOf(a).focused).toBe(before);
+      manager.select(b);
+      manager.select(a);
+      expect(runtimeOf(a).focused).toBe(before + 1);
+
+      // Closing keeps focus where it was when asked to (Delete in the sidebar).
+      const focusedB = runtimeOf(b).focused;
+      manager.close(a, { focus: false });
+      expect(manager.selectedTabId()).toBe(b);
+      expect(runtimeOf(b).focused).toBe(focusedB);
+      expect(manager.focusPage(b)).toBe(true);
+      expect(manager.focusPage(manager.create())).toBe(false);
+    });
+  });
+
+  describe('reopening closed tabs', () => {
+    it('brings back the last closed tab where it was, pinned if it was', () => {
+      const { manager, runtimeOf, webTab } = setup();
+      const a = webTab('https://a.example/');
+      const b = webTab('https://b.example/');
+      webTab('https://c.example/');
+      manager.setPinned(b, true);
+      manager.close(b);
+      manager.close(a);
+
+      const reopenedA = manager.reopenClosed();
+      expect(reopenedA).not.toBeNull();
+      expect(runtimeOf(reopenedA ?? '').loads).toEqual(['https://a.example/']);
+      const reopenedB = manager.reopenClosed();
+      expect(manager.tabs()[0]?.id).toBe(reopenedB);
+      expect(manager.get(reopenedB ?? '').pinned).toBe(true);
+      expect(manager.reopenClosed()).toBeNull();
+    });
+
+    it('forgets new-tab pages, which have nothing to reopen', () => {
+      const { manager } = setup();
+      manager.create();
+      manager.close(manager.create());
+      expect(manager.reopenClosed()).toBeNull();
+    });
+
+    it('keeps at most 25 closed tabs', () => {
+      const { manager, webTab } = setup();
+      for (let i = 0; i < 30; i += 1) {
+        manager.close(webTab('https://site' + String(i) + '.example/'));
+      }
+      let reopened = 0;
+      while (manager.reopenClosed() !== null) {
+        reopened += 1;
+      }
+      expect(reopened).toBe(25);
+    });
+  });
+
+  it('toggles DevTools for a web page only', () => {
+    const { manager, runtimeOf, webTab } = setup();
+    const id = webTab('https://a.example/');
+    manager.toggleDevTools(id);
+    expect(runtimeOf(id).calls).toEqual(['devtools']);
+    manager.toggleDevTools(manager.create());
+  });
+
+  it('reloads ignoring the cache when asked (Ctrl+Shift+R)', () => {
+    const { manager, runtimeOf, webTab } = setup();
+    const id = webTab('https://a.example/');
+    manager.reload(id, { ignoreCache: true });
+    manager.reload(id);
+    expect(runtimeOf(id).calls).toEqual(['reload:ignoreCache', 'reload']);
   });
 });

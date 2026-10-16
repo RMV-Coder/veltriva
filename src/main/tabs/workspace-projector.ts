@@ -31,8 +31,13 @@ export function projectTab(tab: TabState): TabSnapshot {
     canGoForward: tab.canGoForward,
     runtime: tab.runtime,
     page,
+    zoomPercent: Math.min(Math.max(tab.zoomPercent, 25), 500),
+    find: tab.find,
   };
 }
+
+/** Which tab is in HTML fullscreen, and whether the shell should draw the notice (T6). */
+export type FullscreenSnapshot = WorkspaceSnapshot['fullscreen'];
 
 export interface WorkspaceProjector {
   /** Something changed: schedule a snapshot (at most one per interval). */
@@ -45,6 +50,7 @@ export interface WorkspaceProjector {
 export function createWorkspaceProjector(options: {
   readonly tabs: () => readonly TabState[];
   readonly selectedTabId: () => string | null;
+  readonly fullscreen?: () => FullscreenSnapshot;
   readonly publish: (snapshot: WorkspaceSnapshot) => void;
   readonly schedule?: (callback: () => void, ms: number) => unknown;
   readonly cancel?: (handle: unknown) => void;
@@ -64,6 +70,7 @@ export function createWorkspaceProjector(options: {
       version,
       selectedTabId: options.selectedTabId(),
       tabs: options.tabs().map(projectTab),
+      fullscreen: options.fullscreen?.() ?? null,
     };
   };
 

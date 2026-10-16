@@ -7,10 +7,14 @@ import { uuidv7 } from '../core/id/uuidv7';
 import { APP_USER_MODEL_ID, BROWSING_PARTITION } from '../shared/constants/app-identity';
 import { cleanUserAgent } from './app/user-agent';
 import { resolveUserDataDir, USER_DATA_DIR_OVERRIDE_ENV } from './app/user-data-dir';
+import { FocusManager } from './focus/focus-manager';
+import { installPageMenu } from './input/page-menu';
+import { createShortcutHandler } from './input/shortcuts';
 import { createCommandHandlers } from './ipc/commands';
 import { createShellEvents } from './ipc/events';
 import { installIpcRouter } from './ipc/install';
-import { searchTemplate } from './navigation/search-engine';
+import { createContextMenus } from './menus/context-menu';
+import { searchEngineName, searchTemplate } from './navigation/search-engine';
 import { consoleLogger } from './platform/logger';
 import { SHELL_ORIGIN, SHELL_URL } from './shell/assets';
 import { parseDevServerUrl } from './shell/dev-server';
@@ -25,6 +29,7 @@ import { LIFECYCLE_SCENARIO_ENV, runLifecycleScenario } from './testing/lifecycl
 import { installTestHooks } from './testing/test-hooks';
 import { installWebContentsGuard } from './web/guard';
 import { grantTabPermissions, hardenSession, installSessionBaseline } from './web/session-baseline';
+import { FullscreenController } from './windows/fullscreen';
 import { LayoutManager } from './windows/layout-manager';
 import { createMainWindow, windowBackground } from './windows/main-window';
 
@@ -65,7 +70,8 @@ const devServer =
 
 function start(): void {
   // No default application menu: its accelerators (Ctrl+W closes the window, Ctrl+R reloads the
-  // shell) would act on the browser itself. Browser shortcuts arrive with M1.3b.
+  // shell) would act on the browser itself. The browser's shortcuts are below: reserved ones in
+  // before-input-event, page-first ones in the window's hidden menu (assessment §3.9).
   Menu.setApplicationMenu(null);
 
   // Created lazily by Electron; harden them explicitly too (hardenSession is idempotent).
@@ -86,12 +92,25 @@ function start(): void {
     (url, init) => browsing.fetch(url, { signal: init.signal }),
     consoleLogger,
   );
-  const runtimes = createTabRuntimes({ host: layout, favicons, logger: consoleLogger });
-  // The projector reads TabManager lazily and TabManager only notifies it, so each can refer to
-  // the other.
+  // The parts below refer to each other through closures that run only after start() returns:
+  // TabManager notifies the projector and the fullscreen controller, which read it back.
+  const runtimes = createTabRuntimes({
+    host: layout,
+    favicons,
+    logger: consoleLogger,
+    input: {
+      beforeInput: (tabId, event, input) => {
+        handleShortcut({ tabId }, event, input);
+      },
+      contextMenu: (tabId, params) => {
+        contextMenus.forTab(tabId, params);
+      },
+    },
+  });
   const projector = createWorkspaceProjector({
     tabs: () => tabs.tabs(),
     selectedTabId: () => tabs.selectedTabId(),
+    fullscreen: () => fullscreen.state(),
     publish: (snapshot) => {
       events.emit('workspace.changed', snapshot);
     },
@@ -102,11 +121,88 @@ function start(): void {
     onChange: () => {
       projector.markDirty();
     },
+    onFullscreenChange: (tabId) => {
+      fullscreen.update(tabId);
+    },
   });
+  const focus = new FocusManager({ shell: main.shell, tabs: () => tabs, events });
+  const fullscreen = new FullscreenController({
+    layout,
+    urlOf: (tabId) => tabs.get(tabId).url,
+    focusPage: (tabId) => {
+      if (tabs.has(tabId)) {
+        tabs.focusPage(tabId);
+      }
+    },
+    onChange: () => {
+      projector.markDirty();
+    },
+  });
+  const contextMenus = createContextMenus({
+    window: main.window,
+    shell: main.shell,
+    tabs: () => tabs,
+    views: runtimes.views,
+    searchTemplate,
+    searchEngine: searchEngineName,
+  });
+
+  // Reserved shortcuts, before the shell or any page sees the key (assessment §3.9).
+  const handleShortcut = createShortcutHandler({ window: main.window, tabs: () => tabs, focus });
+  main.shell.webContents.on('before-input-event', (event, input) => {
+    handleShortcut('shell', event, input);
+  });
+  main.shell.webContents.on('context-menu', (_event, params) => {
+    contextMenus.forShell(params);
+  });
+  // Find and zoom: the page's own handlers come first.
+  installPageMenu(main.window, {
+    find: () => {
+      const selected = tabs.selectedTabId();
+      if (selected !== null && tabs.openFind(selected)) {
+        focus.focusFindBar();
+      }
+    },
+    findNext: (forward) => {
+      const selected = tabs.selectedTabId();
+      if (selected === null) {
+        return;
+      }
+      if (tabs.get(selected).find === null) {
+        if (tabs.openFind(selected)) {
+          focus.focusFindBar();
+        }
+      } else {
+        tabs.findNext(selected, forward);
+      }
+    },
+    zoom: (direction) => {
+      const selected = tabs.selectedTabId();
+      if (selected !== null) {
+        tabs.zoom(selected, direction);
+      }
+    },
+  });
+  // Development builds only: Ctrl+Shift+I opens the shell's own DevTools. Pages get theirs (F12).
+  if (import.meta.env.DEV) {
+    main.shell.webContents.on('before-input-event', (event, input) => {
+      if (input.type === 'keyDown' && input.control && input.shift && input.code === 'KeyI') {
+        event.preventDefault();
+        main.shell.webContents.openDevTools({ mode: 'detach' });
+      }
+    });
+  }
   tabs.create();
 
   installIpcRouter({
-    handlers: createCommandHandlers({ tabs, layout, projector, searchTemplate }),
+    handlers: createCommandHandlers({
+      tabs,
+      layout,
+      projector,
+      focus,
+      fullscreen,
+      searchTemplate,
+    }),
     allowedOrigins: new Set(
       devServer === undefined ? [SHELL_ORIGIN] : [SHELL_ORIGIN, devServer.origin],
     ),
@@ -124,12 +220,13 @@ function start(): void {
   main.window.on('closed', () => {
     nativeTheme.off('updated', onThemeUpdated);
     projector.dispose();
+    fullscreen.dispose();
     tabs.closeAll();
     main.shell.webContents.close();
   });
 
   if (import.meta.env.MODE === 'test') {
-    installTestHooks({ main, tabs, layout, views: runtimes.views });
+    installTestHooks({ main, tabs, layout, views: runtimes.views, contextMenus, fullscreen });
     const scenario = process.env[LIFECYCLE_SCENARIO_ENV];
     if (scenario !== undefined && scenario !== '') {
       runLifecycleScenario(scenario, { main, tabs, views: runtimes.views });
