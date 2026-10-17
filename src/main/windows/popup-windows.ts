@@ -25,7 +25,7 @@ import type { PopupHost, WindowOpenHandler, WindowOpenSource } from '../popups/p
 import type { PopupSize } from '../popups/window-open-route';
 import type { TabId } from '../tabs/tab-manager';
 import { assertPopupContents, createViewWithRole } from '../web/roles';
-import { popupBarWebPreferences, TAB_WEB_PREFERENCES } from '../web/web-preferences';
+import { popupBarWebPreferences } from '../web/web-preferences';
 import { windowBackground } from './main-window';
 
 /** The address bar's height, in DIPs. */
@@ -82,18 +82,14 @@ export class PopupWindows implements PopupHost {
 
   /** `createWindow` of the popup policy. Returns the contents Electron must use. */
   host(
-    precreated: WebContents | undefined,
+    precreated: WebContents,
     popup: { readonly url: string; readonly size: PopupSize },
     openerTabId: TabId,
   ): WebContents {
-    let page: WebContentsView;
-    if (precreated === undefined) {
-      // No pre-created contents (a `noopener` popup): a popup-role view of our own, loaded here.
-      page = createViewWithRole('popup', { webPreferences: { ...TAB_WEB_PREFERENCES } });
-    } else {
-      assertPopupContents(precreated);
-      page = new WebContentsView({ webContents: precreated });
-    }
+    // Chromium's own contents for the popup, already loading its page with the opener (if any)
+    // and the post body (if any). It must carry the `popup` claim, or it is closed here.
+    assertPopupContents(precreated);
+    const page = new WebContentsView({ webContents: precreated });
     const contents = page.webContents;
 
     const window = new BaseWindow({
@@ -209,9 +205,6 @@ export class PopupWindows implements PopupHost {
       }
     });
 
-    if (precreated === undefined) {
-      contents.loadURL(popup.url).catch(() => undefined);
-    }
     return contents;
   }
 

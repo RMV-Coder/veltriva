@@ -20,7 +20,12 @@ A future macOS or Linux port should keep the same engine.
 
 ## Decision
 
-Build on **Electron**, tracking the newest stable major. That's 44.7.2 today (Chromium 152). 45.0.0 is scheduled for 2026-10-20, but it was still in beta when Phase 1 began on 2026-10-16, so Milestone 1.1 pins 44.7.2. The move to 45 follows the upgrade policy below.
+Build on **Electron**, tracking the newest stable major. 45.0.0 is scheduled for 2026-10-20, but it was still in beta when Phase 1 began on 2026-10-16, so Milestone 1.1 pinned 44.7.2 (Chromium 152). The move to 45 follows the upgrade policy below.
+
+**Pin history.** The version is pinned exactly (`.npmrc` has `save-exact`, and install scripts never run implicitly), and every downloaded Electron zip is checked against the release's `SHASUMS256.txt`.
+
+- **44.7.2** (Milestone 1.1, 2026-10-16): Chromium 152.0.7977.149, Node 24.21.0.
+- **44.9.0** (Phase 1 wrap-up, 2026-10-17): Chromium 152.0.7977.167, Node 24.22.0. This skipped 44.8.0, which shipped the day before with the Chromium update and backported Chromium and V8 fixes. `electron-v44.9.0-win32-x64.zip` has SHA-256 `88e08039d0ef359bab9f674e8051fa103bd8628ea7c5a5e1daaa610a8a0c6931`, matching `SHASUMS256.txt` and the npm package's `checksums.json`. 44.9.0's electron/electron#55048 changes how windows opened from links are created; ADR-0002 item 9 records what was re-measured and pinned. 45.0.0 stable had not shipped yet (45.0.0-beta.5), so the 4-week clock for 45 hasn't started.
 
 Every web page is a `WebContentsView` inside a single `BaseWindow`. We don't use `BrowserView` (deprecated since Electron 30), `<webview>`, or iframes for browsing.
 

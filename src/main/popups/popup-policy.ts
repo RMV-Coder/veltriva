@@ -26,7 +26,7 @@ import type { PopupSize } from './window-open-route';
 /** Hosts a popup's contents in a popup window (src/main/windows/popup-windows.ts). */
 export interface PopupHost {
   host(
-    contents: WebContents | undefined,
+    contents: WebContents,
     popup: { readonly url: string; readonly size: PopupSize },
     openerTabId: TabId,
   ): WebContents;
@@ -52,8 +52,10 @@ export interface WindowOpenSource {
 export type WindowOpenHandler = (details: HandlerDetails) => WindowOpenHandlerResponse;
 
 /**
- * Chromium's pre-created contents for the popup. Electron passes it as `options.webContents`
- * (measured on Electron 44; spike S7), though its typings leave the field out.
+ * Chromium's pre-created contents for the popup. Electron passes it as `options.webContents`,
+ * though its typings leave the field out. Measured on 44.7.2 and 44.9.0 for every window.open,
+ * `noopener` included, and for a form posted to a new window; since 44.9.0
+ * (electron/electron#55048) links opened into a new tab or window get one too.
  */
 function precreatedContents(options: BrowserWindowConstructorOptions): WebContents | undefined {
   const candidate = (options as { readonly webContents?: unknown }).webContents;
@@ -118,8 +120,15 @@ export function createWindowOpenHandler(
       action: 'allow',
       // Sign-in popups must survive their opener tab closing or being unloaded, as in Chrome.
       outlivesOpener: true,
-      createWindow: (options) =>
-        deps.popupWindows().host(precreatedContents(options), route, tabId),
+      createWindow: (options) => {
+        const contents = precreatedContents(options);
+        if (contents === undefined) {
+          // Electron accepts only a window built around the contents it passes, so there is
+          // nothing safe to return without one: refuse loudly, as a missed claim does.
+          throw new Error('Electron passed no pre-created contents for a popup; refusing it');
+        }
+        return deps.popupWindows().host(contents, route, tabId);
+      },
     };
   };
 }

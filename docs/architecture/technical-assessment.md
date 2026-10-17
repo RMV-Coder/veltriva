@@ -168,7 +168,7 @@ On top of that it adds timing that ignores time away (the engagement clock).
 
 | Area | Brief proposed | Verdict | Notes |
 |---|---|---|---|
-| Desktop framework | Electron | **Keep** | Today's stable is 44.7.2 (Chromium 152, Node 24.21), and **45.0.0 is scheduled for 2026-10-20**, so Phase 1 starts on the newest stable. A new major ships every 8 weeks and only the latest 3 get fixes; the oldest of those gets security fixes only. Everything we rely on is present: `WebContentsView` (30+), `createWindow` (31+), `navigationHistory.restore` (34.2+), `before-mouse-event` (36.5+) |
+| Desktop framework | Electron | **Keep** | Phase 1 started on 44.7.2 (Chromium 152, Node 24.21), the newest stable then, and moved to 44.9.0 (Chromium 152.0.7977.167, Node 24.22) in its wrap-up. **45.0.0 is scheduled for 2026-10-20**; see ADR-0001's pin history. A new major ships every 8 weeks and only the latest 3 get fixes; the oldest of those gets security fixes only. Everything we rely on is present: `WebContentsView` (30+), `createWindow` (31+), `navigationHistory.restore` (34.2+), `before-mouse-event` (36.5+) |
 | Window and page API | — | **`BaseWindow` + `WebContentsView`** | `BrowserView` has been deprecated since Electron 30; it's now a thin wrapper, not yet removed. No `<webview>`, no iframes |
 | Language | TypeScript | **Keep** | `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`. Use **TypeScript 6.0** for now. TypeScript 7 (the native compiler, GA July 2026) comes in once typescript-eslint supports it; today its peer range stops below 6.1 |
 | Linting and formatting | — | **Add ESLint 10 (flat config) + typescript-eslint + Prettier** | Type-aware rules such as `no-floating-promises` matter for async lifecycle code. oxlint is the faster alternative to revisit with TypeScript 7 |
@@ -1600,7 +1600,7 @@ Every **P** item that a decision depends on is covered by a Phase 0 spike.
 
 | Fact | Tag | Source |
 |---|---|---|
-| Latest stable is Electron 44.7.2 (2026-10-14): Chromium 152.0.7977.149, Node 24.21.0. 45.0.0 is scheduled for 2026-10-20 | V | [releases](https://github.com/electron/electron/releases/tag/v44.7.2), [schedule](https://releases.electronjs.org/schedule) |
+| Latest stable was Electron 44.7.2 (2026-10-14): Chromium 152.0.7977.149, Node 24.21.0. 45.0.0 is scheduled for 2026-10-20. (Phase 1 wrap-up, 2026-10-17: 44.9.0 is current, with Chromium 152.0.7977.167 and Node 24.22.0, and 45.0.0 is still in beta.) | V | [releases](https://github.com/electron/electron/releases/tag/v44.7.2), [schedule](https://releases.electronjs.org/schedule) |
 | A new major every 8 weeks; the latest 3 majors are supported (the newest gets all fixes, the oldest security fixes only); 44 reaches end of life around 2027-03-02 | V | [timelines](https://www.electronjs.org/docs/latest/tutorial/electron-timelines) |
 | `BaseWindow`, `View` and `WebContentsView` arrived in 30.0. `BrowserView` is deprecated since 30, now a wrapper, still present in 44/45 | V | [WebContentsView](https://www.electronjs.org/docs/latest/api/web-contents-view), [migration guide](https://www.electronjs.org/blog/migrate-to-webcontentsview) |
 | Re-adding a child view moves it to the top; transparency via `setBackgroundColor('#00000000')` (the default is white) | V | [View](https://www.electronjs.org/docs/latest/api/view) |

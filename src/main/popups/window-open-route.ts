@@ -1,11 +1,17 @@
 // Where a `window.open` (or a link that opens a new tab or window) goes (ADR-0002 §4, assessment
 // §3.7 and §6.4). Pure, so the table is unit-tested; ./popup-policy.ts applies it, after the
-// gesture check. Spike S7 measured what Electron reports:
+// gesture check. What Electron reports (spike S7 on 44.7.2; re-measured on 44.9.0 for the
+// Phase 1 wrap-up, see ADR-0002 item 9):
 //   - left click on target=_blank: `foreground-tab`, pre-created contents, no opener;
-//   - Ctrl or middle click: `background-tab`, no pre-created contents;
-//   - Shift click: `new-window`, no features, no pre-created contents;
-//   - window.open(url, name, 'width=…'): `new-window`, pre-created contents, opener kept;
+//   - Ctrl or middle click: `background-tab`, no opener;
+//   - Shift click: `new-window`, no features, no opener;
+//   - a form posted to target=_blank: `foreground-tab` with a post body, pre-created contents;
+//   - window.open(url, name, 'width=…'): `new-window`, pre-created contents, opener kept
+//     (`noopener` drops the opener, not the pre-created contents);
 //   - window.open('custom:…'): arrives here, not as `openExternal`.
+// Ctrl, middle and Shift clicks had no pre-created contents up to 44.8 and do since 44.9.0
+// (electron/electron#55048). Routing doesn't depend on it: they become tabs, and the handler
+// denies them before Chromium creates anything.
 import { classifyExternalUrl } from '../../core/url/external-protocol';
 import { isNavigationAllowed } from '../web/navigation-policy';
 
