@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Embedded image fixture</title>
+  </head>
+  <body>
+    <h1>Embedded image fixture</h1>
+    <p>The page puts the image at <code>?img=</code> on itself, as a page can (M1.4b).</p>
+
+    <script>
+      window.authFixture = { image: 'none' };
+      const source = new URLSearchParams(window.location.search).get('img');
+      if (source !== null) {
+        const image = document.createElement('img');
+        image.id = 'embedded-image';
+        image.alt = 'an embedded image';
+        window.authFixture.image = 'loading';
+        image.addEventListener('load', () => {
+          window.authFixture.image = 'loaded';
+        });
+        image.addEventListener('error', () => {
+          window.authFixture.image = 'failed';
+        });
+        image.src = source;
+        document.body.append(image);
+      }
+      // `?frame=`: an iframe whose navigation answers 401 (M1.4b review: frames from other sites
+      // may not ask for a password).
+      const frameSource = new URLSearchParams(window.location.search).get('frame');
+      if (frameSource !== null) {
+        const frame = document.createElement('iframe');
+        frame.id = 'embedded-frame';
+        frame.src = frameSource;
+        document.body.append(frame);
+      }
+    </script>
+  </body>
+</html>

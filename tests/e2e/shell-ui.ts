@@ -53,8 +53,11 @@ export function loadingBar(shell: Page): Locator {
 export function contentArea(shell: Page): Locator {
   return shell.locator('#content-area');
 }
+export type InternalPageName =
+  'new-tab' | 'network-error' | 'certificate-error' | 'client-certificate' | 'crashed';
+
 /** An internal page the shell draws in the content area. */
-export function internalPage(shell: Page, name: 'new-tab' | 'network-error' | 'crashed'): Locator {
+export function internalPage(shell: Page, name: InternalPageName): Locator {
   return shell.locator(`[data-internal-page="${name}"]`);
 }
 /** The search box of the new-tab page (not the address bar). */

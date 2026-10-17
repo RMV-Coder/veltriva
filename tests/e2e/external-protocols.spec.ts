@@ -42,7 +42,7 @@ import {
   stripSentence,
   waitForStrip,
 } from './prompt-ui';
-import { loadTab, tabElements, typeAddress } from './shell-ui';
+import { loadTab, recordWorkspaceSnapshots, tabElements, typeAddress } from './shell-ui';
 
 test.describe.configure({ timeout: 120_000 });
 
@@ -156,6 +156,40 @@ test.describe('the external-protocol guard', () => {
       await clickYes(shell, 'Open');
       await expect.poll(() => externalLaunches(electronApp)).toEqual(['veltriva-test:hello']);
     });
+  });
+
+  test('one click, one handling: a top-frame click on an external link logs no noGesture warning and asks exactly once (M1.4a review)', async ({
+    electronApp,
+    fixtureServer,
+    shell,
+  }) => {
+    // A main-frame link can raise `will-frame-navigate` and `will-navigate` both. The guard must
+    // act on the first only: the second would find the click's gesture already used up, log
+    // `external.noGesture` and (had the first not asked) refuse.
+    const warnings = await recordMainWarnings(electronApp);
+    const snapshots = await recordWorkspaceSnapshots(shell);
+    const tab = await loadTab(electronApp, shell, fixtureServer.url('/external-links.html'));
+
+    await clickElement(electronApp, tab.webContentsId, '#link-hello');
+    const promptId = await waitForStrip(shell, 'external-protocol');
+    await clickNow(shell, 'Cancel');
+    await expectNoStrip(shell);
+    // Time for a second handling of the same click to have shown itself.
+    await delay(1_500);
+
+    expect(
+      (await warnings.all()).filter((warning) => warning.event === 'external.noGesture'),
+      'the click was a gesture, and was used once',
+    ).toEqual([]);
+    // Exactly one question was ever asked for the tab: one id in every snapshot the shell saw.
+    const asked = new Set(
+      (await snapshots.snapshots())
+        .map((snapshot) => snapshot.tabs.find((candidate) => candidate.id === tab.tabId)?.prompt)
+        .flatMap((prompt) => (prompt === null || prompt === undefined ? [] : [prompt.id])),
+    );
+    expect([...asked]).toEqual([promptId]);
+    expect(await externalLaunches(electronApp)).toEqual([]);
+    await expectNoStrip(shell, 'the click must not ask a second time');
   });
 
   test('"Always allow" skips the question the next time, but never the gesture', async ({

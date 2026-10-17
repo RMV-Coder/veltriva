@@ -14,6 +14,9 @@
 //   /favicon-big.png   a PNG that is over the 64 KB limit
 //   /favicon-fake.png  HTML bytes labeled image/png (the bytes decide, not the label)
 //   /redirect-external a 302 to `veltriva-test:redirected`, a URL scheme no app has registered (M1.4a)
+//   /dl/…              files with known bytes to download, one held open until released (M1.4b;
+//                      ./download-routes.ts)
+//   /auth/…            pages and an image behind HTTP Basic authentication (M1.4b; ./auth-routes.ts)
 // `hits(path)` counts the requests that reached the server for exactly that path and query;
 // `pathHits(pathname)` counts them whatever the query. Nothing is cached, and the same request
 // always gives the same response.
@@ -23,6 +26,9 @@ import type { AddressInfo } from 'node:net';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 
+import { handleAuthRoute } from './auth-routes';
+import { createGates, handleDownloadRoute } from './download-routes';
+import type { Gates } from './download-routes';
 import { buildPng, buildOversizedPng } from './images';
 import { buildSamplePdf } from './sample-pdf';
 
@@ -38,6 +44,14 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
 
 export const DOWNLOAD_FILE_NAME = 'veltriva-fixture-download.txt';
 const DOWNLOAD_BODY = 'This file exists to be downloaded. The browser must not save it.\n';
+
+/** One request the server received, as it arrived. */
+export interface RecordedRequest {
+  readonly method: string;
+  /** The path and query. */
+  readonly url: string;
+  readonly headers: Readonly<Record<string, string | string[] | undefined>>;
+}
 
 export interface FixtureServer {
   /** `http://127.0.0.1:<port>`, without a trailing slash. */
@@ -55,6 +69,10 @@ export interface FixtureServer {
   hits(pathAndQuery: string): number;
   /** How many requests arrived for this path, whatever their query (e.g. `/search`). */
   pathHits(pathname: string): number;
+  /** Every request that reached this path (the query is ignored), oldest first (M1.4b). */
+  requestsTo(pathname: string): readonly RecordedRequest[];
+  /** Lets every download held on `/dl/gated?key=<key>` finish, and any later one at once. */
+  releaseGate(key: string): void;
   /** Answers every pending request to `/held?key=<key>`, and any later one at once. */
   release(key: string): void;
   /** Undoes a `release`: the next requests to `/held?key=<key>` are held again. */
@@ -73,13 +91,18 @@ export async function startFixtureServer(
   const hitCounts = new Map<string, number>();
   const pathCounts = new Map<string, number>();
   const held = createHeldPages();
+  const gates = createGates();
+  const received = new Map<string, RecordedRequest[]>();
 
   const server = createServer((request, response) => {
     const target = request.url ?? '/';
     hitCounts.set(target, (hitCounts.get(target) ?? 0) + 1);
     const { pathname } = new URL(target, 'http://fixture.invalid');
     pathCounts.set(pathname, (pathCounts.get(pathname) ?? 0) + 1);
-    route(request, response, held).catch((error: unknown) => {
+    const log = received.get(pathname) ?? [];
+    received.set(pathname, log);
+    log.push({ method: request.method ?? 'GET', url: target, headers: { ...request.headers } });
+    route(request, response, held, gates).catch((error: unknown) => {
       console.error('Fixture server error:', error);
       if (!response.headersSent) {
         response.writeHead(500);
@@ -103,6 +126,10 @@ export async function startFixtureServer(
     otherSiteUrl: (pathAndQuery) => `${otherSiteOrigin}${pathAndQuery}`,
     hits: (pathAndQuery) => hitCounts.get(pathAndQuery) ?? 0,
     pathHits: (pathname) => pathCounts.get(pathname) ?? 0,
+    requestsTo: (pathname) => [...(received.get(pathname) ?? [])],
+    releaseGate: (key) => {
+      gates.release(key);
+    },
     release: (key) => {
       held.release(key);
     },
@@ -136,8 +163,15 @@ async function route(
   request: IncomingMessage,
   response: ServerResponse,
   held: HeldPages,
+  gates: Gates,
 ): Promise<void> {
   const { pathname, searchParams } = new URL(request.url ?? '/', 'http://fixture.invalid');
+  if (
+    (pathname.startsWith('/dl/') && handleDownloadRoute(pathname, searchParams, response, gates)) ||
+    (pathname.startsWith('/auth/') && handleAuthRoute(pathname, searchParams, request, response))
+  ) {
+    return;
+  }
 
   switch (pathname) {
     case '/echo-headers':

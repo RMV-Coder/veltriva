@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Downloads fixture</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: sans-serif;
+      }
+      /* Fixed, separate boxes: the specs click at each one's center with a synthetic mouse. */
+      a.link {
+        display: block;
+        box-sizing: border-box;
+        width: 320px;
+        margin-bottom: 10px;
+        padding: 10px 14px;
+        border: 1px solid #888;
+        background: #eee;
+        color: #000;
+        font: inherit;
+        text-decoration: none;
+      }
+      img {
+        display: block;
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Downloads fixture</h1>
+    <p>
+      Links to files with known bytes (M1.4b). The first answers with
+      <code>Content-Disposition: attachment</code>, so a click downloads it; the second is plain
+      text that opens in the tab, unless the user Alt+clicks it.
+    </p>
+
+    <a
+      id="link-report"
+      class="link"
+      href="/dl/file?name=report.pdf&size=2048&type=application%2Fpdf"
+      >report.pdf (an attachment)</a
+    >
+    <a id="link-inline" class="link" href="/dl/inline/notes.txt?size=1500"
+      >notes.txt (text that opens in the tab)</a
+    >
+    <img id="image" src="/favicon.png" width="64" height="64" alt="a blue square" />
+
+    <script>
+      window.downloadsFixture = {
+        /** Sets the address from script, as a page can without any click. */
+        goTo(url) {
+          window.location.href = url;
+        },
+      };
+    </script>
+  </body>
+</html>

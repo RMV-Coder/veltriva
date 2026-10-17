@@ -958,3 +958,85 @@ export async function recordMainWarnings(app: ElectronApplication) {
   });
   return { all: (): Promise<MainWarning[]> => handle.jsonValue() };
 }
+
+// ── M1.4b: downloads ────────────────────────────────────────────────────────────────────────────
+
+/** Where a test build saves downloads: a folder in the test's own profile, never the user's. */
+export function testDownloadsFolder(app: ElectronApplication): Promise<string> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.testDownloadsFolder();
+  });
+}
+
+export type RecordedFileAction = ReturnType<VeltrivaTestHooks['recordedFileActions']>[number];
+
+/**
+ * Every Open and Show in folder the download manager asked for, in order. Test builds record them
+ * instead of calling `shell.openPath` or `shell.showItemInFolder`, so nothing is ever opened.
+ */
+export function recordedFileActions(app: ElectronApplication): Promise<RecordedFileAction[]> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.recordedFileActions();
+  });
+}
+
+/**
+ * A real click whose mouse button stays down for `holdMs` before it is released. Main's gesture
+ * tracker records the press (`mouseDown`), and the page's click handlers and the window-open
+ * handler run at the release, so a hold longer than the 5 s window sends a trusted click, with
+ * every modifier Chromium needs to read it as an Alt+click, whose gesture has already expired
+ * (M1.4b).
+ */
+export async function holdClickInPage(
+  app: ElectronApplication,
+  webContentsId: number,
+  x: number,
+  y: number,
+  options: ClickOptions & { readonly holdMs: number },
+): Promise<void> {
+  const held = [...(options.modifiers ?? [])];
+  await app.evaluate(
+    ({ webContents }, { id, px, py, modifiers }) => {
+      const contents = webContents.fromId(id);
+      if (contents === undefined || contents.isDestroyed()) {
+        throw new Error(`holdClickInPage: no web contents ${String(id)}`);
+      }
+      contents.sendInputEvent({ type: 'mouseMove', x: px, y: py, modifiers });
+      contents.sendInputEvent({
+        type: 'mouseDown',
+        x: px,
+        y: py,
+        button: 'left',
+        clickCount: 1,
+        modifiers,
+      });
+    },
+    { id: webContentsId, px: x, py: y, modifiers: held },
+  );
+  await delay(options.holdMs);
+  await app.evaluate(
+    ({ webContents }, { id, px, py, modifiers }) => {
+      const contents = webContents.fromId(id);
+      if (contents === undefined || contents.isDestroyed()) {
+        throw new Error(`holdClickInPage: no web contents ${String(id)}`);
+      }
+      contents.sendInputEvent({
+        type: 'mouseUp',
+        x: px,
+        y: py,
+        button: 'left',
+        clickCount: 1,
+        modifiers,
+      });
+    },
+    { id: webContentsId, px: x, py: y, modifiers: held },
+  );
+}

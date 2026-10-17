@@ -18,6 +18,12 @@ export { expect } from '@playwright/test';
 export type ThemeSource = 'system' | 'light' | 'dark';
 
 interface Fixtures {
+  /**
+   * Chromium switches the app starts with (none by default). Set with `test.use`, only in a spec
+   * that has to change one thing about the browser, as certificates.spec.ts does to trust one
+   * throwaway key.
+   */
+  appSwitches: readonly string[];
   /** A new, empty directory used as the app's userData. Removed after the app has closed. */
   userDataDir: string;
   /** The launched app. Always closed after the test, even when the test fails. */
@@ -78,9 +84,11 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     }
   },
 
+  appSwitches: [[], { option: true }],
+
   electronApp: [
-    async ({ userDataDir }, use, testInfo) => {
-      const app = await launchApp(userDataDir);
+    async ({ userDataDir, appSwitches }, use, testInfo) => {
+      const app = await launchApp(userDataDir, { switches: appSwitches });
       try {
         await use(app);
       } finally {

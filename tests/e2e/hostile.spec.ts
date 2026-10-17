@@ -6,13 +6,15 @@
 // every check that follows one uses `evaluate` or main, never a locator.
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { homedir } from 'node:os';
 
 import type { ElectronApplication } from '@playwright/test';
 
 import { BROWSING_PARTITION } from '../../src/shared/constants/app-identity';
 import { DOWNLOAD_FILE_NAME } from '../fixtures/server';
 import { expect, test } from './fixtures';
-import { frameUrlsInMain, urlInMain, webContentsRoles } from './hooks';
+import { frameUrlsInMain, testDownloadsFolder, urlInMain, webContentsRoles } from './hooks';
+import { workspaceSnapshot } from './prompt-ui';
 import { observeFor } from './launch';
 import type { PageGlobal } from './page-globals';
 
@@ -274,20 +276,29 @@ test.describe('hostile page in a tab', () => {
     expect(JSON.stringify(headers)).not.toMatch(/electron|veltriva/i);
   });
 
-  test('cannot start a download', async ({ electronApp, fixtureServer, openTab, shell }) => {
+  test('a download it starts goes to the download manager: into the profile folder, with no dialog', async ({
+    electronApp,
+    fixtureServer,
+    openTab,
+    shell,
+  }) => {
+    // M1.4b: downloads are handled, not refused (before, the session cancelled every one). A page
+    // still chooses nothing about where its file goes.
     const hostileUrl = fixtureServer.url('/hostile.html');
     const tab = await openTab(hostileUrl);
+    const folder = await testDownloadsFolder(electronApp);
 
-    // Watch the session's `will-download`. The baseline's handler is registered first, so
-    // `defaultPrevented` says whether it cancelled the download. If it did not, cancel it here
-    // anyway, so a failing test can't write a file to the user's Downloads folder.
+    // Watch the session's `will-download`. The download manager's handler is registered first (at
+    // startup), so by now it has set the save path, which is what keeps Electron's save dialog away,
+    // and `defaultPrevented` says whether anything cancelled the download.
     const downloads = await electronApp.evaluateHandle(({ webContents }, id) => {
-      const records: { filename: string; cancelledByBaseline: boolean }[] = [];
+      const records: { filename: string; savePath: string; cancelledByBaseline: boolean }[] = [];
       webContents.fromId(id)?.session.on('will-download', (event, item) => {
-        records.push({ filename: item.getFilename(), cancelledByBaseline: event.defaultPrevented });
-        if (!event.defaultPrevented) {
-          item.cancel();
-        }
+        records.push({
+          filename: item.getFilename(),
+          savePath: item.getSavePath(),
+          cancelledByBaseline: event.defaultPrevented,
+        });
       });
       return records;
     }, tab.webContentsId);
@@ -301,13 +312,30 @@ test.describe('hostile page in a tab', () => {
     await expect.poll(async () => (await downloads.jsonValue()).length).toBe(1);
     expect(fixtureServer.hits(downloadPath)).toBe(1);
     expect(await downloads.jsonValue()).toEqual([
-      { filename: DOWNLOAD_FILE_NAME, cancelledByBaseline: true },
+      {
+        filename: DOWNLOAD_FILE_NAME,
+        savePath: join(folder, DOWNLOAD_FILE_NAME),
+        cancelledByBaseline: false,
+      },
     ]);
 
-    // Nothing was saved (the native save dialog only appears if `will-download` is not cancelled,
-    // and the record above shows it was), the tab is still on its page, and the app still answers.
-    const downloadsDir = await electronApp.evaluate(({ app }) => app.getPath('downloads'));
-    expect(existsSync(join(downloadsDir, DOWNLOAD_FILE_NAME))).toBe(false);
+    // The file lands in the test profile's own folder and the shell lists it, never in the user's
+    // Downloads folder, the tab is still on its page, and the app still answers.
+    await expect
+      .poll(() => existsSync(join(folder, DOWNLOAD_FILE_NAME)), {
+        message: 'the download should finish in the profile folder',
+      })
+      .toBe(true);
+    await expect
+      .poll(async () =>
+        (await workspaceSnapshot(shell)).downloads.map((d) => [d.fileName, d.state]),
+      )
+      .toEqual([[DOWNLOAD_FILE_NAME, 'completed']]);
+    // Test builds point Electron's Downloads path at the test profile too, so the user's real
+    // Downloads folder (Windows' default) is never touched, not even by Chromium's temp files.
+    const appDownloads = await electronApp.evaluate(({ app }) => app.getPath('downloads'));
+    expect(appDownloads).toBe(await testDownloadsFolder(electronApp));
+    expect(existsSync(join(homedir(), 'Downloads', DOWNLOAD_FILE_NAME))).toBe(false);
     expect(await observeFor(500, () => urlInMain(electronApp, tab.webContentsId))).toEqual([
       hostileUrl,
     ]);

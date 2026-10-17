@@ -2,10 +2,11 @@
 // locators, the answers a user gives, and the snapshot main sends the shell (`tabs[i].prompt` and
 // `tabs[i].blockedPopups`).
 //
-// The strip is `[data-prompt-strip]`, with `data-prompt-kind` (`permission`, `external-protocol` or
-// `blocked-popups`) and `data-prompt-id`. Its buttons are found by role and name, as everything in
+// The strip is `[data-prompt-strip]`, with `data-prompt-kind` (`permission`, `external-protocol`,
+// `http-auth` or `blocked-popups`) and `data-prompt-id`. Its buttons are found by role and name, as everything in
 // the shell is. A yes ("Allow", "Open") counts only after `MIN_VISIBLE_BEFORE_ALLOW_MS` (ADR-0002
 // item 9), so `clickYes` waits before it clicks; "Block", "Cancel" and "Dismiss" count at once.
+// "Sign in" is a yes too (M1.4b).
 import { setTimeout as delay } from 'node:timers/promises';
 
 import type { Locator, Page } from '@playwright/test';
@@ -17,7 +18,7 @@ import type { TabId } from './hooks';
 import type { PageGlobal } from './page-globals';
 import { SLOW_TIMEOUT_MS } from './shell-ui';
 
-export type StripKind = 'permission' | 'external-protocol' | 'blocked-popups';
+export type StripKind = 'permission' | 'external-protocol' | 'http-auth' | 'blocked-popups';
 
 /**
  * PRIVACY: an automated test never turns on this machine's camera or microphone and never makes a
@@ -50,10 +51,26 @@ export function stripSentence(shell: Page): Locator {
   return promptStrip(shell).locator('p');
 }
 
-export type StripButtonName = 'Allow' | 'Block' | 'Dismiss' | 'Open' | 'Cancel' | 'Open pop-up';
+export type StripButtonName =
+  'Allow' | 'Block' | 'Dismiss' | 'Open' | 'Cancel' | 'Open pop-up' | 'Sign in';
 
 export function stripButton(shell: Page, name: StripButtonName): Locator {
   return promptStrip(shell).getByRole('button', { name, exact: true });
+}
+
+/** The sign-in strip's username field (M1.4b). */
+export function usernameField(shell: Page): Locator {
+  return promptStrip(shell).getByRole('textbox', { name: 'Username', exact: true });
+}
+
+/** The sign-in strip's password field. A password field has no ARIA role, so it is found by label. */
+export function passwordField(shell: Page): Locator {
+  return promptStrip(shell).getByLabel('Password', { exact: true });
+}
+
+/** The sign-in strip's second line: "The server says: “…”", only when the server gave a realm. */
+export function signInRealm(shell: Page): Locator {
+  return promptStrip(shell).locator('[data-sign-in-realm]');
 }
 
 /** The external-protocol strip's "Always allow {site} to open {scheme}: links" box. */
@@ -130,10 +147,14 @@ export async function expectNoStripFor(
 // ── Answering ───────────────────────────────────────────────────────────────────────────────────
 
 /**
- * A yes ("Allow", "Open"): waits out the 500 ms rule, then clicks. Playwright's click is a real
- * pointer event in the shell, so it also gives the keyboard back to the page, as a user's would.
+ * A yes ("Allow", "Open", "Sign in"): waits out the 500 ms rule, then clicks. Playwright's click is
+ * a real pointer event in the shell, so it also gives the keyboard back to the page, as a user's
+ * would.
  */
-export async function clickYes(shell: Page, name: 'Allow' | 'Open' = 'Allow'): Promise<void> {
+export async function clickYes(
+  shell: Page,
+  name: 'Allow' | 'Open' | 'Sign in' = 'Allow',
+): Promise<void> {
   await expect(stripButton(shell, name)).toBeVisible({ timeout: SLOW_TIMEOUT_MS });
   await refuseToAllowDevices(shell);
   await delay(SETTLE_BEFORE_YES_MS);

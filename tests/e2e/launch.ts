@@ -136,11 +136,22 @@ export function buildLaunchEnv(userDataDir: string): Record<string, string> {
   return env;
 }
 
-export async function launchApp(userDataDir: string): Promise<ElectronApplication> {
+export interface LaunchOptions {
+  /**
+   * Chromium or Electron switches, put before the app's path (where Electron reads them). Only for
+   * a spec that must change one thing about the browser: say why next to the switch.
+   */
+  readonly switches?: readonly string[];
+}
+
+export async function launchApp(
+  userDataDir: string,
+  options: LaunchOptions = {},
+): Promise<ElectronApplication> {
   const { repoRoot, electronBinary } = appPaths();
   return electron.launch({
     executablePath: electronBinary,
-    args: [repoRoot],
+    args: [...(options.switches ?? []), repoRoot],
     cwd: repoRoot,
     env: buildLaunchEnv(userDataDir),
     timeout: LAUNCH_TIMEOUT_MS,

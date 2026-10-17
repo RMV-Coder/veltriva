@@ -61,6 +61,13 @@
      - **A popup or an app launch needs a gesture main has seen** (M1.4a). The tracker reads `input-event`, so the gesture must be a real input event: `sendInputEvent` mouse-down/up on the page's button, or a key. `executeJavaScript(…, true)` gives Chromium a user activation, but main sees no input, so the popup is blocked. That is how a "no gesture" case is tested.
      - **Never grant real devices or location in E2E** (M1.4a). Allowing `media` opens this machine's camera and microphone, and allowing `geolocation` starts a real location lookup. Allow paths are tested with `notifications` and `clipboard-read`; camera, microphone and location are tested through Block, Dismiss and the cases denied without asking.
      - **More M1.4a facts:** Playwright's own click reaches main's `input-event`, but a `sendInputEvent` click at an out-of-process frame's coordinates does not reach that frame. `permissions.query` says `denied` before any decision. Chromium refuses `window.open('file:…')` before main's handler. The popup address bar loads after its window appears. `getUserMedia` reaches the broker about 2 s after the call.
+     - **M1.4b facts:**
+       - Chromium treats binary bytes labelled `text/plain` as a download, so inline fixtures serve real text.
+       - Chromium cleans a download's name before main sees it: a right-to-left override becomes `_`, and `.lnk` becomes `.download`.
+       - A Basic or Digest realm arrives as Latin-1, so bidi overrides can't appear in it.
+       - Chromium never raises `login` for a cross-origin image.
+       - `--ignore-certificate-errors-spki-list` (an `appSwitches` fixture) trusts exactly one throwaway key, which makes the client-certificate page reachable. Its server's refusal sometimes loses a race with the socket closing, so the spec retries.
+       - The self-signed certificate is built in memory with Node's `crypto` and never touches disk.
      - **Ask main which web contents has the keyboard** (`webContents.getFocusedWebContents()`, `focusedWebContents` in the hooks). The shell keeps its `document.activeElement` while a page has the keyboard, and Playwright's focus emulation reports any element it focused as focused. Playwright's clicks and keys also move no OS-level focus, so a spec gives the shell the keyboard as a real click would (`focusWebContents`).
 4a. **Lifecycle behavior tests (no Playwright).** A small Electron-script harness, like the Phase 0 spikes, asserts the behavior Playwright masks:
    - visibility and throttling of detached tabs;

@@ -36,10 +36,13 @@ import {
   fullscreenInfo,
   recordMainWarnings,
   requestPageFullscreen,
+  selectedTabId,
   setSearchTemplate,
   tabState,
 } from './hooks';
+import type { PageGlobal } from './page-globals';
 import {
+  SETTLE_BEFORE_YES_MS,
   answerAsSoonAsSeen,
   clickNow,
   clickYes,
@@ -561,6 +564,115 @@ test.describe('the permission broker', () => {
       expectDenied(
         'notifications',
         await settledOutcome(electronApp, tab.webContentsId, 'notifications'),
+      );
+    });
+  });
+
+  test.describe('the 500 ms rule counts from when the question is shown (M1.4a review)', () => {
+    /**
+     * Selects `tabId` and, in the same task, sends "Allow" for `promptId`: as early after the
+     * selection as an answer can come. The yes is a command like the click's, so main sees it a
+     * few milliseconds after it saw the selection. Returns how long that took, in the shell's
+     * own milliseconds, so a spec can tell whether the window was really beaten.
+     */
+    function selectAndAllow(shell: Page, tabId: string, promptId: string): Promise<number> {
+      return shell.evaluate(
+        async ({ tab, prompt }) => {
+          const veltriva = (globalThis as PageGlobal).veltriva;
+          await veltriva.tabs.select({ tabId: tab });
+          const selectedAt = Date.now();
+          await veltriva.prompts.respond({
+            tabId: tab,
+            promptId: prompt,
+            decision: 'allow',
+            remember: false,
+          });
+          return Date.now() - selectedAt;
+        },
+        { tab: tabId, prompt: promptId },
+      );
+    }
+
+    test('a question asked by a background tab cannot be allowed the instant its tab is selected, but can after a wait', async ({
+      electronApp,
+      fixtureServer,
+      shell,
+    }) => {
+      const asking = await loadTab(electronApp, shell, fixtureServer.url('/permissions.html'));
+      // Another tab on top: the asking page is in the background from now on.
+      const other = await loadTab(
+        electronApp,
+        shell,
+        fixtureServer.url('/page-a.html?case=background'),
+      );
+      expect(await selectedTabId(electronApp)).toBe(other.tabId);
+
+      await startRequest(electronApp, asking.webContentsId, 'notifications');
+      let promptId = '';
+      await expect
+        .poll(
+          async () => {
+            promptId = (await promptOf(shell, asking.tabId))?.id ?? '';
+            return promptId;
+          },
+          { message: "main should hold the background tab's question" },
+        )
+        .not.toBe('');
+      // Long enough that the question would already have counted, had the clock run in the
+      // background: it must not have.
+      await delay(SETTLE_BEFORE_YES_MS);
+      await expectNoStrip(shell, 'the question belongs to a tab that is not shown');
+
+      const elapsed = await selectAndAllow(shell, asking.tabId, promptId);
+      expect(
+        elapsed,
+        'the machine was too slow to place the answer inside the 500 ms window',
+      ).toBeLessThan(400);
+
+      // Ignored: the same question is on screen now, and the page is still waiting.
+      await expect(promptStrip(shell)).toHaveAttribute('data-prompt-id', promptId);
+      expect((await promptOf(shell, asking.tabId))?.id).toBe(promptId);
+      expect(await outcomeOf(electronApp, asking.webContentsId, 'notifications')).toBeNull();
+      expect(await permissionState(electronApp, asking.webContentsId, 'notifications')).toBe(
+        'denied',
+      );
+
+      // After the 500 ms of being shown, the same yes counts.
+      await clickYes(shell, 'Allow');
+      expectGranted(
+        'notifications',
+        await settledOutcome(electronApp, asking.webContentsId, 'notifications'),
+      );
+    });
+
+    test('a question that is hidden and shown again starts its 500 ms again', async ({
+      electronApp,
+      fixtureServer,
+      shell,
+    }) => {
+      const asking = await loadTab(electronApp, shell, fixtureServer.url('/permissions.html'));
+      await startRequest(electronApp, asking.webContentsId, 'notifications');
+      const promptId = (await waitForStrip(shell, 'permission')) ?? '';
+      // Shown for longer than 500 ms: a yes would count now.
+      await delay(SETTLE_BEFORE_YES_MS);
+
+      // The user looks at another tab and comes back.
+      const other = await loadTab(electronApp, shell, fixtureServer.url('/page-a.html?case=hide'));
+      await expectNoStrip(shell, 'the question must not show over another tab');
+      expect(other.tabId).not.toBe(asking.tabId);
+
+      const elapsed = await selectAndAllow(shell, asking.tabId, promptId);
+      expect(
+        elapsed,
+        'the machine was too slow to place the answer inside the 500 ms window',
+      ).toBeLessThan(400);
+      await expect(promptStrip(shell)).toHaveAttribute('data-prompt-id', promptId);
+      expect(await outcomeOf(electronApp, asking.webContentsId, 'notifications')).toBeNull();
+
+      await clickYes(shell, 'Allow');
+      expectGranted(
+        'notifications',
+        await settledOutcome(electronApp, asking.webContentsId, 'notifications'),
       );
     });
   });

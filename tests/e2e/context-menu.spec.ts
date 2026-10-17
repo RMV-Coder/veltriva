@@ -152,7 +152,7 @@ test.describe('page context menu', () => {
       ]);
     });
 
-    test('a link offers "Open link in new tab" only for a URL a tab may open', async ({
+    test('a link offers "Open link in new tab" and "Save link to Downloads" only for a URL a tab may open', async ({
       electronApp,
       fixtureServer,
       shell,
@@ -170,6 +170,7 @@ test.describe('page context menu', () => {
         expect(lines(await contextMenuItems(electronApp, tab.tabId, { linkURL })), linkURL).toEqual(
           [
             'open-link-in-new-tab: Open link in new tab',
+            'save-link: Save link to Downloads',
             'copy-link: Copy link address',
             '---',
             'inspect: Inspect',
@@ -199,7 +200,7 @@ test.describe('page context menu', () => {
       }
     });
 
-    test('an image offers Open, Copy image and Copy image address as its URL and contents allow', async ({
+    test('an image offers Open, Save, Copy image and Copy image address as its URL and contents allow', async ({
       electronApp,
       fixtureServer,
       shell,
@@ -212,6 +213,7 @@ test.describe('page context menu', () => {
         lines(await contextMenuItems(electronApp, tab.tabId, { ...image, hasImageContents: true })),
       ).toEqual([
         'open-image-in-new-tab: Open image in new tab',
+        'save-image: Save image to Downloads',
         'copy-image: Copy image',
         'copy-image-address: Copy image address',
         '---',
@@ -225,12 +227,13 @@ test.describe('page context menu', () => {
         ),
       ).toEqual([
         'open-image-in-new-tab: Open image in new tab',
+        'save-image: Save image to Downloads',
         'copy-image-address: Copy image address',
         '---',
         'inspect: Inspect',
       ]);
 
-      // A data: image can be copied, but a tab may not be sent to it.
+      // A data: image can be copied and saved, but a tab may not be sent to it.
       expect(
         lines(
           await contextMenuItems(electronApp, tab.tabId, {
@@ -240,6 +243,7 @@ test.describe('page context menu', () => {
           }),
         ),
       ).toEqual([
+        'save-image: Save image to Downloads',
         'copy-image: Copy image',
         'copy-image-address: Copy image address',
         '---',
@@ -268,9 +272,11 @@ test.describe('page context menu', () => {
         ),
       ).toEqual([
         'open-link-in-new-tab: Open link in new tab',
+        'save-link: Save link to Downloads',
         'copy-link: Copy link address',
         '---',
         'open-image-in-new-tab: Open image in new tab',
+        'save-image: Save image to Downloads',
         'copy-image: Copy image',
         'copy-image-address: Copy image address',
         '---',

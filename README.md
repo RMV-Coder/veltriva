@@ -22,6 +22,10 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
   - **Permissions:** a page that wants your camera, microphone, location, notifications or clipboard asks in a strip under the toolbar, naming the site. Your answer is remembered for the session. Everything else is refused.
   - **Pop-ups:** a pop-up opens only right after you click or press a key in the page; otherwise it's blocked, and the strip offers to open it. Sign-in and payment pop-ups open in a small window with a read-only address bar.
   - **Other apps:** a link to another app (Zoom, Teams, email) opens it only after you click it and say yes. Dangerous link types are always refused.
+- Milestone 1.4b adds downloads and the remaining safety pages:
+  - **Downloads:** files go to your Downloads folder under safe, unique names, with progress, pause, cancel, Open and Show in folder in a panel under the toolbar. Programs and other risky types stay unrunnable until you choose Keep. Nothing is ever opened for you.
+  - **Certificate errors:** a site whose certificate can't be trusted gets a warning page with no way past it, and so does a site that asks for a client certificate.
+  - **Sign-in:** a site that asks for a password (HTTP authentication) gets a sign-in form in the toolbar strip. The password is sent once and never stored.
 
 ## Why
 

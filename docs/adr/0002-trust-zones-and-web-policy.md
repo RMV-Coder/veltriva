@@ -154,21 +154,31 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - **Known limitation:** a popup page's `requestFullscreen()` is refused, and nothing goes fullscreen, but its promise never settles. Chrome rejects it.
 
 10. **As built in M1.4b** (the code is in `src/core/downloads`, `src/core/net`, `src/main/downloads` and `src/main/auth`):
-   - **Downloads.** The browsing session and the default session hand every `will-download` to the download manager. Other sessions keep the baseline's cancel.
+   - **Downloads.** The browsing session hands every `will-download` to the download manager. It is the only session a page can download from: tabs and popup windows use it, the shell has its own session, and DevTools save files without a download. Every other session, the default one included, keeps the baseline's cancel, so the surface stays small (M1.4b review).
      - **Where it saves:** it always calls `setSavePath` synchronously, so no save dialog ever shows. The file goes to the Downloads folder, under a name the manager chooses:
        - controls and bidi overrides removed, so a right-to-left override can't make an `.exe` pass for a PDF;
        - path separators and forbidden characters replaced;
        - Windows device names prefixed;
        - trailing dots removed, the length capped with the extension kept, and the name made unique like Chrome's (`report (1).pdf`). Uniqueness covers files on disk and downloads in progress.
-     - **Dangerous types** (the §6.4 list) are saved as `name.ext.unconfirmed`, which Windows won't run. They are renamed on Keep, deleted on Discard, and can't be opened before Keep.
+     - **Dangerous types** are saved as `name.ext.unconfirmed`, which Windows won't run.
+       - **Which types:** every type whose Windows danger level is `DANGEROUS` or `ALLOW_ON_USER_GESTURE` in Chromium's `components/safe_browsing/content/resources/download_file_types.asciipb` (`version_id` 69, read 2026-10-17; 168 types).
+       - **Plus:** the §6.4 disk images (`iso`, `vhd`, `vhdx`) and `cab`, `psd1`, `appinstaller` and `searchconnector-ms`. That makes 175.
+       - **Stricter than Chrome:** Veltriva asks for Keep on all of them, even where Chrome waives the warning after a gesture (`xml`, `eml`, `cer`).
+       - **Trailing dots and spaces are ignored**, as Windows ignores them (`Setup.PIF.` is a `.pif`).
+       - **Why it matters:** Open hands the file to Windows, so a type missing from the list would run without Keep (M1.4b review). They are renamed on Keep, deleted on Discard, and can't be opened before Keep.
      - **Open and Show in folder** happen only on the user's click, on main's own record of the path, through `shell.openPath` and `shell.showItemInFolder`. The shell sees ids, never paths. Nothing is opened automatically.
      - **Downloads belong to the session,** so they outlive their tab (S7). The list is in memory, newest 100.
-     - **Context menus** offer "Save link to Downloads" and "Save image to Downloads", for URLs a tab may open, plus `data:` images. The brief's "Save … as…" labels would promise a dialog the MVP doesn't have. Alt+click on a link downloads it, with the same gesture rule as popups.
-     - **Test builds** download into the test profile and record Open and Show instead of doing them.
+     - **Context menus** offer "Save link to Downloads" and "Save image to Downloads", for URLs a tab may open, plus `data:` images. The brief's "Save … as…" labels would promise a dialog the MVP doesn't have.
+     - **Alt+click on a link** is downloaded by Blink itself. The download reaches `will-download` directly, not the window-open handler, so the 5 s gesture window doesn't apply (measured by E2E). That is safe: Blink ignores Alt on a synthetic click, so only a real click downloads. The window-open handler's `save-to-disk` route, with the gesture rule, is a backstop.
+     - **Show in folder,** like Open, waits for Keep on a dangerous file (found by E2E).
+     - **Mark-of-the-Web** comes from Chromium, as S7 measured. From a page on `127.0.0.1` the E2E suite saw `ZoneId=3` with `ReferrerUrl` and `HostUrl` set to the page and file URLs; S7's variants recorded only `HostUrl=about:internet`. It survives Keep's rename.
+     - **Test builds** download into the test profile and record Open and Show instead of doing them. They also point Electron's Downloads path there: Chromium creates a temporary file in the Downloads folder during each download, even when the file goes elsewhere (found by E2E).
    - **Certificate errors** keep Electron's default rejection. A failed load with a certificate error (-200 to -299) shows its own page, with no way to proceed.
    - **Client certificates** are always declined. The resulting client-auth failure (-110, -117, -134) shows a page saying the site needs a certificate.
    - **HTTP authentication** asks in the prompt strip, naming the server from main's parse of the URL. The realm is the server's text, cleaned. The credentials go to Chromium once and are never stored or logged.
-     - **Who can ask:** only a tab, and only for a navigation or a request to the page's own origin. A cross-origin image can't ask for a password.
+     - **Who can ask:** only a tab, and only the page's own origin or the origin its main frame is navigating to.
+       - A cross-origin image or script can't ask for a password, and neither can a cross-origin iframe's navigation. Chrome lets an iframe ask; Veltriva doesn't (M1.4 brief, decided in the M1.4b review): a password form inside a page from another site is a phishing shape.
+       - Chromium flags iframe loads as navigations too, so main tracks each tab's main-frame navigation target itself (`did-start-navigation`, `did-redirect-navigation`). It forgets the target when the frame commits or stops.
      - **Limits:** proxy authentication is cancelled. After three failed tries a server stops getting prompts until a fresh first attempt. An unencrypted connection gets a warning.
 
 ## Consequences
