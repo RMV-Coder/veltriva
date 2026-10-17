@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>External links fixture</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: sans-serif;
+      }
+      a.link,
+      button {
+        display: block;
+        box-sizing: border-box;
+        width: 320px;
+        margin-bottom: 10px;
+        padding: 10px 14px;
+        border: 1px solid #888;
+        background: #eee;
+        color: #000;
+        font: inherit;
+        text-decoration: none;
+      }
+      iframe {
+        display: block;
+        width: 320px;
+        height: 60px;
+        border: 1px solid #888;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>External links fixture</h1>
+    <p>
+      Links to other apps. `veltriva-test:` is a scheme no app has registered, so a launch can only
+      be recorded, never seen.
+    </p>
+
+    <a id="link-hello" class="link" href="veltriva-test:hello">veltriva-test:hello</a>
+    <a id="link-escape" class="link" href='veltriva-test:a b"c'>veltriva-test:a b"c</a>
+    <a id="link-redirect" class="link" href="/redirect-external"
+      >a link that redirects to veltriva-test:redirected</a
+    >
+    <a id="link-msdt" class="link" href="ms-msdt:/id%20PCWDiagnostic">ms-msdt:</a>
+    <a
+      id="link-search-ms"
+      class="link"
+      href="search-ms:query=veltriva&amp;crumb=location:%5C%5Cexample.invalid%5Cshare"
+      >search-ms:</a
+    >
+    <a id="link-file" class="link" href="file:///C:/Windows/System32/notepad.exe">file:</a>
+    <a id="link-javascript" class="link" href="javascript:void(0)">javascript:</a>
+    <button id="open-window" type="button">window.open('veltriva-test:popup')</button>
+    <button id="open-window-blocked" type="button">window.open('ms-msdt:…')</button>
+
+    <script>
+      window.externalFixture = {
+        /** How many times the embedded page's link was clicked (it says so by postMessage). */
+        frameClicks: 0,
+        /** What the last window.open returned: null means the browser refused it. */
+        openResult: 'none',
+        /** Sets the address from script, as a page can without any click. */
+        goTo(url) {
+          window.location.href = url;
+        },
+        /** Puts an embedded page from another site on this page and resolves once it has loaded. */
+        addFrame() {
+          return new Promise((resolve) => {
+            const frame = document.createElement('iframe');
+            frame.id = 'external-frame';
+            frame.title = 'embedded page';
+            frame.addEventListener('load', () => resolve(true), { once: true });
+            frame.src = `${location.protocol}//localhost:${location.port}/external-frame.html`;
+            document.body.append(frame);
+          });
+        },
+      };
+
+      window.addEventListener('message', (event) => {
+        if (event.data?.type === 'frame-link-clicked') {
+          window.externalFixture.frameClicks += 1;
+        }
+      });
+
+      document.getElementById('open-window').addEventListener('click', () => {
+        window.externalFixture.openResult = String(
+          window.open('veltriva-test:popup', '_blank', 'width=300,height=300'),
+        );
+      });
+      document.getElementById('open-window-blocked').addEventListener('click', () => {
+        window.externalFixture.openResult = String(
+          window.open('ms-msdt:/id%20PCWDiagnostic', '_blank', 'width=300,height=300'),
+        );
+      });
+    </script>
+  </body>
+</html>

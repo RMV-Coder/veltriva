@@ -13,6 +13,7 @@
 //   /favicon.svg       an SVG image (the shell must never show it)
 //   /favicon-big.png   a PNG that is over the 64 KB limit
 //   /favicon-fake.png  HTML bytes labeled image/png (the bytes decide, not the label)
+//   /redirect-external a 302 to `veltriva-test:redirected`, a URL scheme no app has registered (M1.4a)
 // `hits(path)` counts the requests that reached the server for exactly that path and query;
 // `pathHits(pathname)` counts them whatever the query. Nothing is cached, and the same request
 // always gives the same response.
@@ -41,8 +42,15 @@ const DOWNLOAD_BODY = 'This file exists to be downloaded. The browser must not s
 export interface FixtureServer {
   /** `http://127.0.0.1:<port>`, without a trailing slash. */
   readonly origin: string;
+  /**
+   * `http://localhost:<port>`: the same server under another host, so another origin and another
+   * site (M1.4a). Chromium treats `localhost` as loopback, so it is as promptable as `127.0.0.1`.
+   */
+  readonly otherSiteOrigin: string;
   /** Absolute URL for a path (and query) on this server, e.g. `url('/hostile.html')`. */
   url(pathAndQuery: string): string;
+  /** The same for the other-site origin (`localhost`), e.g. `otherSiteUrl('/popup-child.html')`. */
+  otherSiteUrl(pathAndQuery: string): string;
   /** How many requests arrived for exactly this path and query (the hash never reaches a server). */
   hits(pathAndQuery: string): number;
   /** How many requests arrived for this path, whatever their query (e.g. `/search`). */
@@ -84,11 +92,15 @@ export async function startFixtureServer(
     server.once('error', rejectListening);
     server.listen(options.port ?? 0, '127.0.0.1', resolveListening);
   });
-  const origin = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
+  const port = (server.address() as AddressInfo).port;
+  const origin = `http://127.0.0.1:${String(port)}`;
+  const otherSiteOrigin = `http://localhost:${String(port)}`;
 
   return {
     origin,
+    otherSiteOrigin,
     url: (pathAndQuery) => `${origin}${pathAndQuery}`,
+    otherSiteUrl: (pathAndQuery) => `${otherSiteOrigin}${pathAndQuery}`,
     hits: (pathAndQuery) => hitCounts.get(pathAndQuery) ?? 0,
     pathHits: (pathname) => pathCounts.get(pathname) ?? 0,
     release: (key) => {
@@ -159,6 +171,11 @@ async function route(
       return;
     case '/favicon-fake.png':
       respond(response, 200, 'image/png', '<!doctype html><title>not an image</title>');
+      return;
+    case '/redirect-external':
+      // A redirect to another app's URL: the browser must ask before anything opens (M1.4a).
+      response.writeHead(302, { Location: 'veltriva-test:redirected', ...NO_STORE });
+      response.end();
       return;
     default:
       await serveFromPages(pathname, response);

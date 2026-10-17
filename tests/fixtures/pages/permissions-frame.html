@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Permissions frame fixture</title>
+  </head>
+  <body>
+    <p>An embedded page that asks for permissions when its parent says so (M1.4a).</p>
+    <script>
+      // The parent posts { ask: 'geolocation' | 'notifications' | 'camera' }; this page asks and
+      // posts back what it was told, plus the permission state its own check handler reports.
+      const stateNames = {
+        geolocation: 'geolocation',
+        notifications: 'notifications',
+        camera: 'camera',
+      };
+
+      function ask(name) {
+        if (name === 'geolocation') {
+          return new Promise((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              () => resolve({ ok: true }),
+              (error) => resolve({ ok: false, code: error.code, message: error.message }),
+              { timeout: 8000, maximumAge: 0 },
+            );
+          });
+        }
+        if (name === 'notifications') {
+          return Notification.requestPermission().then((value) => ({ ok: true, value }));
+        }
+        return navigator.mediaDevices
+          .getUserMedia({ video: true })
+          .then((stream) => {
+            for (const track of stream.getTracks()) {
+              track.stop();
+            }
+            return { ok: true };
+          })
+          .catch((error) => ({ ok: false, name: error.name }));
+      }
+
+      window.addEventListener('message', async (event) => {
+        if (event.source !== window.parent || typeof event.data?.ask !== 'string') {
+          return;
+        }
+        const name = event.data.ask;
+        let state = 'unknown';
+        try {
+          state = (await navigator.permissions.query({ name: stateNames[name] })).state;
+        } catch (error) {
+          state = `error:${error.name}`;
+        }
+        const outcome = await ask(name);
+        event.source.postMessage({ ask: name, origin: location.origin, state, outcome }, '*');
+      });
+    </script>
+  </body>
+</html>

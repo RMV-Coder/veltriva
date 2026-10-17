@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Permissions fixture</title>
+  </head>
+  <body>
+    <h1>Permissions fixture</h1>
+    <p>The specs ask this page for each permission and read what it was told (M1.4a).</p>
+    <script>
+      // Every request starts with `start(name)` and returns at once, because a request that needs
+      // a prompt does not settle until the user answers. The outcome is read later with
+      // `result(name)`: null while the request is pending.
+      const results = {};
+      const startedAt = {};
+
+      function failure(error) {
+        // `code` is the GeolocationPositionError code: 1 denied, 2 unavailable, 3 timeout.
+        return {
+          ok: false,
+          name: error.name ?? '',
+          code: error.code ?? null,
+          message: error.message ?? '',
+        };
+      }
+
+      const requests = {
+        geolocation: () =>
+          new Promise((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              () => resolve({ ok: true }),
+              (error) => resolve(failure(error)),
+              { timeout: 8000, maximumAge: 0 },
+            );
+          }),
+        notifications: async () => ({ ok: true, value: await Notification.requestPermission() }),
+        'camera+microphone': async () => {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          for (const track of stream.getTracks()) {
+            track.stop();
+          }
+          return { ok: true };
+        },
+        camera: async () => {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          for (const track of stream.getTracks()) {
+            track.stop();
+          }
+          return { ok: true };
+        },
+        'clipboard-read': async () => ({
+          ok: true,
+          items: (await navigator.clipboard.read()).length,
+        }),
+        'pointer-lock': () =>
+          new Promise((resolve) => {
+            document.addEventListener('pointerlockchange', () => resolve({ ok: true }), {
+              once: true,
+            });
+            document.addEventListener(
+              'pointerlockerror',
+              () => resolve({ ok: false, name: 'pointerlockerror' }),
+              {
+                once: true,
+              },
+            );
+            document.documentElement.requestPointerLock();
+          }),
+        fullscreen: async () => {
+          await document.documentElement.requestFullscreen();
+          return { ok: true, fullscreen: document.fullscreenElement !== null };
+        },
+        'clipboard-write': async () => {
+          await navigator.clipboard.writeText('permissions fixture text');
+          return { ok: true };
+        },
+      };
+
+      window.permissionsFixture = {
+        /** Starts a request. Returns false for an unknown name. */
+        start(name) {
+          const request = requests[name];
+          if (request === undefined) {
+            return false;
+          }
+          delete results[name];
+          startedAt[name] = Date.now();
+          Promise.resolve()
+            .then(request)
+            .then(
+              (value) => {
+                results[name] = value;
+              },
+              (error) => {
+                results[name] = failure(error);
+              },
+            );
+          return true;
+        },
+        /** `Date.now()` when `start(name)` last ran: the specs compare it with the shell's clock. */
+        startedAt(name) {
+          return startedAt[name] ?? null;
+        },
+        /** The settled outcome of `start(name)`, or null while it is pending. */
+        result(name) {
+          return results[name] ?? null;
+        },
+        /** `navigator.permissions.query` for one name: 'granted', 'denied', 'prompt' or 'error:<name>'. */
+        async state(name) {
+          try {
+            return (await navigator.permissions.query({ name })).state;
+          } catch (error) {
+            return `error:${error.name}`;
+          }
+        },
+        /** What `Notification.permission` says right now. */
+        notificationPermission() {
+          return Notification.permission;
+        },
+        /**
+         * Embeds a page from another site that asks for geolocation (and may ask for more). The
+         * frame is allowed the feature, so only the browser's policy can refuse it.
+         */
+        addFrame(src) {
+          return new Promise((resolve) => {
+            const frame = document.createElement('iframe');
+            frame.id = 'permissions-frame';
+            frame.title = 'embedded page';
+            frame.allow = 'geolocation; notifications; camera; microphone';
+            frame.addEventListener('load', () => resolve(true), { once: true });
+            frame.src = src;
+            document.body.append(frame);
+          });
+        },
+        /** Runs `name` in the embedded page and returns its answer. */
+        askFrame(name) {
+          return new Promise((resolve) => {
+            const frame = document.getElementById('permissions-frame');
+            window.addEventListener(
+              'message',
+              (event) => {
+                if (event.source === frame.contentWindow) {
+                  resolve(event.data);
+                }
+              },
+              { once: true },
+            );
+            frame.contentWindow.postMessage({ ask: name }, '*');
+          });
+        },
+      };
+    </script>
+  </body>
+</html>

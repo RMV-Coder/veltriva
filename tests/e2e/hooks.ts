@@ -350,16 +350,22 @@ export async function watchConsole(app: ElectronApplication, webContentsId: numb
  * Runs `code` in a tab's page from the main process (`webContents.executeJavaScript`) and returns
  * its JSON-friendly result. For pages Playwright can no longer reach: after a renderer crash the
  * tab's Page object stays marked as crashed, even once the page is back.
+ *
+ * `userGesture: true` is `executeJavaScript(code, true)`: Chromium gets a user activation (so
+ * `requestFullscreen()` and `window.open` are allowed by the page's own rules), but main's
+ * `input-event` sees no input, so the gesture rule of M1.4a sees no gesture. That is how a spec
+ * tests "no gesture". For a real one use `clickElement` or `clickInPage`.
  */
 export function evaluateInTab(
   app: ElectronApplication,
   webContentsId: number,
   code: string,
+  options: { readonly userGesture?: boolean } = {},
 ): Promise<unknown> {
   return app.evaluate(
-    async ({ webContents }, { id, source }) =>
-      (await webContents.fromId(id)?.executeJavaScript(source)) as unknown,
-    { id: webContentsId, source: code },
+    async ({ webContents }, { id, source, gesture }) =>
+      (await webContents.fromId(id)?.executeJavaScript(source, gesture)) as unknown,
+    { id: webContentsId, source: code, gesture: options.userGesture === true },
   );
 }
 
@@ -706,4 +712,249 @@ export async function recordInputs(app: ElectronApplication, webContentsId: numb
     return records;
   }, webContentsId);
   return { all: (): Promise<InputRecord[]> => handle.jsonValue() };
+}
+
+// ── M1.4a: gestures, popups, external launches ──────────────────────────────────────────────────
+
+/** Every URL the external-protocol guard launched. Test builds record launches and open nothing. */
+export function externalLaunches(app: ElectronApplication): Promise<string[]> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.externalLaunches();
+  });
+}
+
+export type PopupWindowEntry = ReturnType<VeltrivaTestHooks['popupWindows']>[number];
+
+/** The open popup windows, with the address bar's text and the layout (`popupWindows`). */
+export function popupWindows(app: ElectronApplication): Promise<PopupWindowEntry[]> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.popupWindows();
+  });
+}
+
+/** One native window and the web contents its views show. */
+export interface WindowEntry {
+  readonly title: string;
+  readonly fullScreen: boolean;
+  /** The window including its frame. */
+  readonly bounds: Rect;
+  readonly contentBounds: Rect;
+  /** The web contents ids of the window's views, bottom to top. */
+  readonly contentsIds: readonly number[];
+}
+
+/** Every `BaseWindow` the app has, in creation order (the main window first). */
+export function allWindows(app: ElectronApplication): Promise<WindowEntry[]> {
+  return app.evaluate(({ BaseWindow }) =>
+    BaseWindow.getAllWindows().map((window) => ({
+      title: window.getTitle(),
+      fullScreen: window.isFullScreen(),
+      bounds: window.getBounds(),
+      contentBounds: window.getContentBounds(),
+      contentsIds: window.contentView.children.flatMap((child) => {
+        const contents = (child as { webContents?: { id: number } }).webContents;
+        return contents === undefined ? [] : [contents.id];
+      }),
+    })),
+  );
+}
+
+/**
+ * Closes the native window that shows `webContentsId`, as the window's close button does (the
+ * `close` event runs, so the app's own cleanup does). Throws if no window shows it.
+ */
+export async function closeWindowShowing(
+  app: ElectronApplication,
+  webContentsId: number,
+): Promise<void> {
+  await app.evaluate(({ BaseWindow }, id) => {
+    for (const window of BaseWindow.getAllWindows()) {
+      const shows = window.contentView.children.some(
+        (child) => (child as { webContents?: { id: number } }).webContents?.id === id,
+      );
+      if (shows) {
+        window.close();
+        return;
+      }
+    }
+    throw new Error(`closeWindowShowing: no window shows web contents ${String(id)}`);
+  }, webContentsId);
+}
+
+/** Whether a web contents still exists in the app (a destroyed one is gone). */
+export function webContentsExists(
+  app: ElectronApplication,
+  webContentsId: number,
+): Promise<boolean> {
+  return app.evaluate(({ webContents }, id) => {
+    const contents = webContents.fromId(id);
+    return contents !== undefined && !contents.isDestroyed();
+  }, webContentsId);
+}
+
+/** A point in a page, in CSS pixels from the top-left of its viewport. */
+export interface PagePoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+export interface ClickOptions {
+  /** Held during the click: `control` makes a link open in a background tab. */
+  readonly modifiers?: readonly KeyModifier[];
+}
+
+/**
+ * A real click at a point of a page: a mouse move, a `mouseDown` and a `mouseUp`, sent from main
+ * with `webContents.sendInputEvent` (ADR-0008 4, "Rules found while writing M1.4a"). Main's
+ * `input-event` sees it, so it is the user gesture a popup or an app launch needs, and Chromium
+ * activates the page too. Playwright's own click goes through CDP and may give main nothing.
+ */
+export async function clickInPage(
+  app: ElectronApplication,
+  webContentsId: number,
+  x: number,
+  y: number,
+  options: ClickOptions = {},
+): Promise<void> {
+  await app.evaluate(
+    ({ webContents }, { id, px, py, held }) => {
+      const contents = webContents.fromId(id);
+      if (contents === undefined || contents.isDestroyed()) {
+        throw new Error(`clickInPage: no web contents ${String(id)}`);
+      }
+      contents.sendInputEvent({ type: 'mouseMove', x: px, y: py, modifiers: held });
+      contents.sendInputEvent({
+        type: 'mouseDown',
+        x: px,
+        y: py,
+        button: 'left',
+        clickCount: 1,
+        modifiers: held,
+      });
+      contents.sendInputEvent({
+        type: 'mouseUp',
+        x: px,
+        y: py,
+        button: 'left',
+        clickCount: 1,
+        modifiers: held,
+      });
+    },
+    { id: webContentsId, px: x, py: y, held: [...(options.modifiers ?? [])] },
+  );
+}
+
+/**
+ * The center of the first element matching `selector`, from `getBoundingClientRect` in the page.
+ * Throws if there is no such element, or if something else covers its center (a click there would
+ * land elsewhere).
+ */
+export async function elementCenter(
+  app: ElectronApplication,
+  webContentsId: number,
+  selector: string,
+): Promise<PagePoint> {
+  const found = (await evaluateInTab(
+    app,
+    webContentsId,
+    `(() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (element === null) {
+        return { problem: 'no such element' };
+      }
+      const rect = element.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        return { problem: 'the element has no size' };
+      }
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      const hit = document.elementFromPoint(x, y);
+      if (hit === null || !(hit === element || element.contains(hit))) {
+        return { problem: 'something else covers the center of the element' };
+      }
+      return { x, y };
+    })()`,
+  )) as { problem?: string; x?: number; y?: number };
+  if (found.problem !== undefined || found.x === undefined || found.y === undefined) {
+    throw new Error(
+      `elementCenter(${selector}) in web contents ${String(webContentsId)}: ${found.problem ?? 'unknown'}`,
+    );
+  }
+  return { x: found.x, y: found.y };
+}
+
+/** `clickInPage` at the center of the element `selector` matches. */
+export async function clickElement(
+  app: ElectronApplication,
+  webContentsId: number,
+  selector: string,
+  options: ClickOptions = {},
+): Promise<void> {
+  const { x, y } = await elementCenter(app, webContentsId, selector);
+  await clickInPage(app, webContentsId, x, y, options);
+}
+
+/** One `input-event` as main saw it (the event the gesture tracker reads). */
+export interface InputEventRecord {
+  readonly type: string;
+  readonly key: string | null;
+}
+
+/**
+ * Records every `input-event` of a web contents: the raw input main sees, which is what the
+ * gesture tracker reads. It is how a spec learns whether a given way of clicking (Playwright's,
+ * `sendInputEvent`) reaches main at all. The handle points at an array in main that keeps growing.
+ */
+export async function recordInputEvents(app: ElectronApplication, webContentsId: number) {
+  const handle = await app.evaluateHandle(({ webContents }, id) => {
+    const records: InputEventRecord[] = [];
+    webContents.fromId(id)?.on('input-event', (_event, input) => {
+      const key = 'key' in input && typeof input.key === 'string' ? input.key : null;
+      records.push({ type: input.type, key });
+    });
+    return records;
+  }, webContentsId);
+  return { all: (): Promise<InputEventRecord[]> => handle.jsonValue() };
+}
+
+/** One `console.warn` the app made through its logger: `[veltriva] <event> <fields>`. */
+export interface MainWarning {
+  readonly event: string;
+  readonly fields: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Records the app's own log warnings from now on (`consoleLogger.warn` in main), such as
+ * `permission.denied`, `external.noGesture` and `popup.refused`. They say which rule refused
+ * something, so a spec can tell "refused by the broker" from "never asked". The handle points at
+ * an array in main that keeps growing.
+ */
+export async function recordMainWarnings(app: ElectronApplication) {
+  const handle = await app.evaluateHandle(() => {
+    const records: MainWarning[] = [];
+    const original = console.warn.bind(console);
+    console.warn = (...args: unknown[]) => {
+      const [first, second] = args;
+      if (typeof first === 'string' && first.startsWith('[veltriva] ')) {
+        records.push({
+          event: first.slice('[veltriva] '.length),
+          fields:
+            typeof second === 'object' && second !== null
+              ? (second as Record<string, unknown>)
+              : {},
+        });
+      }
+      original(...args);
+    };
+    return records;
+  });
+  return { all: (): Promise<MainWarning[]> => handle.jsonValue() };
 }

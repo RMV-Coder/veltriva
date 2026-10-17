@@ -18,6 +18,10 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
   - **Fullscreen:** a page that asks for fullscreen gets it, with a notice naming the site.
   - **DevTools:** F12 opens a page's DevTools in their own window.
   - **Keyboard shortcuts:** listed under [Keyboard shortcuts](#keyboard-shortcuts).
+- Milestone 1.4a lets pages ask for things, safely:
+  - **Permissions:** a page that wants your camera, microphone, location, notifications or clipboard asks in a strip under the toolbar, naming the site. Your answer is remembered for the session. Everything else is refused.
+  - **Pop-ups:** a pop-up opens only right after you click or press a key in the page; otherwise it's blocked, and the strip offers to open it. Sign-in and payment pop-ups open in a small window with a read-only address bar.
+  - **Other apps:** a link to another app (Zoom, Teams, email) opens it only after you click it and say yes. Dangerous link types are always refused.
 
 ## Why
 

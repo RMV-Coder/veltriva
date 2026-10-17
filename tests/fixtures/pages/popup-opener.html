@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Popup opener fixture</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: sans-serif;
+      }
+      /* Fixed, separate boxes: the specs click at each one's center with a synthetic mouse. */
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      iframe {
+        display: block;
+        width: 320px;
+        height: 80px;
+        border: 1px solid #888;
+      }
+      button,
+      a.link {
+        display: inline-block;
+        box-sizing: border-box;
+        min-width: 220px;
+        padding: 12px 16px;
+        border: 1px solid #888;
+        background: #eee;
+        color: #000;
+        font: inherit;
+        text-decoration: none;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Popup opener fixture</h1>
+    <p>
+      Each button opens a window the way a page does. The specs click them, or call the same code
+      without a click.
+    </p>
+
+    <div class="row">
+      <button id="open-popup" type="button">Open popup (same site)</button>
+      <button id="open-cross" type="button">Open popup (other site)</button>
+      <button id="open-blank" type="button">Open blank popup</button>
+      <button id="open-two" type="button">Open two popups</button>
+    </div>
+    <div class="row">
+      <button id="open-tab" type="button">window.open without features</button>
+      <button id="open-custom" type="button">window.open(next)</button>
+      <a id="blank-link" class="link" target="_blank" href="/popup-child.html?from=link"
+        >target=_blank link</a
+      >
+    </div>
+
+    <script>
+      const CHILD = '/popup-child.html';
+      const FEATURES = 'width=480,height=520';
+
+      const fixture = {
+        /** The windows `window.open` returned, in order; null where it was refused. */
+        opened: [],
+        /** Every message the popups posted to this page, oldest first. */
+        messages: [],
+        /** What the `open-custom` button opens: { url, name, features }. */
+        next: { url: CHILD, name: 'custom', features: FEATURES },
+
+        otherSite(path) {
+          return `${location.protocol}//localhost:${location.port}${path}`;
+        },
+        /**
+         * Puts an embedded page on this page (`same` site or the `other` one) and resolves once it
+         * has loaded. Its button opens a popup, so the specs can click inside a frame.
+         */
+        addFrame(site) {
+          return new Promise((resolve) => {
+            const frame = document.createElement('iframe');
+            frame.id = 'popup-frame';
+            frame.title = 'embedded page';
+            frame.addEventListener('load', () => resolve(true), { once: true });
+            frame.src =
+              site === 'other' ? fixture.otherSite('/popup-frame.html') : '/popup-frame.html';
+            document.body.append(frame);
+          });
+        },
+        open(url, name, features) {
+          const popup = window.open(url, name, features);
+          fixture.opened.push(popup);
+          return popup !== null;
+        },
+        openPopup() {
+          return fixture.open(`${CHILD}?from=opener`, 'child', FEATURES);
+        },
+        openCross() {
+          return fixture.open(fixture.otherSite(`${CHILD}?from=opener`), 'cross', FEATURES);
+        },
+        /** A blank popup the opener then writes into: the address bar must keep saying about:blank. */
+        openBlank() {
+          const popup = window.open('', 'blank-popup', 'width=400,height=300');
+          fixture.opened.push(popup);
+          if (popup === null) {
+            return false;
+          }
+          popup.document.open();
+          popup.document.write(
+            '<!doctype html><title>Written by the opener</title><h1>https://accounts.example.invalid/signin</h1>',
+          );
+          popup.document.close();
+          return true;
+        },
+        /** Two windows from one call: one gesture pays for one of them. */
+        openTwo() {
+          const first = fixture.open(`${CHILD}?n=1`, 'two-a', FEATURES);
+          const second = fixture.open(`${CHILD}?n=2`, 'two-b', FEATURES);
+          return [first, second];
+        },
+        openTab() {
+          return fixture.open(`${CHILD}?from=tab`, '_blank', '');
+        },
+        openNext() {
+          return fixture.open(fixture.next.url, fixture.next.name, fixture.next.features);
+        },
+        /** Posts to the nth window `window.open` returned. */
+        send(index, data) {
+          fixture.opened[index].postMessage(data, '*');
+        },
+        /** Whether the nth window is still open, by the opener's account. */
+        isClosed(index) {
+          return fixture.opened[index].closed;
+        },
+      };
+      window.popupFixture = fixture;
+
+      window.addEventListener('message', (event) => {
+        fixture.messages.push({ data: event.data, origin: event.origin });
+      });
+
+      const buttons = {
+        'open-popup': fixture.openPopup,
+        'open-cross': fixture.openCross,
+        'open-blank': fixture.openBlank,
+        'open-two': fixture.openTwo,
+        'open-tab': fixture.openTab,
+        'open-custom': fixture.openNext,
+      };
+      for (const [id, run] of Object.entries(buttons)) {
+        document.getElementById(id).addEventListener('click', () => {
+          run();
+        });
+      }
+    </script>
+  </body>
+</html>

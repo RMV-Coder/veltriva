@@ -1,12 +1,15 @@
 // Clipboard access from a tab, M1.3a (ADR-0002 §7): a site's copy button works without a prompt
-// (`clipboard-sanitized-write` is granted to the browsing session), and reading the clipboard stays
-// denied. The specs touch the real system clipboard, so each one saves its text first and puts it
-// back afterwards, even when the test fails.
+// (`clipboard-sanitized-write` is granted to the browsing session), and reading the clipboard is
+// not granted. Since M1.4a a read asks the user first (the strip, ADR-0002 item 9) and the page
+// gets nothing until they allow it; here the user says "Block". The specs touch the real system
+// clipboard, so each one saves its text first and puts it back afterwards, even when the test
+// fails.
 import type { ElectronApplication } from '@playwright/test';
 
 import { expect } from './expect';
 import { test } from './fixtures';
 import { pageForTab, setSearchTemplate } from './hooks';
+import { clickNow, stripSentence, waitForStrip } from './prompt-ui';
 import { loadInNewTab, tabElements } from './shell-ui';
 
 test.describe.configure({ timeout: 120_000 });
@@ -57,6 +60,12 @@ test.describe('clipboard in a tab', () => {
       await writeClipboard(electronApp, 'veltriva-clipboard-secret');
       await page.locator('#read').click();
       const result = page.locator('#read-result');
+      // M1.4a: the read asks first. Until the user answers, the page is told nothing, and the
+      // clipboard's content never reaches it.
+      await waitForStrip(shell, 'permission');
+      await expect(stripSentence(shell)).toContainText('wants to see text and images you copied');
+      await expect(result).toHaveAttribute('data-result', 'none');
+      await clickNow(shell, 'Block');
       await expect(result).toHaveAttribute('data-result', 'denied');
       await expect(result).toHaveAttribute('data-permission', 'denied');
       await expect(result).not.toContainText('veltriva-clipboard-secret');

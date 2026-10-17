@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Popup child fixture</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: sans-serif;
+      }
+      button {
+        display: block;
+        box-sizing: border-box;
+        width: 220px;
+        margin-bottom: 12px;
+        padding: 12px 16px;
+        border: 1px solid #888;
+        background: #eee;
+        color: #000;
+        font: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Popup child fixture</h1>
+    <p id="where"></p>
+    <button id="close" type="button">Close this window</button>
+    <button id="open-nested" type="button">Open a nested window</button>
+    <button id="go-fullscreen" type="button">Go fullscreen</button>
+
+    <script>
+      document.getElementById('where').textContent = `${location.origin}${location.search}`;
+
+      const child = {
+        /** Whether this window has an opener: it must keep one, even across sites. */
+        hasOpener: window.opener !== null,
+        /** Messages this window received, oldest first. */
+        messages: [],
+        /** What the last fullscreen request settled with: null while it is pending or never made. */
+        fullscreen: null,
+        /** How many times each button has been clicked, by id. */
+        clicked: {},
+        nested: null,
+        close() {
+          window.close();
+        },
+        openNested() {
+          child.nested = window.open(
+            '/popup-child.html?nested=1',
+            'nested',
+            'width=300,height=300',
+          );
+          return child.nested !== null;
+        },
+        goFullscreen() {
+          return document.documentElement.requestFullscreen().then(
+            () => {
+              child.fullscreen = { ok: true };
+            },
+            (error) => {
+              child.fullscreen = { ok: false, name: error.name };
+            },
+          );
+        },
+      };
+      window.popupChild = child;
+
+      for (const button of document.querySelectorAll('button')) {
+        button.addEventListener('click', () => {
+          child.clicked[button.id] = (child.clicked[button.id] ?? 0) + 1;
+        });
+      }
+      document.getElementById('close').addEventListener('click', child.close);
+      document.getElementById('open-nested').addEventListener('click', () => {
+        child.openNested();
+      });
+      document.getElementById('go-fullscreen').addEventListener('click', () => {
+        void child.goFullscreen();
+      });
+
+      window.addEventListener('message', (event) => {
+        child.messages.push({ data: event.data, origin: event.origin });
+        if (event.data?.type === 'ping' && event.source !== null) {
+          event.source.postMessage({ type: 'pong', origin: location.origin }, '*');
+        }
+      });
+
+      // Tell the opener where this window is. Cross-site, only postMessage works.
+      if (window.opener !== null) {
+        window.opener.postMessage(
+          { type: 'hello', origin: location.origin, search: location.search },
+          '*',
+        );
+      }
+    </script>
+  </body>
+</html>

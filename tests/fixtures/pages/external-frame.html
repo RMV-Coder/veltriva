@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>External frame fixture</title>
+    <style>
+      body {
+        margin: 0;
+      }
+      /* The link fills the frame, so a click at the frame's center lands on it. */
+      a {
+        display: block;
+        box-sizing: border-box;
+        width: 100vw;
+        height: 100vh;
+        padding: 8px;
+        background: #fdd;
+        color: #000;
+        font-family: sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <a id="frame-link" href="veltriva-test:frame">veltriva-test:frame (in an embedded page)</a>
+    <script>
+      // Tell the page around this one that the link was clicked, so a spec knows its gesture
+      // really landed in the frame. The click still follows the link.
+      document.getElementById('frame-link').addEventListener('click', () => {
+        window.parent.postMessage({ type: 'frame-link-clicked' }, '*');
+      });
+    </script>
+  </body>
+</html>

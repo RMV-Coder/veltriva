@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Popup frame fixture</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 8px;
+        font-family: sans-serif;
+      }
+      button {
+        box-sizing: border-box;
+        width: 200px;
+        padding: 12px 16px;
+        border: 1px solid #888;
+        background: #eee;
+        color: #000;
+        font: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- An embedded widget (a sign-in or payment button) that opens a popup, as they do. -->
+    <button id="frame-open" type="button">Open popup from the frame</button>
+    <script>
+      window.popupFrame = { clicks: 0, opened: null };
+      document.getElementById('frame-open').addEventListener('click', () => {
+        window.popupFrame.clicks += 1;
+        const popup = window.open(
+          '/popup-child.html?from=frame',
+          'frame-popup',
+          'width=480,height=520',
+        );
+        window.popupFrame.opened = popup !== null;
+        // Tell the page around this one that the click landed, so a spec knows it did.
+        window.parent.postMessage({ type: 'frame-clicked', opened: popup !== null }, '*');
+      });
+    </script>
+  </body>
+</html>

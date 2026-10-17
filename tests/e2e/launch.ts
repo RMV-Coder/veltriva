@@ -197,7 +197,14 @@ export async function shellPage(
  * returns 'killed' (see rule 6 above). Throws, after killing the tree, if `close()` fails.
  */
 export async function closeApp(app: ElectronApplication): Promise<'closed' | 'killed'> {
-  const child = app.process();
+  let child: ReturnType<ElectronApplication['process']>;
+  try {
+    child = app.process();
+  } catch {
+    // A spec that closed the app's last window has already quit it (M1.4a): Playwright drops its
+    // handle on the process once the app is gone, and there is nothing left to close.
+    return 'closed';
+  }
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<'timeout'>((resolveTimeout) => {
     timer = setTimeout(() => {
