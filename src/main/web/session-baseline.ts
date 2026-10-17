@@ -4,7 +4,7 @@
 // handlers are then replaced by the permission broker (src/main/permissions/permission-broker.ts);
 // downloads, client certificates and HTTP auth get real policy in M1.4b.
 import { app } from 'electron';
-import type { Session } from 'electron';
+import type { AuthenticationResponseDetails, AuthInfo, Session, WebContents } from 'electron';
 
 /**
  * Hunspell dictionaries for languages Windows can't spellcheck would come from Google's CDN
@@ -14,6 +14,30 @@ import type { Session } from 'electron';
 export const SPELLCHECK_DICTIONARY_PLACEHOLDER = 'http://127.0.0.1:9/spellcheck-dictionaries/';
 
 const hardened = new WeakSet<Session>();
+/** Sessions whose downloads the download manager handles (src/main/downloads). */
+const managedDownloads = new WeakSet<Session>();
+
+/** Lets a session's downloads through to the download manager, which always sets a save path. */
+export function allowManagedDownloads(session: Session): void {
+  managedDownloads.add(session);
+}
+
+/**
+ * HTTP authentication (`login`): main's sign-in prompt, once it exists. Returns false to cancel.
+ * It must call `callback` itself when it returns true.
+ */
+export type LoginHandler = (
+  contents: WebContents | null,
+  details: AuthenticationResponseDetails,
+  authInfo: AuthInfo,
+  callback: (username?: string, password?: string) => void,
+) => boolean;
+
+let onLogin: LoginHandler | undefined;
+
+export function setLoginHandler(handler: LoginHandler): void {
+  onLogin = handler;
+}
 
 /** Idempotent. Applied to every session as Electron creates it, and again explicitly at startup. */
 export function hardenSession(session: Session): void {
@@ -45,9 +69,12 @@ export function hardenSession(session: Session): void {
     event.preventDefault();
     callback();
   });
-  // No downloads until the download manager (M1.4); cancelling also prevents the save dialog.
+  // No downloads unless the download manager handles this session; cancelling also prevents
+  // Electron's save dialog.
   session.on('will-download', (event) => {
-    event.preventDefault();
+    if (!managedDownloads.has(session)) {
+      event.preventDefault();
+    }
   });
   session.setSpellCheckerDictionaryDownloadURL(SPELLCHECK_DICTIONARY_PLACEHOLDER);
 }
@@ -61,10 +88,12 @@ export function installSessionBaseline(): void {
     event.preventDefault();
     callback();
   });
-  // HTTP and proxy authentication: cancel (a credential prompt is a later should-have).
-  app.on('login', (event, _contents, _details, _authInfo, callback) => {
+  // HTTP and proxy authentication: main's sign-in prompt decides, or it is cancelled.
+  app.on('login', (event, contents, details, authInfo, callback) => {
     event.preventDefault();
-    callback();
+    if (onLogin?.(contents, details, authInfo, callback) !== true) {
+      callback();
+    }
   });
   // Certificate errors: no 'certificate-error' handler, so Electron keeps rejecting them.
 }

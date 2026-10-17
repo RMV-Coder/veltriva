@@ -12,7 +12,7 @@ import type { BaseWindow, ContextMenuParams, WebContents, WebContentsView } from
 import { buildSearchUrl } from '../../core/url/omnibox';
 import type { TabId, TabManager } from '../tabs/tab-manager';
 import { isNavigationAllowed } from '../web/navigation-policy';
-import { buildContextMenu } from './context-menu-model';
+import { buildContextMenu, canSave } from './context-menu-model';
 import type { MenuEntry, MenuItemId, MenuParams } from './context-menu-model';
 import { buildTabMenu } from './tab-menu-model';
 import type { TabMenuEntry, TabMenuItemId } from './tab-menu-model';
@@ -122,6 +122,15 @@ export function createContextMenus(deps: ContextMenuDependencies): ContextMenus 
       case 'copy-link':
         clipboard.writeText(params.linkURL).catch(() => undefined);
         return;
+      case 'save-link':
+      case 'save-image': {
+        // Checked again: the params came from the page. The download manager names and places it.
+        const url = id === 'save-link' ? params.linkURL : params.srcURL;
+        if (canSave(url, { canOpen: canOpenInTab })) {
+          contents.downloadURL(url);
+        }
+        return;
+      }
       case 'open-image-in-new-tab':
         openInNewTab(tabId, params.srcURL, false);
         return;

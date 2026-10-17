@@ -97,7 +97,8 @@ export function createTabRuntimes(options: {
     });
     contents.on('did-fail-load', (_event, code, name, url, isMainFrame) => {
       if (!destroyed && isMainFrame && code !== ERR_ABORTED) {
-        events.loadFailed({ code, name, url });
+        // History may have moved (a failed navigation can still add an entry): report it.
+        events.loadFailed({ code, name, url, ...history() });
       }
     });
     contents.on('did-start-loading', () => {

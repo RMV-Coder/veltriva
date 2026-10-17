@@ -19,6 +19,7 @@ function setup(options: { appName?: string; launchFails?: boolean } = {}) {
       return clock;
     },
   });
+  prompts.setVisibleTab('tab-1');
   const guard = new ExternalProtocolGuard({
     prompts,
     appNameFor: () => options.appName ?? 'Zoom Meetings',

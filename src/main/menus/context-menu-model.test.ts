@@ -61,9 +61,15 @@ describe('buildContextMenu', () => {
     ]);
   });
 
-  it('offers to open and copy a link', () => {
+  it('offers to open, save and copy a link', () => {
     const menu = buildContextMenu(params({ linkURL: 'https://a.example/next' }), context());
-    expect(shape(menu)).toEqual(['Open link in new tab', 'Copy link address', '---', 'Inspect']);
+    expect(shape(menu)).toEqual([
+      'Open link in new tab',
+      'Save link to Downloads',
+      'Copy link address',
+      '---',
+      'Inspect',
+    ]);
   });
 
   it('never offers to open a link the tab policy refuses, but still copies it', () => {
@@ -75,6 +81,7 @@ describe('buildContextMenu', () => {
     ]) {
       const menu = buildContextMenu(params({ linkURL }), context());
       expect(ids(menu)).not.toContain('open-link-in-new-tab');
+      expect(ids(menu)).not.toContain('save-link');
       expect(ids(menu)).toContain('copy-link');
     }
   });
@@ -83,6 +90,7 @@ describe('buildContextMenu', () => {
     const image = params({ mediaType: 'image', srcURL: 'https://img.example/a.png' });
     expect(shape(buildContextMenu({ ...image, hasImageContents: true }, context()))).toEqual([
       'Open image in new tab',
+      'Save image to Downloads',
       'Copy image',
       'Copy image address',
       '---',
@@ -91,6 +99,10 @@ describe('buildContextMenu', () => {
     expect(ids(buildContextMenu(image, context()))).not.toContain('copy-image');
     const inline = { ...image, srcURL: 'data:image/png;base64,iVBORw0KGgo=' };
     expect(ids(buildContextMenu(inline, context()))).not.toContain('open-image-in-new-tab');
+    // A data: image can still be saved.
+    expect(ids(buildContextMenu(inline, context()))).toContain('save-image');
+    const refused = { ...image, srcURL: 'file:///C:/secret.png' };
+    expect(ids(buildContextMenu(refused, context()))).not.toContain('save-image');
   });
 
   it('offers a linked image both sets of actions', () => {
@@ -105,8 +117,10 @@ describe('buildContextMenu', () => {
     );
     expect(ids(menu)).toEqual([
       'open-link-in-new-tab',
+      'save-link',
       'copy-link',
       'open-image-in-new-tab',
+      'save-image',
       'copy-image',
       'copy-image-address',
       'inspect',

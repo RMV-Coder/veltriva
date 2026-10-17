@@ -153,6 +153,24 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - **Accepted as in Chrome:** `window.open('javascript:…')` opens a blank popup. Blink hands main `about:blank`, and the address bar says `about:blank`.
      - **Known limitation:** a popup page's `requestFullscreen()` is refused, and nothing goes fullscreen, but its promise never settles. Chrome rejects it.
 
+10. **As built in M1.4b** (the code is in `src/core/downloads`, `src/core/net`, `src/main/downloads` and `src/main/auth`):
+   - **Downloads.** The browsing session and the default session hand every `will-download` to the download manager. Other sessions keep the baseline's cancel.
+     - **Where it saves:** it always calls `setSavePath` synchronously, so no save dialog ever shows. The file goes to the Downloads folder, under a name the manager chooses:
+       - controls and bidi overrides removed, so a right-to-left override can't make an `.exe` pass for a PDF;
+       - path separators and forbidden characters replaced;
+       - Windows device names prefixed;
+       - trailing dots removed, the length capped with the extension kept, and the name made unique like Chrome's (`report (1).pdf`). Uniqueness covers files on disk and downloads in progress.
+     - **Dangerous types** (the §6.4 list) are saved as `name.ext.unconfirmed`, which Windows won't run. They are renamed on Keep, deleted on Discard, and can't be opened before Keep.
+     - **Open and Show in folder** happen only on the user's click, on main's own record of the path, through `shell.openPath` and `shell.showItemInFolder`. The shell sees ids, never paths. Nothing is opened automatically.
+     - **Downloads belong to the session,** so they outlive their tab (S7). The list is in memory, newest 100.
+     - **Context menus** offer "Save link to Downloads" and "Save image to Downloads", for URLs a tab may open, plus `data:` images. The brief's "Save … as…" labels would promise a dialog the MVP doesn't have. Alt+click on a link downloads it, with the same gesture rule as popups.
+     - **Test builds** download into the test profile and record Open and Show instead of doing them.
+   - **Certificate errors** keep Electron's default rejection. A failed load with a certificate error (-200 to -299) shows its own page, with no way to proceed.
+   - **Client certificates** are always declined. The resulting client-auth failure (-110, -117, -134) shows a page saying the site needs a certificate.
+   - **HTTP authentication** asks in the prompt strip, naming the server from main's parse of the URL. The realm is the server's text, cleaned. The credentials go to Chromium once and are never stored or logged.
+     - **Who can ask:** only a tab, and only for a navigation or a request to the page's own origin. A cross-origin image can't ask for a password.
+     - **Limits:** proxy authentication is cancelled. After three failed tries a server stops getting prompts until a fresh first attempt. An unencrypted connection gets a warning.
+
 ## Consequences
 
 - **Positive:** web pages can't reach any Veltriva API by construction, and privileged UI never lives inside the tab system.

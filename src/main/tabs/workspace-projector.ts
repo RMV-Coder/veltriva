@@ -56,6 +56,15 @@ function projectPrompt(prompt: Prompt | null): TabSnapshot['prompt'] {
   if (prompt === null) {
     return null;
   }
+  if (prompt.kind === 'http-auth') {
+    return {
+      id: prompt.id,
+      kind: prompt.kind,
+      site: prompt.site,
+      realm: prompt.realm,
+      secure: prompt.secure,
+    };
+  }
   return prompt.kind === 'permission'
     ? { id: prompt.id, kind: prompt.kind, site: prompt.site, permissions: [...prompt.permissions] }
     : {
@@ -84,6 +93,7 @@ export function createWorkspaceProjector(options: {
   readonly selectedTabId: () => string | null;
   readonly fullscreen?: () => FullscreenSnapshot;
   readonly extrasFor?: (tabId: TabId) => TabExtras;
+  readonly downloads?: () => WorkspaceSnapshot['downloads'];
   readonly publish: (snapshot: WorkspaceSnapshot) => void;
   readonly schedule?: (callback: () => void, ms: number) => unknown;
   readonly cancel?: (handle: unknown) => void;
@@ -104,6 +114,7 @@ export function createWorkspaceProjector(options: {
       selectedTabId: options.selectedTabId(),
       tabs: options.tabs().map((tab) => projectTab(tab, options.extrasFor?.(tab.id) ?? {})),
       fullscreen: options.fullscreen?.() ?? null,
+      downloads: options.downloads?.() ?? [],
     };
   };
 

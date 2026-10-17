@@ -26,7 +26,9 @@ export interface PopupSize {
 }
 
 export type WindowOpenRoute =
-  | { readonly kind: 'deny'; readonly reason: 'invalid-url' | 'refused-scheme' | 'download' }
+  | { readonly kind: 'deny'; readonly reason: 'invalid-url' | 'refused-scheme' }
+  /** Alt+click on a link: download it (the download manager names and places it). */
+  | { readonly kind: 'download'; readonly url: string }
   /** Another app's URL: the external-protocol guard decides. */
   | { readonly kind: 'external'; readonly url: string }
   /** A tab that main creates and loads; the pre-created contents (if any) is not used. */
@@ -61,8 +63,8 @@ export function routeWindowOpen(request: WindowOpenRequest): WindowOpenRoute {
     case 'background-tab':
       return { kind: 'tab', url, background: true };
     case 'save-to-disk':
-      // Alt+click on a link. Downloads arrive in M1.4b.
-      return { kind: 'deny', reason: 'download' };
+      // Alt+click on a link.
+      return { kind: 'download', url };
     case 'new-window':
       if (!request.fromPopupWindow && hasWindowFeatures(request.features)) {
         return { kind: 'popup-window', url, size: popupSize(request.features) };

@@ -19,6 +19,7 @@ import type { LayoutManager } from '../windows/layout-manager';
 import type { MainWindow } from '../windows/main-window';
 import type { PopupWindowInfo, PopupWindows } from '../windows/popup-windows';
 import { recordedExternalLaunches } from './external-launches';
+import { recordedFileActions, testDownloadsFolder } from './test-files';
 
 export const TEST_HOOKS_MARKER = '__veltrivaTest';
 
@@ -80,6 +81,10 @@ export interface VeltrivaTestHooks {
   externalLaunches(): string[];
   /** The open popup windows, with what their address bar shows and their layout. */
   popupWindows(): PopupWindowInfo[];
+  /** Every Open and Show in folder the download manager asked for (recorded, never done). */
+  recordedFileActions(): { readonly action: 'open' | 'show'; readonly path: string }[];
+  /** Where a test build saves downloads: a folder in the test's own profile. */
+  testDownloadsFolder(): string;
 }
 
 declare global {
@@ -233,6 +238,14 @@ export function installTestHooks({
 
     popupWindows() {
       return popupWindows.list();
+    },
+
+    recordedFileActions() {
+      return recordedFileActions();
+    },
+
+    testDownloadsFolder() {
+      return testDownloadsFolder();
     },
   };
 

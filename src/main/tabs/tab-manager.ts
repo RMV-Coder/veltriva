@@ -14,6 +14,7 @@
 // M1.3b adds what the browser does to a page: find in page, zoom, HTML fullscreen (at most one
 // tab, always the selected one), DevTools, and reopening closed tabs (in memory until Phase 2).
 import { nextZoomFactor, zoomPercent } from '../../core/layout/zoom';
+import { errorPageFor } from '../../core/net/error-pages';
 import type { ZoomDirection } from '../../core/layout/zoom';
 import type { InternalPage } from '../../core/url/internal-pages';
 
@@ -120,7 +121,9 @@ export interface TabRuntimeEvents {
   faviconChanged(favicon: string | null): void;
   loadingChanged(loading: boolean): void;
   /** The main frame failed to load (not for aborted loads). No page commits in this case. */
-  loadFailed(error: TabPageError & { url: string }): void;
+  loadFailed(
+    error: TabPageError & { url: string; canGoBack?: boolean; canGoForward?: boolean },
+  ): void;
   crashed(error: TabPageError): void;
   /** Results of the find request with this id; several arrive for one request. */
   foundInPage(result: { requestId: number; activeMatch: number; matches: number }): void;
@@ -761,7 +764,7 @@ export class TabManager {
       loadingChanged: (loading) => {
         update({ loading });
       },
-      loadFailed: ({ code, name, url }) => {
+      loadFailed: ({ code, name, url, canGoBack, canGoForward }) => {
         const record = current();
         if (record === undefined) {
           return;
@@ -773,7 +776,8 @@ export class TabManager {
         this.#options.onPageGone?.(tabId);
         update(
           {
-            page: { kind: 'internal', name: 'network-error', error: { code, name } },
+            // A certificate or client-certificate failure gets its own page, with no way past it.
+            page: { kind: 'internal', name: errorPageFor(code), error: { code, name } },
             url,
             credentialsRemoved: takeCredentialsRemoved(record),
             // The previous page's title and icon belong to a page that is no longer shown.
@@ -782,6 +786,8 @@ export class TabManager {
             runtime: 'live',
             loading: false,
             find: null,
+            ...(canGoBack === undefined ? {} : { canGoBack }),
+            ...(canGoForward === undefined ? {} : { canGoForward }),
           },
           { visibility: true },
         );

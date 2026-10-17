@@ -28,6 +28,10 @@ export const MAX_FIND_TEXT = 1024;
 const inset = z.number().min(0).max(10_000);
 
 /** A favicon is always a validated raster image that main encoded itself (threat T5). */
+/** A download's id: main's own handle, never a path (src/main/downloads). */
+const downloadId = z.string().regex(/^download-[0-9]{1,12}$/);
+const downloadRef = z.strictObject({ downloadId });
+
 /** A toolbar question's id (src/main/prompts/prompt-manager.ts). */
 const promptId = z.string().regex(/^prompt-[0-9]{1,15}$/);
 
@@ -94,6 +98,14 @@ const tabSnapshot = z.strictObject({
         appName: z.string().max(64),
         canRemember: z.boolean(),
       }),
+      z.strictObject({
+        id: promptId,
+        kind: z.literal('http-auth'),
+        site: z.string().max(300),
+        /** The server's own text, cleaned by main. */
+        realm: z.string().max(100),
+        secure: z.boolean(),
+      }),
     ])
     .nullable(),
   /** Popups blocked for lack of a gesture: how many, and the latest one's address text. */
@@ -115,6 +127,22 @@ const workspaceSnapshot = z.strictObject({
   fullscreen: z
     .strictObject({ tabId, origin: z.string().max(2048), notice: z.boolean() })
     .nullable(),
+  /** Newest first (src/main/downloads/download-manager.ts). No paths: the shell never has one. */
+  downloads: z
+    .array(
+      z.strictObject({
+        id: downloadId,
+        fileName: z.string().max(200),
+        state: z.enum(['progressing', 'paused', 'completed', 'cancelled', 'interrupted']),
+        receivedBytes: z.number().int().nonnegative(),
+        totalBytes: z.number().int().nonnegative(),
+        dangerous: z.boolean(),
+        confirmed: z.boolean(),
+        canResume: z.boolean(),
+        site: z.string().max(300),
+      }),
+    )
+    .max(100),
 });
 
 /** Inputs are strict objects: unknown keys are rejected, never stripped. */
@@ -200,10 +228,35 @@ export const commandSchemas = {
     }),
     output: nothing,
   },
+  /**
+   * The user signed in to a server's HTTP authentication prompt. The credentials go to Chromium
+   * once and are never stored. Cancel is `prompts.respond` with `block` or `dismiss`.
+   */
+  'prompts.signIn': {
+    input: z.strictObject({
+      tabId,
+      promptId,
+      username: z.string().max(1024),
+      password: z.string().max(1024),
+      keepFocus: z.boolean().optional(),
+    }),
+    output: nothing,
+  },
   /** Opens the tab's latest blocked popup in a new tab after it, and clears the indicator. */
   'popups.openBlocked': { input: tabRef, output: nothing },
   /** Clears the tab's "Pop-up blocked" indicator. */
   'popups.dismissBlocked': { input: tabFocusRef, output: nothing },
+  // Downloads, by main's id. Open and Show in folder act on main's own record of the path.
+  'downloads.pause': { input: downloadRef, output: nothing },
+  'downloads.resume': { input: downloadRef, output: nothing },
+  'downloads.cancel': { input: downloadRef, output: nothing },
+  'downloads.open': { input: downloadRef, output: nothing },
+  'downloads.showInFolder': { input: downloadRef, output: nothing },
+  /** A finished dangerous file: keep it (it gets its real name) or discard it (deleted). */
+  'downloads.keep': { input: downloadRef, output: nothing },
+  'downloads.discard': { input: downloadRef, output: nothing },
+  /** Removes a finished download from the list; the file stays. */
+  'downloads.clear': { input: downloadRef, output: nothing },
 } as const satisfies Record<CommandName, CommandSchema>;
 
 export const eventSchemas = {

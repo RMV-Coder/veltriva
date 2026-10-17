@@ -77,6 +77,7 @@ describe('projectTab', () => {
         projectTab({ ...base, zoomPercent: 110, find: { text: 'a', activeMatch: 1, matches: 3 } }),
       ],
       fullscreen: { tabId: ID, origin: 'example.com', notice: true },
+      downloads: [],
     };
     expect(commandSchemas['workspace.getSnapshot'].output.safeParse(snapshot).success).toBe(true);
   });

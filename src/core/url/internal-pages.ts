@@ -1,7 +1,13 @@
 // Internal pages (ADR-0002 §3): views the shell renders in the content area. Their `veltriva://`
 // identifiers are never loaded into any web contents; only these names exist.
 
-export const INTERNAL_PAGES = ['new-tab', 'network-error', 'crashed'] as const;
+export const INTERNAL_PAGES = [
+  'new-tab',
+  'network-error',
+  'certificate-error',
+  'client-certificate',
+  'crashed',
+] as const;
 export type InternalPage = (typeof INTERNAL_PAGES)[number];
 
 /**

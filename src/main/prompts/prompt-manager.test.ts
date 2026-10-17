@@ -27,6 +27,7 @@ function setup(now?: () => number) {
         return clock;
       }),
   });
+  manager.setVisibleTab('tab-1');
   return { manager, changes: () => changes };
 }
 
@@ -128,6 +129,27 @@ describe('PromptManager', () => {
     expect(manager.respond('tab-1', secondId, { decision: 'allow', remember: true })).toBe(false);
     expect(manager.respond('tab-1', secondId, { decision: 'block', remember: false })).toBe(true);
     expect(manager.current('tab-1')).toBeNull();
+  });
+
+  it('counts the wait from when a question is shown, not when it was asked', () => {
+    let clock = 0;
+    const { manager } = setup(() => clock);
+    // Asked by a background tab, long before the user looks at it.
+    void manager.ask('tab-2', camera);
+    const id = manager.current('tab-2')?.id ?? '';
+    clock = 10_000;
+    expect(manager.respond('tab-2', id, { decision: 'allow', remember: false })).toBe(false);
+    // The user switches to it: a click right away doesn't count, one after the wait does.
+    manager.setVisibleTab('tab-2');
+    clock += 100;
+    expect(manager.respond('tab-2', id, { decision: 'allow', remember: false })).toBe(false);
+    // Switching away and back starts the wait again; so does a fullscreen page covering it.
+    clock += MIN_VISIBLE_BEFORE_ALLOW_MS;
+    manager.setVisibleTab(null);
+    manager.setVisibleTab('tab-2');
+    expect(manager.respond('tab-2', id, { decision: 'allow', remember: false })).toBe(false);
+    clock += MIN_VISIBLE_BEFORE_ALLOW_MS;
+    expect(manager.respond('tab-2', id, { decision: 'allow', remember: false })).toBe(true);
   });
 
   it('takes a dismissal at once', () => {

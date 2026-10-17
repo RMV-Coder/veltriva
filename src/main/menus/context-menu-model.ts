@@ -37,10 +37,17 @@ export interface MenuContext {
   readonly searchEngine: string;
 }
 
+/** What may be downloaded from a menu: what a tab may open, and `data:` images. */
+export function canSave(url: string, context: Pick<MenuContext, 'canOpen'>): boolean {
+  return context.canOpen(url) || url.toLowerCase().startsWith('data:image/');
+}
+
 export type MenuItemId =
   | 'open-link-in-new-tab'
   | 'copy-link'
+  | 'save-link'
   | 'open-image-in-new-tab'
+  | 'save-image'
   | 'copy-image'
   | 'copy-image-address'
   | 'search-selection'
@@ -105,12 +112,19 @@ export function buildContextMenu(params: MenuParams, context: MenuContext): Menu
     if (context.canOpen(params.linkURL)) {
       entries.push(item('open-link-in-new-tab', 'Open link in new tab'));
     }
+    if (canSave(params.linkURL, context)) {
+      // No save dialog in the MVP: it goes to the Downloads folder, so the label says so.
+      entries.push(item('save-link', 'Save link to Downloads'));
+    }
     entries.push(item('copy-link', 'Copy link address'), SEPARATOR);
   }
 
   if (inTab && params.mediaType === 'image' && params.srcURL !== '') {
     if (context.canOpen(params.srcURL)) {
       entries.push(item('open-image-in-new-tab', 'Open image in new tab'));
+    }
+    if (canSave(params.srcURL, context)) {
+      entries.push(item('save-image', 'Save image to Downloads'));
     }
     if (params.hasImageContents) {
       entries.push(item('copy-image', 'Copy image'));

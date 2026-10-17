@@ -68,8 +68,12 @@ function applyPolicy(contents: WebContents, role: WebContentsRole, logger: Logge
     event.preventDefault();
     const external = classifyExternalUrl(target.url).kind === 'external';
     if (external && target.isMainFrame && (role === 'tab' || role === 'popup')) {
-      // Another app's link in the page itself: the protocol guard may ask the user.
-      onExternalNavigation?.(contents, target.url);
+      // Another app's link in the page itself: the protocol guard may ask the user. Only from
+      // will-frame-navigate and will-redirect: a main-frame link can also raise will-navigate,
+      // and a second call would find the gesture already used up (M1.4a review).
+      if (kind !== 'navigate') {
+        onExternalNavigation?.(contents, target.url);
+      }
       return;
     }
     // Everything else, including another app's link in an embedded frame (an ad can't launch

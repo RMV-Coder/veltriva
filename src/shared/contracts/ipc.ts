@@ -37,6 +37,15 @@ export const COMMAND_NAMES = [
   'prompts.respond',
   'popups.openBlocked',
   'popups.dismissBlocked',
+  'prompts.signIn',
+  'downloads.pause',
+  'downloads.resume',
+  'downloads.cancel',
+  'downloads.open',
+  'downloads.showInFolder',
+  'downloads.keep',
+  'downloads.discard',
+  'downloads.clear',
 ] as const;
 export type CommandName = (typeof COMMAND_NAMES)[number];
 

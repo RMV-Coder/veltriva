@@ -3,6 +3,7 @@
 import { app } from 'electron';
 
 import { PRODUCT_NAME } from '../../shared/constants/app-identity';
+import type { DownloadManager } from '../downloads/download-manager';
 import type { ExternalProtocolGuard } from '../external/protocol-guard';
 import type { FocusManager } from '../focus/focus-manager';
 import type { ContextMenus } from '../menus/context-menu';
@@ -27,6 +28,7 @@ export interface CommandContext {
   readonly prompts: PromptManager;
   readonly blockedPopups: BlockedPopups;
   readonly external: ExternalProtocolGuard;
+  readonly downloads: DownloadManager;
   readonly searchTemplate: () => string;
 }
 
@@ -40,6 +42,7 @@ export function createCommandHandlers({
   prompts,
   blockedPopups,
   external,
+  downloads,
   searchTemplate,
 }: CommandContext): CommandHandlers {
   /** Runs `action` on an existing tab, or answers `not_found`. */
@@ -50,6 +53,17 @@ export function createCommandHandlers({
     return action();
   };
   const done = {} as const;
+  /** Runs `action` on a download main knows, or answers `not_found`. */
+  const onDownload = (downloadId: string, action: () => unknown): typeof done => {
+    if (!downloads.has(downloadId)) {
+      throw new CommandError('not_found');
+    }
+    const result = action();
+    if (result instanceof Promise) {
+      result.catch(() => undefined);
+    }
+    return done;
+  };
 
   return {
     'app.getInfo': () => ({
@@ -161,6 +175,22 @@ export function createCommandHandlers({
         }
         return done;
       }),
+    'prompts.signIn': ({ tabId, promptId, username, password, keepFocus }) =>
+      onTab(tabId, () => {
+        // Only to the sign-in question shown; handed to Chromium once, never kept.
+        const shown = prompts.current(tabId);
+        if (shown?.id === promptId && shown.kind === 'http-auth') {
+          const answered = prompts.respond(tabId, promptId, {
+            decision: 'allow',
+            remember: false,
+            credentials: { username, password },
+          });
+          if (answered && keepFocus !== true && tabs.selectedTabId() === tabId) {
+            focus.focusSelected();
+          }
+        }
+        return done;
+      }),
     'popups.openBlocked': ({ tabId }) =>
       onTab(tabId, () => {
         const url = blockedPopups.take(tabId);
@@ -178,6 +208,31 @@ export function createCommandHandlers({
           focus.focusSelected();
         }
         return done;
+      }),
+
+    'downloads.pause': ({ downloadId }) =>
+      onDownload(downloadId, () => {
+        downloads.pause(downloadId);
+      }),
+    'downloads.resume': ({ downloadId }) =>
+      onDownload(downloadId, () => {
+        downloads.resume(downloadId);
+      }),
+    'downloads.cancel': ({ downloadId }) =>
+      onDownload(downloadId, () => {
+        downloads.cancel(downloadId);
+      }),
+    'downloads.open': ({ downloadId }) => onDownload(downloadId, () => downloads.open(downloadId)),
+    'downloads.showInFolder': ({ downloadId }) =>
+      onDownload(downloadId, () => {
+        downloads.showInFolder(downloadId);
+      }),
+    'downloads.keep': ({ downloadId }) => onDownload(downloadId, () => downloads.keep(downloadId)),
+    'downloads.discard': ({ downloadId }) =>
+      onDownload(downloadId, () => downloads.discard(downloadId)),
+    'downloads.clear': ({ downloadId }) =>
+      onDownload(downloadId, () => {
+        downloads.clear(downloadId);
       }),
 
     'layout.setInsets': (insets) => {

@@ -30,6 +30,10 @@ const MARKERS = [
   // src/main/testing/external-launches.ts: test builds record app launches instead of making them
   'recordExternalLaunch',
   'recordedExternalLaunches',
+  // src/main/testing/test-files.ts: test builds download into their own profile, open nothing
+  'recordingFileActions',
+  'recordedFileActions',
+  'testDownloadsFolder',
   // src/main/testing/lifecycle-scenarios.ts
   'VELTRIVA_LIFECYCLE',
   'runLifecycleScenario',

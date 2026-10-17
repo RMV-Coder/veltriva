@@ -132,14 +132,14 @@ describe('routeWindowOpen', () => {
     }
   });
 
-  it('denies what does not parse, and Alt+click downloads until M1.4b', () => {
+  it('denies what does not parse, and downloads on Alt+click', () => {
     expect(routeWindowOpen(open({ url: 'http://[bad' }))).toEqual({
       kind: 'deny',
       reason: 'invalid-url',
     });
     expect(routeWindowOpen(open({ disposition: 'save-to-disk', features: '' }))).toEqual({
-      kind: 'deny',
-      reason: 'download',
+      kind: 'download',
+      url: 'https://accounts.example/oauth',
     });
   });
 });

@@ -9,6 +9,9 @@ import { ActivationTracker } from '../core/input/user-activation';
 import { APP_USER_MODEL_ID, BROWSING_PARTITION } from '../shared/constants/app-identity';
 import { cleanUserAgent } from './app/user-agent';
 import { resolveUserDataDir, USER_DATA_DIR_OVERRIDE_ENV } from './app/user-data-dir';
+import { createLoginHandler } from './auth/sign-in';
+import { DownloadManager } from './downloads/download-manager';
+import { systemFileActions } from './downloads/file-actions';
 import { systemLauncher } from './external/launcher';
 import { ExternalProtocolGuard } from './external/protocol-guard';
 import { FocusManager } from './focus/focus-manager';
@@ -35,10 +38,16 @@ import { createTabRuntimes } from './tabs/tab-runtime';
 import { createWorkspaceProjector } from './tabs/workspace-projector';
 import { recordExternalLaunch } from './testing/external-launches';
 import { exitOnUncaughtException } from './testing/fail-fast';
+import { recordingFileActions, testDownloadsFolder } from './testing/test-files';
 import { LIFECYCLE_SCENARIO_ENV, runLifecycleScenario } from './testing/lifecycle-scenarios';
 import { installTestHooks } from './testing/test-hooks';
 import { installWebContentsGuard, setExternalNavigationHandler } from './web/guard';
-import { hardenSession, installSessionBaseline } from './web/session-baseline';
+import {
+  allowManagedDownloads,
+  hardenSession,
+  installSessionBaseline,
+  setLoginHandler,
+} from './web/session-baseline';
 import { FullscreenController } from './windows/fullscreen';
 import { LayoutManager } from './windows/layout-manager';
 import { createMainWindow, windowBackground } from './windows/main-window';
@@ -113,6 +122,12 @@ function start(): void {
     onChange: () => {
       projector.markDirty();
     },
+    // The sign-in form is typed into: the shell takes the keyboard (the form focuses its field).
+    onShown: (prompt) => {
+      if (prompt.kind === 'http-auth' && !main.shell.webContents.isDestroyed()) {
+        main.shell.webContents.focus();
+      }
+    },
   });
   const blockedPopups = new BlockedPopups({
     onChange: () => {
@@ -136,6 +151,23 @@ function start(): void {
   };
   // Before any tab exists: the broker replaces the baseline's deny-all on the browsing session.
   installPermissionBroker(browsing, { prompts, tabIdOf, logger: consoleLogger });
+  // HTTP authentication: a sign-in question in the strip, never stored (src/main/auth).
+  setLoginHandler(createLoginHandler({ prompts, tabIdOf, logger: consoleLogger }));
+  // Downloads (M1.4b): every session a page can download from. Test builds keep files in the
+  // test's own profile and never open them.
+  const downloads = new DownloadManager({
+    folder: () =>
+      import.meta.env.MODE === 'test' ? testDownloadsFolder() : app.getPath('downloads'),
+    files: import.meta.env.MODE === 'test' ? recordingFileActions : systemFileActions,
+    onChange: () => {
+      projector.markDirty();
+    },
+    logger: consoleLogger,
+  });
+  for (const downloadable of [browsing, session.defaultSession]) {
+    allowManagedDownloads(downloadable);
+    downloads.attach(downloadable);
+  }
   setExternalNavigationHandler((contents, url) => {
     const tabId = tabIdOf(contents);
     if (tabId === undefined) {
@@ -196,6 +228,7 @@ function start(): void {
     tabs: () => tabs.tabs(),
     selectedTabId: () => tabs.selectedTabId(),
     fullscreen: () => fullscreen.state(),
+    downloads: () => downloads.list(),
     extrasFor: (tabId) => ({
       prompt: prompts.current(tabId),
       blockedPopups: blockedPopups.get(tabId),
@@ -208,6 +241,7 @@ function start(): void {
     createRuntime: runtimes.factory,
     newId: () => uuidv7(Date.now(), getRandomValues(new Uint8Array(10))),
     onChange: () => {
+      showPromptsOf();
       projector.markDirty();
     },
     onFullscreenChange: (tabId) => {
@@ -229,9 +263,14 @@ function start(): void {
       }
     },
     onChange: () => {
+      showPromptsOf();
       projector.markDirty();
     },
   });
+  /** The tab whose question is on screen: the selected one, unless a page fills the window. */
+  const showPromptsOf = (): void => {
+    prompts.setVisibleTab(fullscreen.state() === null ? tabs.selectedTabId() : null);
+  };
   const contextMenus = createContextMenus({
     window: main.window,
     shell: main.shell,
@@ -299,6 +338,7 @@ function start(): void {
       prompts,
       blockedPopups,
       external,
+      downloads,
       searchTemplate,
     }),
     allowedOrigins: new Set(

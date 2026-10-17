@@ -95,6 +95,13 @@ export function createWindowOpenHandler(
       });
       return { action: 'deny' };
     }
+    if (route.kind === 'download') {
+      // A download needs the click too; it never opens a tab or a window.
+      if (gesture) {
+        source.contents.downloadURL(route.url);
+      }
+      return { action: 'deny' };
+    }
     if (!gesture) {
       deps.blocked.record(tabId, route.url);
       return { action: 'deny' };
