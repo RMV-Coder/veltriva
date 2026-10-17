@@ -50,6 +50,8 @@ export interface PopupWindowInfo {
 interface PopupWindow {
   readonly window: BaseWindow;
   readonly page: WebContentsView;
+  /** Kept here: a view drops its `webContents` once the contents is destroyed (found by E2E). */
+  readonly contents: WebContents;
   readonly bar: WebContentsView;
   state: PopupBarState;
 }
@@ -106,9 +108,10 @@ export class PopupWindows implements PopupHost {
     const bar = createViewWithRole('shell', {
       webPreferences: popupBarWebPreferences(this.#options.shellSession),
     });
+    const barContents = bar.webContents;
     window.contentView.addChildView(page);
     window.contentView.addChildView(bar);
-    const entry: PopupWindow = { window, page, bar, state: BLANK };
+    const entry: PopupWindow = { window, page, contents, bar, state: BLANK };
     this.#popups.add(entry);
 
     const layout = (): void => {
@@ -128,11 +131,11 @@ export class PopupWindows implements PopupHost {
     window.on('resize', layout);
 
     const pushState = (): void => {
-      if (bar.webContents.isDestroyed()) {
+      if (barContents.isDestroyed()) {
         return;
       }
       // A JSON string literal can't break out of the call, and the bar renders it as text.
-      bar.webContents
+      barContents
         .executeJavaScript(`globalThis.veltrivaPopupBar?.show(${JSON.stringify(entry.state)})`)
         .catch(() => undefined);
     };
@@ -147,8 +150,8 @@ export class PopupWindows implements PopupHost {
       }
       pushState();
     };
-    bar.webContents.on('did-finish-load', pushState);
-    bar.webContents.loadURL(this.#options.barUrl).catch(() => undefined);
+    barContents.on('did-finish-load', pushState);
+    barContents.loadURL(this.#options.barUrl).catch(() => undefined);
 
     contents.on('did-navigate', (_event, url) => {
       committed(url);
@@ -201,8 +204,8 @@ export class PopupWindows implements PopupHost {
       if (!contents.isDestroyed()) {
         contents.close();
       }
-      if (!bar.webContents.isDestroyed()) {
-        bar.webContents.close();
+      if (!barContents.isDestroyed()) {
+        barContents.close();
       }
     });
 
@@ -224,10 +227,10 @@ export class PopupWindows implements PopupHost {
   /** For test hooks. */
   list(): PopupWindowInfo[] {
     return [...this.#popups]
-      .filter((popup) => !popup.window.isDestroyed() && !popup.page.webContents.isDestroyed())
+      .filter((popup) => !popup.window.isDestroyed() && !popup.contents.isDestroyed())
       .map((popup) => ({
-        webContentsId: popup.page.webContents.id,
-        url: popup.page.webContents.getURL(),
+        webContentsId: popup.contents.id,
+        url: popup.contents.getURL(),
         title: popup.window.getTitle(),
         bar: popup.state,
         contentBounds: popup.window.getContentBounds(),
