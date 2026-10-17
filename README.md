@@ -26,6 +26,7 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
   - **Downloads:** files go to your Downloads folder under safe, unique names, with progress, pause, cancel, Open and Show in folder in a panel under the toolbar. Programs and other risky types stay unrunnable until you choose Keep. Nothing is ever opened for you.
   - **Certificate errors:** a site whose certificate can't be trusted gets a warning page with no way past it, and so does a site that asks for a client certificate.
   - **Sign-in:** a site that asks for a password (HTTP authentication) gets a sign-in form in the toolbar strip. The password is sent once and never stored.
+- The Phase 1 wrap-up moved to Electron 44.9.0. It also added a checklist for the checks only a person can run, with real sites, real accounts, the keyboard and the packaged build: [docs/testing/phase-1-manual-checks.md](docs/testing/phase-1-manual-checks.md).
 
 ## Why
 
