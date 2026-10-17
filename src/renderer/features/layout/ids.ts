@@ -5,3 +5,8 @@ export const CONTENT_AREA_ID = 'content-area';
 export function tabDomId(tabId: string): string {
   return `tab-${tabId}`;
 }
+
+/** The downloads button, which opens and closes the panel under the toolbar. */
+export const DOWNLOADS_BUTTON_ID = 'downloads-button';
+/** The downloads panel: the button's `aria-controls` points at it. */
+export const DOWNLOADS_PANEL_ID = 'downloads-panel';

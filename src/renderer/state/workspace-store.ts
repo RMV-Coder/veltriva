@@ -26,6 +26,13 @@ export function useTabs(): readonly TabSnapshot[] {
   return useWorkspaceStore((state) => state.snapshot?.tabs ?? NO_TABS);
 }
 
+const NO_DOWNLOADS: WorkspaceSnapshot['downloads'] = [];
+
+/** The downloads, newest first. The same array until the next snapshot. */
+export function useDownloads(): WorkspaceSnapshot['downloads'] {
+  return useWorkspaceStore((state) => state.snapshot?.downloads ?? NO_DOWNLOADS);
+}
+
 export function useSelectedTabId(): string | null {
   return useWorkspaceStore((state) => state.snapshot?.selectedTabId ?? null);
 }

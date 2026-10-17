@@ -18,6 +18,12 @@ interface UiStore {
   readonly findFocusRequest: number | null;
   readonly requestFindFocus: () => void;
   readonly clearFindFocusRequest: () => void;
+  /**
+   * Whether the user has the downloads panel open. Which downloads exist is main's; whether the
+   * shell shows the list is the shell's. The panel draws only while the list isn't empty.
+   */
+  readonly downloadsPanelOpen: boolean;
+  readonly setDownloadsPanelOpen: (open: boolean) => void;
 }
 
 export const useUiStore = create<UiStore>()((set) => ({
@@ -34,5 +40,9 @@ export const useUiStore = create<UiStore>()((set) => ({
   },
   clearFindFocusRequest: () => {
     set({ findFocusRequest: null });
+  },
+  downloadsPanelOpen: false,
+  setDownloadsPanelOpen: (open) => {
+    set({ downloadsPanelOpen: open });
   },
 }));

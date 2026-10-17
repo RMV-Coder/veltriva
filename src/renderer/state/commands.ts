@@ -175,3 +175,70 @@ export async function dismissBlockedPopups(
     )
   ).ok;
 }
+
+/**
+ * Signs in to the server's HTTP authentication question shown for a tab. The credentials go to
+ * main once, for Chromium, and are never kept: this wrapper does not log, store or return them
+ * (a failure is logged by name and code only). As with `respondToPrompt`, a stale id is ignored,
+ * and so is a sign-in that comes too soon after the question appeared. Cancelling is
+ * `respondToPrompt(..., 'block')`.
+ */
+export async function signInToPrompt(
+  tabId: string,
+  promptId: string,
+  credentials: { readonly username: string; readonly password: string },
+  options?: FocusOptions,
+): Promise<boolean> {
+  return (
+    await run('prompts.signIn', () =>
+      window.veltriva.prompts.signIn({
+        tabId,
+        promptId,
+        username: credentials.username,
+        password: credentials.password,
+        keepFocus: options?.keepFocus === true,
+      }),
+    )
+  ).ok;
+}
+
+export async function pauseDownload(downloadId: string): Promise<boolean> {
+  return (await run('downloads.pause', () => window.veltriva.downloads.pause({ downloadId }))).ok;
+}
+
+export async function resumeDownload(downloadId: string): Promise<boolean> {
+  return (await run('downloads.resume', () => window.veltriva.downloads.resume({ downloadId }))).ok;
+}
+
+export async function cancelDownload(downloadId: string): Promise<boolean> {
+  return (await run('downloads.cancel', () => window.veltriva.downloads.cancel({ downloadId }))).ok;
+}
+
+/** Opens a finished file. Main acts on its own record of the path, and only for a file the user kept. */
+export async function openDownload(downloadId: string): Promise<boolean> {
+  return (await run('downloads.open', () => window.veltriva.downloads.open({ downloadId }))).ok;
+}
+
+export async function showDownloadInFolder(downloadId: string): Promise<boolean> {
+  return (
+    await run('downloads.showInFolder', () =>
+      window.veltriva.downloads.showInFolder({ downloadId }),
+    )
+  ).ok;
+}
+
+/** Keeps a finished dangerous file: it gets its real name and can be opened. */
+export async function keepDownload(downloadId: string): Promise<boolean> {
+  return (await run('downloads.keep', () => window.veltriva.downloads.keep({ downloadId }))).ok;
+}
+
+/** Discards a dangerous file that was not kept: deleted if finished, cancelled if running. */
+export async function discardDownload(downloadId: string): Promise<boolean> {
+  return (await run('downloads.discard', () => window.veltriva.downloads.discard({ downloadId })))
+    .ok;
+}
+
+/** Removes a finished download from the list. The file stays where it is. */
+export async function clearDownload(downloadId: string): Promise<boolean> {
+  return (await run('downloads.clear', () => window.veltriva.downloads.clear({ downloadId }))).ok;
+}

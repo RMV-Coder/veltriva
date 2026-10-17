@@ -91,6 +91,30 @@ describe('tabStatus', () => {
     );
   });
 
+  it('is "failed" on the certificate error and client certificate pages too', () => {
+    for (const name of ['certificate-error', 'client-certificate']) {
+      expect(tabStatus({ ...webTab, page: { kind: 'internal', name } })).toBe('failed');
+    }
+  });
+
+  it('is "failed" on every error page main can show, and null on the others', () => {
+    const failing = ['network-error', 'certificate-error', 'client-certificate'];
+    for (const name of [...failing, 'new-tab']) {
+      const expected = failing.includes(name) ? 'failed' : null;
+      expect(tabStatus({ ...webTab, page: { kind: 'internal', name } })).toBe(expected);
+    }
+  });
+
+  it('puts a crash before the new failures, and a failure before loading', () => {
+    const certificate: Tab = {
+      ...webTab,
+      loading: true,
+      page: { kind: 'internal', name: 'certificate-error' },
+    };
+    expect(tabStatus(certificate)).toBe('failed');
+    expect(tabStatus({ ...certificate, runtime: 'crashed' })).toBe('crashed');
+  });
+
   it('is "crashed" for a crashed runtime or the crashed page', () => {
     expect(tabStatus({ ...webTab, runtime: 'crashed' })).toBe('crashed');
     expect(tabStatus({ ...webTab, page: { kind: 'internal', name: 'crashed' } })).toBe('crashed');

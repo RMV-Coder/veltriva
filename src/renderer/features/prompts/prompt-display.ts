@@ -17,16 +17,19 @@ import type { CommandInput, TabSnapshot } from '../../../shared/contracts/schema
 export type Prompt = NonNullable<TabSnapshot['prompt']>;
 export type PermissionPrompt = Extract<Prompt, { readonly kind: 'permission' }>;
 export type ExternalProtocolPrompt = Extract<Prompt, { readonly kind: 'external-protocol' }>;
+export type HttpAuthPrompt = Extract<Prompt, { readonly kind: 'http-auth' }>;
 export type BlockedPopups = NonNullable<TabSnapshot['blockedPopups']>;
 type Permission = PermissionPrompt['permissions'][number];
 
-/** Which of the three strips shows. It is `data-prompt-kind` and chooses the region's name. */
+/** Which of the four strips shows. It is `data-prompt-kind` and chooses the region's name. */
 export type StripKind = Prompt['kind'] | 'blocked-popups';
 
 /** The sentence is shown with the site at most this many characters long, ellipsis included. */
 export const MAX_SITE_CHARS = 60;
 /** A blocked popup's address is shown with at most this many characters, ellipsis included. */
 export const MAX_POPUP_ADDRESS_CHARS = 80;
+/** A server's realm is shown with at most this many characters (main already stops at 100). */
+export const MAX_REALM_CHARS = 100;
 /** Shown when there is no site text at all; main's own fallback label for an unknown page. */
 const UNKNOWN_SITE = 'This page';
 
@@ -170,6 +173,9 @@ export function promptSentence(prompt: Prompt): readonly PromptPart[] {
       plain(` wants to ${permissionPhrase(prompt.permissions)}`),
     ];
   }
+  if (prompt.kind === 'http-auth') {
+    return [sitePart(prompt.site, true), plain(' wants you to sign in')];
+  }
   const appName = cleanText(prompt.appName);
   if (prompt.site === null) {
     // A typed address: nobody asks, so no site is named.
@@ -215,14 +221,44 @@ export function rememberFor(decision: PromptDecision, checked: boolean): boolean
   return decision === 'allow' && checked;
 }
 
+/**
+ * The line under a sign-in question: what the server calls the thing to sign in to, in its own
+ * words ("The server says: “Staff area”"). The realm is the server's text, so it is cleaned and
+ * marked untrusted; null when the server said nothing worth showing.
+ */
+export function realmLine(prompt: HttpAuthPrompt): readonly PromptPart[] | null {
+  const full = cleanText(prompt.realm);
+  if (full === '') {
+    return null;
+  }
+  const text = truncateEnd(full, MAX_REALM_CHARS);
+  return [
+    plain('The server says: “'),
+    untrustedPart(text, { strong: false, full: text === full ? undefined : full }),
+    plain('”'),
+  ];
+}
+
+/** The warning on a sign-in question for an address that isn't HTTPS, or null when it is safe. */
+export const INSECURE_SIGN_IN_WARNING = 'Your password will be sent unencrypted';
+
+export function insecureSignInWarning(prompt: HttpAuthPrompt): string | null {
+  return prompt.secure ? null : INSECURE_SIGN_IN_WARNING;
+}
+
 /** The button names. Dismiss is the same for every strip. */
 export function promptActionLabels(kind: Prompt['kind']): {
   readonly allow: string;
   readonly block: string;
 } {
-  return kind === 'permission'
-    ? { allow: 'Allow', block: 'Block' }
-    : { allow: 'Open', block: 'Cancel' };
+  switch (kind) {
+    case 'permission':
+      return { allow: 'Allow', block: 'Block' };
+    case 'http-auth':
+      return { allow: 'Sign in', block: 'Cancel' };
+    case 'external-protocol':
+      return { allow: 'Open', block: 'Cancel' };
+  }
 }
 
 export const DISMISS_LABEL = 'Dismiss';
@@ -235,6 +271,8 @@ export function stripLabel(kind: StripKind): string {
       return 'Permission request';
     case 'external-protocol':
       return 'Open another app';
+    case 'http-auth':
+      return 'Sign in';
     case 'blocked-popups':
       return 'Pop-up blocked';
   }

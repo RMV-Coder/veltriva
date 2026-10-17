@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight, RotateCw, X } from 'lucide-react';
 
 import { goBack, goForward, reloadTab, stopLoading } from '../../state/commands';
 import { useSelectedTab } from '../../state/workspace-store';
+import { DownloadsButton } from '../downloads/DownloadsButton';
 import { FindBar } from './FindBar';
 import { LoadingBar } from './LoadingBar';
 import { Omnibox } from './Omnibox';
@@ -10,6 +11,7 @@ import { ToolbarButton } from './ToolbarButton';
 /**
  * Back, Forward, Reload or Stop, and the address bar, across the full width of the window. While
  * the selected tab's find bar is open it takes the right end of the row, and the address bar shrinks.
+ * The downloads button comes last, once there is a download to show.
  */
 export function Toolbar() {
   const tab = useSelectedTab();
@@ -50,6 +52,7 @@ export function Toolbar() {
       />
       <Omnibox />
       <FindBar />
+      <DownloadsButton />
       <LoadingBar active={loading} />
     </header>
   );

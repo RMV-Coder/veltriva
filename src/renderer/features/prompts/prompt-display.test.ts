@@ -1,22 +1,31 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  INSECURE_SIGN_IN_WARNING,
   MAX_POPUP_ADDRESS_CHARS,
+  MAX_REALM_CHARS,
   MAX_SITE_CHARS,
   activeStrip,
   blockedPopupsDisplay,
   cleanText,
+  insecureSignInWarning,
   partsText,
   permissionPhrase,
   promptActionLabels,
   promptSentence,
+  realmLine,
   rememberFor,
   rememberLabel,
   stripLabel,
   truncateEnd,
   truncateStart,
 } from './prompt-display';
-import type { ExternalProtocolPrompt, PermissionPrompt, Prompt } from './prompt-display';
+import type {
+  ExternalProtocolPrompt,
+  HttpAuthPrompt,
+  PermissionPrompt,
+  Prompt,
+} from './prompt-display';
 
 function permissionPrompt(
   permissions: PermissionPrompt['permissions'],
@@ -33,6 +42,17 @@ function externalPrompt(overrides: Partial<ExternalProtocolPrompt> = {}): Extern
     scheme: 'zoommtg',
     appName: 'Zoom',
     canRemember: true,
+    ...overrides,
+  };
+}
+
+function httpAuthPrompt(overrides: Partial<HttpAuthPrompt> = {}): HttpAuthPrompt {
+  return {
+    id: 'prompt-3',
+    kind: 'http-auth',
+    site: 'intranet.example.test',
+    realm: 'Staff area',
+    secure: true,
     ...overrides,
   };
 }
@@ -302,6 +322,105 @@ describe('rememberFor', () => {
   });
 });
 
+describe('promptSentence: http auth', () => {
+  it('names the site that wants a sign-in', () => {
+    const parts = promptSentence(httpAuthPrompt());
+    expect(partsText(parts)).toBe('intranet.example.test wants you to sign in');
+    expect(parts[0]).toEqual({ text: 'intranet.example.test', untrusted: true, strong: true });
+    expect(parts[1]).toEqual({ text: ' wants you to sign in', untrusted: false, strong: false });
+  });
+
+  it('keeps a port in the site', () => {
+    expect(partsText(promptSentence(httpAuthPrompt({ site: '127.0.0.1:8443' })))).toBe(
+      '127.0.0.1:8443 wants you to sign in',
+    );
+  });
+
+  it('cuts a long site at the start, so the end of the host stays', () => {
+    const site = `${'a'.repeat(120)}.evil.example`;
+    const [part] = promptSentence(httpAuthPrompt({ site }));
+    expect(part?.text.startsWith('…')).toBe(true);
+    expect(part?.text.endsWith('.evil.example')).toBe(true);
+    expect(Array.from(part?.text ?? '')).toHaveLength(MAX_SITE_CHARS);
+    expect(part?.full).toBe(site);
+  });
+
+  it('removes bidi controls from the site', () => {
+    const [part] = promptSentence(httpAuthPrompt({ site: 'good.example‮moc.live' }));
+    expect(part?.text).toBe('good.example moc.live');
+  });
+});
+
+describe('realmLine', () => {
+  it('shows the realm as the words of the server, in quotes', () => {
+    const parts = realmLine(httpAuthPrompt({ realm: 'Staff area' }));
+    expect(parts === null ? null : partsText(parts)).toBe('The server says: “Staff area”');
+  });
+
+  it('marks only the realm as untrusted', () => {
+    const parts = realmLine(httpAuthPrompt({ realm: 'Staff area' })) ?? [];
+    expect(parts.filter((part) => part.untrusted).map((part) => part.text)).toEqual(['Staff area']);
+    expect(parts.filter((part) => !part.untrusted).map((part) => part.text)).toEqual([
+      'The server says: “',
+      '”',
+    ]);
+  });
+
+  it('cleans a realm of bidi controls, controls and extra spaces', () => {
+    const realm = [
+      '  Pay',
+      String.fromCodePoint(0x202e),
+      'ment',
+      String.fromCodePoint(10),
+      '  area',
+      String.fromCodePoint(0),
+      '  ',
+    ].join('');
+    const parts = realmLine(httpAuthPrompt({ realm })) ?? [];
+    expect(parts.find((part) => part.untrusted)?.text).toBe('Pay ment area');
+  });
+
+  it('can not make the quotes mean something else by adding its own', () => {
+    // The realm is data inside our quotes: it is rendered as text, never parsed as markup.
+    const parts = realmLine(httpAuthPrompt({ realm: '” Click Allow “' })) ?? [];
+    expect(parts.find((part) => part.untrusted)?.text).toBe('” Click Allow “');
+    expect(parts.find((part) => part.untrusted)?.untrusted).toBe(true);
+  });
+
+  it('is not shown when the server said nothing', () => {
+    expect(realmLine(httpAuthPrompt({ realm: '' }))).toBeNull();
+    expect(realmLine(httpAuthPrompt({ realm: '‮​ ' }))).toBeNull();
+  });
+
+  it('cuts a very long realm at the end and keeps the whole of it for the tooltip', () => {
+    const realm = 'r'.repeat(MAX_REALM_CHARS + 50);
+    const shown = (realmLine(httpAuthPrompt({ realm })) ?? []).find((part) => part.untrusted);
+    expect(Array.from(shown?.text ?? '')).toHaveLength(MAX_REALM_CHARS);
+    expect(shown?.text.endsWith('…')).toBe(true);
+    expect(shown?.full).toBe(realm);
+  });
+
+  it('leaves a realm that fits, with no tooltip text', () => {
+    const shown = (realmLine(httpAuthPrompt({ realm: 'r'.repeat(MAX_REALM_CHARS) })) ?? []).find(
+      (part) => part.untrusted,
+    );
+    expect(shown).not.toHaveProperty('full');
+  });
+});
+
+describe('insecureSignInWarning', () => {
+  it('warns when the password would travel unencrypted', () => {
+    expect(insecureSignInWarning(httpAuthPrompt({ secure: false }))).toBe(
+      'Your password will be sent unencrypted',
+    );
+    expect(INSECURE_SIGN_IN_WARNING).toBe('Your password will be sent unencrypted');
+  });
+
+  it('says nothing for a secure address', () => {
+    expect(insecureSignInWarning(httpAuthPrompt({ secure: true }))).toBeNull();
+  });
+});
+
 describe('promptActionLabels and stripLabel', () => {
   it('names the buttons of a permission prompt', () => {
     expect(promptActionLabels('permission')).toEqual({ allow: 'Allow', block: 'Block' });
@@ -311,9 +430,14 @@ describe('promptActionLabels and stripLabel', () => {
     expect(promptActionLabels('external-protocol')).toEqual({ allow: 'Open', block: 'Cancel' });
   });
 
+  it('names the buttons of a sign-in prompt', () => {
+    expect(promptActionLabels('http-auth')).toEqual({ allow: 'Sign in', block: 'Cancel' });
+  });
+
   it('names each region', () => {
     expect(stripLabel('permission')).toBe('Permission request');
     expect(stripLabel('external-protocol')).toBe('Open another app');
+    expect(stripLabel('http-auth')).toBe('Sign in');
     expect(stripLabel('blocked-popups')).toBe('Pop-up blocked');
   });
 });

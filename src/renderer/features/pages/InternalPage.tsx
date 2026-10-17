@@ -1,4 +1,6 @@
 import type { TabSnapshot } from '../../../shared/contracts/schemas';
+import { CertificateErrorPage } from './CertificateErrorPage';
+import { ClientCertificatePage } from './ClientCertificatePage';
 import { CrashedPage } from './CrashedPage';
 import { NetworkErrorPage } from './NetworkErrorPage';
 import { NewTabPage } from './NewTabPage';
@@ -15,6 +17,24 @@ export function InternalPage({ tab }: { readonly tab: TabSnapshot }) {
     case 'network-error':
       return (
         <NetworkErrorPage tabId={tab.id} address={tab.address.text} errorName={page.error?.name} />
+      );
+    case 'certificate-error':
+      return (
+        <CertificateErrorPage
+          tabId={tab.id}
+          address={tab.address.text}
+          errorName={page.error?.name}
+          canGoBack={tab.canGoBack}
+        />
+      );
+    case 'client-certificate':
+      return (
+        <ClientCertificatePage
+          tabId={tab.id}
+          address={tab.address.text}
+          errorName={page.error?.name}
+          canGoBack={tab.canGoBack}
+        />
       );
     case 'crashed':
       return <CrashedPage tabId={tab.id} reason={page.error?.name} />;

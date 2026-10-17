@@ -24,12 +24,19 @@ export function tabLabel(tab: DisplayableTab): string {
 
 export type TabStatus = 'crashed' | 'failed' | 'loading';
 
+/** The internal pages shown in place of a page that failed to load: the tab is "failed". */
+const FAILED_PAGES: ReadonlySet<string> = new Set([
+  'network-error',
+  'certificate-error',
+  'client-certificate',
+]);
+
 /** What a tab's leading icon signals, most urgent first. `null` means nothing special. */
 export function tabStatus(tab: DisplayableTab): TabStatus | null {
   if (tab.runtime === 'crashed' || (tab.page.kind === 'internal' && tab.page.name === 'crashed')) {
     return 'crashed';
   }
-  if (tab.page.kind === 'internal' && tab.page.name === 'network-error') {
+  if (tab.page.kind === 'internal' && FAILED_PAGES.has(tab.page.name)) {
     return 'failed';
   }
   return tab.loading ? 'loading' : null;
