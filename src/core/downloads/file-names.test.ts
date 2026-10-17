@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DANGEROUS_EXTENSIONS,
   MAX_FILE_NAME_LENGTH,
   extensionOf,
   isDangerousFileName,
@@ -85,5 +86,92 @@ describe('isDangerousFileName and extensionOf', () => {
     expect(extensionOf('noext')).toBe('');
     expect(extensionOf('.bashrc')).toBe('');
     expect(extensionOf('dot.')).toBe('');
+  });
+});
+
+describe('the dangerous-type list', () => {
+  const every = [...DANGEROUS_EXTENSIONS];
+
+  it('covers Chromium’s Windows executable types and the reviewer’s list', () => {
+    for (const type of [
+      'pif',
+      'cpl',
+      'msc',
+      'scf',
+      'url',
+      'website',
+      'application',
+      'appref-ms',
+      'chm',
+      'hlp',
+      'inf',
+      'msp',
+      'mst',
+      'vbe',
+      'wsh',
+      'wsc',
+      'sct',
+      'shb',
+      'shs',
+      'xbap',
+      'xll',
+      'psm1',
+      'psd1',
+      'ps1xml',
+      'ps2',
+      'ps2xml',
+      'psc1',
+      'psc2',
+      'dll',
+      'ocx',
+      'sys',
+      'drv',
+      'cab',
+      'settingcontent-ms',
+      'library-ms',
+      'searchconnector-ms',
+      'diagcab',
+      'appxbundle',
+      'msixbundle',
+      'appinstaller',
+      'mht',
+      'mhtml',
+      'msh',
+      'msh1',
+      'msh2',
+      'mshxml',
+      'msh1xml',
+      'msh2xml',
+    ]) {
+      expect(DANGEROUS_EXTENSIONS.has(type), type).toBe(true);
+    }
+  });
+
+  it.each(every)('holds .%s in any case, and with trailing dots or spaces', (type) => {
+    for (const name of [
+      `file.${type}`,
+      `FILE.${type.toUpperCase()}`,
+      `file.${type}.`,
+      `file.${type} `,
+      `file.${type}. . `,
+    ]) {
+      expect(isDangerousFileName(name), name).toBe(true);
+      // What lands on disk keeps its type, so it is held too.
+      expect(isDangerousFileName(sanitizeFileName(name)), name).toBe(true);
+    }
+  });
+
+  it('holds Setup.PIF. and leaves ordinary types alone', () => {
+    expect(isDangerousFileName('Setup.PIF.')).toBe(true);
+    for (const name of [
+      'photo.jpg',
+      'report.pdf',
+      'notes.txt',
+      'song.mp3',
+      'archive.zip',
+      'p.exe.txt',
+    ]) {
+      expect(isDangerousFileName(name), name).toBe(false);
+    }
   });
 });

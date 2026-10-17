@@ -156,7 +156,8 @@ export class DownloadManager {
 
   showInFolder(id: string): void {
     const record = this.#records.get(id);
-    if (record?.state === 'completed' && existsSync(record.path)) {
+    // Like Open: a dangerous file is not shown until the user keeps it (found by E2E).
+    if (record?.state === 'completed' && record.confirmed && existsSync(record.path)) {
       this.#files.showItemInFolder(record.path);
     }
   }

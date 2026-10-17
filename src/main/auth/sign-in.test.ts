@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { PromptManager } from '../prompts/prompt-manager';
-import { MAX_SIGN_IN_ATTEMPTS, cleanRealm, createLoginHandler } from './sign-in';
+import { EventEmitter } from 'node:events';
+
+import {
+  MAX_SIGN_IN_ATTEMPTS,
+  cleanRealm,
+  createLoginHandler,
+  trackMainFrameNavigations,
+} from './sign-in';
 
 const PAGE = 'https://intranet.example/home';
 
@@ -12,7 +19,15 @@ function setup() {
     now: () => (clock += 1_000),
   });
   prompts.setVisibleTab('tab-1');
-  const contents = { isDestroyed: () => false, getURL: () => PAGE };
+  const contents = Object.assign(new EventEmitter(), {
+    isDestroyed: () => false,
+    getURL: () => PAGE,
+  });
+  trackMainFrameNavigations(contents as never);
+  /** The tab's main frame starts navigating to `url`. */
+  const navigateMainFrame = (url: string): void => {
+    contents.emit('did-start-navigation', { url, isMainFrame: true, isSameDocument: false });
+  };
   const login = createLoginHandler({
     prompts,
     tabIdOf: (asked) => (asked === (contents as never) ? 'tab-1' : undefined),
@@ -62,7 +77,7 @@ function setup() {
     await Promise.resolve();
     await Promise.resolve();
   };
-  return { prompts, ask, answer, calls, contents, login };
+  return { prompts, ask, answer, calls, contents, login, navigateMainFrame };
 }
 
 describe('the sign-in prompt', () => {
@@ -88,7 +103,8 @@ describe('the sign-in prompt', () => {
   });
 
   it('warns about a password that would travel unencrypted', async () => {
-    const { prompts, ask } = setup();
+    const { prompts, ask, navigateMainFrame } = setup();
+    navigateMainFrame('http://intranet.example/private');
     ask({ url: 'http://intranet.example/private' });
     await Promise.resolve();
     expect(prompts.current('tab-1')).toMatchObject({ secure: false });
@@ -115,6 +131,21 @@ describe('the sign-in prompt', () => {
     expect(prompts.current('tab-1')).toBeNull();
     // The page's own origin may ask for a subresource.
     expect(ask({ nav: false })).toBe(true);
+  });
+
+  it('lets the main frame’s navigation to another site ask, but never a cross-origin frame’s', async () => {
+    const { prompts, ask, contents, navigateMainFrame } = setup();
+    // A cross-origin iframe navigates (Chromium flags it as a navigation too): refused.
+    expect(ask({ url: 'https://widget.example/login' })).toBe(false);
+    // The main frame itself goes there: it may ask, naming that server.
+    navigateMainFrame('https://widget.example/login');
+    expect(ask({ url: 'https://widget.example/login' })).toBe(true);
+    await Promise.resolve();
+    expect(prompts.current('tab-1')).toMatchObject({ site: 'widget.example' });
+    // Once the main frame stops, that origin no longer counts.
+    prompts.dismissAll('tab-1');
+    contents.emit('did-stop-loading');
+    expect(ask({ url: 'https://widget.example/login' })).toBe(false);
   });
 
   it('stops asking after repeated failed tries, until a fresh first attempt', async () => {

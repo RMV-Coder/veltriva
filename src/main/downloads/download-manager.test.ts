@@ -136,7 +136,7 @@ describe('DownloadManager', () => {
   });
 
   it('keeps a dangerous file under a name Windows won’t run until the user keeps it', async () => {
-    const { folder, manager, start, opened } = setup();
+    const { folder, manager, start, opened, shown } = setup();
     const item = start('setup.exe');
     expect(item.savePath).toBe(join(folder, 'setup.exe.unconfirmed'));
     item.finish();
@@ -147,6 +147,8 @@ describe('DownloadManager', () => {
     expect(opened).toEqual([]);
     manager.clear(id);
     expect(manager.has(id)).toBe(true);
+    manager.showInFolder(id);
+    expect(shown).toEqual([]);
 
     await manager.keep(id);
     expect(readdirSync(folder)).toEqual(['setup.exe']);

@@ -75,6 +75,9 @@ installSessionBaseline();
 // Test builds only: an uncaught exception fails the run instead of opening a modal dialog.
 if (import.meta.env.MODE === 'test') {
   exitOnUncaughtException();
+  // Chromium also creates temporary files in the Downloads folder (found by E2E): a test build's
+  // is in its own profile, so a test never touches the user's.
+  app.setPath('downloads', testDownloadsFolder());
 }
 
 app.on('window-all-closed', () => {
@@ -153,8 +156,10 @@ function start(): void {
   installPermissionBroker(browsing, { prompts, tabIdOf, logger: consoleLogger });
   // HTTP authentication: a sign-in question in the strip, never stored (src/main/auth).
   setLoginHandler(createLoginHandler({ prompts, tabIdOf, logger: consoleLogger }));
-  // Downloads (M1.4b): every session a page can download from. Test builds keep files in the
-  // test's own profile and never open them.
+  // Downloads (M1.4b): the browsing session, the only one a page can download from: tabs and
+  // popup windows use it, the shell has its own session, and DevTools save files without a
+  // download. The default session keeps the baseline's deny-all, so the surface stays small.
+  // Test builds keep files in the test's own profile and never open them.
   const downloads = new DownloadManager({
     folder: () =>
       import.meta.env.MODE === 'test' ? testDownloadsFolder() : app.getPath('downloads'),
@@ -164,10 +169,8 @@ function start(): void {
     },
     logger: consoleLogger,
   });
-  for (const downloadable of [browsing, session.defaultSession]) {
-    allowManagedDownloads(downloadable);
-    downloads.attach(downloadable);
-  }
+  allowManagedDownloads(browsing);
+  downloads.attach(browsing);
   setExternalNavigationHandler((contents, url) => {
     const tabId = tabIdOf(contents);
     if (tabId === undefined) {

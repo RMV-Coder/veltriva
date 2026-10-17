@@ -14,6 +14,7 @@ import type { ContextMenuParams, Event, Input, WebContentsView } from 'electron'
 
 import { isActivationInput } from '../../core/input/user-activation';
 import type { ActivationTracker } from '../../core/input/user-activation';
+import { trackMainFrameNavigations } from '../auth/sign-in';
 import type { Logger } from '../platform/logger';
 import type { WindowOpenHandler, WindowOpenSource } from '../popups/popup-policy';
 import { createViewWithRole } from '../web/roles';
@@ -69,6 +70,7 @@ export function createTabRuntimes(options: {
     /** Increases with each cross-document commit; stale favicon lookups are dropped. */
     let document = 0;
 
+    trackMainFrameNavigations(contents);
     contents.setWindowOpenHandler(
       options.windowOpenHandler({ contents, tabId: () => tabId, fromPopupWindow: false }),
     );

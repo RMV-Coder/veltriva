@@ -1,8 +1,11 @@
 // HTTP authentication (assessment §3.7): Electron cancels it unless the app answers `login`. The
 // MVP asks in the toolbar's strip, in trusted UI outside the page area (threat T6), and passes the
 // answer to Chromium once. Credentials are never stored, logged or shown again.
-//   - Only for a tab's page, and only for a navigation or a request to the page's own origin: a
-//     cross-origin image or script asking for a password is a phishing trick Chrome blocks too.
+//   - Only for a tab, and only for the page's own origin or the origin its main frame is
+//     navigating to. A cross-origin image or script, or a cross-origin iframe's navigation, can't
+//     ask: a password form inside a page from another site is a phishing shape. (Chrome lets an
+//     iframe's navigation ask; Veltriva doesn't, per the M1.4 brief.) `isRequestForNavigation`
+//     is true for iframes too, so main tracks each tab's main-frame navigations itself.
 //   - The prompt names the server from main's parse of the request URL. The realm is the server's
 //     own text, so it is cleaned and shown as such.
 //   - Proxy authentication is cancelled in the MVP (no proxy settings yet).
@@ -23,6 +26,30 @@ const UNSAFE_TEXT = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
 
 export function cleanRealm(realm: string): string {
   return realm.replace(UNSAFE_TEXT, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_REALM_LENGTH);
+}
+
+/** The URL each web contents' main frame is navigating to (or redirected to) right now. */
+const mainFrameTargets = new WeakMap<WebContents, string>();
+
+/** Tracks a tab's main-frame navigations, for the sign-in rule. Call once per tab contents. */
+export function trackMainFrameNavigations(contents: WebContents): void {
+  contents.on('did-start-navigation', (details) => {
+    if (details.isMainFrame && !details.isSameDocument) {
+      mainFrameTargets.set(contents, details.url);
+    }
+  });
+  contents.on('did-redirect-navigation', (details) => {
+    if (details.isMainFrame) {
+      mainFrameTargets.set(contents, details.url);
+    }
+  });
+  // Once the main frame commits or stops, it is going nowhere: a cancelled navigation's origin
+  // must not linger and let a frame of that origin ask later.
+  const forget = (): void => {
+    mainFrameTargets.delete(contents);
+  };
+  contents.on('did-navigate', forget);
+  contents.on('did-stop-loading', forget);
 }
 
 export function createLoginHandler(options: {
@@ -48,7 +75,11 @@ export function createLoginHandler(options: {
     if (contents === null || tabId === undefined || serverOrigin === null) {
       return false;
     }
-    if (!details.isRequestForNavigation && serverOrigin !== originOf(contents.getURL())) {
+    const pageOrigin = originOf(contents.getURL());
+    const target = mainFrameTargets.get(contents);
+    const navigationOrigin =
+      details.isRequestForNavigation && target !== undefined ? originOf(target) : null;
+    if (serverOrigin !== pageOrigin && serverOrigin !== navigationOrigin) {
       options.logger.warn('auth.crossOriginRefused');
       return false;
     }
