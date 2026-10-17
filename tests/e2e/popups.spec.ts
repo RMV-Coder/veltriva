@@ -154,6 +154,40 @@ async function messagesOfOpener(app: ElectronApplication, openerId: number): Pro
   return (await evaluateInTab(app, openerId, 'popupFixture.messages')) as unknown[];
 }
 
+/** Every web contents main knows, by id. */
+async function contentsIds(app: ElectronApplication): Promise<Set<number>> {
+  return new Set((await webContentsRoles(app)).map((entry) => entry.webContentsId));
+}
+
+/** Whether two web contents share a session (main's own objects, compared in main). */
+function sameSession(app: ElectronApplication, a: number, b: number): Promise<boolean> {
+  return app.evaluate(
+    ({ webContents }, ids) => {
+      const first = webContents.fromId(ids.a);
+      const second = webContents.fromId(ids.b);
+      return second !== undefined && first?.session === second.session;
+    },
+    { a, b },
+  );
+}
+
+/**
+ * Nothing unclaimed exists, and the guard never logged one: every web contents has the role its
+ * creator claimed (`unknown` would mean a claim missed; `none` that the guard never saw it).
+ */
+async function expectEveryContentsClaimed(
+  app: ElectronApplication,
+  warnings: { all(): Promise<{ readonly event: string }[]> },
+): Promise<void> {
+  const unclaimed = (await webContentsRoles(app)).filter(
+    (entry) => entry.role === 'unknown' || entry.role === 'none',
+  );
+  expect(unclaimed).toEqual([]);
+  expect((await warnings.all()).map((warning) => warning.event)).not.toContain(
+    'guard.unknownWebContents',
+  );
+}
+
 test.describe('popups', () => {
   test.beforeEach(async ({ electronApp, fixtureServer, shell }) => {
     await setSearchTemplate(electronApp, fixtureServer.url('/search?q={searchTerms}'));
@@ -435,6 +469,73 @@ test.describe('popups', () => {
         await evaluateInTab(electronApp, barId, "document.getElementById('address').textContent"),
       ).toBe('about:blank');
     });
+
+    // Every way a page opens a popup window, against what src/main/windows/popup-windows.ts and
+    // src/main/web/roles.ts rely on (re-checked for Electron 44.9.0, whose electron/electron#55048
+    // changed how windows opened from links are created):
+    //   - Chromium's pre-created contents arrives as `options.webContents`, and the popup window
+    //     hosts that one, opener, post body and all. Without it main refuses the popup, and had
+    //     main made a view of its own there would be a third new web contents below;
+    //   - `web-contents-created` fires between the handler and `createWindow`, in the same task, so
+    //     the `popup` claim the handler makes lands on that contents. If it ever missed,
+    //     `assertPopupContents` would close the contents and throw, which ends a test build (exit
+    //     70): the popup never appears and these tests fail;
+    //   - the contents is in the opener's session (the browsing session), not the default one.
+    const PRECREATED_ROUTES = [
+      {
+        name: 'a sized window.open',
+        selector: '#open-popup',
+        url: (server: FixtureServer) => server.url(`${CHILD_PATH}?from=opener`),
+      },
+      {
+        name: 'a sized window.open to another site',
+        selector: '#open-cross',
+        url: (server: FixtureServer) => `${server.otherSiteOrigin}${CHILD_PATH}?from=opener`,
+      },
+      { name: 'a blank sized window.open', selector: '#open-blank', url: () => 'about:blank' },
+      {
+        name: 'a form posted to a new window',
+        selector: '#post-submit',
+        url: (server: FixtureServer) => server.url(`${CHILD_PATH}?from=post`),
+      },
+    ] as const;
+
+    for (const route of PRECREATED_ROUTES) {
+      test(`${route.name} hosts Chromium's pre-created contents, and the popup claim lands on it`, async ({
+        electronApp,
+        fixtureServer,
+        shell,
+      }) => {
+        const warnings = await recordMainWarnings(electronApp);
+        const opener = await loadOpener(electronApp, shell, fixtureServer);
+        const before = await contentsIds(electronApp);
+
+        await clickElement(electronApp, opener.webContentsId, route.selector);
+        const popup = await waitForPopupAt(electronApp, route.url(fixtureServer));
+
+        const roles = await webContentsRoles(electronApp);
+        expect(roles.find((entry) => entry.webContentsId === popup.webContentsId)?.role).toBe(
+          'popup',
+        );
+        // The only new web contents are the popup's page and its address bar.
+        expect(
+          roles
+            .filter((entry) => !before.has(entry.webContentsId))
+            .map((entry) => entry.role)
+            .sort(),
+        ).toEqual(['popup', 'shell']);
+        await expectEveryContentsClaimed(electronApp, warnings);
+        expect(await sameSession(electronApp, popup.webContentsId, opener.webContentsId)).toBe(
+          true,
+        );
+        if (route.selector === '#post-submit') {
+          // The body went with it: the server saw the form posted, not a GET.
+          expect(fixtureServer.requestsTo(CHILD_PATH).map((request) => request.method)).toContain(
+            'POST',
+          );
+        }
+      });
+    }
   });
 
   test.describe('closing', () => {
@@ -507,6 +608,34 @@ test.describe('popups', () => {
         popup.webContentsId,
       ]);
       expect(await webContentsExists(electronApp, popup.webContentsId)).toBe(true);
+    });
+
+    test('a popup outlives its opener tab closing (outlivesOpener), and still closes cleanly', async ({
+      electronApp,
+      fixtureServer,
+      shell,
+    }) => {
+      const { opener, popup } = await openPopup(electronApp, shell, fixtureServer);
+      const openerContents = opener.webContentsId;
+
+      // Ctrl+W in the opener's page: its tab and its web contents go (a new tab replaces it).
+      await sendKey(electronApp, openerContents, 'W', ['control']);
+      await expect
+        .poll(() => webContentsExists(electronApp, openerContents), {
+          message: "the opener's web contents should be destroyed",
+        })
+        .toBe(false);
+      expect(await tabState(electronApp, opener.tabId)).toBeUndefined();
+
+      // The popup is still there, still live, still showing its page.
+      await delay(500);
+      const [still] = await waitForPopups(electronApp, 1);
+      expect(still?.webContentsId).toBe(popup.webContentsId);
+      expect(still?.bar.text).toBe(fixtureServer.url(`${CHILD_PATH}?from=opener`));
+      expect(await evaluateInTab(electronApp, popup.webContentsId, '1 + 1')).toBe(2);
+
+      await closeWindowShowing(electronApp, popup.webContentsId);
+      await expectPopupGone(electronApp, popup);
     });
   });
 
@@ -608,6 +737,86 @@ test.describe('popups', () => {
       await waitForPage(electronApp, created, { url: target });
       expect(await popupWindows(electronApp)).toEqual([]);
     });
+
+    // Since Electron 44.9.0 (electron/electron#55048) a link opened into a new tab or window
+    // reaches the handler the way window.open does, and Chromium would create its contents if the
+    // handler allowed it. Veltriva denies every link and opens a tab of its own, so each gesture
+    // must add exactly one web contents, the new tab's: no pre-created contents is ever made,
+    // claimed or left unclaimed, and the opener stays where it was.
+    const LINK_GESTURES = [
+      {
+        name: 'a target=_blank click',
+        selector: '#blank-link',
+        from: 'link',
+        click: {},
+        background: false,
+      },
+      {
+        name: 'a Ctrl+click',
+        selector: '#plain-link',
+        from: 'plain',
+        click: { modifiers: ['control'] },
+        background: true,
+      },
+      {
+        name: 'a middle click',
+        selector: '#plain-link',
+        from: 'plain',
+        click: { button: 'middle' },
+        background: true,
+      },
+      {
+        name: 'a Shift+click',
+        selector: '#plain-link',
+        from: 'plain',
+        click: { modifiers: ['shift'] },
+        background: false,
+      },
+    ] as const;
+
+    for (const gesture of LINK_GESTURES) {
+      test(`${gesture.name} on a link opens one ${gesture.background ? 'background' : 'foreground'} tab and creates no other web contents`, async ({
+        electronApp,
+        fixtureServer,
+        shell,
+      }) => {
+        const warnings = await recordMainWarnings(electronApp);
+        const opener = await loadOpener(electronApp, shell, fixtureServer);
+        const openerUrl = fixtureServer.url('/popup-opener.html');
+        const tabsBefore = await tabIds(electronApp);
+        const contentsBefore = await contentsIds(electronApp);
+        const target = fixtureServer.url(`${CHILD_PATH}?from=${gesture.from}`);
+
+        await clickElement(electronApp, opener.webContentsId, gesture.selector, gesture.click);
+
+        await expect
+          .poll(async () => (await tabIds(electronApp)).length)
+          .toBe(tabsBefore.length + 1);
+        const ids = await tabIds(electronApp);
+        const created = ids.find((id) => !tabsBefore.includes(id)) ?? '';
+        expect(ids.indexOf(created)).toBe(ids.indexOf(opener.tabId) + 1);
+        await expect
+          .poll(async () => (await tabState(electronApp, created))?.url, {
+            message: 'the new tab should load the link',
+          })
+          .toBe(target);
+        expect(await selectedTabId(electronApp)).toBe(gesture.background ? opener.tabId : created);
+
+        // Exactly one new web contents: the tab's own, with the tab role.
+        const createdContents = (await tabState(electronApp, created))?.webContentsId ?? -1;
+        const added = (await webContentsRoles(electronApp)).filter(
+          (entry) => !contentsBefore.has(entry.webContentsId),
+        );
+        expect(added).toEqual([
+          expect.objectContaining({ webContentsId: createdContents, role: 'tab' }),
+        ]);
+        await expectEveryContentsClaimed(electronApp, warnings);
+        expect(await popupWindows(electronApp)).toEqual([]);
+        expect(await allWindows(electronApp)).toHaveLength(1);
+        // The click didn't also navigate the opener.
+        expect((await tabState(electronApp, opener.tabId))?.url).toBe(openerUrl);
+      });
+    }
   });
 
   test.describe('refused URLs', () => {

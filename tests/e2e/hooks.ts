@@ -809,6 +809,8 @@ export interface PagePoint {
 export interface ClickOptions {
   /** Held during the click: `control` makes a link open in a background tab. */
   readonly modifiers?: readonly KeyModifier[];
+  /** The mouse button; `middle` on a link opens it in a background tab. Left by default. */
+  readonly button?: 'left' | 'middle';
 }
 
 /**
@@ -825,7 +827,7 @@ export async function clickInPage(
   options: ClickOptions = {},
 ): Promise<void> {
   await app.evaluate(
-    ({ webContents }, { id, px, py, held }) => {
+    ({ webContents }, { id, px, py, held, button }) => {
       const contents = webContents.fromId(id);
       if (contents === undefined || contents.isDestroyed()) {
         throw new Error(`clickInPage: no web contents ${String(id)}`);
@@ -835,7 +837,7 @@ export async function clickInPage(
         type: 'mouseDown',
         x: px,
         y: py,
-        button: 'left',
+        button,
         clickCount: 1,
         modifiers: held,
       });
@@ -843,12 +845,18 @@ export async function clickInPage(
         type: 'mouseUp',
         x: px,
         y: py,
-        button: 'left',
+        button,
         clickCount: 1,
         modifiers: held,
       });
     },
-    { id: webContentsId, px: x, py: y, held: [...(options.modifiers ?? [])] },
+    {
+      id: webContentsId,
+      px: x,
+      py: y,
+      held: [...(options.modifiers ?? [])],
+      button: options.button ?? 'left',
+    },
   );
 }
 

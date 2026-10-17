@@ -56,6 +56,15 @@
       <a id="blank-link" class="link" target="_blank" href="/popup-child.html?from=link"
         >target=_blank link</a
       >
+      <a id="plain-link" class="link" href="/popup-child.html?from=plain">plain link</a>
+    </div>
+    <div class="row">
+      <!-- A form that posts into a new window: its body lives only in Chromium's pre-created
+           contents, so the policy hosts it in a popup window. -->
+      <form id="post-form" method="post" action="/popup-child.html?from=post" target="_blank">
+        <input type="hidden" name="field" value="posted" />
+        <button id="post-submit" type="submit">Post to a new window</button>
+      </form>
     </div>
 
     <script>
