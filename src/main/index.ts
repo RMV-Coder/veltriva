@@ -43,6 +43,7 @@ import { LIFECYCLE_SCENARIO_ENV, runLifecycleScenario } from './testing/lifecycl
 import { installTestHooks } from './testing/test-hooks';
 import { ClientHints } from './web/client-hints';
 import { installWebContentsGuard, setExternalNavigationHandler } from './web/guard';
+import { installRequestHeaders } from './web/request-headers';
 import {
   allowManagedDownloads,
   hardenSession,
@@ -173,10 +174,10 @@ function start(): void {
   allowManagedDownloads(browsing);
   downloads.attach(browsing);
   // Client hints: navigations carry the Sec-CH-UA headers Chrome sends, with Chromium's own
-  // values, read from the shell once it has loaded. Without them Google's sign-in refuses the
-  // browser as embedded (manual check M1).
+  // values, read from the shell once it has loaded. Google's sign-in still warned without a
+  // Firefox user agent for accounts.google.com (manual check M1), so that host gets one.
   const clientHints = new ClientHints(consoleLogger);
-  clientHints.attach(browsing);
+  installRequestHeaders(browsing, { clientHints });
   main.shell.webContents.once('did-finish-load', () => {
     void clientHints.readFrom(main.shell.webContents);
   });

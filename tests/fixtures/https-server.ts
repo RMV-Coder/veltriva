@@ -5,6 +5,7 @@
 // A browser that refuses the certificate stops at the handshake, so `requestsServed()` stays at 0
 // and `handshakeFailures()` counts the refusals: that is how a spec shows nothing was sent to a
 // server whose certificate Veltriva could not trust.
+import type { IncomingHttpHeaders } from 'node:http';
 import { createServer } from 'node:https';
 import type { Server } from 'node:https';
 import type { AddressInfo } from 'node:net';
@@ -17,9 +18,16 @@ export interface HttpsFixtureServer {
   url(pathAndQuery: string): string;
   /** Requests that got a response: handshakes the browser accepted. */
   requestsServed(): number;
+  /** Every request that got a response, in order: its path and query, and its headers. */
+  requests(): readonly HttpsRequest[];
   /** TLS handshakes that failed, which is what a refused certificate looks like to the server. */
   handshakeFailures(): number;
   close(): Promise<void>;
+}
+
+export interface HttpsRequest {
+  readonly url: string;
+  readonly headers: IncomingHttpHeaders;
 }
 
 export interface HttpsFixtureOptions {
@@ -39,6 +47,7 @@ export async function startHttpsFixtureServer(
 ): Promise<HttpsFixtureServer> {
   let served = 0;
   let failures = 0;
+  const received: HttpsRequest[] = [];
 
   const server: Server = createServer(
     {
@@ -50,6 +59,7 @@ export async function startHttpsFixtureServer(
     },
     (request, response) => {
       served += 1;
+      received.push({ url: request.url ?? '/', headers: { ...request.headers } });
       const body =
         '<!doctype html><html lang="en"><head><meta charset="utf-8" />' +
         '<title>Secure fixture</title></head><body><p>This page was served over TLS.</p></body></html>';
@@ -75,6 +85,7 @@ export async function startHttpsFixtureServer(
     origin,
     url: (pathAndQuery) => `${origin}${pathAndQuery}`,
     requestsServed: () => served,
+    requests: () => [...received],
     handshakeFailures: () => failures,
     close: () =>
       new Promise<void>((resolveClosed, rejectClosed) => {

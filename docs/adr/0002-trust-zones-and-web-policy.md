@@ -189,13 +189,19 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - A page's own navigation, top-level or in a frame, carries no `Sec-CH-UA*` headers. Chromium adds them to subresources only, because Electron gives it no client-hints delegate.
      - `Accept-CH` is ignored.
      - So every page load says "Chromium 152" in `User-Agent` but carries none of the headers every Chromium 152 sends.
-   - **The fix keeps the hints honest.** Main adds the missing headers with Chromium's own values, which the shell reads once from `navigator.userAgentData` (validated, and before any web page can be visited). The brands stay what pages see: "Chromium", never "Google Chrome". The user agent stays the cleaned Chromium one (item 4, S7).
+   - **The fix keeps the hints honest** (on its own it wasn't enough; see the retest below). Main adds the missing headers with Chromium's own values, which the shell reads once from `navigator.userAgentData` (validated, and before any web page can be visited). The brands stay what pages see: "Chromium", never "Google Chrome". The user agent stays the cleaned Chromium one (item 4, S7).
      - **Every document request** (top-level or frame) gets each default hint it lacks: `Sec-CH-UA`, `-Mobile`, `-Platform`. They are byte-for-byte what Chromium sends on a `fetch` from the same page (E2E).
      - **An origin that asks with `Accept-CH` on a top-level page** gets the opt-in hints it named on its later requests, subresources included: architecture, bitness, form factors, full version and full version list, model, platform version, WoW64. A frame's `Accept-CH` counts for nothing, and an opt-in is never extended to another origin, as in Chrome.
      - **Opt-ins last until the app quits** (at most 500 origins). Chrome keeps them on disk; that waits for Phase 2.
      - **Only to potentially trustworthy URLs** (https, or http on loopback), and **never replacing a header Chromium set**.
      - **Not done:** `Critical-CH` retries, and delegation to third parties through `Permissions-Policy`. A frame of an opted-in origin gets its hints even if the embedding page's policy would withhold them in Chrome; only the origin that asked receives them.
-   - **Retest passed (2026-10-18):** with this fix, the user signed in to Google in the packaged build. The per-site Firefox user agent (assessment §3.7, as in Min) stays an unused fallback. If Google starts refusing again, check the client hints first.
+   - **Retest (2026-10-18, corrected 2026-10-19):** with this fix alone, the user could sign in, but Google still answered the first attempt with "Couldn't sign you in". Its "Try again" button then let the user in, sometimes after a one-time code. An earlier note here said the retest simply passed; it didn't. The client hints stay: they are what Chrome sends.
+   - **Then the fallback, a per-site user agent** (assessment §3.7; the user approved it after this retest; the code is in `src/core/net/site-user-agent.ts`, applied by `src/main/web/request-headers.ts`). It does what Min browser has long done (minbrowser/min#868):
+     - Requests to `accounts.google.com`, and to no other host, carry **Firefox's user agent** for 64-bit Windows in their `User-Agent` header. That includes the page and its own requests, in tabs and popup windows.
+     - **Only that header changes**, as in Min. The client hints and the page's `navigator.userAgent` stay Chromium's. That is inconsistent on purpose: it is the combination known to work, and faking more of Firefox in the page would be deception beyond a user-agent string.
+     - **The Firefox version is estimated from the release cadence:** 158 on 2026-10-13, plus one per 4.1 weeks. That keeps it at or just behind the latest release without a list to update (Min's rule).
+     - **E2E never contacts Google.** `--host-resolver-rules` maps `accounts.google.com` to a local HTTPS fixture and makes every other name unresolvable.
+     - **Retest of the fallback:** pending, by the user.
 
 ## Consequences
 
