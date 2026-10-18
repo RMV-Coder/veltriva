@@ -321,12 +321,18 @@ export async function recordWorkspaceSnapshots(shell: Page) {
 /** One pixel of slack for display-scaling rounding. */
 const PIXEL_TOLERANCE = 1;
 
+/**
+ * Whether two rectangles have the same edges, each within the tolerance. Edges, not sizes: main
+ * rounds every inset of a fractional box inward (src/core/layout/rect.ts), so each edge moves by
+ * under a pixel but the size can shrink by up to two (found at 125% scaling: a box at y=198.39,
+ * 564.01 tall, became 199 and 563).
+ */
 function sameRect(a: Rect, b: Rect): boolean {
   return (
     Math.abs(a.x - b.x) <= PIXEL_TOLERANCE &&
     Math.abs(a.y - b.y) <= PIXEL_TOLERANCE &&
-    Math.abs(a.width - b.width) <= PIXEL_TOLERANCE &&
-    Math.abs(a.height - b.height) <= PIXEL_TOLERANCE
+    Math.abs(a.x + a.width - (b.x + b.width)) <= PIXEL_TOLERANCE &&
+    Math.abs(a.y + a.height - (b.y + b.height)) <= PIXEL_TOLERANCE
   );
 }
 
