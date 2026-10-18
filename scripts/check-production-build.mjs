@@ -27,6 +27,7 @@ const MARKERS = [
   'invokeTabMenuItem',
   'viewStack',
   'externalLaunches',
+  'clientHintsReady',
   // src/main/testing/external-launches.ts: test builds record app launches instead of making them
   'recordExternalLaunch',
   'recordedExternalLaunches',

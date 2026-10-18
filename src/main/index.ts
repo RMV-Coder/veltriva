@@ -41,6 +41,7 @@ import { exitOnUncaughtException } from './testing/fail-fast';
 import { recordingFileActions, testDownloadsFolder } from './testing/test-files';
 import { LIFECYCLE_SCENARIO_ENV, runLifecycleScenario } from './testing/lifecycle-scenarios';
 import { installTestHooks } from './testing/test-hooks';
+import { ClientHints } from './web/client-hints';
 import { installWebContentsGuard, setExternalNavigationHandler } from './web/guard';
 import {
   allowManagedDownloads,
@@ -171,6 +172,14 @@ function start(): void {
   });
   allowManagedDownloads(browsing);
   downloads.attach(browsing);
+  // Client hints: navigations carry the Sec-CH-UA headers Chrome sends, with Chromium's own
+  // values, read from the shell once it has loaded. Without them Google's sign-in refuses the
+  // browser as embedded (manual check M1).
+  const clientHints = new ClientHints(consoleLogger);
+  clientHints.attach(browsing);
+  main.shell.webContents.once('did-finish-load', () => {
+    void clientHints.readFrom(main.shell.webContents);
+  });
   setExternalNavigationHandler((contents, url) => {
     const tabId = tabIdOf(contents);
     if (tabId === undefined) {
@@ -377,6 +386,7 @@ function start(): void {
       contextMenus,
       fullscreen,
       popupWindows,
+      clientHints,
     });
     const scenario = process.env[LIFECYCLE_SCENARIO_ENV];
     if (scenario !== undefined && scenario !== '') {

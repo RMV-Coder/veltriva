@@ -714,6 +714,19 @@ export async function recordInputs(app: ElectronApplication, webContentsId: numb
   return { all: (): Promise<InputRecord[]> => handle.jsonValue() };
 }
 
+// ── Phase 1 wrap-up: client hints ───────────────────────────────────────────────────────────────
+
+/** Whether main has read Chromium's client-hint values, so navigations carry the hints. */
+export function clientHintsReady(app: ElectronApplication): Promise<boolean> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.clientHintsReady();
+  });
+}
+
 // ── M1.4a: gestures, popups, external launches ──────────────────────────────────────────────────
 
 /** Every URL the external-protocol guard launched. Test builds record launches and open nothing. */

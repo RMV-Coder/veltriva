@@ -15,6 +15,7 @@ import { createViewWithRole, roleOf } from '../web/roles';
 import type { WebContentsRole } from '../web/web-contents-role';
 import { TAB_WEB_PREFERENCES } from '../web/web-preferences';
 import type { FullscreenController, FullscreenState } from '../windows/fullscreen';
+import type { ClientHints } from '../web/client-hints';
 import type { LayoutManager } from '../windows/layout-manager';
 import type { MainWindow } from '../windows/main-window';
 import type { PopupWindowInfo, PopupWindows } from '../windows/popup-windows';
@@ -81,6 +82,8 @@ export interface VeltrivaTestHooks {
   externalLaunches(): string[];
   /** The open popup windows, with what their address bar shows and their layout. */
   popupWindows(): PopupWindowInfo[];
+  /** Whether main knows Chromium's client-hint values, so navigations carry the hints. */
+  clientHintsReady(): boolean;
   /** Every Open and Show in folder the download manager asked for (recorded, never done). */
   recordedFileActions(): { readonly action: 'open' | 'show'; readonly path: string }[];
   /** Where a test build saves downloads: a folder in the test's own profile. */
@@ -99,6 +102,7 @@ export interface TestHookContext {
   readonly contextMenus: ContextMenus;
   readonly fullscreen: FullscreenController;
   readonly popupWindows: PopupWindows;
+  readonly clientHints: ClientHints;
 }
 
 /** A plain right-click on the page, at the top-left corner of the view. */
@@ -131,6 +135,7 @@ export function installTestHooks({
   contextMenus,
   fullscreen,
   popupWindows,
+  clientHints,
 }: TestHookContext): void {
   const testTabs = new Set<WebContentsView>();
   const paramsFrom = (params: Partial<MenuParams> = {}): MenuParams => ({
@@ -238,6 +243,10 @@ export function installTestHooks({
 
     popupWindows() {
       return popupWindows.list();
+    },
+
+    clientHintsReady() {
+      return clientHints.ready();
     },
 
     recordedFileActions() {

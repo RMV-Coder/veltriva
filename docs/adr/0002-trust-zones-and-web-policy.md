@@ -184,6 +184,18 @@ A browser loads hostile content by definition. Electron's defaults assume truste
        - A cross-origin image or script can't ask for a password, and neither can a cross-origin iframe's navigation. Chrome lets an iframe ask; Veltriva doesn't (M1.4 brief, decided in the M1.4b review): a password form inside a page from another site is a phishing shape.
        - Chromium flags iframe loads as navigations too, so main tracks each tab's main-frame navigation target itself (`did-start-navigation`, `did-redirect-navigation`). It forgets the target when the frame commits or stops.
      - **Limits:** proxy authentication is cancelled. After three failed tries a server stops getting prompts until a fresh first attempt. An unencrypted connection gets a warning.
+11. **Client hints** (after manual check M1; the code is in `src/core/net/client-hints.ts` and `src/main/web/client-hints.ts`). Google's sign-in refused Veltriva ("Couldn't sign you in: This browser or app may not be secure", 2026-10-18, on 44.9.0), as it refuses embedded browsers.
+   - **What was different from Chrome** (*measured* on 44.9.0, as S7 found on 44.7.2):
+     - A page's own navigation, top-level or in a frame, carries no `Sec-CH-UA*` headers. Chromium adds them to subresources only, because Electron gives it no client-hints delegate.
+     - `Accept-CH` is ignored.
+     - So every page load says "Chromium 152" in `User-Agent` but carries none of the headers every Chromium 152 sends.
+   - **The fix keeps the hints honest.** Main adds the missing headers with Chromium's own values, which the shell reads once from `navigator.userAgentData` (validated, and before any web page can be visited). The brands stay what pages see: "Chromium", never "Google Chrome". The user agent stays the cleaned Chromium one (item 4, S7).
+     - **Every document request** (top-level or frame) gets each default hint it lacks: `Sec-CH-UA`, `-Mobile`, `-Platform`. They are byte-for-byte what Chromium sends on a `fetch` from the same page (E2E).
+     - **An origin that asks with `Accept-CH` on a top-level page** gets the opt-in hints it named on its later requests, subresources included: architecture, bitness, form factors, full version and full version list, model, platform version, WoW64. A frame's `Accept-CH` counts for nothing, and an opt-in is never extended to another origin, as in Chrome.
+     - **Opt-ins last until the app quits** (at most 500 origins). Chrome keeps them on disk; that waits for Phase 2.
+     - **Only to potentially trustworthy URLs** (https, or http on loopback), and **never replacing a header Chromium set**.
+     - **Not done:** `Critical-CH` retries, and delegation to third parties through `Permissions-Policy`. A frame of an opted-in origin gets its hints even if the embedding page's policy would withhold them in Chrome; only the origin that asked receives them.
+   - **If Google still refuses** after this, the fallback is the per-site Firefox user agent for `accounts.google.com` (assessment §3.7, as in Min). The user approved that fallback, but only if this fix fails their retest.
 
 ## Consequences
 

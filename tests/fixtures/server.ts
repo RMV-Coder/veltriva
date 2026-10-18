@@ -177,6 +177,14 @@ async function route(
     case '/echo-headers':
       respond(response, 200, 'application/json; charset=utf-8', JSON.stringify(request.headers));
       return;
+    case '/client-hints-opt-in':
+      // A page that asks for every opt-in client hint (tests/e2e/client-hints.spec.ts).
+      respond(response, 200, HTML, '<!doctype html><title>Asks for client hints</title>', {
+        'Accept-CH':
+          'Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Form-Factors, Sec-CH-UA-Full-Version, ' +
+          'Sec-CH-UA-Full-Version-List, Sec-CH-UA-Model, Sec-CH-UA-Platform-Version, Sec-CH-UA-WoW64',
+      });
+      return;
     case '/download':
       respond(response, 200, 'application/octet-stream', DOWNLOAD_BODY, {
         'Content-Disposition': `attachment; filename="${DOWNLOAD_FILE_NAME}"`,
