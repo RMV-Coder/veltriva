@@ -201,7 +201,7 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - **Only that header changes**, as in Min. The client hints and the page's `navigator.userAgent` stay Chromium's. That is inconsistent on purpose: it is the combination known to work, and faking more of Firefox in the page would be deception beyond a user-agent string.
      - **The Firefox version is estimated from the release cadence:** 158 on 2026-10-13, plus one per 4.1 weeks. That keeps it at or just behind the latest release without a list to update (Min's rule).
      - **E2E never contacts Google.** `--host-resolver-rules` maps `accounts.google.com` to a local HTTPS fixture and makes every other name unresolvable.
-     - **Retest of the fallback:** pending, by the user.
+     - **Retest of the fallback (2026-10-19): passed.** In the packaged build, the user's Google sign-in went straight through, with no warning and no "Try again".
 
 ## Consequences
 
