@@ -195,7 +195,7 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - **Opt-ins last until the app quits** (at most 500 origins). Chrome keeps them on disk; that waits for Phase 2.
      - **Only to potentially trustworthy URLs** (https, or http on loopback), and **never replacing a header Chromium set**.
      - **Not done:** `Critical-CH` retries, and delegation to third parties through `Permissions-Policy`. A frame of an opted-in origin gets its hints even if the embedding page's policy would withhold them in Chrome; only the origin that asked receives them.
-   - **If Google still refuses** after this, the fallback is the per-site Firefox user agent for `accounts.google.com` (assessment §3.7, as in Min). The user approved that fallback, but only if this fix fails their retest.
+   - **Retest passed (2026-10-18):** with this fix, the user signed in to Google in the packaged build. The per-site Firefox user agent (assessment §3.7, as in Min) stays an unused fallback. If Google starts refusing again, check the client hints first.
 
 ## Consequences
 
