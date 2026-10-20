@@ -271,6 +271,10 @@ export async function dragTab(
   edge: 'before' | 'after',
   duringDrag?: () => Promise<void>,
 ): Promise<void> {
+  // Right after a pin the sidebar re-renders its sections, and a row can be off screen for a
+  // moment (found by repeating the tabs spec): measure only once both are shown.
+  await expect(tabElement(shell, tabId)).toBeVisible();
+  await expect(tabElement(shell, onto)).toBeVisible();
   const from = await tabElement(shell, tabId).boundingBox();
   const to = await tabElement(shell, onto).boundingBox();
   if (from === null || to === null) {
@@ -287,6 +291,10 @@ export async function dragTab(
   await shell.mouse.move(x, startY + (endY >= startY ? 8 : -8));
   await shell.mouse.move(x, endY, { steps: 6 });
   try {
+    // Release only once the shell shows where the tab would land. On a loaded machine the moves
+    // can all be sent before the shell has started the drag, and then the release drops nothing
+    // (the drag-reorder intermittent, M1.3b to M2.1b).
+    await expect(shell.locator('[data-drop-indicator]')).toHaveCount(1);
     await duringDrag?.();
   } finally {
     await shell.mouse.up();
