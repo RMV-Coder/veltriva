@@ -15,7 +15,8 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3/win32-x64';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { BUSY_TIMEOUT_MS, CACHE_SIZE, KEPT_UPGRADE_BACKUPS, openDatabase } from './database';
+import { KEPT_BACKUPS } from './backups';
+import { BUSY_TIMEOUT_MS, CACHE_SIZE, openDatabase } from './database';
 import type { OpenedDatabase } from './database';
 import { DataError } from './errors';
 import { LATEST_VERSION, MIGRATIONS } from './migrations';
@@ -259,7 +260,7 @@ describe('the version 1 fixture', () => {
       'veltriva-v0-before-v1-2026-03-01T00-00-00Z.db',
       'veltriva-v1-before-v2-2026-10-21T08-30-15Z.db',
     ]);
-    expect(KEPT_UPGRADE_BACKUPS).toBe(3);
+    expect(KEPT_BACKUPS).toBe(3);
   });
 });
 

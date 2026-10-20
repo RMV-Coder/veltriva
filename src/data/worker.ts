@@ -6,11 +6,13 @@ import { parentPort, threadId, workerData } from 'node:worker_threads';
 
 import { dataWorkerOptionsSchema } from '../shared/contracts/data-rpc';
 import type { DataMessage } from '../shared/contracts/data-rpc';
-import { openDatabase } from './database';
 import { toErrorInfo } from './errors';
+import { Maintenance } from './maintenance';
 import { LATEST_VERSION } from './migrations';
 import { createRepositoryHandlers } from './repos';
 import { createDataServer } from './server';
+import { startDatabase } from './startup';
+import { holdThread, isHoldMessage } from './testing/hold';
 
 async function main(): Promise<void> {
   const port = parentPort;
@@ -27,32 +29,51 @@ async function main(): Promise<void> {
     port.close();
     return;
   }
-  let opened;
+  let started;
   try {
-    opened = await openDatabase(options.data);
+    started = await startDatabase(options.data);
   } catch (error) {
     post({ kind: 'fatal', error: toErrorInfo(error) });
     port.close();
     return;
   }
 
+  const { db } = started.opened;
   const server = createDataServer(
-    { db: opened.db, latestVersion: LATEST_VERSION, threadId },
-    createRepositoryHandlers(opened.db),
+    {
+      db,
+      file: options.data.file,
+      latestVersion: LATEST_VERSION,
+      threadId,
+      maintenance: new Maintenance(db, options.data),
+    },
+    createRepositoryHandlers(db),
   );
   // Messages main sent while the database was opening wait in the port until this listener
   // exists; main sends none before `ready` anyway.
   port.on('message', (message: unknown) => {
-    const { reply, closed } = server.handle(message);
-    if (reply !== null) {
-      post(reply);
+    if (import.meta.env.MODE === 'test' && isHoldMessage(message)) {
+      holdThread(db, message.ms);
+      return;
     }
-    if (closed) {
-      // Nothing else keeps this thread alive: it exits once the reply is flushed.
-      port.close();
-    }
+    void Promise.resolve(server.handle(message)).then(({ reply, closed }) => {
+      if (reply !== null) {
+        post(reply);
+      }
+      if (closed) {
+        // Nothing else keeps this thread alive: it exits once the reply is flushed.
+        port.close();
+      }
+    });
   });
-  post({ kind: 'ready', userVersion: opened.userVersion });
+  post({
+    kind: 'ready',
+    userVersion: started.opened.userVersion,
+    runId: started.runId,
+    previousExit: started.previousExit,
+    checked: started.checked,
+    recovery: started.recovery,
+  });
 }
 
 void main();

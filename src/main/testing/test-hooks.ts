@@ -10,7 +10,11 @@ import { isDataMethod } from '../../shared/contracts/data-rpc';
 import type { ContextMenus } from '../menus/context-menu';
 import type { MenuEntry, MenuItemId, MenuParams } from '../menus/context-menu-model';
 import { DataClientError } from '../persistence/data-client';
-import type { DataClient } from '../persistence/data-client';
+import type { DataClient, DataReady } from '../persistence/data-client';
+import type { DataLifecycle } from '../persistence/data-lifecycle';
+import type { AppNotice, AppNotices } from '../notices/app-notices';
+import { holdDataWorker } from './data-hold';
+import type { Worker } from 'node:worker_threads';
 import type { TabMenuEntry, TabMenuItemId } from '../menus/tab-menu-model';
 import { setSearchTemplate } from '../navigation/search-engine';
 import type { TabId, TabManager, TabState } from '../tabs/tab-manager';
@@ -108,6 +112,12 @@ export interface VeltrivaTestHooks {
    * data worker, whose registry is separate (ADR-0004).
    */
   mainNativeModules(): string[];
+  /** What the data worker reported on opening, or null if it failed to open. */
+  dataReady(): Promise<DataReady | null>;
+  /** Keeps the data worker inside one SQLite statement for about `ms` (src/data/testing/hold.ts). */
+  holdDataWorker(ms: number): void;
+  /** The notices the shell shows about Veltriva itself. */
+  notices(): AppNotice[];
 }
 
 declare global {
@@ -124,6 +134,9 @@ export interface TestHookContext {
   readonly popupWindows: PopupWindows;
   readonly clientHints: ClientHints;
   readonly data: DataClient;
+  readonly dataWorker: Worker;
+  readonly dataLifecycle: DataLifecycle;
+  readonly notices: AppNotices;
 }
 
 /** A plain right-click on the page, at the top-left corner of the view. */
@@ -158,6 +171,8 @@ export function installTestHooks({
   popupWindows,
   clientHints,
   data,
+  dataWorker,
+  notices,
 }: TestHookContext): void {
   const testTabs = new Set<WebContentsView>();
   const paramsFrom = (params: Partial<MenuParams> = {}): MenuParams => ({
@@ -298,6 +313,18 @@ export function installTestHooks({
 
     mainNativeModules() {
       return Object.keys(require.cache).filter((path) => path.endsWith('.node'));
+    },
+
+    async dataReady() {
+      return data.ready.catch(() => null);
+    },
+
+    holdDataWorker(ms) {
+      holdDataWorker(dataWorker, ms);
+    },
+
+    notices() {
+      return [...notices.list()];
     },
   };
 

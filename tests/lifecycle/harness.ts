@@ -35,14 +35,32 @@ export interface ScenarioRun<T> {
   readonly events: readonly unknown[];
 }
 
+export interface ScenarioOptions {
+  /**
+   * A profile the caller made with `makeProfile` and removes with `removeProfile`, for checks
+   * that span launches. By default each run gets a fresh one, removed afterwards.
+   */
+  readonly userDataDir?: string;
+  /** The exit code the scenario must end with: 1 for a hard exit (`process.kill`). Default 0. */
+  readonly exitCode?: number;
+}
+
+export function makeProfile(): string {
+  return mkdtempSync(join(tmpdir(), 'veltriva-lifecycle-'));
+}
+
 /**
- * Runs a scenario in a fresh app with a fresh profile and returns what it reported. Throws if the
- * app reports an error, exits with a non-zero code (70: an uncaught exception in main, see
+ * Runs a scenario in a fresh app and returns what it reported. Throws if the app reports an error,
+ * exits with any other code than expected (70: an uncaught exception in main, see
  * src/main/testing/fail-fast.ts) or doesn't exit in time.
  */
-export async function runScenario<T>(name: string): Promise<ScenarioRun<T>> {
+export async function runScenario<T>(
+  name: string,
+  options: ScenarioOptions = {},
+): Promise<ScenarioRun<T>> {
   const binary = electronBinary();
-  const userDataDir = mkdtempSync(join(tmpdir(), 'veltriva-lifecycle-'));
+  const userDataDir = options.userDataDir ?? makeProfile();
+  const expectedCode = options.exitCode ?? 0;
   try {
     const { code, stdout, stderr, reportedAt, exitedAt } = await runApp(binary, {
       ...envWithoutRunAsNode(),
@@ -62,7 +80,7 @@ export async function runScenario<T>(name: string): Promise<ScenarioRun<T>> {
     if (report.error !== undefined || report.scenario !== name || report.result === undefined) {
       throw new Error(`Scenario ${name} failed: ${report.error ?? JSON.stringify(report)}`);
     }
-    if (code !== 0) {
+    if (code !== expectedCode) {
       throw new Error(`Scenario ${name} reported, then exited with ${String(code)}.\n${output}`);
     }
     return {
@@ -75,7 +93,9 @@ export async function runScenario<T>(name: string): Promise<ScenarioRun<T>> {
         .map((candidate): unknown => JSON.parse(candidate.slice(EVENT_PREFIX.length))),
     };
   } finally {
-    removeProfile(userDataDir);
+    if (options.userDataDir === undefined) {
+      removeProfile(userDataDir);
+    }
   }
 }
 
@@ -129,7 +149,7 @@ function runApp(binary: string, env: Record<string, string>): Promise<AppRun> {
  * Best effort: a killed app's processes can hold profile files for a moment, and a cleanup error
  * must not hide the failure that led to the kill.
  */
-function removeProfile(userDataDir: string): void {
+export function removeProfile(userDataDir: string): void {
   try {
     rmSync(userDataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   } catch (error) {

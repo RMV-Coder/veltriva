@@ -4,7 +4,11 @@
 // attached, prints one result line to stdout and exits; tests/lifecycle reads that line.
 import { app } from 'electron';
 
+import type { Worker } from 'node:worker_threads';
+
+import type { AppNotices } from '../notices/app-notices';
 import type { DataClient } from '../persistence/data-client';
+import { holdDataWorker } from './data-hold';
 import type { TabId, TabManager } from '../tabs/tab-manager';
 import type { FullscreenController } from '../windows/fullscreen';
 import type { MainWindow } from '../windows/main-window';
@@ -20,7 +24,9 @@ interface ScenarioContext {
   readonly tabs: TabManager;
   readonly fullscreen: FullscreenController;
   readonly views: ReadonlyMap<TabId, WebContentsView>;
-  readonly data: Pick<DataClient, 'state'>;
+  readonly data: DataClient;
+  readonly dataWorker: Worker;
+  readonly notices: AppNotices;
 }
 
 const wait = (ms: number): Promise<void> =>
@@ -108,6 +114,32 @@ async function closeWithLiveTabs({ main, tabs, views }: ScenarioContext): Promis
   return { liveTabs: views.size };
 }
 
+/**
+ * M2.1b: the worker is inside a statement that runs far past the 3 s shutdown cap, and the window
+ * closes. The quit must still end at the cap, with a hard exit (ADR-0004 item 5).
+ */
+async function quitWithBusyDatabase({ data, dataWorker }: ScenarioContext): Promise<unknown> {
+  const ready = await data.ready;
+  holdDataWorker(dataWorker, 20_000);
+  // Let the worker enter the statement before the quit starts.
+  await wait(300);
+  return { runId: ready.runId };
+}
+
+/** M2.1b: what the data worker reported on opening, and the notices it led to. */
+async function reportDataStartup({ data, notices }: ScenarioContext): Promise<unknown> {
+  const ready = await data.ready.catch(() => null);
+  return { ready, notices: notices.list() };
+}
+
+/** M2.1b: some data, then the daily backup, as upkeep would take it while the user is away. */
+async function writeAndBackUp({ data }: ScenarioContext): Promise<unknown> {
+  await data.ready;
+  await data.call('appState.set', { key: 'session', value: { written: 'before the backup' } });
+  const upkeep = await data.call('maintenance.run', { now: Date.now() }, { timeoutMs: 60_000 });
+  return { upkeep };
+}
+
 interface Scenario {
   run(context: ScenarioContext): Promise<unknown>;
   /** After reporting, close the window and let the app quit on its own, not `app.exit()`. */
@@ -153,6 +185,9 @@ const SCENARIOS: ReadonlyMap<string, Scenario> = new Map([
   ['raised-shell-keeps-page-visible', { run: raisedShellKeepsPageVisible }],
   ['background-tab-hidden', { run: backgroundTabHidden }],
   ['close-with-live-tabs', { run: closeWithLiveTabs, endsByClosingWindow: true }],
+  ['quit-with-busy-database', { run: quitWithBusyDatabase, endsByClosingWindow: true }],
+  ['report-data-startup', { run: reportDataStartup, endsByClosingWindow: true }],
+  ['write-and-back-up', { run: writeAndBackUp, endsByClosingWindow: true }],
 ]);
 
 export function runLifecycleScenario(name: string, context: ScenarioContext): void {

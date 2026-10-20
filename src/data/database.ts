@@ -1,12 +1,13 @@
 // Opens Veltriva's database: connection pragmas, downgrade protection, the pre-upgrade backup and
 // the migration runner (ADR-0004 item 2 and 5, assessment §5.6, spike S5). Runs only in the data
 // worker, never on main's thread.
-import { mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import Database from 'better-sqlite3/win32-x64';
 import type { DatabaseConnection } from 'better-sqlite3/win32-x64';
 
+import { pruneBackups, upgradeBackupName } from './backups';
 import { DataError, sqliteCode } from './errors';
 import type { Migration } from './migrations';
 import { MIGRATIONS } from './migrations';
@@ -15,11 +16,6 @@ import { MIGRATIONS } from './migrations';
 export const BUSY_TIMEOUT_MS = 5000;
 /** cache_size in KiB, negative as SQLite wants it: 16 MB (S5). */
 export const CACHE_SIZE = -16_000;
-/** Pre-upgrade backups kept in the backup folder; older ones are deleted. */
-export const KEPT_UPGRADE_BACKUPS = 3;
-
-/** `veltriva-v<from>-before-v<to>-<ISO time, ':' as '-'>.db`. The time sorts as text. */
-const UPGRADE_BACKUP = /^veltriva-v\d+-before-v\d+-(\d{4}-\d\d-\d\dT\d\d-\d\d-\d\dZ)\.db$/;
 
 export interface OpenOptions {
   readonly file: string;
@@ -165,14 +161,7 @@ async function backupBeforeUpgrade(
   toVersion: number,
   at: number,
 ): Promise<string> {
-  const stamp = new Date(at)
-    .toISOString()
-    .replace(/\.\d+Z$/, 'Z')
-    .replaceAll(':', '-');
-  const file = join(
-    backupDir,
-    `veltriva-v${String(fromVersion)}-before-v${String(toVersion)}-${stamp}.db`,
-  );
+  const file = join(backupDir, upgradeBackupName(fromVersion, toVersion, at));
   try {
     mkdirSync(backupDir, { recursive: true });
     await db.backup(file);
@@ -180,19 +169,6 @@ async function backupBeforeUpgrade(
     rmSync(file, { force: true });
     throw new DataError('migration_failed', `backup ${sqliteCode(error) ?? ''}`.trim());
   }
-  pruneUpgradeBackups(backupDir);
+  pruneBackups(backupDir, 'upgrade');
   return file;
-}
-
-/** Keeps the newest KEPT_UPGRADE_BACKUPS; other files in the folder are left alone. */
-function pruneUpgradeBackups(backupDir: string): void {
-  const backups = readdirSync(backupDir)
-    .flatMap((name) => {
-      const stamp = UPGRADE_BACKUP.exec(name)?.[1];
-      return stamp === undefined ? [] : [{ name, stamp }];
-    })
-    .sort((a, b) => b.stamp.localeCompare(a.stamp));
-  for (const { name } of backups.slice(KEPT_UPGRADE_BACKUPS)) {
-    rmSync(join(backupDir, name), { force: true });
-  }
 }

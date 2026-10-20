@@ -2,18 +2,27 @@
 // worker): parse the envelope, check the method, parse the input strictly, run the handler, and
 // answer with a value or an error code. It's separate from the thread plumbing in ./worker.ts so
 // tests can drive it directly.
+//
+// Most methods answer at once. Two are asynchronous: `maintenance.run` (a backup is stepped, and
+// other requests are served between its steps) and `db.close`, which first stops that backup.
 import type { DatabaseConnection } from 'better-sqlite3/win32-x64';
 
 import type { DataMessage, DataOutput } from '../shared/contracts/data-rpc';
 import { DATA_METHODS, dataRequestSchema, isDataMethod } from '../shared/contracts/data-rpc';
 import { toErrorInfo } from './errors';
+import { DATA_WRITES } from './handlers';
 import type { RepositoryHandlers } from './handlers';
+import { isCorruption, markNeedsCheck } from './integrity';
+import type { Maintenance } from './maintenance';
 
 export interface DataServerContext {
   readonly db: DatabaseConnection;
+  /** The database file: a corruption error leaves its "needs a check" marker (./integrity.ts). */
+  readonly file: string;
   readonly latestVersion: number;
   /** The worker's threadId (0 would mean main's thread, which must never happen). */
   readonly threadId: number;
+  readonly maintenance: Maintenance;
 }
 
 export interface HandledMessage {
@@ -23,14 +32,15 @@ export interface HandledMessage {
 }
 
 export interface DataServer {
-  handle(message: unknown): HandledMessage;
+  /** A plain object for most methods; a promise for `maintenance.run` and `db.close`. */
+  handle(message: unknown): HandledMessage | Promise<HandledMessage>;
 }
 
 export function createDataServer(
   context: DataServerContext,
   repositories: RepositoryHandlers,
 ): DataServer {
-  const { db } = context;
+  const { db, maintenance } = context;
   let closed = false;
 
   const info = (): DataOutput<'db.info'> => {
@@ -65,42 +75,56 @@ export function createDataServer(
         return { reply: null, closed };
       }
       const { id, method } = request.data;
-      const fail = (error: unknown): HandledMessage => ({
-        reply: { kind: 'response', id, ok: false, error: toErrorInfo(error) },
+      const answer = (value: unknown): HandledMessage => ({
+        reply: { kind: 'response', id, ok: true, value },
         closed,
       });
+      const fail = (error: unknown): HandledMessage => {
+        if (isCorruption(error)) {
+          // SQLite found damage while serving: the next start checks the whole file.
+          markNeedsCheck(context.file);
+        }
+        return { reply: { kind: 'response', id, ok: false, error: toErrorInfo(error) }, closed };
+      };
+      const refuse = (code: 'closed' | 'unknown_method' | 'invalid_input'): HandledMessage => ({
+        reply: { kind: 'response', id, ok: false, error: { code } },
+        closed,
+      });
+
       if (closed) {
-        return {
-          reply: { kind: 'response', id, ok: false, error: { code: 'closed' } },
-          closed,
-        };
+        return refuse('closed');
       }
       if (!isDataMethod(method)) {
-        return {
-          reply: { kind: 'response', id, ok: false, error: { code: 'unknown_method' } },
-          closed,
-        };
+        return refuse('unknown_method');
       }
-      const input = DATA_METHODS[method].input.safeParse(request.data.input);
-      if (!input.success) {
-        return {
-          reply: { kind: 'response', id, ok: false, error: { code: 'invalid_input' } },
-          closed,
-        };
+      const parsed = DATA_METHODS[method].input.safeParse(request.data.input);
+      if (!parsed.success) {
+        return refuse('invalid_input');
       }
+      const input: unknown = parsed.data;
       try {
-        let value: unknown;
-        if (method === 'db.info') {
-          value = info();
-        } else if (method === 'db.close') {
-          closed = true;
-          db.close();
-          value = {};
-        } else {
-          const handler = repositories[method] as (input: unknown) => unknown;
-          value = handler(input.data);
+        switch (method) {
+          case 'db.info':
+            return answer(info());
+          case 'db.close':
+            closed = true;
+            return maintenance.stop().then(() => {
+              db.close();
+              return answer({});
+            }, fail);
+          case 'maintenance.status':
+            return answer(maintenance.status());
+          case 'maintenance.run':
+            return maintenance.run((input as { now: number }).now).then(answer, fail);
+          default: {
+            const handler = repositories[method] as (input: unknown) => unknown;
+            const value = handler(input);
+            if (DATA_WRITES.has(method)) {
+              maintenance.noteWrite();
+            }
+            return answer(value);
+          }
         }
-        return { reply: { kind: 'response', id, ok: true, value }, closed };
       } catch (error) {
         return fail(error);
       }

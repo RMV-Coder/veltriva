@@ -127,8 +127,19 @@ export const downloadRowSchema = z.strictObject({
 });
 export type DownloadRow = z.infer<typeof downloadRowSchema>;
 
+/** The data worker's own app_state document (backup and check times); no method may touch it. */
+export const MAINTENANCE_STATE_KEY = 'maintenance';
 /** An app_state key: `session`, `window`, `client_hints`, … */
-const stateKey = z.string().regex(/^[a-z][a-z0-9_.]{0,63}$/);
+const stateKey = z
+  .string()
+  .regex(/^[a-z][a-z0-9_.]{0,63}$/)
+  .refine((key) => key !== MAINTENANCE_STATE_KEY, 'reserved key');
+/** A file's name, never a path: what main may show the user about a kept file. */
+const fileName = z
+  .string()
+  .min(1)
+  .max(260)
+  .regex(/^[^\\/:*?"<>|]+$/);
 
 // ── Methods ─────────────────────────────────────────────────────────────────────────────────
 
@@ -243,6 +254,31 @@ export const DATA_METHODS = {
   'downloads.upsert': { input: downloadRowSchema, output: nothing },
   'downloads.delete': { input: z.strictObject({ id: uuid }), output: changed },
   'downloads.clear': { input: nothing, output: changed },
+
+  /**
+   * Idle-time upkeep (assessment §5.6), which main calls only while the user is away: a full
+   * integrity and FTS check if the last one is a week old, then a backup if the last one is a day
+   * old and data changed since. A quick check comes before every backup, so a damaged database
+   * never replaces a good backup. `now` is main's clock.
+   */
+  'maintenance.run': {
+    input: z.strictObject({ now: timestamp }),
+    output: z.strictObject({
+      check: z.enum(['ok', 'failed', 'not_due']),
+      backup: z.enum(['done', 'unchanged', 'not_due', 'failed', 'skipped']),
+      /** The backup's file name, when one was written. */
+      backupFile: fileName.nullable(),
+    }),
+  },
+  'maintenance.status': {
+    input: nothing,
+    output: z.strictObject({
+      lastBackupAt: timestamp.nullable(),
+      changedSinceBackup: z.boolean(),
+      lastCheckAt: timestamp.nullable(),
+      lastCheckOk: z.boolean().nullable(),
+    }),
+  },
 } as const satisfies Record<string, { readonly input: z.ZodType; readonly output: z.ZodType }>;
 
 export type DataMethod = keyof typeof DATA_METHODS;
@@ -298,6 +334,18 @@ export const dataRequestSchema = z.strictObject({
 });
 export type DataRequest = z.infer<typeof dataRequestSchema>;
 
+/**
+ * What opening had to do about a damaged database (§5.6). The damaged file is kept beside the new
+ * one, renamed `corruptFile`, for manual recovery.
+ */
+export const recoverySchema = z.discriminatedUnion('kind', [
+  /** Replaced by the newest backup that passed a check, taken at `backupAt`. */
+  z.strictObject({ kind: z.literal('restored'), backupAt: timestamp, corruptFile: fileName }),
+  /** No usable backup: an empty database. */
+  z.strictObject({ kind: z.literal('reset'), corruptFile: fileName }),
+]);
+export type DataRecovery = z.infer<typeof recoverySchema>;
+
 /** worker → main. A response's `value` is parsed separately, with the method's output schema. */
 // A plain union: Zod's discriminatedUnion refuses two variants with the same `kind`.
 export const dataMessageSchema = z.union([
@@ -313,8 +361,18 @@ export const dataMessageSchema = z.union([
     ok: z.literal(false),
     error: errorSchema,
   }),
-  /** The database is open and migrated; requests are served from now on. */
-  z.strictObject({ kind: z.literal('ready'), userVersion: z.number().int().min(1) }),
+  /** The database is open and migrated, and this run is recorded; requests are served now. */
+  z.strictObject({
+    kind: z.literal('ready'),
+    userVersion: z.number().int().min(1),
+    /** This launch's `app_runs` row, for the heartbeat and the clean end. */
+    runId: rowId,
+    /** How the last launch ended: `crash` when its row was never closed (§5.9). */
+    previousExit: z.enum(['none', 'clean', 'crash']),
+    /** The check run on opening: quick after a crash, full after a check found damage. */
+    checked: z.enum(['none', 'quick', 'full']),
+    recovery: recoverySchema.nullable(),
+  }),
   /** Opening failed; the worker exits after sending this. */
   z.strictObject({ kind: z.literal('fatal'), error: errorSchema }),
 ]);
@@ -324,7 +382,9 @@ export type DataMessage = z.infer<typeof dataMessageSchema>;
 export const dataWorkerOptionsSchema = z.strictObject({
   /** The database file, in userData. */
   file: z.string().min(1).max(32_767),
-  /** Where pre-migration backups go. */
+  /** Where pre-migration and daily backups go. */
   backupDir: z.string().min(1).max(32_767),
+  /** Recorded with this launch's `app_runs` row. */
+  appVersion: z.string().min(1).max(64),
 });
 export type DataWorkerOptions = z.infer<typeof dataWorkerOptionsSchema>;

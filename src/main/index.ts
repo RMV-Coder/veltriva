@@ -1,7 +1,7 @@
 import { getRandomValues } from 'node:crypto';
 import { join } from 'node:path';
 
-import { app, Menu, nativeTheme, session } from 'electron';
+import { app, Menu, nativeTheme, powerMonitor, session } from 'electron';
 import type { WebContents } from 'electron';
 
 import { uuidv7 } from '../core/id/uuidv7';
@@ -23,6 +23,8 @@ import { installIpcRouter } from './ipc/install';
 import { createContextMenus } from './menus/context-menu';
 import { searchEngineName, searchTemplate } from './navigation/search-engine';
 import { installPermissionBroker } from './permissions/permission-broker';
+import { AppNotices } from './notices/app-notices';
+import { DataLifecycle } from './persistence/data-lifecycle';
 import { closeDataOnQuit, startDataWorker } from './persistence/data-worker';
 import { consoleLogger } from './platform/logger';
 import { BlockedPopups } from './popups/blocked-popups';
@@ -100,10 +102,31 @@ function start(): void {
   // before-input-event, page-first ones in the window's hidden menu (assessment §3.9).
   Menu.setApplicationMenu(null);
 
-  // Phase 2: the data worker opens (and if needed migrates) the database in the profile folder,
-  // off main's thread. Nothing reads it yet (M2.1a); quitting waits for it to close.
-  const data = startDataWorker(app.getPath('userData'), consoleLogger);
-  closeDataOnQuit(data, consoleLogger);
+  // Phase 2: the data worker opens (and if needed checks, recovers or migrates) the database in
+  // the profile folder, off main's thread. Nothing reads it yet. The lifecycle keeps the run's
+  // heartbeat, does upkeep while the user is away, and holds the quit until it has closed.
+  const notices = new AppNotices();
+  const { client: data, worker: dataWorker } = startDataWorker(
+    app.getPath('userData'),
+    consoleLogger,
+  );
+  const dataLifecycle = new DataLifecycle({
+    client: data,
+    logger: consoleLogger,
+    idleSeconds: () => powerMonitor.getSystemIdleTime(),
+    onRecovered: (recovery) => {
+      notices.show(
+        recovery.kind === 'restored'
+          ? {
+              kind: 'database-restored',
+              backupAt: recovery.backupAt,
+              corruptFile: recovery.corruptFile,
+            }
+          : { kind: 'database-reset', corruptFile: recovery.corruptFile },
+      );
+    },
+  });
+  closeDataOnQuit(dataLifecycle, consoleLogger);
 
   // Created lazily by Electron; harden them explicitly too (hardenSession is idempotent).
   hardenSession(session.defaultSession);
@@ -395,10 +418,21 @@ function start(): void {
       popupWindows,
       clientHints,
       data,
+      dataWorker,
+      dataLifecycle,
+      notices,
     });
     const scenario = process.env[LIFECYCLE_SCENARIO_ENV];
     if (scenario !== undefined && scenario !== '') {
-      runLifecycleScenario(scenario, { main, tabs, fullscreen, views: runtimes.views, data });
+      runLifecycleScenario(scenario, {
+        main,
+        tabs,
+        fullscreen,
+        views: runtimes.views,
+        data,
+        dataWorker,
+        notices,
+      });
     }
   }
 

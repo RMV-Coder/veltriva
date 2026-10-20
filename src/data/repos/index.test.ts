@@ -7,11 +7,11 @@ import { WORKSPACE_ID, addWorkspace, testId, useTestDatabase } from './test-data
 describe('createRepositoryHandlers', () => {
   const database = useTestDatabase();
 
-  it('has a handler for every method except the server-owned db.* ones', () => {
+  it('has a handler for every method except the server-owned db.* and maintenance.* ones', () => {
     const handlers = createRepositoryHandlers(database());
 
     const expected = Object.keys(DATA_METHODS)
-      .filter((method) => !method.startsWith('db.'))
+      .filter((method) => !method.startsWith('db.') && !method.startsWith('maintenance.'))
       .sort();
 
     expect(Object.keys(handlers).sort()).toEqual(expected);

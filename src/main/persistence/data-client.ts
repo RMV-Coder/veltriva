@@ -7,6 +7,7 @@
 // interrupted (S5). The worker answers in order, so a late answer is matched by id and dropped.
 import type {
   DataErrorCode,
+  DataMessage,
   DataMethod,
   DataOutput,
   DataRequest,
@@ -35,6 +36,9 @@ export class DataClientError extends Error {
     this.detail = detail;
   }
 }
+
+/** What the worker reported once the database was open: the run, the last exit, any recovery. */
+export type DataReady = Omit<Extract<DataMessage, { kind: 'ready' }>, 'kind'>;
 
 export const DEFAULT_CALL_TIMEOUT_MS = 5000;
 /** Calls waiting for an answer, at most. More means something upstream is looping. */
@@ -65,8 +69,8 @@ export class DataClient {
   readonly #defaultTimeoutMs: number;
   readonly #maxInFlight: number;
   readonly #pending = new Map<number, Pending>();
-  readonly #ready: Promise<{ readonly userVersion: number }>;
-  #resolveReady!: (info: { readonly userVersion: number }) => void;
+  readonly #ready: Promise<DataReady>;
+  #resolveReady!: (info: DataReady) => void;
   #rejectReady!: (error: DataClientError) => void;
   #state: State = 'starting';
   #failure: DataClientError | null = null;
@@ -114,7 +118,7 @@ export class DataClient {
   }
 
   /** Resolves once the database is open and migrated; rejects if opening failed. */
-  get ready(): Promise<{ readonly userVersion: number }> {
+  get ready(): Promise<DataReady> {
     return this.#ready;
   }
 
@@ -225,7 +229,13 @@ export class DataClient {
       case 'ready':
         if (this.#state === 'starting') {
           this.#state = 'ready';
-          this.#resolveReady({ userVersion: message.userVersion });
+          this.#resolveReady({
+            userVersion: message.userVersion,
+            runId: message.runId,
+            previousExit: message.previousExit,
+            checked: message.checked,
+            recovery: message.recovery,
+          });
         }
         return;
       case 'fatal': {

@@ -26,7 +26,7 @@ class FakeWorker extends EventEmitter implements WorkerPort {
   }
 
   ready(): void {
-    this.reply({ kind: 'ready', userVersion: 1 });
+    this.reply({ kind: 'ready', ...READY });
   }
 
   respond(index: number, value: unknown): void {
@@ -45,6 +45,14 @@ function recordingLogger(): Logger & { readonly events: string[] } {
   };
   return { events, warn: record, error: record };
 }
+
+const READY = {
+  userVersion: 1,
+  runId: 4,
+  previousExit: 'clean',
+  checked: 'none',
+  recovery: null,
+} as const;
 
 const INFO = {
   userVersion: 1,

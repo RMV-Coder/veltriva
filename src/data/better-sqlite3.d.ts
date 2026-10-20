@@ -45,8 +45,14 @@ declare module 'better-sqlite3/win32-x64' {
     pragma(source: string, options: { readonly simple: true }): unknown;
     pragma(source: string): unknown[];
     transaction<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R;
-    /** SQLite's online backup API, stepped with setImmediate. */
-    backup(destination: string): Promise<BackupProgress>;
+    /**
+     * SQLite's online backup API, stepped with setImmediate, so other work runs between steps.
+     * `progress` runs after each step; throwing from it stops the backup (its promise rejects).
+     */
+    backup(
+      destination: string,
+      options?: { readonly progress?: (progress: BackupProgress) => number | undefined },
+    ): Promise<BackupProgress>;
     close(): this;
   }
 
