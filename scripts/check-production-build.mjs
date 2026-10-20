@@ -28,6 +28,9 @@ const MARKERS = [
   'viewStack',
   'externalLaunches',
   'clientHintsReady',
+  'dataCall',
+  'dataState',
+  'mainNativeModules',
   // src/main/testing/external-launches.ts: test builds record app launches instead of making them
   'recordExternalLaunch',
   'recordedExternalLaunches',

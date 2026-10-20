@@ -23,6 +23,7 @@ import { installIpcRouter } from './ipc/install';
 import { createContextMenus } from './menus/context-menu';
 import { searchEngineName, searchTemplate } from './navigation/search-engine';
 import { installPermissionBroker } from './permissions/permission-broker';
+import { closeDataOnQuit, startDataWorker } from './persistence/data-worker';
 import { consoleLogger } from './platform/logger';
 import { BlockedPopups } from './popups/blocked-popups';
 import { createWindowOpenHandler } from './popups/popup-policy';
@@ -98,6 +99,11 @@ function start(): void {
   // shell) would act on the browser itself. The browser's shortcuts are below: reserved ones in
   // before-input-event, page-first ones in the window's hidden menu (assessment §3.9).
   Menu.setApplicationMenu(null);
+
+  // Phase 2: the data worker opens (and if needed migrates) the database in the profile folder,
+  // off main's thread. Nothing reads it yet (M2.1a); quitting waits for it to close.
+  const data = startDataWorker(app.getPath('userData'), consoleLogger);
+  closeDataOnQuit(data, consoleLogger);
 
   // Created lazily by Electron; harden them explicitly too (hardenSession is idempotent).
   hardenSession(session.defaultSession);
@@ -388,6 +394,7 @@ function start(): void {
       fullscreen,
       popupWindows,
       clientHints,
+      data,
     });
     const scenario = process.env[LIFECYCLE_SCENARIO_ENV];
     if (scenario !== undefined && scenario !== '') {

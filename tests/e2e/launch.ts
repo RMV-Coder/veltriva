@@ -50,7 +50,12 @@ const RUN_AS_NODE_ENV = 'ELECTRON_RUN_AS_NODE';
 const USER_DATA_DIR_ENV = 'VELTRIVA_USER_DATA_DIR';
 
 /** Every file the app needs at runtime. The paths are relative to the repo root. */
-const BUILD_OUTPUTS = ['out/main/index.js', 'out/preload/shell.js', 'out/renderer/index.html'];
+const BUILD_OUTPUTS = [
+  'out/main/index.js',
+  'out/main/data-worker.js',
+  'out/preload/shell.js',
+  'out/renderer/index.html',
+];
 
 /**
  * Only `--mode test` builds contain the test hooks (src/main/testing/test-hooks.ts), and the

@@ -4,7 +4,7 @@
 // (spike S6). The app runs one scenario from src/main/testing/lifecycle-scenarios.ts, prints one
 // result line on stdout and exits; `runScenario` returns that result.
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -28,6 +28,8 @@ export interface ScenarioRun<T> {
   readonly result: T;
   /** From the result line to the app's exit: how long it took to quit after reporting. */
   readonly exitMs: number;
+  /** The names in the profile folder once the app has exited. */
+  readonly profileFiles: readonly string[];
 }
 
 /**
@@ -60,7 +62,11 @@ export async function runScenario<T>(name: string): Promise<ScenarioRun<T>> {
     if (code !== 0) {
       throw new Error(`Scenario ${name} reported, then exited with ${String(code)}.\n${output}`);
     }
-    return { result: report.result, exitMs: exitedAt - reportedAt };
+    return {
+      result: report.result,
+      exitMs: exitedAt - reportedAt,
+      profileFiles: readdirSync(userDataDir).sort(),
+    };
   } finally {
     removeProfile(userDataDir);
   }

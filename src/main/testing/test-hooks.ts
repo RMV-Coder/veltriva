@@ -6,8 +6,11 @@ import { webContents } from 'electron';
 import type { WebContentsView } from 'electron';
 
 import type { Rect } from '../../core/layout/rect';
+import { isDataMethod } from '../../shared/contracts/data-rpc';
 import type { ContextMenus } from '../menus/context-menu';
 import type { MenuEntry, MenuItemId, MenuParams } from '../menus/context-menu-model';
+import { DataClientError } from '../persistence/data-client';
+import type { DataClient } from '../persistence/data-client';
 import type { TabMenuEntry, TabMenuItemId } from '../menus/tab-menu-model';
 import { setSearchTemplate } from '../navigation/search-engine';
 import type { TabId, TabManager, TabState } from '../tabs/tab-manager';
@@ -88,6 +91,23 @@ export interface VeltrivaTestHooks {
   recordedFileActions(): { readonly action: 'open' | 'show'; readonly path: string }[];
   /** Where a test build saves downloads: a folder in the test's own profile. */
   testDownloadsFolder(): string;
+  /**
+   * Calls the data worker as main does, through the validating client. Returns the value, or
+   * the error code instead of throwing, so a spec can assert on refusals.
+   */
+  dataCall(
+    method: string,
+    input: unknown,
+  ): Promise<
+    { readonly ok: true; readonly value: unknown } | { readonly ok: false; readonly code: string }
+  >;
+  /** The data client's state: starting, ready, failed, closing or closed. */
+  dataState(): string;
+  /**
+   * Native addons in main's own module registry. Always empty: SQLite's addon loads only in the
+   * data worker, whose registry is separate (ADR-0004).
+   */
+  mainNativeModules(): string[];
 }
 
 declare global {
@@ -103,6 +123,7 @@ export interface TestHookContext {
   readonly fullscreen: FullscreenController;
   readonly popupWindows: PopupWindows;
   readonly clientHints: ClientHints;
+  readonly data: DataClient;
 }
 
 /** A plain right-click on the page, at the top-left corner of the view. */
@@ -136,6 +157,7 @@ export function installTestHooks({
   fullscreen,
   popupWindows,
   clientHints,
+  data,
 }: TestHookContext): void {
   const testTabs = new Set<WebContentsView>();
   const paramsFrom = (params: Partial<MenuParams> = {}): MenuParams => ({
@@ -255,6 +277,27 @@ export function installTestHooks({
 
     testDownloadsFolder() {
       return testDownloadsFolder();
+    },
+
+    async dataCall(method, input) {
+      if (!isDataMethod(method)) {
+        return { ok: false, code: 'unknown_method' };
+      }
+      try {
+        // The client parses `input` against the method's schema before sending it.
+        const value: unknown = await data.call(method, input as never);
+        return { ok: true, value };
+      } catch (error) {
+        return { ok: false, code: error instanceof DataClientError ? error.code : 'internal' };
+      }
+    },
+
+    dataState() {
+      return data.state;
+    },
+
+    mainNativeModules() {
+      return Object.keys(require.cache).filter((path) => path.endsWith('.node'));
     },
   };
 

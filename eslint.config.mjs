@@ -6,8 +6,18 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
+const SQLITE =
+  'Only the data worker (src/data) may use SQLite: a statement blocks the thread that runs it ' +
+  '(ADR-0004, spike S5). Main talks to it through src/main/persistence.';
+/** Part of every area's ban below: flat config replaces a rule's options, it doesn't merge them. */
+const SQLITE_PATHS = [
+  { name: 'better-sqlite3', message: SQLITE },
+  { name: 'node:sqlite', message: SQLITE },
+];
+const SQLITE_PATTERNS = [{ group: ['better-sqlite3/*'], message: SQLITE }];
+
 /**
- * `no-restricted-imports` options that ban Node built-ins (`fs`, `node:fs`, ...) and,
+ * `no-restricted-imports` options that ban Node built-ins (`fs`, `node:fs`, ...), SQLite and,
  * optionally, `electron`.
  *
  * @param {string} message
@@ -17,10 +27,12 @@ function bannedImports(message, { electron = false } = {}) {
   const builtins = builtinModules.filter((name) => !name.startsWith('node:'));
   return {
     paths: [
+      ...SQLITE_PATHS,
       ...builtins.map((name) => ({ name, message })),
       ...(electron ? [{ name: 'electron', message }] : []),
     ],
     patterns: [
+      ...SQLITE_PATTERNS,
       { group: ['node:*'], message },
       ...(electron ? [{ group: ['electron/*'], message }] : []),
     ],
@@ -105,6 +117,27 @@ export default defineConfig(
         bannedImports('src/core and src/shared must stay pure: no Electron or Node imports.', {
           electron: true,
         }),
+      ],
+    },
+  },
+
+  // Main (and its tests, and the E2E specs) never touch SQLite. Main starts the data worker by file
+  // name and imports nothing from src/data, so the worker's code can't end up on main's thread.
+  {
+    files: ['src/main/**/*.ts', 'tests/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: SQLITE_PATHS,
+          patterns: [
+            ...SQLITE_PATTERNS,
+            {
+              regex: '^(\\.\\./)+data(/|$)',
+              message: 'Main starts the data worker by file; it never imports src/data (ADR-0004).',
+            },
+          ],
+        },
       ],
     },
   },

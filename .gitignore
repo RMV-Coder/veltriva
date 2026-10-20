@@ -16,6 +16,10 @@ spikes/**/netlog*.json
 spikes/**/downloads/
 spikes/**/user-data/
 
+# SQLite side files (a database opened in place, e.g. the migration fixtures)
+*.db-wal
+*.db-shm
+
 # Test output
 coverage/
 playwright-report/

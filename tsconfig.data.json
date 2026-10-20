@@ -1,0 +1,12 @@
+{
+  // The data worker (src/data): a worker_threads thread with Node APIs and better-sqlite3, no
+  // Electron and no DOM. Main never imports it (eslint.config.mjs); it starts it as a worker.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024"],
+    "types": ["node"],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.data.tsbuildinfo"
+  },
+  "include": ["src/data/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "src/data/repos/test-database.ts"]
+}
