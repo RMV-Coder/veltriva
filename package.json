@@ -11,7 +11,7 @@
     "node": ">=24.13.0 <25"
   },
   "scripts": {
-    "setup": "npm ci && node node_modules/electron/install.js",
+    "setup": "npm ci && node node_modules/electron/install.js && node scripts/verify-sqlite-binary.mjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "build:test": "electron-vite build --mode test",
@@ -20,9 +20,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:e2e": "npm run build:test && playwright test",
+    "test:e2e": "npm run build:test && node scripts/check-data-isolation.mjs && playwright test",
     "test:lifecycle": "npm run build:test && vitest run --config vitest.lifecycle.config.mts",
-    "package:dir": "electron-vite build && node scripts/check-production-build.mjs && electron-builder --win --x64 --dir"
+    "package:dir": "node scripts/verify-sqlite-binary.mjs && electron-vite build && node scripts/check-production-build.mjs && node scripts/check-data-isolation.mjs && electron-builder --win --x64 --dir && node scripts/check-packaged-app.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -54,5 +54,8 @@
     "vitest": "5.0.5",
     "zod": "4.6.7",
     "zustand": "5.0.15"
+  },
+  "dependencies": {
+    "better-sqlite3": "13.0.3"
   }
 }
