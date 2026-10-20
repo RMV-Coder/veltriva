@@ -45,6 +45,38 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
      - Maintenance (integrity checks, FTS rebuilds, vacuuming) runs only when idle, in small chunks or on a second worker.
    - **Shutdown enforces its 3-second cap while the event loop is still alive.** `before-quit` awaits the worker's flush and close against a 3 s timer. If the worker hasn't finished, the process hard-exits with `process.kill(process.pid)`. S5 killed processes mid-write five times, and every database reopened intact, thanks to WAL.
 6. **Installs** run with `ignore-scripts=true` (the project's `.npmrc`).
+7. **As built in M2.1a** (Phase 2, the data worker foundation):
+   - **The dependency.** better-sqlite3 **13.0.3**, pinned exactly, MIT. It has no install script: its N-API binaries ship inside the npm tarball, which npm checks against the lockfile's sha512, so nothing is downloaded or compiled.
+     - The worker loads the `better-sqlite3/win32-x64` entry point, which requires that one binary directly.
+     - `scripts/verify-sqlite-binary.mjs` pins the binary's SHA-256 (`e21e5efd71fba66578e95b62554d9028064a80dafd7221bf8a8ef155de8d240a`, in `scripts/sqlite-pin.mjs`). `npm run setup` runs it after `npm ci`, and `npm run package:dir` runs it before packaging.
+     - Its one dependency, node-addon-api 8.9.2 (MIT), holds C++ headers for building from source; it isn't packaged.
+     - The package ships no TypeScript types. `src/data/better-sqlite3.d.ts` declares only the subset the worker uses.
+   - **Where the code lives.**
+     - `src/data/` is the worker, with its own tsconfig. `src/shared/contracts/data-rpc.ts` is the contract, and `src/main/persistence/` is main's client and the worker's start and stop.
+     - electron-vite builds the worker as a second main-process entry, `out/main/data-worker.js`. Main starts it by file name.
+   - **Main never runs SQLite.** Four checks enforce it:
+     - ESLint bans `better-sqlite3` and `node:sqlite` everywhere outside `src/data`, and bans any import of `src/data` from `src/main`.
+     - `scripts/check-data-isolation.mjs` runs after every E2E and packaging build: no file in `out/` but the worker may mention SQLite.
+     - The E2E suite checks that `db.info` answers from a thread other than 0, and that main's own module registry holds no native addon.
+     - The packaged app runs the same worker from `app.asar`.
+   - **The RPC.**
+     - Each request has an id. The worker parses every input with the method's strict Zod schema, and main parses every output.
+     - Each call has its own timeout: 5 s by default, counted from the call, including any wait for the database to open. At most 256 calls are in flight.
+     - Every list takes a capped `limit`, and every write batch is at most 1,000 rows, as one transaction.
+     - No method takes SQL, a table name or a column name.
+     - Errors are codes. A detail is only ever a SQLite result code or a schema version, never row data or an error message. A `SQLITE_CONSTRAINT_*` refusal is reported as `invalid_input`.
+   - **Opening.**
+     - The pragmas are set in S5's order and each one is read back; a mismatch fails the open.
+     - A database newer than the app (`db_newer`) or another app's SQLite file (`db_foreign`) is refused, and nothing in it is changed.
+     - Before an existing database is upgraded, SQLite's online backup API copies it to `backups\veltriva-v<from>-before-v<to>-<time>.db` in the profile, keeping the newest 3. If the backup fails, the upgrade doesn't run.
+     - Each migration runs in `BEGIN IMMEDIATE` and sets `user_version` inside the same transaction, then `foreign_key_check` runs.
+   - **Quitting.** `before-quit` waits up to 3 s for the worker to close the database and exit, and hard-exits with `process.kill(process.pid)` if it doesn't. M2.1b adds the final flush and the tests with a busy worker.
+   - **Schema amendments in `0001_init.sql`**, the user's Phase 2 decisions (assessment §5.3 has the same list):
+     - (a) `permission_decisions.decision` is `'allow'` or `'block'`, the code's `Decision` type, not §5.3's `'allow'` or `'deny'`.
+     - (b) An external protocol's "always allow" is a `permission_decisions` row with permission `protocol:<scheme>`, origin the asking site's origin, and decision `'allow'`.
+     - (c) A new `downloads` table for download history. Its CHECKs: only a dangerous file can be unconfirmed; only a running or paused download has no `ended_at`; byte counts are never negative. Its ids are UUIDv7, so M2.2b gives DownloadManager persistent ids in place of today's per-run `download-N`.
+     - (d) Client-hint opt-ins are the `app_state` document `client_hints`, with no table of their own.
+   - **Migration tests.** Every historical version has a fixture: 0 is a new file, and 1 is `src/data/migrations/fixtures/veltriva-v1.db`, frozen when 0001 was released. Each new migration adds the previous version's fixture.
 
 ## Consequences
 

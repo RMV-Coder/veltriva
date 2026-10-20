@@ -907,6 +907,15 @@ CREATE TRIGGER pages_fts_au AFTER UPDATE OF title, url, site ON pages BEGIN
 END;
 ```
 
+**Phase 2 amendments.** The shipped `0001_init.sql` (`src/data/migrations/`) is the schema above plus four changes the user approved on 2026-10-20 (ADR-0004 item 7):
+
+- (a) `permission_decisions.decision` takes `'allow'` or `'block'`, the code's `Decision` type, instead of `'allow'` or `'deny'`.
+- (b) An external protocol's "always allow" is a `permission_decisions` row with permission `protocol:<scheme>`, origin the asking site's origin, and decision `'allow'`.
+- (c) A new `downloads` table holds download history:
+  - columns `id` (UUIDv7), `file_name`, `path`, `url` (secrets stripped, §5.7), `site`, `state`, `dangerous`, `confirmed`, `received_bytes`, `total_bytes`, `started_at` and `ended_at`;
+  - CHECKs: only a dangerous file can be unconfirmed, only a running or paused download has no `ended_at`, and byte counts are never negative.
+- (d) Client-hint opt-ins are the `app_state` document `client_hints`, with no table of their own.
+
 Notes on the brief's proposed entities:
 
 - **Sessions** become `app_runs` (crash detection) plus `app_state['session']` (selected tab, window bounds). The `tabs` table *is* the live session, always current, so restart and crash recovery read one place.

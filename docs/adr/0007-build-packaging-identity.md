@@ -15,6 +15,10 @@
    - Native modules are unpacked from `asar` automatically. The data worker script loads from inside `app.asar` with no extra configuration (S5).
    - **The native rebuild step stays disabled** (`npmRebuild: false`). better-sqlite3 13 ships N-API prebuilds, and with rebuilding on, electron-builder runs node-gyp and MSBuild, which need Python and Visual Studio.
    - **A `files` filter ships only better-sqlite3's `lib/`, `package.json` and `prebuilds/win32-x64.node`.** Unfiltered, the whole package (26 MiB, every platform's binary and the C sources) lands in `app.asar.unpacked`; filtered, it's 1.9 MiB.
+   - **As built in M2.1a.**
+     - The filter also drops `binding.gyp`, the README and node-addon-api, but keeps the license.
+     - Smart unpacking is off, and `asarUnpack` names only `prebuilds/win32-x64.node`. Windows can't map a DLL from inside the archive, and Electron redirects the worker's `require()` of it to `app.asar.unpacked`. The worker script and better-sqlite3's JavaScript stay in `app.asar`.
+     - `scripts/check-packaged-app.mjs` runs at the end of `package:dir`. It reads the asar header and checks that the binary is the only unpacked file, that it matches the pinned SHA-256, and that no build input, other platform's binary or node-addon-api shipped.
 3. **Fuses**, set through `electronFuses`:
    - `RunAsNode` off;
    - `EnableCookieEncryption` **on** (one-way);
