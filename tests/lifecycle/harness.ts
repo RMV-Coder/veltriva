@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 // Importing them would load Electron's modules into the test runner.
 const SCENARIO_ENV = 'VELTRIVA_LIFECYCLE_SCENARIO';
 const RESULT_PREFIX = 'VELTRIVA_LIFECYCLE_RESULT ';
+const EVENT_PREFIX = 'VELTRIVA_LIFECYCLE_EVENT ';
 const USER_DATA_DIR_ENV = 'VELTRIVA_USER_DATA_DIR';
 const RUN_AS_NODE_ENV = 'ELECTRON_RUN_AS_NODE';
 /** Only `--mode test` builds contain the hooks, and with them the scenario runner. */
@@ -30,6 +31,8 @@ export interface ScenarioRun<T> {
   readonly exitMs: number;
   /** The names in the profile folder once the app has exited. */
   readonly profileFiles: readonly string[];
+  /** What the app printed as it shut down, after the result (LIFECYCLE_EVENT_PREFIX lines). */
+  readonly events: readonly unknown[];
 }
 
 /**
@@ -66,6 +69,10 @@ export async function runScenario<T>(name: string): Promise<ScenarioRun<T>> {
       result: report.result,
       exitMs: exitedAt - reportedAt,
       profileFiles: readdirSync(userDataDir).sort(),
+      events: stdout
+        .split(/\r?\n/)
+        .filter((candidate) => candidate.startsWith(EVENT_PREFIX))
+        .map((candidate): unknown => JSON.parse(candidate.slice(EVENT_PREFIX.length))),
     };
   } finally {
     removeProfile(userDataDir);

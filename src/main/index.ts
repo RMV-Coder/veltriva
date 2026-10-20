@@ -398,7 +398,7 @@ function start(): void {
     });
     const scenario = process.env[LIFECYCLE_SCENARIO_ENV];
     if (scenario !== undefined && scenario !== '') {
-      runLifecycleScenario(scenario, { main, tabs, fullscreen, views: runtimes.views });
+      runLifecycleScenario(scenario, { main, tabs, fullscreen, views: runtimes.views, data });
     }
   }
 

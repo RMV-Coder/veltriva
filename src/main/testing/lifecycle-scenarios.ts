@@ -4,6 +4,7 @@
 // attached, prints one result line to stdout and exits; tests/lifecycle reads that line.
 import { app } from 'electron';
 
+import type { DataClient } from '../persistence/data-client';
 import type { TabId, TabManager } from '../tabs/tab-manager';
 import type { FullscreenController } from '../windows/fullscreen';
 import type { MainWindow } from '../windows/main-window';
@@ -11,12 +12,15 @@ import type { WebContentsView } from 'electron';
 
 export const LIFECYCLE_SCENARIO_ENV = 'VELTRIVA_LIFECYCLE_SCENARIO';
 export const LIFECYCLE_RESULT_PREFIX = 'VELTRIVA_LIFECYCLE_RESULT ';
+/** Lines printed after the result, as the app shuts down. */
+export const LIFECYCLE_EVENT_PREFIX = 'VELTRIVA_LIFECYCLE_EVENT ';
 
 interface ScenarioContext {
   readonly main: MainWindow;
   readonly tabs: TabManager;
   readonly fullscreen: FullscreenController;
   readonly views: ReadonlyMap<TabId, WebContentsView>;
+  readonly data: Pick<DataClient, 'state'>;
 }
 
 const wait = (ms: number): Promise<void> =>
@@ -153,6 +157,12 @@ const SCENARIOS: ReadonlyMap<string, Scenario> = new Map([
 
 export function runLifecycleScenario(name: string, context: ScenarioContext): void {
   const scenario = SCENARIOS.get(name);
+  // will-quit comes after every before-quit handler has let the quit through, so the data
+  // client's state here shows whether quitting waited for the database to close (ADR-0004).
+  app.once('will-quit', () => {
+    const event = { event: 'will-quit', dataState: context.data.state };
+    process.stdout.write(`${LIFECYCLE_EVENT_PREFIX}${JSON.stringify(event)}\n`);
+  });
   const finish = (report: unknown, closeWindow = false): void => {
     process.stdout.write(`${LIFECYCLE_RESULT_PREFIX}${JSON.stringify(report)}\n`);
     if (closeWindow) {
