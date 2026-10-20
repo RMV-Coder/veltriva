@@ -31,6 +31,13 @@ const MARKERS = [
   'dataCall',
   'dataState',
   'mainNativeModules',
+  'dataReady',
+  'holdDataWorker',
+  'showNotice',
+  // src/main/testing/data-hold.ts and src/data/testing/hold.ts: holding the data worker
+  'veltriva-test-hold',
+  'holdThread',
+  'isHoldMessage',
   // src/main/testing/external-launches.ts: test builds record app launches instead of making them
   'recordExternalLaunch',
   'recordedExternalLaunches',
@@ -44,6 +51,9 @@ const MARKERS = [
   'background-tab-hidden',
   'close-with-live-tabs',
   'raised-shell-keeps-page-visible',
+  'quit-with-busy-database',
+  'report-data-startup',
+  'write-and-back-up',
   // src/main/testing/fail-fast.ts
   'exitOnUncaughtException',
   'Uncaught exception in main',
