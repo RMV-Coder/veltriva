@@ -77,6 +77,26 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
      - (c) A new `downloads` table for download history. Its CHECKs: only a dangerous file can be unconfirmed; only a running or paused download has no `ended_at`; byte counts are never negative. Its ids are UUIDv7, so M2.2b gives DownloadManager persistent ids in place of today's per-run `download-N`.
      - (d) Client-hint opt-ins are the `app_state` document `client_hints`, with no table of their own.
    - **Migration tests.** Every historical version has a fixture: 0 is a new file, and 1 is `src/data/migrations/fixtures/veltriva-v1.db`, frozen when 0001 was released. Each new migration adds the previous version's fixture.
+8. **As built in M2.1b** (durability; assessment §5.5, §5.6, §5.9):
+   - **Each launch is an `app_runs` row.** The worker records it before it serves anything (`src/data/startup.ts`), and main moves its heartbeat every 60 s and ends it cleanly on quit. A row that never ended is a crash. The next start closes it at its last heartbeat with `exit_kind = 'crash'`, and `ready` reports `previousExit`.
+   - **Checks on opening.** After a crash, a `quick_check` runs. The full check (`integrity_check` plus FTS5's `integrity-check`) runs instead when the last run left `veltriva.db.needs-check` beside the database. That marker is written when SQLite reports `SQLITE_CORRUPT*` or `SQLITE_NOTADB` while serving, or when an idle check fails. Measured at 50,000 pages (21 MiB): `quick_check` about 0.25 s, `integrity_check` about 0.35 s, FTS5's check about 0.15 s.
+   - **Corruption.** A damaged database is never deleted. A failed open with a corruption code, or a failed check, renames it and its side files to `veltriva.db.corrupt-<time>`.
+     - The worker then restores the newest backup, of either kind, that opens read-only, has a schema version this build knows and passes `quick_check`. An older one is migrated as usual.
+     - With no usable backup, it starts an empty database.
+     - A newer or foreign database is still refused, never replaced.
+     - `ready` reports the recovery, and main shows a notice naming the kept file (`src/main/notices/app-notices.ts`).
+   - **Idle upkeep.** Main calls `maintenance.run` only after 5 minutes without user input (`powerMonitor.getSystemIdleTime`), checking every 10 minutes, never overlapping. The worker decides what is due:
+     - the full check, weekly;
+     - a backup, daily, and only if the user's data changed since the last one. The heartbeat doesn't count as a change.
+     - **The full check runs before every backup**, so a damaged file never replaces a good backup. Review found that a `quick_check` isn't enough: it passes while the search index disagrees with `pages`. After a failed check, the check runs on every pass, and no backup is taken, until a restart recovers the file.
+     - A `.partial` file left by a backup that a crash cut short is deleted when the worker starts.
+   - **Backups.**
+     - **They step.** SQLite's online backup API, through better-sqlite3, copies 100 pages per step, so requests are served between steps. It writes `veltriva-daily-<time>.db.partial`, then renames it, keeping 3.
+     - **`db.close` stops one first.** Throwing from the backup's progress callback ends it at the next step.
+     - **The "changed" flag can't race.** It lives in the `app_state` document `maintenance`, which no RPC method may touch and only the worker writes. A write during a backup sets it again.
+     - **The weekly check stays in the worker.** A second, read-only connection can run `integrity_check` and a backup alongside a writer (measured), but FTS5's check is refused there as a write.
+   - **Quitting.** `DataLifecycle.shutdown` first runs the registered flushes (`addFlush`, for M2.2a's batched writes), then ends the run cleanly, then closes, all inside one 3 s cap. If the cap is reached, the process hard-exits with `process.kill(process.pid)`, which gives exit code 1 on Windows.
+     - A lifecycle check holds the worker in a 20 s statement and closes the window. The process exits at the cap, and the next launch reports a crash and quick-checks the file.
 
 ## Consequences
 

@@ -258,8 +258,8 @@ export const DATA_METHODS = {
   /**
    * Idle-time upkeep (assessment §5.6), which main calls only while the user is away: a full
    * integrity and FTS check if the last one is a week old, then a backup if the last one is a day
-   * old and data changed since. A quick check comes before every backup, so a damaged database
-   * never replaces a good backup. `now` is main's clock.
+   * old and data changed since. The full check also runs before every backup, so a damaged
+   * database never replaces a good backup. `now` is main's clock.
    */
   'maintenance.run': {
     input: z.strictObject({ now: timestamp }),

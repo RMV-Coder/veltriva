@@ -2,7 +2,7 @@
 // changed. Main decides when the user is idle and calls `maintenance.run`; this decides what is
 // due. Its state is the app_state document `maintenance`, which only this worker writes, so
 // "changed since the last backup" can't race: a write during a backup sets it again.
-import { mkdirSync, renameSync, rmSync } from 'node:fs';
+import { mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { DatabaseConnection } from 'better-sqlite3/win32-x64';
@@ -12,7 +12,7 @@ import { MAINTENANCE_STATE_KEY } from '../shared/contracts/data-rpc';
 import type { DataOutput } from '../shared/contracts/data-rpc';
 import { dailyBackupName, pruneBackups } from './backups';
 import { DataError } from './errors';
-import { fullCheck, markNeedsCheck, quickCheck } from './integrity';
+import { fullCheck, markNeedsCheck } from './integrity';
 
 export const BACKUP_EVERY_MS = 24 * 60 * 60 * 1000;
 export const CHECK_EVERY_MS = 7 * BACKUP_EVERY_MS;
@@ -73,6 +73,17 @@ export class Maintenance {
       }
     }
     this.#state = parsed ?? INITIAL;
+    // A backup cut short by a crash or a kill leaves its .partial file; nothing else would ever
+    // remove it.
+    try {
+      for (const name of readdirSync(this.#backupDir)) {
+        if (/^veltriva-daily-.*\.db\.partial$/.test(name)) {
+          rmSync(join(this.#backupDir, name), { force: true });
+        }
+      }
+    } catch {
+      // No backup folder yet.
+    }
   }
 
   status(): MaintenanceState {
@@ -107,8 +118,17 @@ export class Maintenance {
   }
 
   async #run(now: number): Promise<RunResult> {
+    const backupDue =
+      due(this.#state.lastBackupAt, now, BACKUP_EVERY_MS) && this.#state.changedSinceBackup;
+    // A damaged database must never replace a good backup, so every backup is preceded by the
+    // full check: a quick check passes on a search index that disagrees with its pages (found in
+    // review). After a failed check it runs every time, until a restart recovers the file.
+    const checkDue =
+      due(this.#state.lastCheckAt, now, CHECK_EVERY_MS) ||
+      this.#state.lastCheckOk === false ||
+      backupDue;
     let check: RunResult['check'] = 'not_due';
-    if (due(this.#state.lastCheckAt, now, CHECK_EVERY_MS)) {
+    if (checkDue) {
       const ok = fullCheck(this.#db);
       this.#update({ lastCheckAt: now, lastCheckOk: ok });
       check = ok ? 'ok' : 'failed';
@@ -122,13 +142,8 @@ export class Maintenance {
     if (!due(this.#state.lastBackupAt, now, BACKUP_EVERY_MS)) {
       return { check, backup: 'not_due', backupFile: null };
     }
-    if (!this.#state.changedSinceBackup) {
+    if (!backupDue) {
       return { check, backup: 'unchanged', backupFile: null };
-    }
-    // A damaged database must never replace a good backup: the full check just ran, or this.
-    if (check === 'not_due' && !quickCheck(this.#db)) {
-      markNeedsCheck(this.#file);
-      return { check, backup: 'skipped', backupFile: null };
     }
     return this.#backup(now, check);
   }
