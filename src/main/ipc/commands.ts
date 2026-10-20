@@ -8,6 +8,7 @@ import type { ExternalProtocolGuard } from '../external/protocol-guard';
 import type { FocusManager } from '../focus/focus-manager';
 import type { ContextMenus } from '../menus/context-menu';
 import { submitAddress } from '../navigation/submit';
+import type { AppNotices } from '../notices/app-notices';
 import type { BlockedPopups } from '../popups/blocked-popups';
 import type { PromptManager } from '../prompts/prompt-manager';
 import type { TabId, TabManager } from '../tabs/tab-manager';
@@ -29,6 +30,7 @@ export interface CommandContext {
   readonly blockedPopups: BlockedPopups;
   readonly external: ExternalProtocolGuard;
   readonly downloads: DownloadManager;
+  readonly notices: AppNotices;
   readonly searchTemplate: () => string;
 }
 
@@ -43,6 +45,7 @@ export function createCommandHandlers({
   blockedPopups,
   external,
   downloads,
+  notices,
   searchTemplate,
 }: CommandContext): CommandHandlers {
   /** Runs `action` on an existing tab, or answers `not_found`. */
@@ -234,6 +237,14 @@ export function createCommandHandlers({
       onDownload(downloadId, () => {
         downloads.clear(downloadId);
       }),
+
+    'notices.dismiss': ({ noticeId }) => {
+      // An id main doesn't show: already dismissed, perhaps from another click.
+      if (!notices.dismiss(noticeId)) {
+        throw new CommandError('not_found');
+      }
+      return done;
+    },
 
     'layout.setInsets': (insets) => {
       layout.setInsets(insets);

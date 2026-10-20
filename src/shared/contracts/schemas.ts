@@ -35,6 +35,18 @@ const downloadRef = z.strictObject({ downloadId });
 /** A toolbar question's id (src/main/prompts/prompt-manager.ts). */
 const promptId = z.string().regex(/^prompt-[0-9]{1,15}$/);
 
+/** A notice about Veltriva itself: main's own handle (src/main/notices/app-notices.ts). */
+const noticeId = z.string().regex(/^notice-[0-9]{1,15}$/);
+/**
+ * A file's name, never a path: no separators, none of the characters Windows forbids in a name,
+ * and no control characters. Main cleans the name before it gets here (`projectNotice`).
+ */
+const noticeFileName = z
+  .string()
+  .min(1)
+  .max(260)
+  .regex(/^[^\\/:*?"<>|\p{Cc}]+$/u);
+
 const faviconDataUrl = z
   .string()
   .max(90_000)
@@ -143,6 +155,30 @@ const workspaceSnapshot = z.strictObject({
       }),
     )
     .max(100),
+  /**
+   * What Veltriva has to tell the user about itself, oldest first, until each is dismissed
+   * (src/main/notices/app-notices.ts). Not about any tab: the shell shows them under the toolbar
+   * whichever tab is selected. `corruptFile` is a file name main kept a damaged file under, shown
+   * as untrusted text.
+   */
+  notices: z
+    .array(
+      z.discriminatedUnion('kind', [
+        z.strictObject({
+          id: noticeId,
+          kind: z.literal('database-restored'),
+          /** When the backup it was restored from was taken: Unix milliseconds. */
+          backupAt: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+          corruptFile: noticeFileName,
+        }),
+        z.strictObject({
+          id: noticeId,
+          kind: z.literal('database-reset'),
+          corruptFile: noticeFileName,
+        }),
+      ]),
+    )
+    .max(3),
 });
 
 /** Inputs are strict objects: unknown keys are rejected, never stripped. */
@@ -257,6 +293,8 @@ export const commandSchemas = {
   'downloads.discard': { input: downloadRef, output: nothing },
   /** Removes a finished download from the list; the file stays. */
   'downloads.clear': { input: downloadRef, output: nothing },
+  /** Removes a notice from the strip. An id main no longer shows (already dismissed) is `not_found`. */
+  'notices.dismiss': { input: z.strictObject({ noticeId }), output: nothing },
 } as const satisfies Record<CommandName, CommandSchema>;
 
 export const eventSchemas = {
@@ -279,3 +317,4 @@ export type EventPayload<E extends EventName> = z.output<(typeof eventSchemas)[E
 
 export type WorkspaceSnapshot = z.output<typeof workspaceSnapshot>;
 export type TabSnapshot = z.output<typeof tabSnapshot>;
+export type NoticeSnapshot = WorkspaceSnapshot['notices'][number];

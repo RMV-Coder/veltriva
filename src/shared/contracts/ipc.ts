@@ -46,6 +46,7 @@ export const COMMAND_NAMES = [
   'downloads.keep',
   'downloads.discard',
   'downloads.clear',
+  'notices.dismiss',
 ] as const;
 export type CommandName = (typeof COMMAND_NAMES)[number];
 

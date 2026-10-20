@@ -12,7 +12,7 @@ import type { MenuEntry, MenuItemId, MenuParams } from '../menus/context-menu-mo
 import { DataClientError } from '../persistence/data-client';
 import type { DataClient, DataReady } from '../persistence/data-client';
 import type { DataLifecycle } from '../persistence/data-lifecycle';
-import type { AppNotice, AppNotices } from '../notices/app-notices';
+import type { AppNotice, AppNotices, NewAppNotice } from '../notices/app-notices';
 import { holdDataWorker } from './data-hold';
 import type { Worker } from 'node:worker_threads';
 import type { TabMenuEntry, TabMenuItemId } from '../menus/tab-menu-model';
@@ -118,6 +118,8 @@ export interface VeltrivaTestHooks {
   holdDataWorker(ms: number): void;
   /** The notices the shell shows about Veltriva itself. */
   notices(): AppNotice[];
+  /** Raises a notice as main does after a recovery, and returns its id. */
+  showNotice(notice: NewAppNotice): string;
 }
 
 declare global {
@@ -325,6 +327,10 @@ export function installTestHooks({
 
     notices() {
       return [...notices.list()];
+    },
+
+    showNotice(notice) {
+      return notices.show(notice);
     },
   };
 

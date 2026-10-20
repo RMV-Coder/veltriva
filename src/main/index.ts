@@ -271,6 +271,7 @@ function start(): void {
     selectedTabId: () => tabs.selectedTabId(),
     fullscreen: () => fullscreen.state(),
     downloads: () => downloads.list(),
+    notices,
     extrasFor: (tabId) => ({
       prompt: prompts.current(tabId),
       blockedPopups: blockedPopups.get(tabId),
@@ -381,6 +382,7 @@ function start(): void {
       blockedPopups,
       external,
       downloads,
+      notices,
       searchTemplate,
     }),
     allowedOrigins: new Set(
