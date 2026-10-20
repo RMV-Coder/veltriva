@@ -59,6 +59,11 @@ The tab lifecycle mixes asynchronous Chromium events, user commands, a scheduler
    - **Snapshot fields.** `zoomPercent` and `find` per tab. `fullscreen` (tab, origin label, notice) on the workspace.
    - **Shortcuts never travel over IPC.** Main matches them from `before-input-event` and from the hidden menu's accelerators, so the shell has no shortcut handlers of its own (assessment §3.9).
 
+10. **As built in M2.1a and M2.1b (Phase 2):**
+   - **Main and the data worker have a contract of their own.** It lives in `src/shared/contracts/data-rpc.ts`, built on the same rules: strict Zod both ways, bounded lists, error codes only (ADR-0004 item 7). The shell never reaches the worker; main is still the only writer.
+   - **Notices about Veltriva itself.** The snapshot has a workspace-level `notices` list of at most 3, which M2.1b uses for database recovery (`database-restored`, `database-reset`). The new command `notices.dismiss({ noticeId })` answers `not_found` for an id that isn't shown.
+   - **The kept file's name is untrusted text.** Main keeps only its last path segment and replaces controls, bidi overrides and Windows-forbidden characters. The shell cleans it again and isolates it in `<bdi dir="ltr">`, as it does for sites in the prompt strip.
+
 ## Consequences
 
 - **Positive:** one source of truth. Races are handled in one place (the per-tab queues in ADR-0003).

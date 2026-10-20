@@ -29,6 +29,14 @@
      - M1.2's hooks are `openTestTab`, `closeTestTabs` and `webContentsRoles`, on `globalThis.__veltrivaTest`. M1.3a adds `tabStates`, `selectedTabId`, `contentRect`, `crashTab` and `setSearchTemplate`, which points omnibox searches at a local fixture.
      - M1.3b adds `contextMenuItems` and `invokeContextMenuItem`, because Playwright can't click a native menu: a test reads the entries for given params and runs one. `tabMenuItems` and `invokeTabMenuItem` do the same for a sidebar tab's menu. It also adds `viewStack` (the views from bottom to top) and `fullscreen`.
      - M1.4a adds `externalLaunches`, the URLs the external-protocol guard launched. Test builds never launch an app: `src/main/testing/external-launches.ts` records each URL instead of calling `shell.openExternal`. It also adds `popupWindows`, each popup window with its address-bar text and layout.
+     - **M2.1a adds `dataCall`, `dataState` and `mainNativeModules`.**
+       - `dataCall` calls the data worker through main's validating client, and returns the error code instead of throwing.
+       - `mainNativeModules` lists the native addons in main's own module registry, which must be empty.
+     - **M2.1b adds `dataReady`, `holdDataWorker`, `notices` and `showNotice`.**
+       - `holdDataWorker` keeps the worker inside one long SQLite statement (`src/data/testing/hold.ts`), so a lifecycle check can quit while a statement runs.
+       - The lifecycle harness can reuse one profile across launches and expect an exit code. Its scenarios print a `will-quit` event line with the data client's state.
+       - Its checks cover a clean exit, a quit at the 3 s cap while the worker is stuck (exit 1, then a crash and a quick check on the next launch), and a damaged database restored from the daily backup.
+     - **Data-layer integration tests** run on real files under Vitest (item 3). They include crash consistency: a child Node process killed five times mid-transaction, then startup and every check pass, committed rows survive and uncommitted ones are gone.
      - **The production check knows every test-only name** (M1.3b): the hooks' global and names, the lifecycle runner with its env and scenario names, and the fail-fast handler and its message. `setSearchTemplate` is exempt: production code exports it for the Phase 5 setting. CI runs the check right after its production build, and `package:dir` runs it before packaging.
      - **An uncaught exception in main exits a test build with code 70** (`src/main/testing/fail-fast.ts`). Electron's default opens a modal error dialog and keeps the app running, which every harness would only see as a hang.
    - Pages come from a deterministic local fixture server; no critical test depends on an external site.
