@@ -265,7 +265,9 @@ test.describe('reserved shortcuts', () => {
     await sendToSelected(electronApp, 'T', ['control', 'shift']);
     await expect.poll(async () => (await mainIds(electronApp)).length).toBe(2);
     const reopenedA = (await mainIds(electronApp))[1] ?? '';
-    expect(originalIds).not.toContain(reopenedA);
+    // Since M2.2a a reopened tab is the same tab again: its own id, with its history.
+    expect(reopenedA).toBe(tabA.tabId);
+    expect(originalIds).toContain(reopenedA);
     await waitForPage(electronApp, reopenedA, { url: urlA });
     await expectSelectedWithFocus(electronApp, reopenedA);
 

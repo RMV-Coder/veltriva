@@ -154,13 +154,27 @@ export async function launchApp(
   options: LaunchOptions = {},
 ): Promise<ElectronApplication> {
   const { repoRoot, electronBinary } = appPaths();
-  return electron.launch({
+  const app = await electron.launch({
     executablePath: electronBinary,
     args: [...(options.switches ?? []), repoRoot],
     cwd: repoRoot,
     env: buildLaunchEnv(userDataDir),
     timeout: LAUNCH_TIMEOUT_MS,
   });
+  // Electron is ready before the app is: since M2.2a, main reads the saved session before it
+  // creates the window and the test hooks. A spec may use a hook as soon as this returns.
+  const deadline = Date.now() + LAUNCH_TIMEOUT_MS;
+  while (!(await app.evaluate(() => globalThis.__veltrivaTest !== undefined))) {
+    if (Date.now() > deadline) {
+      await closeApp(app);
+      throw new Error('The app started, but its test hooks never appeared.');
+    }
+    await delay(POLL_INTERVAL_MS);
+  }
+  // And the shell's page exists: a spec that waits for the next window (a test tab's) must not
+  // get the shell's instead.
+  await shellPage(app);
+  return app;
 }
 
 /** True if `url` is the shell page, app://shell/index.html. Ignores the query and hash. */
