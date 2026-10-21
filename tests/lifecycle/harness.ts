@@ -43,6 +43,8 @@ export interface ScenarioOptions {
   readonly userDataDir?: string;
   /** The exit code the scenario must end with: 1 for a hard exit (`process.kill`). Default 0. */
   readonly exitCode?: number;
+  /** More environment for the app, such as a scenario's settings. */
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 export function makeProfile(): string {
@@ -66,6 +68,7 @@ export async function runScenario<T>(
       ...envWithoutRunAsNode(),
       [SCENARIO_ENV]: name,
       [USER_DATA_DIR_ENV]: userDataDir,
+      ...options.env,
     });
     const output = `stdout:\n${stdout}\nstderr:\n${stderr}`;
     const line = stdout.split(/\r?\n/).find((candidate) => candidate.startsWith(RESULT_PREFIX));
@@ -186,6 +189,87 @@ function envWithoutRunAsNode(): Record<string, string> {
 }
 
 /** `ChildProcess.kill()` would leave electron.exe's children running; `taskkill /T` takes all. */
+export interface KilledRun {
+  /** Every LIFECYCLE_EVENT_PREFIX line the app printed before it was killed. */
+  readonly events: readonly unknown[];
+  /** How long after the start event the kill came. */
+  readonly killedAfterMs: number;
+}
+
+/**
+ * Runs a scenario that never ends by itself, and hard-kills the whole process tree `killAfterMs`
+ * after it prints the event `{ event: startEvent }`: what a power cut or Task Manager does.
+ */
+export async function runUntilKilled(
+  name: string,
+  options: {
+    readonly userDataDir: string;
+    readonly killAfterMs: number;
+    readonly startEvent: string;
+    readonly env?: Readonly<Record<string, string>>;
+  },
+): Promise<KilledRun> {
+  const binary = electronBinary();
+  const child = spawn(binary, [REPO_ROOT], {
+    cwd: REPO_ROOT,
+    env: {
+      ...envWithoutRunAsNode(),
+      [SCENARIO_ENV]: name,
+      [USER_DATA_DIR_ENV]: options.userDataDir,
+      ...options.env,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const events: unknown[] = [];
+  let pending = '';
+  let stderr = '';
+  let startedAt: number | undefined;
+  let killedAt: number | undefined;
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      killProcessTree(child.pid);
+      reject(new Error(`${name} never printed ${options.startEvent}.\nstderr:\n${stderr}`));
+    }, SCENARIO_TIMEOUT_MS);
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+      pending += chunk;
+      const lines = pending.split(/\r?\n/);
+      pending = lines.pop() ?? '';
+      for (const line of lines) {
+        if (!line.startsWith(EVENT_PREFIX)) {
+          continue;
+        }
+        const event: unknown = JSON.parse(line.slice(EVENT_PREFIX.length));
+        if (killedAt === undefined) {
+          events.push(event);
+        }
+        if (
+          startedAt === undefined &&
+          (event as { event?: unknown }).event === options.startEvent
+        ) {
+          startedAt = Date.now();
+          setTimeout(() => {
+            killedAt = Date.now();
+            killProcessTree(child.pid);
+          }, options.killAfterMs);
+        }
+      }
+    });
+    child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk));
+    child.on('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on('close', () => {
+      clearTimeout(timeout);
+      if (startedAt === undefined || killedAt === undefined) {
+        reject(new Error(`${name} exited before it was killed.\nstderr:\n${stderr}`));
+        return;
+      }
+      resolve({ events, killedAfterMs: killedAt - startedAt });
+    });
+  });
+}
+
 function killProcessTree(pid: number | undefined): void {
   if (pid === undefined) {
     return;

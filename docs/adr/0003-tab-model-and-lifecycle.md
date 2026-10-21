@@ -100,6 +100,33 @@ Wall-clock timers would also archive a user's workspace after a weekend away.
     - **"Close other tabs" keeps pinned tabs**, as in Chrome: pinning is how the user says "keep this one". It is disabled when every other tab is pinned.
     - **Fullscreen counts as a hard protection** once the protection engine arrives (assessment §4.5). TabManager already tracks it.
 
+11. **As built in M2.2a** (session restore; assessment §5.5, §5.7, §5.9):
+    - **The `tabs` table is the live session.**
+      - TabManager reports changes, and `src/main/session/session-store.ts` writes only the rows that changed.
+      - It writes at most 1 s later, or 250 ms after a structural change (a tab opened, closed, moved, pinned or selected).
+      - Each flush is one `session.save`, one transaction holding the rows, the deletions and the `session` and `window` documents. A hard kill therefore loses at most the last second, and never leaves half a flush.
+    - **The persisted stack** (`src/core/session/history.ts`) holds URLs and titles only, at most 50 entries around the active one.
+      - Only http:, https: and file: entries are kept, so a restore can never load veltriva:, javascript:, data: or another app's link.
+      - Credentials are removed, and so is a fragment that carries a token (`#access_token=…`, `#/callback?code=…`).
+      - Every stack is sanitized again when it is read back, because the file isn't trusted.
+    - **Startup.**
+      - The session is read before the window exists, within 10 s. If it can't be read, the app starts with a new tab and writes nothing, so the saved session survives.
+      - The window opens at its saved place, if that is still on a screen.
+      - Every tab comes back `unloaded`, and only the selected one is restored. Restores follow item 6: a brand-new web contents, attached before `restore()`, with the three failure shapes handled. A creation failure falls back to loading the address alone.
+      - Another tab is restored when it is selected, and Reload restores an unloaded tab.
+    - **Crashes.**
+      - After a crash, a "Veltriva didn't close properly" notice says the tabs are back.
+      - After two crashes in a row, each within 60 s of starting, the next start is in **safe mode** (`src/core/session/crash-loop.ts`). The tabs come back, none loads, and a notice explains it.
+    - **Recently closed** (item 8).
+      - A closed tab keeps its stack. Its row stays with placement `closed` and `closed_at`, and closed tabs older than 7 days are purged at startup.
+      - Ctrl+Shift+T reopens the newest one, with its own id and stack, where it was. Up to 100 are reopenable per run, and the newest 100 are loaded at startup.
+      - The schema allows a pin only in the strip, so a tab closed while pinned reopens unpinned after a restart.
+    - **One instance per profile.** A second launch hands over to the first, which comes to the front, and quits.
+    - **Shutdown.** The window's `closed` handler freezes the store before TabManager tears the tabs down; otherwise that would look like the user closing them all. The frozen state is written inside the 3 s cap (ADR-0004 item 8).
+    - **Acceptance.** `tests/lifecycle/hard-kill.test.ts` runs 20 rounds on one profile. Each round is a launch that changes the session without pause, hard-killed at a seeded random moment, then a launch that reports what it restored.
+      - The restored strip, Recently closed and selection must equal the state after the last acknowledged save, or the one in flight, rebuilt from the saves the churn printed.
+      - Only the selected tab may be loaded.
+
 ## Consequences
 
 - **Positive:** both product-critical states are first-class, the policy is unit-testable without Electron, and every automatic action can be explained.

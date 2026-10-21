@@ -54,6 +54,10 @@ const MARKERS = [
   'quit-with-busy-database',
   'report-data-startup',
   'write-and-back-up',
+  'session-churn',
+  'report-session',
+  'VELTRIVA_CHURN',
+  'churn-started',
   // src/main/testing/fail-fast.ts
   'exitOnUncaughtException',
   'Uncaught exception in main',

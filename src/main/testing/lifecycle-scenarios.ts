@@ -8,7 +8,9 @@ import type { Worker } from 'node:worker_threads';
 
 import type { AppNotices } from '../notices/app-notices';
 import type { DataClient } from '../persistence/data-client';
+import type { StartupSession } from '../session/session-startup';
 import { holdDataWorker } from './data-hold';
+import { reportSession, sessionChurn } from './session-scenarios';
 import type { TabId, TabManager } from '../tabs/tab-manager';
 import type { FullscreenController } from '../windows/fullscreen';
 import type { MainWindow } from '../windows/main-window';
@@ -19,7 +21,7 @@ export const LIFECYCLE_RESULT_PREFIX = 'VELTRIVA_LIFECYCLE_RESULT ';
 /** Lines printed after the result, as the app shuts down. */
 export const LIFECYCLE_EVENT_PREFIX = 'VELTRIVA_LIFECYCLE_EVENT ';
 
-interface ScenarioContext {
+export interface ScenarioContext {
   readonly main: MainWindow;
   readonly tabs: TabManager;
   readonly fullscreen: FullscreenController;
@@ -27,6 +29,7 @@ interface ScenarioContext {
   readonly data: DataClient;
   readonly dataWorker: Worker;
   readonly notices: AppNotices;
+  readonly startup: StartupSession | null;
 }
 
 const wait = (ms: number): Promise<void> =>
@@ -188,6 +191,9 @@ const SCENARIOS: ReadonlyMap<string, Scenario> = new Map([
   ['quit-with-busy-database', { run: quitWithBusyDatabase, endsByClosingWindow: true }],
   ['report-data-startup', { run: reportDataStartup, endsByClosingWindow: true }],
   ['write-and-back-up', { run: writeAndBackUp, endsByClosingWindow: true }],
+  // Ends only when the test kills it (tests/lifecycle/hard-kill.test.ts).
+  ['session-churn', { run: sessionChurn }],
+  ['report-session', { run: reportSession, endsByClosingWindow: true }],
 ]);
 
 export function runLifecycleScenario(name: string, context: ScenarioContext): void {

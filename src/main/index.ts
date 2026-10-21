@@ -496,6 +496,7 @@ async function start(): Promise<void> {
         data,
         dataWorker,
         notices,
+        startup,
       });
     }
   }

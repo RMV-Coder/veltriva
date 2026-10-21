@@ -70,12 +70,15 @@ export function restorableUrl(raw: string): string | null {
     return null;
   }
   // Credentials typed into an address are never kept (the address bar removes them too).
+  let clean = raw;
   if (url.username !== '' || url.password !== '') {
     url.username = '';
     url.password = '';
-    return stripTokenFragment(url.href);
+    clean = url.href;
   }
-  return stripTokenFragment(raw);
+  clean = stripTokenFragment(clean);
+  // Normalizing (removing credentials re-serializes the URL) can make it longer.
+  return clean.length > MAX_HISTORY_URL ? null : clean;
 }
 
 /**

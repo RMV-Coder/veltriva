@@ -19,7 +19,7 @@
 // at startup that is the selected tab alone. A closed tab keeps its stack for Ctrl+Shift+T, and
 // the session store (src/main/session) persists both lists.
 import { nextZoomFactor, zoomPercent } from '../../core/layout/zoom';
-import { sanitizeHistory, singleEntryHistory } from '../../core/session/history';
+import { restorableUrl, sanitizeHistory, singleEntryHistory } from '../../core/session/history';
 import type { TabHistory } from '../../core/session/history';
 import { errorPageFor } from '../../core/net/error-pages';
 import type { ZoomDirection } from '../../core/layout/zoom';
@@ -271,7 +271,12 @@ export class TabManager {
     const now = this.#now();
     this.#records.set(
       id,
-      this.#newRecord({ id, pinned: after?.state.pinned ?? false, createdAt: now, lastUsedAt: now }),
+      this.#newRecord({
+        id,
+        pinned: after?.state.pinned ?? false,
+        createdAt: now,
+        lastUsedAt: now,
+      }),
     );
     if (after === undefined) {
       this.#order.push(id);
@@ -343,9 +348,7 @@ export class TabManager {
     this.#records.set(id, this.#newRecord({ ...closed, id, lastUsedAt: this.#now() }));
     // Pinned or not, it goes back inside its own section.
     const pinnedCount = this.#pinnedCount();
-    const [first, last] = closed.pinned
-      ? [0, pinnedCount]
-      : [pinnedCount, this.#order.length];
+    const [first, last] = closed.pinned ? [0, pinnedCount] : [pinnedCount, this.#order.length];
     this.#order.splice(Math.min(Math.max(closed.index, first), last), 0, id);
     this.#setSelected(id, true);
     this.#changed();
@@ -385,17 +388,15 @@ export class TabManager {
       if (this.#records.has(tab.id)) {
         continue; // A duplicate id: keep the first.
       }
-      const web = tab.url !== SESSION_NEW_TAB_URL;
-      this.#records.set(
-        tab.id,
-        this.#newRecord(web ? tab : { ...tab, url: '', title: '', history: null }),
-      );
+      this.#records.set(tab.id, this.#newRecord(checkedSessionTab(tab)));
       this.#order.push(tab.id);
     }
     this.#closed.length = 0;
     for (const closed of [...session.closed].reverse().slice(-MAX_CLOSED_TABS)) {
-      if (!this.#records.has(closed.id) && closed.url !== SESSION_NEW_TAB_URL) {
-        this.#closed.push(closed);
+      const checked = checkedSessionTab(closed);
+      // A closed new-tab page has nothing to reopen.
+      if (!this.#records.has(closed.id) && checked.url !== '') {
+        this.#closed.push({ ...closed, ...checked });
       }
     }
     const selected =
@@ -435,6 +436,8 @@ export class TabManager {
   select(tabId: TabId, options: { readonly focus?: boolean } = {}): void {
     this.#record(tabId);
     if (this.#selected === tabId) {
+      // Safe mode leaves the selected tab unloaded: picking it again loads it.
+      this.#ensureLive(tabId);
       return;
     }
     this.#setSelected(tabId, options.focus ?? true);
@@ -542,6 +545,7 @@ export class TabManager {
       record.runtimeToken = token;
       record.runtime = this.#options.createRuntime(tabId, this.#eventsFor(tabId, token));
     }
+    record.pendingHistory = null;
     record.focusOnCommit = options.focus ?? true;
     record.credentialsRemovedOnCommit = options.credentialsRemoved ?? false;
     record.state = {
@@ -563,6 +567,7 @@ export class TabManager {
     record.runtime = undefined;
     record.runtimeToken = undefined;
     record.credentialsRemovedOnCommit = false;
+    record.pendingHistory = null;
     this.#options.onPageGone?.(tabId);
     record.findRequestId = undefined;
     record.state = {
@@ -758,7 +763,8 @@ export class TabManager {
     }
     const history =
       record.pendingHistory ?? singleEntryHistory(record.state.url, record.state.title);
-    record.pendingHistory = null;
+    // Kept until the first commit: a flush before then must not replace the saved stack.
+    record.pendingHistory = history;
     if (history === null) {
       this.showInternal(tabId, 'new-tab');
       return;
@@ -906,6 +912,8 @@ export class TabManager {
         if (record === undefined) {
           return;
         }
+        // The runtime has a stack of its own now.
+        record.pendingHistory = null;
         const leavingInternalPage = record.state.page.kind !== 'web';
         if (!sameDocument) {
           // A new document closes the find bar, as in Chrome; Ctrl+F reopens it with the same
@@ -1043,9 +1051,27 @@ export class TabManager {
         record.runtime = undefined;
         record.runtimeToken = undefined;
         this.navigate(tabId, record.state.url, { focus: this.#selected === tabId });
+        // The replacement is attached now: its commit attaches nothing, the page being 'web'.
+        this.#syncVisibility();
       },
     };
   }
+}
+
+/**
+ * A saved tab's address and title, checked like any input: the database file is not trusted.
+ * An address a tab may not load falls back to its stack's active entry (itself checked), else
+ * the tab is a new-tab page (address '', no title, no stack).
+ */
+function checkedSessionTab<T extends SessionTab>(tab: T): T {
+  const history = tab.history === null ? null : sanitizeHistory(tab.history);
+  const url =
+    tab.url === SESSION_NEW_TAB_URL
+      ? null
+      : (restorableUrl(tab.url) ?? history?.entries[history.index]?.url ?? null);
+  return url === null
+    ? { ...tab, url: '', title: '', history: null }
+    : { ...tab, url, title: sanitizeTitle(tab.title), history };
 }
 
 export class TabNotFoundError extends Error {

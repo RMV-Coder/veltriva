@@ -6,12 +6,13 @@
 // Shutdown: the window's `closed` handler freezes the store before TabManager closes every tab
 // (otherwise that would look like the user closing them all), and DataLifecycle's flush writes
 // the frozen state within the 3 s cap.
-import { restorableUrl, stripTokenFragment } from '../../core/session/history';
+import { restorableUrl } from '../../core/session/history';
 import type { SavedWindow } from '../../core/layout/window-bounds';
 import type { DataInput, TabRow } from '../../shared/contracts/data-rpc';
 import { MAX_BATCH } from '../../shared/contracts/data-rpc';
 import type { DataClient } from '../persistence/data-client';
 import type { Logger } from '../platform/logger';
+import { SESSION_NEW_TAB_URL } from '../tabs/tab-manager';
 import type { ClosedTab, SessionTab, TabId } from '../tabs/tab-manager';
 
 export const FLUSH_DELAY_MS = 1000;
@@ -21,6 +22,8 @@ export const WINDOW_DOCUMENT = 'window';
 
 /** What the store reads: TabManager in the app, a fake in tests. */
 export interface SessionSource {
+  /** The strip, cheaply: ids and pins, for telling a structural change from any other. */
+  tabs(): readonly { readonly id: TabId; readonly pinned: boolean }[];
   sessionTabs(): readonly SessionTab[];
   closedTabs(): readonly ClosedTab[];
   selectedTabId(): TabId | null;
@@ -56,6 +59,8 @@ export class SessionStore {
   #timerDue = 0;
   #frozen: { rows: TabRow[]; documents: Documents } | null = null;
   #flushing: Promise<void> | null = null;
+  /** Set when freezing failed: nothing more is written. */
+  #stopped = false;
 
   constructor(options: SessionStoreOptions) {
     this.#source = options.source;
@@ -73,9 +78,14 @@ export class SessionStore {
     if (this.#frozen !== null) {
       return;
     }
-    const structure = this.#structureOf();
-    const structural = structure !== this.#structure;
-    this.#structure = structure;
+    let structural = true;
+    try {
+      const structure = this.#structureOf();
+      structural = structure !== this.#structure;
+      this.#structure = structure;
+    } catch {
+      // Unreadable now: flush soon anyway, which logs if it still is (`session.readFailed`).
+    }
     this.#schedule(structural ? STRUCTURAL_FLUSH_DELAY_MS : FLUSH_DELAY_MS);
   }
 
@@ -93,8 +103,17 @@ export class SessionStore {
    * closes, before its tabs are torn down; `flush()` then writes what was captured.
    */
   freeze(): void {
-    if (this.#frozen === null) {
+    if (this.#frozen !== null) {
+      return;
+    }
+    try {
       this.#frozen = { rows: this.#rows(), documents: this.#documents() };
+    } catch {
+      // Nothing more is written this run: tearing the tabs down must never be saved as the user
+      // closing them all. What the last flush wrote is what the next start restores.
+      this.#logger.error('session.readFailed');
+      this.#frozen = { rows: [], documents: [] };
+      this.#stopped = true;
     }
   }
 
@@ -131,8 +150,19 @@ export class SessionStore {
   }
 
   async #write(): Promise<void> {
-    const rows = this.#frozen?.rows ?? this.#rows();
-    const documents = this.#frozen?.documents ?? this.#documents();
+    if (this.#stopped) {
+      return;
+    }
+    let rows: TabRow[];
+    let documents: Documents;
+    try {
+      rows = this.#frozen?.rows ?? this.#rows();
+      documents = this.#frozen?.documents ?? this.#documents();
+    } catch {
+      // A bug in reading the session must not become an unhandled rejection in main.
+      this.#logger.error('session.readFailed');
+      return;
+    }
     const json = new Map(rows.map((row) => [row.id, JSON.stringify(row)]));
     const changed = rows.filter((row) => this.#written.get(row.id) !== json.get(row.id));
     const gone = [...this.#written.keys()].filter((id) => !json.has(id));
@@ -188,7 +218,9 @@ export class SessionStore {
 
   /** A change in the strip's order, pins, membership or selection: flushed sooner. */
   #structureOf(): string {
-    const tabs = this.#source.sessionTabs().map((tab) => `${tab.id}${tab.pinned ? '*' : ''}`);
+    // Ids and pins only: this runs on every change, and reading stacks would cost a URL parse
+    // per history entry of every tab.
+    const tabs = this.#source.tabs().map((tab) => `${tab.id}${tab.pinned ? '*' : ''}`);
     return `${tabs.join(',')}|${String(this.#source.selectedTabId())}|${String(this.#source.closedTabs().length)}`;
   }
 
@@ -219,10 +251,10 @@ export class SessionStore {
   ): TabRow | null {
     // The exact address, minus credentials and token-bearing fragments (§5.7). A tab whose
     // address can't be restored keeps it as is; restoring it then opens a new-tab page.
-    const url = restorableUrl(tab.url) ?? stripTokenFragment(tab.url);
-    if (url.length === 0 || url.length > 65_536) {
-      return null;
-    }
+    // An address a tab may not restore (about:blank, a chrome: page) is saved as a new-tab
+    // page: restoring it would open one anyway, and nothing unsafe reaches the file.
+    const url = restorableUrl(tab.url);
+    const restorable = url !== null;
     return {
       id: tab.id,
       workspaceId: this.#workspaceId,
@@ -232,11 +264,13 @@ export class SessionStore {
       pinned: where.placement === 'strip' && tab.pinned,
       userProtected: false,
       pageId: null,
-      url,
-      title: tab.title,
+      url: url ?? SESSION_NEW_TAB_URL,
+      title: restorable ? tab.title : '',
       faviconId: null,
       restoreState:
-        tab.history === null ? null : { v: 1, ...tab.history, entries: [...tab.history.entries] },
+        !restorable || tab.history === null
+          ? null
+          : { v: 1, ...tab.history, entries: [...tab.history.entries] },
       openerTabId: null,
       createdAt: tab.createdAt,
       lastUsedAt: tab.lastUsedAt,
