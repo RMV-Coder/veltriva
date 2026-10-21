@@ -37,6 +37,8 @@ export interface TabInputHandlers {
 }
 
 const ERR_ABORTED = -3;
+/** How long after a load stops a document's own favicon candidates may still arrive. */
+const SAME_FAVICON_GRACE_MS = 1000;
 
 /**
  * An isolated world of our own (the page can't touch its globals) for the one script main runs in
@@ -69,6 +71,31 @@ export function createTabRuntimes(options: {
     let destroyed = false;
     /** Increases with each cross-document commit; stale favicon lookups are dropped. */
     let document = 0;
+    /**
+     * Chromium (Electron 44) reports a document's favicon candidates only when they differ from
+     * the previous document's in this web contents: the second of two pages with the same icon
+     * got no event, so neither the strip nor the memory showed one (found by E2E, M2.2b). The
+     * last candidates are kept, and a committed document that stops loading without reporting
+     * any takes them again.
+     */
+    let lastCandidates: readonly string[] | null = null;
+    /** The document whose candidates arrived last; `document` once this one has reported. */
+    let candidatesFor = 0;
+    /** The main frame failed after the last commit: an error page shows, with no icon. */
+    let failedSinceCommit = false;
+
+    const resolveFavicon = (candidates: readonly string[]): void => {
+      const forDocument = document;
+      // The committed page decides which local hosts its favicon may come from.
+      options.favicons
+        .resolve(candidates, contents.getURL())
+        .then((favicon) => {
+          if (!destroyed && forDocument === document) {
+            events.faviconChanged(favicon);
+          }
+        })
+        .catch(() => undefined);
+    };
 
     trackMainFrameNavigations(contents);
     contents.setWindowOpenHandler(
@@ -90,6 +117,7 @@ export function createTabRuntimes(options: {
         return;
       }
       document += 1;
+      failedSinceCommit = false;
       events.committed({ url, sameDocument: false, ...history() });
     });
     contents.on('did-navigate-in-page', (_event, url, isMainFrame) => {
@@ -99,6 +127,7 @@ export function createTabRuntimes(options: {
     });
     contents.on('did-fail-load', (_event, code, name, url, isMainFrame) => {
       if (!destroyed && isMainFrame && code !== ERR_ABORTED) {
+        failedSinceCommit = true;
         // History may have moved (a failed navigation can still add an entry): report it.
         events.loadFailed({ code, name, url, ...history() });
       }
@@ -109,9 +138,26 @@ export function createTabRuntimes(options: {
       }
     });
     contents.on('did-stop-loading', () => {
-      if (!destroyed) {
-        events.loadingChanged(false);
+      if (destroyed) {
+        return;
       }
+      events.loadingChanged(false);
+      // Changed candidates arrive just after the load stops (seen on Electron 44), so give them a
+      // moment before taking none to mean "the same as the last".
+      const stopped = document;
+      setTimeout(() => {
+        if (
+          !destroyed &&
+          stopped > 0 &&
+          stopped === document &&
+          candidatesFor !== document &&
+          !failedSinceCommit &&
+          lastCandidates !== null
+        ) {
+          candidatesFor = document;
+          resolveFavicon(lastCandidates);
+        }
+      }, SAME_FAVICON_GRACE_MS);
     });
     contents.on('page-title-updated', (_event, title) => {
       if (!destroyed) {
@@ -125,16 +171,9 @@ export function createTabRuntimes(options: {
       }
     });
     contents.on('page-favicon-updated', (_event, candidates) => {
-      const forDocument = document;
-      // The committed page decides which local hosts its favicon may come from.
-      options.favicons
-        .resolve(candidates, contents.getURL())
-        .then((favicon) => {
-          if (!destroyed && forDocument === document) {
-            events.faviconChanged(favicon);
-          }
-        })
-        .catch(() => undefined);
+      lastCandidates = [...candidates];
+      candidatesFor = document;
+      resolveFavicon(candidates);
     });
     contents.on('found-in-page', (_event, result) => {
       if (!destroyed) {

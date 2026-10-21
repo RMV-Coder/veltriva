@@ -678,6 +678,38 @@ test.describe('favicons', () => {
 
   const sha256 = (bytes: Buffer): string => createHash('sha256').update(bytes).digest('hex');
 
+  // Regression: Chromium reports a document's favicon candidates only when they differ from the
+  // previous document's in the same tab, so the second of two pages with the same icon got none,
+  // in the strip and in the memory (found by main-thread.spec.ts). TabRuntime now takes the last
+  // candidates again when a document reports none.
+  test('the next page in a tab with the same icon gets it too, in the strip and in the memory', async ({
+    launcher,
+    fixtureServer,
+  }) => {
+    const iconPath = '/memory/icon.png?w=16&h=16&c=0,120,60';
+    const first = memoryPage(fixtureServer, { title: 'First with icon', icon: iconPath });
+    const second = memoryPage(fixtureServer, { title: 'Second with icon', icon: iconPath });
+    const third = memoryPage(fixtureServer, { title: 'Third with icon', icon: iconPath });
+
+    const { app, shell } = await launcher.launch();
+    const tab = await loadInNewTab(app, shell, first);
+    const { page: firstRow } = await waitForFavicon(app, first);
+    for (const [url, title] of [
+      [second, 'Second with icon'],
+      [third, 'Third with icon'],
+    ] as const) {
+      await typeAddress(shell, url);
+      await waitForPage(app, tab, { url, title });
+      const { page } = await waitForFavicon(app, url);
+      expect(page.faviconId).toBe(firstRow.faviconId);
+      await expect
+        .poll(async () => (await tabState(app, tab))?.favicon ?? null, {
+          message: `the strip should show the icon of ${title}`,
+        })
+        .not.toBeNull();
+    }
+  });
+
   test('a PNG, an ICO and a GIF are stored as served, once each, and pages with the same icon share the row', async ({
     launcher,
     fixtureServer,
