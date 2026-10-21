@@ -15,6 +15,7 @@ import { cleanUserAgent } from './app/user-agent';
 import { resolveUserDataDir, USER_DATA_DIR_OVERRIDE_ENV } from './app/user-data-dir';
 import { createLoginHandler } from './auth/sign-in';
 import { DownloadManager, MAX_LISTED_DOWNLOADS } from './downloads/download-manager';
+import { createDownloadStore } from './downloads/download-store';
 import { systemFileActions } from './downloads/file-actions';
 import { systemLauncher } from './external/launcher';
 import { ExternalProtocolGuard } from './external/protocol-guard';
@@ -266,7 +267,11 @@ async function start(): Promise<void> {
       projector.markDirty();
     },
     logger: consoleLogger,
+    // The history (M2.2b): every change is written through; ids are the rows' keys.
+    store: createDownloadStore({ data, logger: consoleLogger }),
+    newId: () => uuidv7(Date.now(), getRandomValues(new Uint8Array(10))),
   });
+  downloads.restore(stored.downloads);
   allowManagedDownloads(browsing);
   downloads.attach(browsing);
   // Client hints: navigations carry the Sec-CH-UA headers Chrome sends, with Chromium's own

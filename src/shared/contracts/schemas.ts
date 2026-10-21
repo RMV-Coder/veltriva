@@ -29,7 +29,8 @@ const inset = z.number().min(0).max(10_000);
 
 /** A favicon is always a validated raster image that main encoded itself (threat T5). */
 /** A download's id: main's own handle, never a path (src/main/downloads). */
-const downloadId = z.string().regex(/^download-[0-9]{1,12}$/);
+/** A UUIDv7: the key of the download's row (M2.2b). */
+const downloadId = z.string().regex(UUID_V7_PATTERN);
 const downloadRef = z.strictObject({ downloadId });
 
 /** A toolbar question's id (src/main/prompts/prompt-manager.ts). */
