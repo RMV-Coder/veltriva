@@ -235,13 +235,14 @@ export class Maintenance {
     const visits = await drain(() =>
       this.#prune.visits(now - visitRetentionDays * BACKUP_EVERY_MS),
     );
+    // Before the orphan scan, so an icon only an expired closed tab used goes in the same run.
+    const closedTabs = await drain(() => this.#prune.closedTabs(now - CLOSED_TAB_RETENTION_MS));
     let pages = 0;
-    if (visits > 0 || this.#orphansDue) {
+    if (visits > 0 || closedTabs > 0 || this.#orphansDue) {
       this.#orphansDue = false;
       pages = await drain(() => this.#prune.orphanPages());
       await drain(() => this.#prune.orphanFavicons());
     }
-    const closedTabs = await drain(() => this.#prune.closedTabs(now - CLOSED_TAB_RETENTION_MS));
     if (visits > 0 || pages > 0 || closedTabs > 0) {
       this.noteWrite();
       this.#db.pragma(`incremental_vacuum(${String(VACUUM_PAGES_PER_RUN)})`);

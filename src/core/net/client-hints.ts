@@ -162,10 +162,9 @@ export class ClientHintOptIns {
       readonly onChange?: () => void;
     } = {},
   ) {
-    for (const [origin, hints] of storedOptIns(options.stored)) {
-      if (this.#byOrigin.size < MAX_OPT_IN_ORIGINS) {
-        this.#byOrigin.set(origin, hints);
-      }
+    // Oldest first, so the newest MAX_OPT_IN_ORIGINS are the ones kept (more means a damaged file).
+    for (const [origin, hints] of storedOptIns(options.stored).slice(-MAX_OPT_IN_ORIGINS)) {
+      this.#byOrigin.set(origin, hints);
     }
     this.#onChange = options.onChange;
   }
@@ -188,9 +187,14 @@ export class ClientHintOptIns {
       return;
     }
     const before = this.#byOrigin.get(origin);
-    this.#byOrigin.delete(origin);
     const hints = parseAcceptCh(value);
     const same = before?.size === hints.size && [...hints].every((hint) => before.has(hint));
+    if (same) {
+      // Asked again for the same: it keeps its place, so what is stored stays in step with this
+      // (oldest first) and an origin's every page load costs no write.
+      return;
+    }
+    this.#byOrigin.delete(origin);
     if (hints.size === 0) {
       if (before !== undefined) {
         this.#onChange?.();
@@ -198,9 +202,7 @@ export class ClientHintOptIns {
       return;
     }
     this.#byOrigin.set(origin, hints);
-    if (!same) {
-      this.#onChange?.();
-    }
+    this.#onChange?.();
     if (this.#byOrigin.size > MAX_OPT_IN_ORIGINS) {
       const oldest = this.#byOrigin.keys().next().value;
       if (oldest !== undefined) {

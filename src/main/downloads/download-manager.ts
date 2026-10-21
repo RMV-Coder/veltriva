@@ -20,7 +20,7 @@
 import { getRandomValues } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { rename, rm } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, join } from 'node:path';
+import { basename, dirname, isAbsolute, join, win32 } from 'node:path';
 
 import type { DownloadItem, Session } from 'electron';
 
@@ -120,10 +120,21 @@ function isOurFile(row: DownloadRow): boolean {
   const diskName =
     row.dangerous && !row.confirmed ? `${row.fileName}${UNCONFIRMED_SUFFIX}` : row.fileName;
   return (
-    isAbsolute(row.path) &&
+    isOnDrive(row.path) &&
     basename(row.fileName) === row.fileName &&
     basename(row.path) === diskName
   );
+}
+
+/**
+ * A path on a lettered drive (`C:\…`). Not a network path: opening `\\host\share\…` makes Windows
+ * connect over SMB and may send the user's credentials (the omnibox refuses them for that reason),
+ * and a rooted `\…` depends on the current drive. A Downloads folder on a network share loses its
+ * history across a restart; its downloads still work.
+ */
+function isOnDrive(path: string): boolean {
+  const { root } = win32.parse(path);
+  return isAbsolute(path) && root.length === 3 && root[1] === ':' && /^[a-z]$/i.test(root[0] ?? '');
 }
 
 /** A byte count as its column holds it. */

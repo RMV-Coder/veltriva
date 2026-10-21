@@ -2,13 +2,16 @@
 // database in a temp folder, with a real Maintenance. Time is the `now` each run is given, so a
 // "day later" costs nothing.
 import {
+  closeSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
+  writeSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,9 +26,18 @@ import { dailyBackupName, listBackups, upgradeBackupName } from './backups';
 import { openDatabase } from './database';
 import { DataError } from './errors';
 import { needsCheck } from './integrity';
-import { BACKUP_EVERY_MS, CHECK_EVERY_MS, Maintenance } from './maintenance';
+import {
+  BACKUP_EVERY_MS,
+  CHECK_EVERY_MS,
+  CLOSED_TAB_RETENTION_MS,
+  Maintenance,
+  RETENTION_CHUNK,
+  RETENTION_CHUNKS_PER_RUN,
+  VACUUM_PAGES_PER_RUN,
+} from './maintenance';
 import type { MaintenanceState } from './maintenance';
 import { LATEST_VERSION } from './migrations';
+import { addWorkspace } from './repos/test-database';
 import { damageTable } from './testing/damage';
 
 type RunResult = DataOutput<'maintenance.run'>;
@@ -944,5 +956,1026 @@ describe('Maintenance: stopping', () => {
     expect(needsCheck(file)).toBe(false);
     expect(backupFiles()).toEqual([]);
     expect(maintenance.status()).toEqual(FRESH);
+  });
+});
+
+// ── Retention (§5.7): visits past the setting, then what nothing refers to, then old closed tabs ──
+
+/** What one run can remove from one table: a cap, so a first run after a year away takes turns. */
+const RUN_CAP = RETENTION_CHUNK * RETENTION_CHUNKS_PER_RUN;
+
+const WORKSPACE = '0199f000-0000-7000-8000-000000000001';
+
+/** The page `n`, with no visits yet; returns its id. */
+function insertPage(n: number, extra: { title?: string; faviconId?: number | null } = {}): number {
+  const info = db
+    .prepare(
+      `INSERT INTO pages (url_key, url, host, site, title, favicon_id, first_visit_at, last_visit_at)
+       VALUES (?, ?, 'x.example', 'x.example', ?, ?, 1, 1)`,
+    )
+    .run([
+      `https://x.example/${String(n)}`,
+      `https://x.example/${String(n)}`,
+      extra.title ?? '',
+      extra.faviconId ?? null,
+    ]);
+  return Number(info.lastInsertRowid);
+}
+
+function insertVisit(pageId: number, at: number): void {
+  db.prepare("INSERT INTO visits (page_id, visited_at, transition) VALUES (?, ?, 'link')").run([
+    pageId,
+    at,
+  ]);
+}
+
+/**
+ * A favicon row for a page or a tab to refer to; returns its id. The one place these tests use
+ * the favicons table's columns.
+ */
+function insertFavicon(n: number): number {
+  const info = db
+    .prepare('INSERT INTO favicons (sha256, bytes, updated_at) VALUES (?, ?, ?)')
+    .run([`sha-${String(n)}`, Buffer.from([n]), T0]);
+  return Number(info.lastInsertRowid);
+}
+
+function insertTab(
+  id: string,
+  placement: 'strip' | 'shelf' | 'archive' | 'closed',
+  extra: {
+    readonly closedAt?: number | null;
+    readonly archivedAt?: number | null;
+    readonly faviconId?: number | null;
+    readonly pageId?: number | null;
+  } = {},
+): void {
+  db.prepare(
+    `INSERT INTO tabs (id, workspace_id, placement, position, page_id, url, favicon_id,
+       created_at, last_used_at, last_used_engaged, last_used_active_day, placement_changed_at,
+       archived_at, closed_at)
+     VALUES (?, ?, ?, 0, ?, 'https://x.example/', ?, 1, 1, 1, 1, 1, ?, ?)`,
+  ).run([
+    id,
+    WORKSPACE,
+    placement,
+    extra.pageId ?? null,
+    extra.faviconId ?? null,
+    extra.archivedAt ?? (placement === 'archive' ? 1 : null),
+    extra.closedAt ?? null,
+  ]);
+}
+
+/** Many rows at once, as the chunking needs. `columns` and `values` are SQL, using `i`. */
+function bulkInsert(table: string, columns: string, values: string, rows: number): void {
+  db.exec(
+    `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${String(rows)})
+     INSERT INTO ${table} (${columns}) SELECT ${values} FROM n`,
+  );
+}
+
+/** `rows` visits of `pageId`, at the times 1 to `rows` (long ago). */
+function bulkVisits(pageId: number, rows: number): void {
+  bulkInsert('visits', 'page_id, visited_at, transition', `${String(pageId)}, i, 'link'`, rows);
+}
+
+/** `rows` pages that have no visit at all. */
+function bulkOrphanPages(rows: number): void {
+  bulkInsert(
+    'pages',
+    'url_key, url, host, site, first_visit_at, last_visit_at',
+    "'k' || i, 'https://x.example/' || i, 'x.example', 'x.example', 1, 1",
+    rows,
+  );
+}
+
+function count(table: string): number {
+  return db.prepare(`SELECT COUNT(*) FROM ${table}`).pluck().get() as number;
+}
+
+function tabIds(): string[] {
+  return db.prepare('SELECT id FROM tabs ORDER BY id').pluck().all() as string[];
+}
+
+function visitTimes(): number[] {
+  return db.prepare('SELECT visited_at FROM visits ORDER BY visited_at').pluck().all() as number[];
+}
+
+/** A run with the retention given, whatever else is due. */
+async function retainAt(
+  now: number,
+  days = 365,
+  target: Maintenance = maintenance,
+): Promise<RunResult> {
+  return DATA_METHODS['maintenance.run'].output.parse(await target.run(now, days));
+}
+
+/** A new Maintenance, as a restarted worker has: it has not looked for orphans yet. */
+function restarted(): Maintenance {
+  return new Maintenance(db, { file, backupDir });
+}
+
+/** The state of a worker that has just taken a backup and a check: nothing is due for a day. */
+function quietState(overrides: Partial<MaintenanceState> = {}): void {
+  storeState(
+    JSON.stringify({
+      lastBackupAt: T0,
+      changedSinceBackup: false,
+      lastCheckAt: T0,
+      lastCheckOk: true,
+      ...overrides,
+    }),
+  );
+}
+
+describe('Maintenance: retention of visits', () => {
+  it('deletes visits older than the retention and keeps the rest, to the millisecond', async () => {
+    const page = insertPage(1);
+    const cutoff = T0 - 365 * DAY;
+    insertVisit(page, cutoff - 1);
+    insertVisit(page, cutoff);
+    insertVisit(page, cutoff + 1);
+    insertVisit(page, T0);
+
+    const result = await retainAt(T0);
+
+    expect(result.pruned).toEqual({ visits: 1, pages: 0, closedTabs: 0 });
+    expect(visitTimes()).toEqual([cutoff, cutoff + 1, T0]);
+  });
+
+  it('uses the retention the run is given, in days of 24 hours', async () => {
+    const page = insertPage(1);
+    insertVisit(page, T0 - 31 * DAY);
+    insertVisit(page, T0 - 30 * DAY - 1);
+    insertVisit(page, T0 - 30 * DAY);
+    insertVisit(page, T0 - 29 * DAY);
+
+    const result = await retainAt(T0, 30);
+
+    expect(result.pruned.visits).toBe(2);
+    expect(visitTimes()).toEqual([T0 - 30 * DAY, T0 - 29 * DAY]);
+  });
+
+  it('keeps a single day of visits when the retention is one day', async () => {
+    const page = insertPage(1);
+    insertVisit(page, T0 - DAY - 1);
+    insertVisit(page, T0 - DAY);
+    insertVisit(page, T0 - HOUR);
+
+    await retainAt(T0, 1);
+
+    expect(visitTimes()).toEqual([T0 - DAY, T0 - HOUR]);
+  });
+
+  it('deletes nothing under the longest retention, which reaches back past 1970', async () => {
+    const page = insertPage(1);
+    insertVisit(page, 0);
+    insertVisit(page, 1);
+
+    const result = await retainAt(T0, 36_500);
+
+    expect(result.pruned).toEqual(NOTHING_PRUNED);
+    expect(visitTimes()).toEqual([0, 1]);
+  });
+
+  it('counts retention from the time of the run, not from when the visits were made', async () => {
+    const page = insertPage(1);
+    insertVisit(page, T0);
+
+    expect((await retainAt(T0 + 364 * DAY)).pruned.visits).toBe(0);
+    expect((await retainAt(T0 + 365 * DAY)).pruned.visits).toBe(0);
+    expect((await retainAt(T0 + 365 * DAY + 1)).pruned.visits).toBe(1);
+  });
+
+  it('deletes nothing when nothing is old, and reports nothing', async () => {
+    const page = insertPage(1);
+    insertVisit(page, T0 - HOUR);
+
+    const result = await retainAt(T0);
+
+    expect(result.pruned).toEqual(NOTHING_PRUNED);
+    expect(count('visits')).toBe(1);
+    expect(count('pages')).toBe(1);
+  });
+
+  it('does nothing to an empty database', async () => {
+    expect((await retainAt(T0)).pruned).toEqual(NOTHING_PRUNED);
+  });
+
+  it('keeps the recent visits of other pages whatever it deletes', async () => {
+    const old = insertPage(1);
+    const recent = insertPage(2);
+    insertVisit(old, T0 - 400 * DAY);
+    insertVisit(recent, T0 - DAY);
+
+    await retainAt(T0);
+
+    expect(db.prepare('SELECT page_id FROM visits').pluck().all()).toEqual([recent]);
+  });
+});
+
+describe('Maintenance: retention of pages', () => {
+  it('deletes a page left with no visits, and counts it', async () => {
+    const gone = insertPage(1, { title: 'Obsolete' });
+    insertVisit(gone, T0 - 400 * DAY);
+    insertVisit(gone, T0 - 500 * DAY);
+
+    const result = await retainAt(T0);
+
+    expect(result.pruned).toEqual({ visits: 2, pages: 1, closedTabs: 0 });
+    expect(count('pages')).toBe(0);
+  });
+
+  it('keeps a page that has a visit that is not old, and deletes only the old visits', async () => {
+    const kept = insertPage(1);
+    insertVisit(kept, T0 - 400 * DAY);
+    insertVisit(kept, T0 - DAY);
+
+    const result = await retainAt(T0);
+
+    expect(result.pruned).toEqual({ visits: 1, pages: 0, closedTabs: 0 });
+    expect(count('pages')).toBe(1);
+    expect(visitTimes()).toEqual([T0 - DAY]);
+  });
+
+  it('takes a page that never had a visit as an orphan, in the first run of a worker', async () => {
+    insertPage(1);
+
+    const result = await retainAt(T0);
+
+    expect(result.pruned).toEqual({ visits: 0, pages: 1, closedTabs: 0 });
+    expect(count('pages')).toBe(0);
+  });
+
+  it('takes the page out of the search index as well, and the index still agrees', async () => {
+    const gone = insertPage(1, { title: 'Peregrine' });
+    insertVisit(gone, T0 - 400 * DAY);
+    const kept = insertPage(2, { title: 'Merlin' });
+    insertVisit(kept, T0 - HOUR);
+    const search = (term: string) =>
+      db.prepare('SELECT rowid FROM pages_fts WHERE pages_fts MATCH ?').pluck().all([term]);
+    expect(search('peregrine')).toEqual([gone]);
+
+    const result = await retainAt(T0);
+
+    expect(search('peregrine')).toEqual([]);
+    expect(search('merlin')).toEqual([kept]);
+    // The check that runs right after retention reads the index against its table.
+    expect(result.check).toBe('ok');
+  });
+
+  it('lets a tab outlive its page: the tab stays, with no page', async () => {
+    addWorkspace(db, WORKSPACE);
+    const gone = insertPage(1);
+    insertVisit(gone, T0 - 400 * DAY);
+    insertTab('tab-a', 'strip', { pageId: gone });
+
+    await retainAt(T0);
+
+    expect(count('pages')).toBe(0);
+    expect(db.prepare('SELECT id, page_id AS pageId FROM tabs').all()).toEqual([
+      { id: 'tab-a', pageId: null },
+    ]);
+  });
+
+  it('counts only the pages that went, not the visits of pages that stay', async () => {
+    const page = insertPage(1);
+    insertVisit(page, T0 - 400 * DAY);
+    insertVisit(page, T0 - 399 * DAY);
+    insertVisit(page, T0 - 1);
+
+    expect((await retainAt(T0)).pruned).toEqual({ visits: 2, pages: 0, closedTabs: 0 });
+  });
+});
+
+describe('Maintenance: retention of favicons', () => {
+  const hasFavicon = (id: number): boolean =>
+    db.prepare('SELECT 1 FROM favicons WHERE id = ?').pluck().get([id]) !== undefined;
+
+  it('deletes a favicon that no page and no tab refers to', async () => {
+    const orphan = insertFavicon(1);
+
+    await retainAt(T0);
+
+    expect(hasFavicon(orphan)).toBe(false);
+  });
+
+  it('keeps a favicon a page refers to', async () => {
+    const icon = insertFavicon(1);
+    const page = insertPage(1, { faviconId: icon });
+    insertVisit(page, T0 - HOUR);
+
+    await retainAt(T0);
+
+    expect(hasFavicon(icon)).toBe(true);
+  });
+
+  it('keeps a favicon that only a tab refers to', async () => {
+    addWorkspace(db, WORKSPACE);
+    const icon = insertFavicon(1);
+    insertTab('tab-a', 'strip', { faviconId: icon });
+
+    await retainAt(T0);
+
+    expect(hasFavicon(icon)).toBe(true);
+    expect(count('tabs')).toBe(1);
+  });
+
+  // Regression: orphans were looked for before the closed tabs went, so the icon of a tab that
+  // expired in a run waited for a later scan. Closed tabs now go first, and their going is a
+  // reason to scan, in the same run and the same worker.
+  it('keeps the favicon of a closed tab while the tab is kept, and takes it in the run the tab goes', async () => {
+    addWorkspace(db, WORKSPACE);
+    const icon = insertFavicon(1);
+    insertTab('tab-a', 'closed', { faviconId: icon, closedAt: T0 - DAY });
+    await retainAt(T0);
+    expect(hasFavicon(icon)).toBe(true);
+
+    // The same worker, a week on: the tab goes, and its icon with it.
+    await retainAt(T0 + 8 * DAY);
+    expect(count('tabs')).toBe(0);
+    expect(hasFavicon(icon)).toBe(false);
+  });
+
+  it('keeps a favicon that both a page and a tab refer to, when the page goes', async () => {
+    addWorkspace(db, WORKSPACE);
+    const icon = insertFavicon(1);
+    const page = insertPage(1, { faviconId: icon });
+    insertVisit(page, T0 - 400 * DAY);
+    insertTab('tab-a', 'strip', { faviconId: icon });
+
+    await retainAt(T0);
+
+    expect(count('pages')).toBe(0);
+    expect(hasFavicon(icon)).toBe(true);
+  });
+
+  it('deletes the favicon of a page that went in the same run', async () => {
+    const icon = insertFavicon(1);
+    const page = insertPage(1, { faviconId: icon });
+    insertVisit(page, T0 - 400 * DAY);
+
+    await retainAt(T0);
+
+    expect(count('pages')).toBe(0);
+    expect(hasFavicon(icon)).toBe(false);
+  });
+
+  it('deletes only the unreferenced favicons among several', async () => {
+    const used = insertFavicon(1);
+    const orphanA = insertFavicon(2);
+    const orphanB = insertFavicon(3);
+    const page = insertPage(1, { faviconId: used });
+    insertVisit(page, T0 - HOUR);
+
+    await retainAt(T0);
+
+    expect([used, orphanA, orphanB].map(hasFavicon)).toEqual([true, false, false]);
+  });
+
+  it('does not count favicons in what it reports', async () => {
+    insertFavicon(1);
+    insertFavicon(2);
+
+    expect((await retainAt(T0)).pruned).toEqual(NOTHING_PRUNED);
+  });
+});
+
+describe('Maintenance: retention of closed tabs', () => {
+  const WEEK = CLOSED_TAB_RETENTION_MS;
+
+  it('is a week', () => {
+    expect(CLOSED_TAB_RETENTION_MS).toBe(7 * DAY);
+  });
+
+  it('deletes closed tabs closed more than a week ago, to the millisecond, and counts them', async () => {
+    addWorkspace(db, WORKSPACE);
+    insertTab('older', 'closed', { closedAt: T0 - WEEK - 1 });
+    insertTab('exactly', 'closed', { closedAt: T0 - WEEK });
+    insertTab('newer', 'closed', { closedAt: T0 - WEEK + 1 });
+    insertTab('recent', 'closed', { closedAt: T0 - HOUR });
+
+    const result = await retainAt(T0);
+
+    expect(result.pruned).toEqual({ visits: 0, pages: 0, closedTabs: 1 });
+    expect(tabIds()).toEqual(['exactly', 'newer', 'recent']);
+  });
+
+  it('is a week whatever the retention of visits is', async () => {
+    addWorkspace(db, WORKSPACE);
+    insertTab('old', 'closed', { closedAt: T0 - 8 * DAY });
+
+    await retainAt(T0, 36_500);
+
+    expect(count('tabs')).toBe(0);
+  });
+
+  it('never deletes a tab that is open, however old it is', async () => {
+    addWorkspace(db, WORKSPACE);
+    insertTab('strip-tab', 'strip');
+    insertTab('shelf-tab', 'shelf');
+    insertTab('archived-tab', 'archive', { archivedAt: 1 });
+
+    const result = await retainAt(T0);
+
+    expect(result.pruned.closedTabs).toBe(0);
+    expect(tabIds()).toEqual(['archived-tab', 'shelf-tab', 'strip-tab']);
+  });
+
+  it('never deletes a strip, shelf or archive tab that carries an old closing time', async () => {
+    addWorkspace(db, WORKSPACE);
+    insertTab('reopened', 'strip', { closedAt: T0 - 30 * DAY });
+    insertTab('shelved', 'shelf', { closedAt: T0 - 30 * DAY });
+    insertTab('archived', 'archive', { closedAt: T0 - 30 * DAY });
+
+    await retainAt(T0);
+
+    expect(tabIds()).toEqual(['archived', 'reopened', 'shelved']);
+  });
+
+  it('deletes the closed tabs and leaves the open ones in the same table', async () => {
+    addWorkspace(db, WORKSPACE);
+    insertTab('open-1', 'strip');
+    insertTab('open-2', 'strip');
+    insertTab('closed-old', 'closed', { closedAt: T0 - 9 * DAY });
+    insertTab('closed-new', 'closed', { closedAt: T0 - DAY });
+
+    await retainAt(T0);
+
+    expect(tabIds()).toEqual(['closed-new', 'open-1', 'open-2']);
+  });
+
+  it('leaves the workspace alone', async () => {
+    addWorkspace(db, WORKSPACE);
+    insertTab('closed-old', 'closed', { closedAt: T0 - 9 * DAY });
+
+    await retainAt(T0);
+
+    expect(count('workspaces')).toBe(1);
+  });
+});
+
+describe('Maintenance: retention in chunks', () => {
+  it('has a cap of 50,000 rows per table per run, as the setting says', () => {
+    expect(RETENTION_CHUNK).toBe(2000);
+    expect(RETENTION_CHUNKS_PER_RUN).toBe(25);
+    expect(RUN_CAP).toBe(50_000);
+  });
+
+  it('deletes a chunk at a time: only the first is done before the run first yields', async () => {
+    const page = insertPage(1);
+    const total = 2 * RETENTION_CHUNK + 500;
+    bulkVisits(page, total);
+
+    const running = retainAt(T0);
+
+    // `run` has done its first statement synchronously and now waits for the next turn of the
+    // event loop, where the worker answers its other requests.
+    expect(count('visits')).toBe(total - RETENTION_CHUNK);
+    const result = await running;
+    expect(result.pruned.visits).toBe(total);
+    expect(count('visits')).toBe(0);
+  });
+
+  it('is exact over several chunks, whatever the last one holds', async () => {
+    const page = insertPage(1);
+    const total = 2 * RETENTION_CHUNK + 37;
+    bulkVisits(page, total);
+    // A visit that is not old is not touched, wherever it sits among the old ones.
+    insertVisit(page, T0 - HOUR);
+
+    const result = await retainAt(T0);
+
+    expect(result.pruned.visits).toBe(total);
+    expect(visitTimes()).toEqual([T0 - HOUR]);
+  });
+
+  it('takes a table that is an exact multiple of the chunk', async () => {
+    const page = insertPage(1);
+    bulkVisits(page, 2 * RETENTION_CHUNK);
+
+    const result = await retainAt(T0);
+
+    expect(result.pruned.visits).toBe(2 * RETENTION_CHUNK);
+    expect(count('visits')).toBe(0);
+  });
+
+  it('does the same for orphan pages and for closed tabs, over several chunks', async () => {
+    addWorkspace(db, WORKSPACE);
+    const total = 2 * RETENTION_CHUNK + 37;
+    bulkOrphanPages(total);
+    bulkInsert(
+      'tabs',
+      `id, workspace_id, placement, position, url, created_at, last_used_at, last_used_engaged,
+       last_used_active_day, placement_changed_at, closed_at`,
+      `'tab-' || i, '${WORKSPACE}', 'closed', 0, 'https://x.example/', 1, 1, 1, 1, 1, ${String(T0 - 30 * DAY)}`,
+      total,
+    );
+
+    const result = await retainAt(T0);
+
+    expect(result.pruned).toEqual({ visits: 0, pages: total, closedTabs: total });
+    expect(count('pages')).toBe(0);
+    expect(count('tabs')).toBe(0);
+  });
+
+  it('removes at most a chunk times chunks-per-run visits in a run, and the next run continues', async () => {
+    const page = insertPage(1);
+    const surplus = 1234;
+    bulkVisits(page, RUN_CAP + surplus);
+
+    const first = await retainAt(T0);
+    expect(first.pruned.visits).toBe(RUN_CAP);
+    expect(count('visits')).toBe(surplus);
+
+    const second = await retainAt(T0 + HOUR);
+    expect(second.pruned.visits).toBe(surplus);
+    expect(count('visits')).toBe(0);
+
+    expect((await retainAt(T0 + 2 * HOUR)).pruned.visits).toBe(0);
+  }, 60_000);
+
+  it('caps each table by itself: the pages and the tabs get their own turns', async () => {
+    addWorkspace(db, WORKSPACE);
+    const page = insertPage(1);
+    bulkVisits(page, RUN_CAP + 1);
+    insertTab('closed-old', 'closed', { closedAt: T0 - 30 * DAY });
+
+    const result = await retainAt(T0);
+
+    expect(result.pruned.visits).toBe(RUN_CAP);
+    expect(result.pruned.closedTabs).toBe(1);
+    // A visit remains, so the page is not an orphan yet.
+    expect(count('visits')).toBe(1);
+    expect(result.pruned.pages).toBe(0);
+  }, 60_000);
+
+  it('removes at most the cap of orphan pages in a run, and the rest wait for a new worker', async () => {
+    const surplus = 10;
+    bulkOrphanPages(RUN_CAP + surplus);
+
+    const first = await retainAt(T0);
+    expect(first.pruned.pages).toBe(RUN_CAP);
+    expect(count('pages')).toBe(surplus);
+
+    // No visits went, and this worker has looked: the rest waits for the next start.
+    const second = await retainAt(T0 + HOUR);
+    expect(second.pruned.pages).toBe(0);
+    expect(count('pages')).toBe(surplus);
+
+    const afterRestart = await retainAt(T0 + 2 * HOUR, 365, restarted());
+    expect(afterRestart.pruned.pages).toBe(surplus);
+    expect(count('pages')).toBe(0);
+  }, 120_000);
+
+  it('lets the next deletion of visits finish a run of orphans that was cut short', async () => {
+    bulkOrphanPages(RUN_CAP + 5);
+    await retainAt(T0);
+    expect(count('pages')).toBe(5);
+    const page = insertPage(999_999);
+    insertVisit(page, T0 - 400 * DAY);
+
+    const next = await retainAt(T0 + HOUR);
+
+    expect(next.pruned).toEqual({ visits: 1, pages: 6, closedTabs: 0 });
+    expect(count('pages')).toBe(0);
+  }, 120_000);
+});
+
+describe('Maintenance: when orphans are looked for', () => {
+  it('looks in the first run of a worker, even with no visit to delete', async () => {
+    insertPage(1);
+    insertFavicon(1);
+
+    const result = await retainAt(T0);
+
+    expect(result.pruned.pages).toBe(1);
+    expect(count('pages')).toBe(0);
+    expect(count('favicons')).toBe(0);
+  });
+
+  it('does not look again in a later run of the same worker that deletes no visits', async () => {
+    await retainAt(T0);
+    insertPage(1);
+    insertFavicon(1);
+
+    const result = await retainAt(T0 + HOUR);
+
+    expect(result.pruned).toEqual(NOTHING_PRUNED);
+    expect(count('pages')).toBe(1);
+    expect(count('favicons')).toBe(1);
+  });
+
+  it('looks again once a run has deleted visits, and finds the orphans of the quiet run too', async () => {
+    await retainAt(T0);
+    insertPage(1);
+    insertFavicon(1);
+    const old = insertPage(2);
+    insertVisit(old, T0 - 400 * DAY);
+
+    const result = await retainAt(T0 + HOUR);
+
+    expect(result.pruned).toEqual({ visits: 1, pages: 2, closedTabs: 0 });
+    expect(count('pages')).toBe(0);
+    expect(count('favicons')).toBe(0);
+  });
+
+  it('looks again after deleting closed tabs, as after deleting visits', async () => {
+    addWorkspace(db, WORKSPACE);
+    await retainAt(T0);
+    insertPage(1);
+    insertTab('closed-old', 'closed', { closedAt: T0 - 30 * DAY });
+
+    const result = await retainAt(T0 + HOUR);
+
+    expect(result.pruned).toEqual({ visits: 0, pages: 1, closedTabs: 1 });
+    expect(count('pages')).toBe(0);
+  });
+
+  it('does not look in a later run that deleted nothing', async () => {
+    await retainAt(T0);
+    insertPage(1);
+
+    const result = await retainAt(T0 + HOUR);
+
+    expect(result.pruned).toEqual({ visits: 0, pages: 0, closedTabs: 0 });
+    expect(count('pages')).toBe(1);
+  });
+
+  it('looks again in the first run of a new worker on the same database', async () => {
+    await retainAt(T0);
+    insertPage(1);
+
+    const result = await retainAt(T0 + HOUR, 365, restarted());
+
+    expect(result.pruned.pages).toBe(1);
+    expect(count('pages')).toBe(0);
+  });
+
+  it('has looked once a worker has run, even if its run found nothing', async () => {
+    expect((await retainAt(T0)).pruned).toEqual(NOTHING_PRUNED);
+    insertPage(1);
+
+    expect((await retainAt(T0 + HOUR)).pruned.pages).toBe(0);
+    expect(count('pages')).toBe(1);
+  });
+});
+
+describe('Maintenance: retention and the backup', () => {
+  it('counts what it deleted as a change since the last backup, and keeps that', async () => {
+    quietState();
+    const quiet = restarted();
+    expect(quiet.status().changedSinceBackup).toBe(false);
+    const page = insertPage(1);
+    insertVisit(page, T0 - 400 * DAY);
+
+    await retainAt(T0 + HOUR, 365, quiet);
+
+    expect(quiet.status().changedSinceBackup).toBe(true);
+    expect(storedState()).toMatchObject({ changedSinceBackup: true });
+  });
+
+  it.each(['visits', 'orphan pages', 'closed tabs'])(
+    'counts deleting %s as a change',
+    async (what) => {
+      addWorkspace(db, WORKSPACE);
+      quietState();
+      const quiet = restarted();
+      if (what === 'visits') {
+        insertVisit(insertPage(1), T0 - 400 * DAY);
+      } else if (what === 'orphan pages') {
+        insertPage(1);
+      } else {
+        insertTab('closed-old', 'closed', { closedAt: T0 - 30 * DAY });
+      }
+
+      await retainAt(T0 + HOUR, 365, quiet);
+
+      expect(quiet.status().changedSinceBackup).toBe(true);
+    },
+  );
+
+  it('does not count deleting nothing, nor deleting only favicons, as a change', async () => {
+    quietState();
+    const quiet = restarted();
+
+    await retainAt(T0 + HOUR, 365, quiet);
+    expect(quiet.status().changedSinceBackup).toBe(false);
+
+    insertFavicon(1);
+    await retainAt(T0 + 2 * HOUR, 365, restarted());
+    expect(count('favicons')).toBe(0);
+    expect(storedState()).toMatchObject({ changedSinceBackup: false });
+  });
+
+  it('makes the backup due: the same run takes it, with the deletions in it', async () => {
+    const page = insertPage(1);
+    insertVisit(page, T0 - 400 * DAY);
+    const kept = insertPage(2);
+    insertVisit(kept, T0 - HOUR);
+
+    const result = await retainAt(T0);
+
+    expect(result).toEqual({
+      check: 'ok',
+      backup: 'done',
+      backupFile: dailyBackupName(T0),
+      pruned: { visits: 1, pages: 1, closedTabs: 0 },
+    });
+    inspectBackup(dailyBackupName(T0), (copy) => {
+      expect(copy.prepare('SELECT COUNT(*) FROM pages').pluck().get()).toBe(1);
+      expect(copy.prepare('SELECT COUNT(*) FROM visits').pluck().get()).toBe(1);
+    });
+  });
+
+  it('takes the next day backup after a day of deletions, though nothing else was written', async () => {
+    change();
+    expect((await retainAt(T0)).backup).toBe('done');
+    const page = insertPage(1);
+    insertVisit(page, T0 + DAY - 400 * DAY);
+
+    const result = await retainAt(T0 + DAY);
+
+    expect(result.pruned.visits).toBe(1);
+    expect(result).toMatchObject({ backup: 'done', backupFile: dailyBackupName(T0 + DAY) });
+  });
+
+  it('takes no backup for a day on which nothing was deleted and nothing written', async () => {
+    change();
+    await retainAt(T0);
+
+    const result = await retainAt(T0 + DAY);
+
+    expect(result).toEqual({
+      check: 'not_due',
+      backup: 'unchanged',
+      backupFile: null,
+      pruned: NOTHING_PRUNED,
+    });
+  });
+
+  it('comes before the backup, so a copy never holds what the run deleted', async () => {
+    const page = insertPage(1);
+    insertVisit(page, T0 - 400 * DAY);
+    change();
+
+    await retainAt(T0);
+
+    inspectBackup(dailyBackupName(T0), (copy) => {
+      expect(copy.prepare('SELECT COUNT(*) FROM visits').pluck().get()).toBe(0);
+    });
+  });
+});
+
+describe('Maintenance: retention after a failed check', () => {
+  it('deletes nothing while the last check is failed, and reports nothing', async () => {
+    addWorkspace(db, WORKSPACE);
+    quietState({ lastBackupAt: null, lastCheckAt: T0 - DAY, lastCheckOk: false });
+    const waiting = restarted();
+    const page = insertPage(1);
+    insertVisit(page, T0 - 400 * DAY);
+    insertTab('closed-old', 'closed', { closedAt: T0 - 30 * DAY });
+    insertPage(2);
+
+    const result = await retainAt(T0, 365, waiting);
+
+    expect(result.pruned).toEqual(NOTHING_PRUNED);
+    expect(count('visits')).toBe(1);
+    expect(count('pages')).toBe(2);
+    expect(count('tabs')).toBe(1);
+  });
+
+  it('checks again in that run, and goes on deleting once the check passes', async () => {
+    quietState({ lastBackupAt: null, lastCheckAt: T0 - DAY, lastCheckOk: false });
+    const waiting = restarted();
+    const page = insertPage(1);
+    insertVisit(page, T0 - 400 * DAY);
+
+    const first = await retainAt(T0, 365, waiting);
+    expect(first.check).toBe('ok');
+    expect(first.pruned).toEqual(NOTHING_PRUNED);
+    expect(waiting.status()).toMatchObject({ lastCheckOk: true, lastCheckAt: T0 });
+
+    const second = await retainAt(T0 + HOUR, 365, waiting);
+    expect(second.pruned).toEqual({ visits: 1, pages: 1, closedTabs: 0 });
+  });
+
+  it('deletes nothing in the runs that follow a check that failed', async () => {
+    desyncSearchIndex();
+    const first = await retainAt(T0);
+    expect(first.check).toBe('failed');
+    expect(maintenance.status().lastCheckOk).toBe(false);
+    insertVisit(insertPage(3), T0 - 400 * DAY);
+
+    const second = await retainAt(T0 + HOUR);
+
+    expect(second).toEqual({
+      check: 'failed',
+      backup: 'skipped',
+      backupFile: null,
+      pruned: NOTHING_PRUNED,
+    });
+    expect(visitTimes()).toHaveLength(1);
+  });
+});
+
+describe('Maintenance: retention that runs into damage', () => {
+  /**
+   * Fills `visits` with enough rows to span several pages, then zeroes the second of its leaf
+   * pages, which holds visits the first chunk deletes. The database must be closed.
+   */
+  function damageVisits(target: string): void {
+    const raw = new Database(target);
+    let leaf: number;
+    try {
+      raw.exec(
+        `INSERT INTO pages (url_key, url, host, site, first_visit_at, last_visit_at)
+         VALUES ('k', 'https://x.example/', 'x.example', 'x.example', 1, 1)`,
+      );
+      raw.exec(
+        `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1800)
+         INSERT INTO visits (page_id, visited_at, transition) SELECT 1, 1000 + i, 'link' FROM n`,
+      );
+      raw.pragma('wal_checkpoint(TRUNCATE)');
+      const leaves = raw
+        .prepare(
+          "SELECT pageno FROM dbstat WHERE name = 'visits' AND pagetype = 'leaf' ORDER BY pageno",
+        )
+        .pluck()
+        .all() as number[];
+      const second = leaves[1];
+      if (second === undefined) {
+        throw new Error('visits has fewer than two leaf pages');
+      }
+      leaf = second;
+    } finally {
+      raw.close();
+    }
+    const pageSize = 4096;
+    const fd = openSync(target, 'r+');
+    try {
+      writeSync(fd, Buffer.alloc(pageSize, 0), 0, pageSize, (leaf - 1) * pageSize);
+    } finally {
+      closeSync(fd);
+    }
+  }
+
+  async function reopenDamaged(): Promise<void> {
+    await maintenance.stop();
+    db.close();
+    damageVisits(file);
+    await openFresh();
+  }
+
+  it('reports a failed check and no backup, marks the database, and remembers it', async () => {
+    await reopenDamaged();
+
+    const result = await retainAt(T0);
+
+    expect(result).toEqual({
+      check: 'failed',
+      backup: 'skipped',
+      backupFile: null,
+      pruned: NOTHING_PRUNED,
+    });
+    expect(needsCheck(file)).toBe(true);
+    expect(maintenance.status()).toMatchObject({ lastCheckAt: T0, lastCheckOk: false });
+    expect(storedState()).toMatchObject({ lastCheckAt: T0, lastCheckOk: false });
+    expect(backupFiles()).toEqual([]);
+  });
+
+  it('leaves the good backups that are already there, and takes no new one', async () => {
+    change('before');
+    expect((await retainAt(T0)).backup).toBe('done');
+    await reopenDamaged();
+    maintenance.noteWrite();
+
+    const result = await retainAt(T0 + DAY);
+
+    expect(result).toMatchObject({ check: 'failed', backup: 'skipped', backupFile: null });
+    expect(backupFiles()).toEqual([dailyBackupName(T0)]);
+    inspectBackup(dailyBackupName(T0), (copy) => {
+      expect(copy.pragma('quick_check', { simple: true })).toBe('ok');
+    });
+  });
+
+  it('then deletes nothing while the check is failed, and checks every run', async () => {
+    await reopenDamaged();
+    await retainAt(T0);
+
+    const next = await retainAt(T0 + HOUR);
+
+    expect(next).toMatchObject({ check: 'failed', backup: 'skipped', pruned: NOTHING_PRUNED });
+  });
+
+  it('is not the same as a failure that is not damage, which the run reports by rejecting', async () => {
+    const page = insertPage(1);
+    insertVisit(page, T0 - 400 * DAY);
+    db.exec(
+      "CREATE TRIGGER refuse_delete BEFORE DELETE ON visits BEGIN SELECT RAISE(ABORT, 'refused'); END",
+    );
+
+    await expect(retainAt(T0)).rejects.toThrow('refused');
+
+    // Not marked as damage, and not recorded as a failed check.
+    expect(needsCheck(file)).toBe(false);
+    expect(maintenance.status()).toEqual(FRESH);
+    // The run is over: the next one is accepted, and goes through once the cause is gone.
+    db.exec('DROP TRIGGER refuse_delete');
+    expect((await retainAt(T0 + HOUR)).pruned.visits).toBe(1);
+  });
+});
+
+describe('Maintenance: stopping during retention', () => {
+  it('stops before the next chunk, and the run still answers', async () => {
+    const page = insertPage(1);
+    const total = 3 * RETENTION_CHUNK + 100;
+    bulkVisits(page, total);
+
+    const running = retainAt(T0);
+    // The first chunk went synchronously; stopping now keeps every later one from running.
+    await maintenance.stop();
+    const result = await running;
+
+    expect(result.pruned.visits).toBe(RETENTION_CHUNK);
+    expect(count('visits')).toBe(total - RETENTION_CHUNK);
+    expect(result.pruned.pages).toBe(0);
+    expect(() => db.close()).not.toThrow();
+  });
+
+  it('does not look for orphans or closed tabs after a stop', async () => {
+    addWorkspace(db, WORKSPACE);
+    insertPage(1);
+    insertTab('closed-old', 'closed', { closedAt: T0 - 30 * DAY });
+    const page = insertPage(2);
+    bulkVisits(page, RETENTION_CHUNK * 2);
+
+    const running = retainAt(T0);
+    await maintenance.stop();
+    const result = await running;
+
+    expect(result.pruned).toEqual({ visits: RETENTION_CHUNK, pages: 0, closedTabs: 0 });
+    expect(count('tabs')).toBe(1);
+    expect(count('pages')).toBe(2);
+  });
+
+  it('refuses a run that comes after the stop, whatever is waiting to be deleted', async () => {
+    const page = insertPage(1);
+    insertVisit(page, T0 - 400 * DAY);
+
+    await maintenance.stop();
+
+    await expect(maintenance.run(T0, 365)).rejects.toMatchObject({ code: 'closed' });
+    expect(count('visits')).toBe(1);
+  });
+
+  it('turns a second run away as busy while retention runs', async () => {
+    const page = insertPage(1);
+    bulkVisits(page, RETENTION_CHUNK * 2);
+
+    const running = retainAt(T0);
+    const second = await rejectionOf(maintenance.run(T0, 365));
+
+    expect(second).toMatchObject({ code: 'busy' });
+    expect((await running).pruned.visits).toBe(RETENTION_CHUNK * 2);
+  });
+});
+
+describe('Maintenance: giving back space', () => {
+  it('frees no more than its allowance of pages in one run', () => {
+    expect(VACUUM_PAGES_PER_RUN).toBe(4096);
+  });
+
+  const freePages = (): number => db.pragma('freelist_count', { simple: true }) as number;
+
+  /** A database with free pages in its list, as deleting many rows leaves it, and one page. */
+  function withFreePages(): number {
+    const page = insertPage(1);
+    bulkVisits(page, 6000);
+    db.exec('DELETE FROM visits');
+    expect(freePages()).toBeGreaterThan(0);
+    return page;
+  }
+
+  it('returns the free pages to the file system after a run that deleted something', async () => {
+    const page = withFreePages();
+    insertVisit(page, T0 - 400 * DAY);
+    insertVisit(page, T0 - HOUR);
+
+    const result = await retainAt(T0);
+
+    expect(result.pruned.visits).toBe(1);
+    expect(freePages()).toBe(0);
+  });
+
+  it('leaves the free list alone in a run that deleted nothing', async () => {
+    const page = withFreePages();
+    insertVisit(page, T0 - HOUR);
+    const before = freePages();
+
+    const result = await retainAt(T0);
+
+    expect(result.pruned).toEqual(NOTHING_PRUNED);
+    expect(freePages()).toBe(before);
   });
 });

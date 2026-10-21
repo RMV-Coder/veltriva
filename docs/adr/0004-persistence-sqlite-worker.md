@@ -122,7 +122,7 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
      - An icon is stored only for a page that was. ESLint bans `nativeImage` and its `createFrom*` decoders in `src/main`; a trusted asset needs a reviewed exception.
    - **Retention**, in the idle upkeep (`maintenance.run` now takes `visitRetentionDays` from the settings document): visits older than the setting (365 days by default), pages and icons nothing refers to any more, and closed tabs older than 7 days.
      - Each statement deletes at most 2,000 rows in its own transaction, at most 25 chunks per table per run, and the worker answers other calls between chunks. A first run after a long time away catches up over a few idle periods.
-     - The orphan scan reads every page, so it runs only after visits were deleted, and once per worker start.
+     - Closed tabs go before the orphan scan, so an icon only they used goes in the same run. The scan reads every page, so it runs only after visits or closed tabs were deleted, and once per worker start.
      - Free pages then go back to the file system, 4,096 at most per run (`incremental_vacuum`).
      - Retention runs before the check and the backup, so both see what it changed. Nothing is deleted from a file whose last check failed, and damage the deletes run into counts as a failed check, with no backup.
    - **Settings.** The `settings` row is a Zod document (src/shared/contracts/settings.ts): the search template and the history retention for now. A missing or invalid field takes its default alone, and unknown fields are ignored. Main reads it at startup; nothing writes it until the settings page (Phase 5).

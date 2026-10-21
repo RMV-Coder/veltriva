@@ -88,6 +88,25 @@ describe('createRepositoryHandlers', () => {
       handlers['downloads.list']({ limit: 5 });
       handlers['downloads.delete']({ id: download.id });
       handlers['downloads.clear']({});
+      // Twice over, so a visit both creates the page (round 0) and updates it (round 1).
+      const { pageId } = handlers['history.recordVisit']({
+        page: {
+          urlKey: 'https://a.example/',
+          url: 'https://a.example/',
+          host: 'a.example',
+          site: 'a.example',
+          title: '',
+        },
+        transition: 'link',
+        visitedAt: 1 + round,
+        tabId: null,
+      });
+      if (pageId === null) {
+        throw new Error('the site is not excluded, so the visit is recorded');
+      }
+      handlers['history.updatePage']({ pageId, title: 'A' });
+      handlers['history.pages']({ limit: 5 });
+      handlers['history.visits']({ pageId, limit: 5 });
     }
 
     expect(preparedAtStart).toBeGreaterThan(0);

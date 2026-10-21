@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { uuidv7 } from '../../core/id/uuidv7';
 import { COMMAND_NAMES } from './ipc';
 import { commandSchemas } from './schemas';
 
@@ -165,5 +166,143 @@ describe('notices.dismiss', () => {
     ]) {
       expect(dismiss.input.safeParse(input).success, JSON.stringify(input)).toBe(false);
     }
+  });
+});
+
+describe('download ids', () => {
+  const DOWNLOAD_ID = uuidv7(1_700_000_000_000, new Uint8Array(10).fill(9));
+  const DOWNLOAD_COMMANDS = [
+    'downloads.pause',
+    'downloads.resume',
+    'downloads.cancel',
+    'downloads.open',
+    'downloads.showInFolder',
+    'downloads.keep',
+    'downloads.discard',
+    'downloads.clear',
+  ] as const;
+  const download = (id: unknown) => ({
+    id,
+    fileName: 'report.pdf',
+    state: 'completed',
+    receivedBytes: 10,
+    totalBytes: 10,
+    dangerous: false,
+    confirmed: true,
+    canResume: false,
+    site: 'example.com',
+  });
+  const withDownloads = (downloads: unknown) => ({
+    version: 1,
+    selectedTabId: null,
+    tabs: [],
+    fullscreen: null,
+    downloads,
+    notices: [],
+  });
+  const snapshotAccepts = (id: unknown): boolean =>
+    snapshot.safeParse(withDownloads([download(id)])).success;
+
+  const BAD_IDS = [
+    ['the old download-N handle', 'download-1'],
+    ['the old handle with many digits', 'download-123456789012'],
+    ['a notice id', 'notice-1'],
+    ['a tab-style handle', 'tab-1'],
+    ['an empty string', ''],
+    ['a path', String.raw`C:\Users\me\Downloads\a.pdf`],
+    ['a UUIDv7 in capitals', DOWNLOAD_ID.toUpperCase()],
+    ['a UUIDv4', '123e4567-e89b-42d3-a456-426614174000'],
+    ['a UUID of another version', '123e4567-e89b-12d3-a456-426614174000'],
+    ['a UUIDv7 with an invalid variant', '0199f000-0000-7000-c000-000000000001'],
+    ['a UUID with a character that is not hex', '0199f000-0000-7000-8000-00000000000g'],
+    ['a UUID without its dashes', '0199f00000007000800000000000001'.padEnd(32, '0')],
+    ['a UUID with a space after it', `${DOWNLOAD_ID} `],
+    ['a UUID with a newline after it', `${DOWNLOAD_ID}\n`],
+    ['two UUIDs', `${DOWNLOAD_ID}${DOWNLOAD_ID}`],
+    ['a number', 7],
+    ['null', null],
+    ['undefined', undefined],
+  ] as const;
+
+  it('is a UUIDv7 in the workspace snapshot', () => {
+    expect(snapshotAccepts(DOWNLOAD_ID)).toBe(true);
+  });
+
+  it('is any UUIDv7: its time and random bits are the row key', () => {
+    for (const [time, fill] of [
+      [0, 0],
+      [1_700_000_000_000, 255],
+      [2 ** 48 - 1, 128],
+    ] as const) {
+      expect(snapshotAccepts(uuidv7(time, new Uint8Array(10).fill(fill))), String(time)).toBe(true);
+    }
+  });
+
+  it.each(BAD_IDS)('is not %s, in the snapshot', (_what, id) => {
+    expect(snapshotAccepts(id)).toBe(false);
+  });
+
+  it('refuses a snapshot with one good download and one with an old id', () => {
+    expect(
+      snapshot.safeParse(withDownloads([download(DOWNLOAD_ID), download('download-2')])).success,
+    ).toBe(false);
+  });
+
+  it('keeps accepting a list of downloads each with its own UUIDv7', () => {
+    const many = Array.from({ length: 5 }, (_, n) =>
+      download(uuidv7(1_700_000_000_000 + n, new Uint8Array(10).fill(n))),
+    );
+
+    expect(snapshot.safeParse(withDownloads(many)).success).toBe(true);
+  });
+
+  it('still allows at most 100 downloads in the snapshot', () => {
+    const many = (count: number) =>
+      Array.from({ length: count }, (_, n) =>
+        download(uuidv7(1_700_000_000_000 + n, new Uint8Array(10).fill(n % 256))),
+      );
+
+    expect(snapshot.safeParse(withDownloads(many(100))).success).toBe(true);
+    expect(snapshot.safeParse(withDownloads(many(101))).success).toBe(false);
+  });
+
+  describe.each(DOWNLOAD_COMMANDS)('%s', (command) => {
+    const { input, output } = commandSchemas[command];
+
+    it('is a command, with a schema', () => {
+      expect(COMMAND_NAMES).toContain(command);
+    });
+
+    it('takes a download id that is a UUIDv7, and answers with nothing', () => {
+      expect(input.safeParse({ downloadId: DOWNLOAD_ID }).success).toBe(true);
+      expect(output.safeParse({}).success).toBe(true);
+      expect(output.safeParse({ extra: 1 }).success).toBe(false);
+    });
+
+    it.each(BAD_IDS)('refuses %s as the download id', (_what, downloadId) => {
+      expect(input.safeParse({ downloadId }).success).toBe(false);
+    });
+
+    it('refuses a missing id, a key more, and input that is not an object', () => {
+      for (const bad of [
+        undefined,
+        null,
+        [],
+        DOWNLOAD_ID,
+        {},
+        { id: DOWNLOAD_ID },
+        { downloadId: DOWNLOAD_ID, path: String.raw`C:\a.pdf` },
+        { downloadId: DOWNLOAD_ID, extra: true },
+      ]) {
+        expect(input.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+      }
+    });
+  });
+
+  it('is not a notice id, and a notice id is not a download id', () => {
+    expect(dismiss.input.safeParse({ noticeId: DOWNLOAD_ID }).success).toBe(false);
+    expect(
+      commandSchemas['downloads.clear'].input.safeParse({ downloadId: 'notice-1' }).success,
+    ).toBe(false);
   });
 });

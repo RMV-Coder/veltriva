@@ -10,6 +10,14 @@ import { callerFor, sqliteErrorCode, testId, useTestDatabase } from './test-data
 const T0 = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
 const TAB = testId(50);
+/** A page id the memory gave: never null for a site that is not excluded. */
+function must(pageId: number | null): number {
+  if (pageId === null) {
+    throw new Error('expected a page id');
+  }
+  return pageId;
+}
+
 type RecordVisit = DataInput<'history.recordVisit'>;
 
 /** A visit to page `n`, of the kind main sends: its title not known yet. */
@@ -119,7 +127,7 @@ describe('history', () => {
 
       const { pageId } = call('history.recordVisit', visit(1, { visitedAt: T0 + 5, tabId: TAB }));
 
-      expect(visits(pageId as number)).toEqual([
+      expect(visits(must(pageId))).toEqual([
         { id: expect.any(Number) as number, visitedAt: T0 + 5, transition: 'link', tabId: TAB },
       ]);
     });
@@ -129,7 +137,7 @@ describe('history', () => {
 
       const { pageId } = call('history.recordVisit', visit(1, { tabId: null }));
 
-      expect(visits(pageId as number)[0]?.tabId).toBeNull();
+      expect(visits(must(pageId))[0]?.tabId).toBeNull();
       expect(db.prepare('SELECT tab_id FROM visits').pluck().get()).toBeNull();
     });
 
@@ -219,7 +227,7 @@ describe('history', () => {
       call('history.recordVisit', visit(1, { transition: 'link', visitedAt: T0 + 1 }));
 
       expect(onlyPage()).toMatchObject({ visitCount: 1, typedCount: 0 });
-      expect(visits(first.pageId as number).map((entry) => entry.transition)).toEqual([
+      expect(visits(must(first.pageId)).map((entry) => entry.transition)).toEqual([
         'link',
         'redirect',
       ]);
@@ -411,7 +419,7 @@ describe('history', () => {
       call('history.recordVisit', visit(1, { visitedAt: T0 }));
       call('history.recordVisit', visit(1, { visitedAt: T0 + DAY }));
 
-      expect(visits(first.pageId as number).map((entry) => entry.visitedAt)).toEqual([
+      expect(visits(must(first.pageId)).map((entry) => entry.visitedAt)).toEqual([
         T0 + 2 * DAY,
         T0 + DAY,
         T0,
@@ -451,7 +459,7 @@ describe('history', () => {
     it('keeps a title set by updatePage over later visits', () => {
       const { call, onlyPage } = setup();
       const { pageId } = call('history.recordVisit', visit(1));
-      call('history.updatePage', { pageId: pageId as number, title: 'From the page' });
+      call('history.updatePage', { pageId: must(pageId), title: 'From the page' });
 
       call(
         'history.recordVisit',
@@ -606,7 +614,7 @@ describe('history', () => {
       const { call, onlyPage } = setup();
       const { pageId } = call('history.recordVisit', visit(1));
 
-      const answer = call('history.updatePage', { pageId: pageId as number, title: 'A title' });
+      const answer = call('history.updatePage', { pageId: must(pageId), title: 'A title' });
 
       expect(answer).toEqual({ count: 1 });
       expect(onlyPage()).toMatchObject({ title: 'A title', faviconId: null });
@@ -617,7 +625,7 @@ describe('history', () => {
       const { pageId } = call('history.recordVisit', visit(1, { page: { title: 'Kept' } }));
       const id = addIcon();
 
-      const answer = call('history.updatePage', { pageId: pageId as number, faviconId: id });
+      const answer = call('history.updatePage', { pageId: must(pageId), faviconId: id });
 
       expect(answer).toEqual({ count: 1 });
       expect(onlyPage()).toMatchObject({ title: 'Kept', faviconId: id });
@@ -629,7 +637,7 @@ describe('history', () => {
       const id = addIcon();
 
       const answer = call('history.updatePage', {
-        pageId: pageId as number,
+        pageId: must(pageId),
         title: 'Both',
         faviconId: id,
       });
@@ -643,7 +651,7 @@ describe('history', () => {
       const { pageId } = call('history.recordVisit', visit(1, { page: { title: 'Same' } }));
       const before = onlyPage();
 
-      const answer = call('history.updatePage', { pageId: pageId as number });
+      const answer = call('history.updatePage', { pageId: must(pageId) });
 
       expect(answer).toEqual({ count: 0 });
       expect(onlyPage()).toEqual(before);
@@ -653,10 +661,10 @@ describe('history', () => {
       const { call, onlyPage } = setup();
       const { pageId } = call('history.recordVisit', visit(1, { page: { title: 'Old' } }));
 
-      call('history.updatePage', { pageId: pageId as number, title: 'New' });
+      call('history.updatePage', { pageId: must(pageId), title: 'New' });
       expect(onlyPage().title).toBe('New');
 
-      call('history.updatePage', { pageId: pageId as number, title: '' });
+      call('history.updatePage', { pageId: must(pageId), title: '' });
       expect(onlyPage().title).toBe('');
     });
 
@@ -666,8 +674,8 @@ describe('history', () => {
       const first = addIcon(1);
       const second = addIcon(2);
 
-      call('history.updatePage', { pageId: pageId as number, faviconId: first });
-      call('history.updatePage', { pageId: pageId as number, faviconId: second });
+      call('history.updatePage', { pageId: must(pageId), faviconId: first });
+      call('history.updatePage', { pageId: must(pageId), faviconId: second });
 
       expect(second).not.toBe(first);
       expect(onlyPage().faviconId).toBe(second);
@@ -691,7 +699,7 @@ describe('history', () => {
       const a = call('history.recordVisit', visit(1, { page: { title: 'A' } }));
       call('history.recordVisit', visit(2, { page: { title: 'B' } }));
 
-      call('history.updatePage', { pageId: a.pageId as number, title: 'A2' });
+      call('history.updatePage', { pageId: must(a.pageId), title: 'A2' });
 
       expect(
         pages()
@@ -705,7 +713,7 @@ describe('history', () => {
       const { pageId } = call('history.recordVisit', visit(1, { page: { title: 'Before' } }));
 
       const code = sqliteErrorCode(() =>
-        call('history.updatePage', { pageId: pageId as number, title: 'After', faviconId: 999 }),
+        call('history.updatePage', { pageId: must(pageId), title: 'After', faviconId: 999 }),
       );
 
       expect(code).toBe('SQLITE_CONSTRAINT_FOREIGNKEY');
@@ -718,7 +726,7 @@ describe('history', () => {
       const { pageId } = call('history.recordVisit', visit(1, { transition: 'typed' }));
       const before = onlyPage();
 
-      call('history.updatePage', { pageId: pageId as number, title: 'Settled' });
+      call('history.updatePage', { pageId: must(pageId), title: 'Settled' });
 
       expect(onlyPage()).toEqual({ ...before, title: 'Settled' });
     });
@@ -804,7 +812,7 @@ describe('history', () => {
         visit(1, { visitedAt: T0 + 20, transition: 'redirect', tabId: null }),
       );
 
-      expect(visits(pageId as number)).toEqual([
+      expect(visits(must(pageId))).toEqual([
         {
           id: expect.any(Number) as number,
           visitedAt: T0 + 20,
@@ -830,7 +838,7 @@ describe('history', () => {
       call('history.recordVisit', visit(1, { visitedAt: T0, transition: 'typed' }));
       call('history.recordVisit', visit(1, { visitedAt: T0, transition: 'reload' }));
 
-      expect(visits(pageId as number).map((entry) => entry.transition)).toEqual([
+      expect(visits(must(pageId)).map((entry) => entry.transition)).toEqual([
         'reload',
         'typed',
         'link',
@@ -844,7 +852,7 @@ describe('history', () => {
         call('history.recordVisit', visit(1, { visitedAt: T0 + n }));
       }
 
-      expect(visits(pageId as number, 2).map((entry) => entry.visitedAt)).toEqual([T0 + 4, T0 + 3]);
+      expect(visits(must(pageId), 2).map((entry) => entry.visitedAt)).toEqual([T0 + 4, T0 + 3]);
     });
 
     it('gives only the visits of the page asked for', () => {
@@ -853,15 +861,15 @@ describe('history', () => {
       const b = call('history.recordVisit', visit(2, { visitedAt: T0 + 1 }));
       call('history.recordVisit', visit(2, { visitedAt: T0 + 2 }));
 
-      expect(visits(a.pageId as number)).toHaveLength(1);
-      expect(visits(b.pageId as number)).toHaveLength(2);
+      expect(visits(must(a.pageId))).toHaveLength(1);
+      expect(visits(must(b.pageId))).toHaveLength(2);
     });
 
     it('keeps the visits of a page past the counts: a redirect is listed, though not counted', () => {
       const { call, visits, onlyPage } = setup();
       const { pageId } = call('history.recordVisit', visit(1, { transition: 'redirect' }));
 
-      expect(visits(pageId as number)).toHaveLength(1);
+      expect(visits(must(pageId))).toHaveLength(1);
       expect(onlyPage().visitCount).toBe(0);
     });
   });
@@ -896,7 +904,7 @@ describe('history', () => {
       const { call, searchRowids, checkIndex } = setup();
       const { pageId } = call('history.recordVisit', visit(1, { page: { title: 'Heron' } }));
 
-      call('history.updatePage', { pageId: pageId as number, title: 'Osprey' });
+      call('history.updatePage', { pageId: must(pageId), title: 'Osprey' });
 
       expect(searchRowids('heron')).toEqual([]);
       expect(searchRowids('osprey')).toEqual([pageId]);
@@ -933,7 +941,7 @@ describe('history', () => {
           );
           if (round % 2 === 0) {
             call('history.updatePage', {
-              pageId: pageId as number,
+              pageId: must(pageId),
               title: `Round${String(round)}x${String(n)}`,
             });
           }

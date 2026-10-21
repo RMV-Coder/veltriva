@@ -109,12 +109,13 @@ export async function readStoredState(
     }
     return { settings, decisions, alwaysAllowed, clientHints, downloads };
   });
+  const deadlineMs = options.deadlineMs ?? STORED_STATE_DEADLINE_MS;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<StoredState>((resolve) => {
     timer = setTimeout(() => {
-      logger.warn('storedState.timedOut', { deadlineMs: options.deadlineMs });
+      logger.warn('storedState.timedOut', { deadlineMs });
       resolve(EMPTY_STORED_STATE);
-    }, options.deadlineMs ?? STORED_STATE_DEADLINE_MS);
+    }, deadlineMs);
   });
   try {
     return await Promise.race([reading, expired]);

@@ -962,3 +962,273 @@ describe('DownloadManager history: restoring', () => {
     expect(item.savePath).toBe(join(folder, 'setup (1).exe.unconfirmed'));
   });
 });
+
+describe('DownloadManager history: restoring a row that cannot be ours', () => {
+  /**
+   * What `restore` takes for one of its own files (isOurFile): an absolute path whose last part is
+   * the row's file name, or that name with `.unconfirmed` for a dangerous file still waiting for
+   * Keep. Open, Keep and Discard act on that path, and the database file is not trusted.
+   */
+  type Odd = (folder: string) => Partial<DownloadRow>;
+  const unconfirmed = (path: string): Partial<DownloadRow> => ({
+    fileName: 'setup.exe',
+    path,
+    dangerous: true,
+    confirmed: false,
+  });
+
+  const DROPPED: readonly (readonly [string, Odd])[] = [
+    ['a relative path with the right name', () => ({ path: 'stored-1.txt' })],
+    ['a relative path in a folder', () => ({ path: 'downloads/stored-1.txt' })],
+    ['a relative path that starts at this folder', () => ({ path: './stored-1.txt' })],
+    ['a relative path that climbs out of its folder', () => ({ path: '../stored-1.txt' })],
+    ['a path that is relative to a drive', () => ({ path: 'C:stored-1.txt' })],
+    // Absolute to Node, but not on a lettered drive: a network share (opening it would make
+    // Windows connect over SMB), and a path rooted on whatever the current drive is.
+    ['a network path', () => ({ path: '//attacker.example/share/stored-1.txt' })],
+    ['a network path to this machine', () => ({ path: '//localhost/c$/stored-1.txt' })],
+    ['a path rooted on the current drive', () => ({ path: '/stored-1.txt' })],
+    ['a path that is another file’s name', (folder) => ({ path: join(folder, 'other.txt') })],
+    [
+      'a path with the name and something after it',
+      (folder) => ({ path: join(folder, 'stored-1.txt.exe') }),
+    ],
+    [
+      'a path with something before the name',
+      (folder) => ({ path: join(folder, 'old-stored-1.txt') }),
+    ],
+    [
+      'a path inside a folder that has the name',
+      (folder) => ({ path: join(folder, 'stored-1.txt', 'payload.exe') }),
+    ],
+    ['a path that is a folder', (folder) => ({ path: folder })],
+    [
+      'a file name with a folder in it',
+      (folder) => ({ fileName: 'sub/stored-1.txt', path: join(folder, 'sub', 'stored-1.txt') }),
+    ],
+    [
+      'a file name with a Windows folder in it',
+      (folder) => ({ fileName: 'sub\\stored-1.txt', path: join(folder, 'sub', 'stored-1.txt') }),
+    ],
+    [
+      'a file name that climbs out of the folder',
+      (folder) => ({ fileName: '..\\evil.exe', path: join(folder, '..', 'evil.exe') }),
+    ],
+    ['a file name that is ..', (folder) => ({ fileName: '..', path: join(folder, '..') })],
+    [
+      'a dangerous file waiting for Keep, under its real name',
+      (folder) => unconfirmed(join(folder, 'setup.exe')),
+    ],
+    [
+      'a dangerous file waiting for Keep, under another suffix',
+      (folder) => unconfirmed(join(folder, 'setup.exe.partial')),
+    ],
+    [
+      'a dangerous file waiting for Keep, with the suffix twice',
+      (folder) => unconfirmed(join(folder, 'setup.exe.unconfirmed.unconfirmed')),
+    ],
+    [
+      'a dangerous file waiting for Keep, with the suffix on another name',
+      (folder) => unconfirmed(join(folder, 'other.exe.unconfirmed')),
+    ],
+    [
+      'a dangerous file waiting for Keep, with a relative path',
+      () => unconfirmed('setup.exe.unconfirmed'),
+    ],
+    [
+      'a file that is not dangerous, with the suffix',
+      (folder) => ({ path: join(folder, 'stored-1.txt.unconfirmed') }),
+    ],
+    [
+      'a dangerous file the user kept, still with the suffix',
+      (folder) => ({
+        fileName: 'setup.exe',
+        path: join(folder, 'setup.exe.unconfirmed'),
+        dangerous: true,
+        confirmed: true,
+      }),
+    ],
+  ];
+
+  it.each(DROPPED)('drops %s, and deletes its row', (_what, odd) => {
+    const { folder, manager, store, onChange, stored } = setup();
+    const row = stored({ n: 1, ...odd(folder) });
+
+    manager.restore([row]);
+
+    expect(manager.list()).toEqual([]);
+    expect(manager.has(row.id)).toBe(false);
+    expect(store.removed).toEqual([row.id]);
+    expect(store.upserts).toEqual([]);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it.each(DROPPED)(
+    'does not open, show, keep, discard or touch the file of %s',
+    async (_what, odd) => {
+      const { folder, manager, opened, shown, stored } = setup();
+      const row = stored({ n: 1, ...odd(folder) });
+      // The files the row points at, or could be taken to point at, exist.
+      for (const name of ['setup.exe', 'setup.exe.unconfirmed', 'stored-1.txt', 'other.txt']) {
+        writeFileSync(join(folder, name), 'data');
+      }
+      const before = readdirSync(folder).sort();
+
+      manager.restore([row]);
+      await manager.open(row.id);
+      manager.showInFolder(row.id);
+      await manager.keep(row.id);
+      await manager.discard(row.id);
+      manager.clear(row.id);
+
+      expect(opened).toEqual([]);
+      expect(shown).toEqual([]);
+      expect(readdirSync(folder).sort()).toEqual(before);
+    },
+  );
+
+  it('keeps a file where its row says: an absolute path ending in its name', () => {
+    const { folder, manager, store, stored } = setup();
+    const row = stored({ n: 1 });
+
+    manager.restore([row]);
+
+    expect(manager.list().map((view) => view.id)).toEqual([row.id]);
+    expect(store.removed).toEqual([]);
+    expect(row.path).toBe(join(folder, 'stored-1.txt'));
+  });
+
+  it.each([
+    [
+      'a dangerous file waiting for Keep, with the suffix',
+      (folder: string) => unconfirmed(join(folder, 'setup.exe.unconfirmed')),
+    ],
+    [
+      'a dangerous file the user kept, under its real name',
+      (folder: string) => ({
+        fileName: 'setup.exe',
+        path: join(folder, 'setup.exe'),
+        dangerous: true,
+        confirmed: true,
+      }),
+    ],
+    [
+      'a file in another folder than the downloads folder',
+      (folder: string) => ({ path: join(folder, '..', 'elsewhere', 'stored-1.txt') }),
+    ],
+    [
+      'a file with spaces and accents in its name',
+      (folder: string) => ({
+        fileName: 'résumé (1).pdf',
+        path: join(folder, 'résumé (1).pdf'),
+      }),
+    ],
+    [
+      'a file that is named for the suffix, but is not dangerous',
+      (folder: string) => ({
+        fileName: 'a.unconfirmed',
+        path: join(folder, 'a.unconfirmed'),
+      }),
+    ],
+    [
+      'a file whose name starts with a dot',
+      (folder: string) => ({ fileName: '.hidden', path: join(folder, '.hidden') }),
+    ],
+  ])('keeps %s', (_what, odd) => {
+    const { folder, manager, store, stored } = setup();
+    const row = stored({ n: 1, ...odd(folder) });
+
+    manager.restore([row]);
+
+    expect(manager.has(row.id)).toBe(true);
+    expect(store.removed).toEqual([]);
+  });
+
+  it('drops only the rows that cannot be ours, and keeps the others in order', () => {
+    const { folder, manager, store, stored } = setup();
+    const rows = [
+      stored({ n: 5 }),
+      stored({ n: 4, path: 'relative/stored-4.txt' }),
+      stored({ n: 3 }),
+      stored({ n: 2, path: join(folder, 'someone-else.txt') }),
+      stored({ n: 1 }),
+    ];
+
+    manager.restore(rows);
+
+    expect(manager.list().map((view) => view.id)).toEqual([rows[0]?.id, rows[2]?.id, rows[4]?.id]);
+    expect(store.removed).toEqual([rows[1]?.id, rows[3]?.id]);
+  });
+
+  it('does not let rows it drops take the room of rows it keeps', () => {
+    const { folder, manager, store, stored } = setup();
+    const odd = Array.from({ length: MAX_LISTED_DOWNLOADS }, (_, n) =>
+      stored({ n: n + 1, path: 'relative/file.txt' }),
+    );
+    const good = Array.from({ length: MAX_LISTED_DOWNLOADS }, (_, n) =>
+      stored({
+        n: MAX_LISTED_DOWNLOADS + n + 1,
+        path: join(folder, `stored-${String(MAX_LISTED_DOWNLOADS + n + 1)}.txt`),
+        fileName: `stored-${String(MAX_LISTED_DOWNLOADS + n + 1)}.txt`,
+      }),
+    );
+
+    manager.restore([...odd, ...good]);
+
+    expect(manager.list()).toHaveLength(MAX_LISTED_DOWNLOADS);
+    expect(store.removed).toEqual(odd.map((row) => row.id));
+  });
+
+  it('deletes the row of a dropped download once, however often it is listed', () => {
+    const { manager, store, stored } = setup();
+    const odd = stored({ n: 1, path: 'relative/stored-1.txt' });
+
+    manager.restore([odd, odd, odd]);
+
+    expect(store.removed).toEqual([odd.id]);
+  });
+
+  it('says nothing, and writes nothing else, when every row is dropped', () => {
+    const { manager, onChange, store, stored } = setup();
+    const rows = [stored({ n: 2, path: 'a' }), stored({ n: 1, path: 'b' })];
+
+    manager.restore(rows);
+
+    expect(manager.list()).toEqual([]);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(store.removed).toEqual([rows[0]?.id, rows[1]?.id]);
+    expect(store.upserts).toEqual([]);
+  });
+
+  it('drops a row that was running as well, whatever its state', () => {
+    const { manager, store, stored } = setup();
+    const running = stored({ n: 1, state: 'progressing', path: 'relative/stored-1.txt' });
+    const paused = stored({ n: 2, state: 'paused', path: 'relative/stored-2.txt' });
+
+    manager.restore([running, paused]);
+
+    expect(manager.list()).toEqual([]);
+    // Dropped, not written back as interrupted.
+    expect(store.upserts).toEqual([]);
+    expect(store.removed).toEqual([running.id, paused.id]);
+  });
+
+  it('drops without a store, and without failing', () => {
+    const { manager, stored } = setup({ store: false });
+
+    expect(() => {
+      manager.restore([stored({ n: 1, path: 'relative/stored-1.txt' }), stored({ n: 2 })]);
+    }).not.toThrow();
+    expect(manager.list()).toHaveLength(1);
+  });
+
+  it('keeps a download that started before the restore, whatever is dropped', () => {
+    const { manager, start, stored, ids, store } = setup();
+    start('running.bin');
+
+    manager.restore([stored({ n: 1, path: 'relative/stored-1.txt' }), stored({ n: 2 })]);
+
+    expect(manager.list().map((view) => view.id)).toEqual([ids[0], expect.any(String)]);
+    expect(store.removed).toHaveLength(1);
+  });
+});
