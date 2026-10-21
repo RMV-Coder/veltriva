@@ -1,0 +1,24 @@
+# Veyra intent — reviewed like code. See docs/DESIGN.md §5.2.
+id = "int-c9e815"
+title = "Other apps' links never launch the Follina-class schemes, and risky downloads need Keep"
+kind = "security"
+status = "active"
+created = "2026-10-22"
+objective = "A page can't make Windows run ms-msdt:, search-ms: and similar remote-execution schemes, and can't get a risky download opened without the user's Keep."
+solution = "BLOCKED_EXTERNAL_SCHEMES (src/core/url/external-protocol.ts); risky downloads saved as .unconfirmed (src/core/downloads/file-names.ts), assessment §6.4."
+verification = ["src/core/url/external-protocol.test.ts", "src/core/downloads/file-names.test.ts", "tests/e2e/downloads.spec.ts"]
+
+[[guard]]
+paths = ["src/core/url/external-protocol.ts"]
+must_contain = "'ms-msdt'"
+message = "ms-msdt: is no longer always blocked (assessment §6.4)"
+
+[[guard]]
+paths = ["src/core/url/external-protocol.ts"]
+must_contain = "'search-ms'"
+message = "search-ms: is no longer always blocked (assessment §6.4)"
+
+[[guard]]
+paths = ["src/core/downloads/file-names.ts"]
+must_contain = "UNCONFIRMED_SUFFIX"
+message = "Risky downloads are no longer held as .unconfirmed until Keep (assessment §6.4)"

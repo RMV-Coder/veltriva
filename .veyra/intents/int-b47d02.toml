@@ -1,0 +1,19 @@
+# Veyra intent — reviewed like code. See docs/DESIGN.md §5.2.
+id = "int-b47d02"
+title = "The shell is locked down: deny-by-default CSP, sender-checked IPC"
+kind = "security"
+status = "active"
+created = "2026-10-22"
+objective = "Only Veltriva's own shell frame can call main, and the shell loads nothing it didn't ship."
+solution = "CSP default-src 'none' (src/main/shell/csp.ts); every IPC message checks event.senderFrame against the allowed origins (src/main/ipc/install.ts), ADR-0005."
+verification = ["src/main/shell/csp.test.ts", "src/main/ipc router and sender tests"]
+
+[[guard]]
+paths = ["src/main/shell/csp.ts"]
+must_contain = "default-src 'none'"
+message = "The shell CSP is no longer deny-by-default (ADR-0005)"
+
+[[guard]]
+paths = ["src/main/ipc/install.ts"]
+must_contain = "senderFrame"
+message = "IPC no longer checks the sender frame (ADR-0005)"

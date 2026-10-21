@@ -1,0 +1,25 @@
+# Veyra intent — reviewed like code. See docs/DESIGN.md §5.2.
+id = "int-58958b"
+title = "Web content stays sandboxed and isolated"
+kind = "security"
+status = "active"
+created = "2026-10-22"
+objective = "Every web page, popup and the shell run sandboxed and context-isolated, with no Node.js."
+solution = "Hardened WebPreferences for every role (src/main/web/web-preferences.ts), ADR-0002 §1."
+constraints = ["Never set sandbox: false, contextIsolation: false or nodeIntegration: true for any web contents"]
+verification = ["tests/e2e/hostile.spec.ts", "src/main/web web-preferences unit tests"]
+
+[[guard]]
+paths = ["src/main/web/web-preferences.ts"]
+must_contain = "sandbox: true"
+message = "web-preferences.ts no longer sets sandbox: true (ADR-0002)"
+
+[[guard]]
+paths = ["src/main/web/web-preferences.ts"]
+must_contain = "contextIsolation: true"
+message = "web-preferences.ts no longer sets contextIsolation: true (ADR-0002)"
+
+[[guard]]
+paths = ["src/main/web/web-preferences.ts"]
+must_contain = "nodeIntegration: false"
+message = "web-preferences.ts no longer sets nodeIntegration: false (ADR-0002)"

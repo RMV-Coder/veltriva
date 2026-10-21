@@ -1,0 +1,14 @@
+# Veyra intent — reviewed like code. See docs/DESIGN.md §5.2.
+id = "int-e8a1b3"
+title = "Main never decodes untrusted images"
+kind = "security"
+status = "active"
+created = "2026-10-22"
+objective = "Favicon and other server-supplied image bytes are only sniffed and size-capped in main; decoding happens in the sandboxed shell renderer (threat T5)."
+solution = "ESLint forbids nativeImage under src/main without a reviewed exception (eslint.config.mjs); favicons are stored as sniffed bytes plus type (migration 0002)."
+verification = ["npm run lint"]
+
+[[guard]]
+paths = ["eslint.config.mjs"]
+must_contain = "Identifier[name='nativeImage']"
+message = "The lint rule that keeps image decoding out of main was removed (threat T5)"

@@ -1,0 +1,45 @@
+# Veyra intent — reviewed like code. See docs/DESIGN.md §5.2.
+id = "int-d2f640"
+title = "Supply chain and packaged-binary hardening stay on"
+kind = "security"
+status = "active"
+created = "2026-10-22"
+objective = "Dependencies never run install scripts, versions stay exact, and the packaged app keeps its hardened Electron fuses."
+solution = ".npmrc ignore-scripts and save-exact; electronFuses in electron-builder.yml (ADR-0007 §3, assessment §6.2)."
+constraints = ["enableCookieEncryption is one-way: never turn it off"]
+verification = ["npm run package:dir plus a packaged launch"]
+
+[[guard]]
+paths = [".npmrc"]
+must_contain = "ignore-scripts=true"
+message = "npm install scripts are enabled again (supply chain, ADR-0007)"
+
+[[guard]]
+paths = [".npmrc"]
+must_contain = "save-exact=true"
+message = "Dependency versions are no longer saved exactly (ADR-0007)"
+
+[[guard]]
+paths = ["electron-builder.yml"]
+must_contain = "runAsNode: false"
+message = "The RunAsNode fuse is no longer off (ADR-0007)"
+
+[[guard]]
+paths = ["electron-builder.yml"]
+must_contain = "enableNodeCliInspectArguments: false"
+message = "The Node inspector fuse is no longer off in packaged builds (ADR-0007)"
+
+[[guard]]
+paths = ["electron-builder.yml"]
+must_contain = "onlyLoadAppFromAsar: true"
+message = "The packaged app may load code from outside app.asar (ADR-0007)"
+
+[[guard]]
+paths = ["electron-builder.yml"]
+must_contain = "enableEmbeddedAsarIntegrityValidation: true"
+message = "ASAR integrity validation is no longer on (ADR-0007)"
+
+[[guard]]
+paths = ["electron-builder.yml"]
+must_contain = "enableCookieEncryption: true"
+message = "Cookie encryption is one-way: turning it off corrupts the cookie store (ADR-0007)"

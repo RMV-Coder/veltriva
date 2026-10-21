@@ -1,0 +1,25 @@
+# Veyra intent — reviewed like code. See docs/DESIGN.md §5.2.
+id = "int-a1c3e7"
+title = "Untrusted pages get no webview, no stray navigation, no client-certificate auto-pick"
+kind = "security"
+status = "active"
+created = "2026-10-22"
+objective = "Pages can't attach <webview>, navigate outside the role's allow-list, or get a client certificate picked for them."
+solution = "The web-contents guard (src/main/web/guard.ts) and the session baseline (src/main/web/session-baseline.ts), ADR-0002 §2–4."
+constraints = ["Electron picks the first client certificate unless the app intervenes; always intervene"]
+verification = ["tests/e2e/hostile.spec.ts", "tests/e2e/certificates.spec.ts"]
+
+[[guard]]
+paths = ["src/main/web/guard.ts"]
+must_contain = "will-attach-webview"
+message = "The guard no longer blocks <webview> attachment (ADR-0002)"
+
+[[guard]]
+paths = ["src/main/web/guard.ts"]
+must_contain = "isNavigationAllowed"
+message = "The guard no longer checks navigations against the role's allow-list (ADR-0002)"
+
+[[guard]]
+paths = ["src/main/web/session-baseline.ts"]
+must_contain = "select-client-certificate"
+message = "Client certificates would be auto-selected again (assessment §3.7)"
