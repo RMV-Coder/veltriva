@@ -277,6 +277,32 @@ describe('TabManager history observer: how the user got to a commit', () => {
     expect(transitions(id)).toEqual(['link']);
   });
 
+  // Regression (found by E2E): a typed address that turned into a download commits nothing and
+  // fails nothing; its `typed` stayed for the next commit, a link click.
+  it('is forgotten when loading stops without a commit', () => {
+    const { manager, runtimeOf, transitions } = setup();
+    const id = manager.create();
+    manager.navigate(id, 'https://example.com/file.zip', { transition: 'typed' });
+
+    runtimeOf(id).events.loadingChanged(true);
+    runtimeOf(id).events.loadingChanged(false);
+    commit(runtimeOf(id), 'https://example.com/next');
+
+    expect(transitions(id)).toEqual(['link']);
+  });
+
+  it('is kept while the load it belongs to is still going', () => {
+    const { manager, runtimeOf, transitions } = setup();
+    const id = manager.create();
+    manager.navigate(id, 'https://example.com/', { transition: 'typed' });
+
+    runtimeOf(id).events.loadingChanged(true);
+    commit(runtimeOf(id), 'https://example.com/');
+    runtimeOf(id).events.loadingChanged(false);
+
+    expect(transitions(id)).toEqual(['typed']);
+  });
+
   it('is not reported for a load that failed: there is no commit', () => {
     const { manager, runtimeOf, history } = setup();
     const id = manager.create();

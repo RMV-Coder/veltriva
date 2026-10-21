@@ -17,6 +17,8 @@
 //   /dl/…              files with known bytes to download, one held open until released (M1.4b;
 //                      ./download-routes.ts)
 //   /auth/…            pages and an image behind HTTP Basic authentication (M1.4b; ./auth-routes.ts)
+//   /memory/…          pages, redirects and favicons made from the query, for the history and
+//                      favicon specs (M2.2b; ./memory-routes.ts)
 // `hits(path)` counts the requests that reached the server for exactly that path and query;
 // `pathHits(pathname)` counts them whatever the query. Nothing is cached, and the same request
 // always gives the same response.
@@ -30,6 +32,7 @@ import { handleAuthRoute } from './auth-routes';
 import { createGates, handleDownloadRoute } from './download-routes';
 import type { Gates } from './download-routes';
 import { buildPng, buildOversizedPng } from './images';
+import { handleMemoryRoute } from './memory-routes';
 import { buildSamplePdf } from './sample-pdf';
 
 const PAGES_DIR = resolve(__dirname, 'pages');
@@ -168,7 +171,8 @@ async function route(
   const { pathname, searchParams } = new URL(request.url ?? '/', 'http://fixture.invalid');
   if (
     (pathname.startsWith('/dl/') && handleDownloadRoute(pathname, searchParams, response, gates)) ||
-    (pathname.startsWith('/auth/') && handleAuthRoute(pathname, searchParams, request, response))
+    (pathname.startsWith('/auth/') && handleAuthRoute(pathname, searchParams, request, response)) ||
+    (pathname.startsWith('/memory/') && handleMemoryRoute(pathname, searchParams, response))
   ) {
     return;
   }

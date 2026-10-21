@@ -1008,6 +1008,12 @@ export class TabManager {
         }
       },
       loadingChanged: (loading) => {
+        const record = current();
+        if (!loading && record !== undefined) {
+          // A load that ends without a commit (it became a download, or was stopped) leaves no
+          // transition behind for the next commit, which would be a link (found by E2E).
+          record.nextTransition = null;
+        }
         update({ loading });
       },
       loadFailed: ({ code, name, url, canGoBack, canGoForward }) => {

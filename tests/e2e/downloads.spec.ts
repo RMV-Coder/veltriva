@@ -144,6 +144,23 @@ function sendCommand(shell: Page, command: DownloadCommand, downloadId: string):
   );
 }
 
+/** What main answered to a download command: `ok`, or the code that refused it. */
+function commandOutcome(
+  shell: Page,
+  command: DownloadCommand,
+  downloadId: string,
+): Promise<{ ok: boolean; code?: string }> {
+  return shell.evaluate(
+    async ({ name, id }) => {
+      const result = await (globalThis as PageGlobal).veltriva.downloads[name]({
+        downloadId: id,
+      });
+      return result.ok ? { ok: true } : { ok: false, code: result.code };
+    },
+    { name: command, id: downloadId },
+  );
+}
+
 test.describe('downloads', () => {
   test.beforeEach(async ({ electronApp, fixtureServer, shell }) => {
     await setSearchTemplate(electronApp, fixtureServer.url('/search?q={searchTerms}'));
@@ -751,13 +768,26 @@ test.describe('downloads', () => {
     }) => {
       await setUp(electronApp, shell, fixtureServer);
       for (const command of ['open', 'showInFolder'] as const) {
-        for (const id of ['C:\\Windows\\System32\\notepad.exe', '..\\..\\x', 'download-0x1', '']) {
-          expect(await sendCommand(shell, command, id), `${command} ${id}`).toBe(false);
+        // An id is a UUIDv7 (M2.2b). Anything else, including the numbered ids of Phase 1, is
+        // refused by the shell's schema before main looks for a download.
+        for (const id of [
+          'C:\\Windows\\System32\\notepad.exe',
+          '..\\..\\x',
+          'download-0x1',
+          'download-999',
+          '0199f000-0000-4000-8000-0000000000d1', // a UUID, but not a version 7 one
+          '',
+        ]) {
+          expect(await commandOutcome(shell, command, id), `${command} ${id}`).toEqual({
+            ok: false,
+            code: 'invalid_input',
+          });
         }
         // A well-formed id main has no record of is "not found", not an open.
-        expect(await sendCommand(shell, command, 'download-999'), `${command} download-999`).toBe(
-          false,
-        );
+        expect(
+          await commandOutcome(shell, command, '0199f000-0000-7000-8000-0000000000d1'),
+          `${command} an unknown UUIDv7`,
+        ).toEqual({ ok: false, code: 'not_found' });
       }
       expect(await recordedFileActions(electronApp)).toEqual([]);
     });
