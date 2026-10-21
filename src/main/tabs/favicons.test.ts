@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Logger } from '../platform/logger';
-import { MAX_FAVICON_BYTES } from './favicon-format';
+import { MAX_FAVICON_BYTES } from '../../core/net/favicon-format';
 import { createFaviconService } from './favicons';
 import type { FaviconFetch } from './favicons';
 

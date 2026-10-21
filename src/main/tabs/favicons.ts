@@ -1,6 +1,6 @@
 // Fetches favicons for the shell (threat T5). Requests go through the browsing session, like the
 // page's own requests; the body is read only up to 64 KB, and the result is used only if its
-// bytes are a raster image (./favicon-format.ts). Results are cached per URL. Nothing about a
+// bytes are a raster image (core/net/favicon-format.ts). Results are cached per URL. Nothing about a
 // favicon ever reaches the page, and failures are silent: the shell shows a generic icon.
 //
 // These are browser-initiated requests, which skip Chromium's local-network-access checks, so a
@@ -8,7 +8,7 @@
 // hosts are refused unless the page itself is on the same kind of host (src/core/url/local-network.ts).
 import { isFaviconUrlAllowed } from '../../core/url/local-network';
 import type { Logger } from '../platform/logger';
-import { decodeDataUrl, faviconDataUrl, MAX_FAVICON_BYTES } from './favicon-format';
+import { decodeDataUrl, faviconDataUrl, MAX_FAVICON_BYTES } from '../../core/net/favicon-format';
 
 const TIMEOUT_MS = 10_000;
 const CACHE_SIZE = 256;

@@ -5,10 +5,12 @@
 //   - URL hygiene first (core/url/hygiene.ts): only what it allows is ever sent.
 //   - A title is written once it has been stable for 2 s, so a page that animates its title
 //     (a counter, a ticker) costs one write, not one per change.
-//   - An icon is re-encoded to a PNG of at most 64×64 (./favicon-png.ts) and stored once by its
-//     SHA-256; the same icon on a thousand pages is one row.
+//   - An icon is stored as the bytes the favicon service validated, with the type they sniff as
+//     (core/net/favicon-format.ts), once by their SHA-256: the same icon on a thousand pages is
+//     one row. Main never decodes it (threat T5); the shell draws and scales it.
 // Nothing here throws into TabManager: a failed write is logged by code and dropped. The memory
 // is a convenience; losing a visit must never break browsing.
+import { storedFavicon } from '../../core/net/favicon-format';
 import type { VisitTransition } from '../../core/search/frecency';
 import { historyUrl } from '../../core/url/hygiene';
 import type { DataClient } from '../persistence/data-client';
@@ -24,8 +26,6 @@ export const FAVICON_CACHE_SIZE = 256;
 export interface HistoryRecorderOptions {
   readonly data: Pick<DataClient, 'call'>;
   readonly logger: Logger;
-  /** A validated favicon as a base64 PNG of at most 64×64, or null if it can't be one. */
-  readonly encodeFavicon: (dataUrl: string) => string | null;
   readonly now?: () => number;
 }
 
@@ -41,7 +41,6 @@ interface TabEntry {
 export class HistoryRecorder implements TabHistoryObserver {
   readonly #data: Pick<DataClient, 'call'>;
   readonly #logger: Logger;
-  readonly #encodeFavicon: (dataUrl: string) => string | null;
   readonly #now: () => number;
   readonly #tabs = new Map<TabId, TabEntry>();
   readonly #favicons = new Map<string, Promise<number | null>>();
@@ -51,7 +50,6 @@ export class HistoryRecorder implements TabHistoryObserver {
   constructor(options: HistoryRecorderOptions) {
     this.#data = options.data;
     this.#logger = options.logger;
-    this.#encodeFavicon = options.encodeFavicon;
     this.#now = options.now ?? Date.now;
   }
 
@@ -181,16 +179,11 @@ export class HistoryRecorder implements TabHistoryObserver {
     if (known !== undefined) {
       return known;
     }
-    let png: string | null;
-    try {
-      png = this.#encodeFavicon(dataUrl);
-    } catch {
-      png = null;
-    }
+    const favicon = storedFavicon(dataUrl);
     const stored =
-      png === null
+      favicon === undefined
         ? Promise.resolve(null)
-        : this.#data.call('favicons.put', { png, at: this.#now() }).then(
+        : this.#data.call('favicons.put', { ...favicon, at: this.#now() }).then(
             ({ id }) => id,
             (error: unknown) => {
               this.#favicons.delete(dataUrl); // Tried again on the next sight.

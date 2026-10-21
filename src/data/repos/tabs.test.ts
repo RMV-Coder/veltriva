@@ -170,7 +170,7 @@ describe('tabs', () => {
   describe('tabs.upsertMany', () => {
     it('round-trips a strip tab with every field set', () => {
       const { db, call } = setup();
-      db.exec(`INSERT INTO favicons (id, sha256, png, updated_at) VALUES (7, 'abc', x'89504e47', 1);
+      db.exec(`INSERT INTO favicons (id, sha256, bytes, updated_at) VALUES (7, 'abc', x'89504e47', 1);
         INSERT INTO pages (id, url_key, url, host, site, first_visit_at, last_visit_at)
         VALUES (9, 'example.com/x', 'https://example.com/x', 'example.com', 'example.com', 1, 1)`);
       const tab = tabRow(1, {
@@ -253,7 +253,7 @@ describe('tabs', () => {
     it('updates an existing row in place, every column', () => {
       const { db, call } = setup();
       addWorkspace(db, OTHER_WORKSPACE);
-      db.exec(`INSERT INTO favicons (id, sha256, png, updated_at) VALUES (7, 'abc', x'89504e47', 1);
+      db.exec(`INSERT INTO favicons (id, sha256, bytes, updated_at) VALUES (7, 'abc', x'89504e47', 1);
         INSERT INTO pages (id, url_key, url, host, site, first_visit_at, last_visit_at)
         VALUES (9, 'example.com/x', 'https://example.com/x', 'example.com', 'example.com', 1, 1)`);
       call('tabs.upsertMany', { tabs: [tabRow(1, { pinned: true, restoreState: RESTORE_STATE })] });

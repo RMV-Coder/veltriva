@@ -25,10 +25,10 @@ import type { Migration } from './migrations';
 const V1_FIXTURE = join(import.meta.dirname, 'migrations', 'fixtures', 'veltriva-v1.db');
 const NOW = Date.UTC(2026, 9, 21, 8, 30, 15);
 
-/** A harmless later migration, to exercise an upgrade before a real one exists. */
-const V2: Migration = {
-  version: 2,
-  name: '0002_test',
+/** A harmless migration after the latest, to exercise the runner beyond the real history. */
+const NEXT: Migration = {
+  version: LATEST_VERSION + 1,
+  name: 'next_test',
   sql: "ALTER TABLE workspaces ADD COLUMN color TEXT NOT NULL DEFAULT '';",
 };
 
@@ -214,14 +214,16 @@ describe('the version 1 fixture', () => {
     expect(found).toEqual([2]);
   });
 
-  it('upgrades to a later version after a backup of the version 1 file', async () => {
-    const { db, fromVersion, userVersion: version, backupFile } = await open([...MIGRATIONS, V2]);
+  it('upgrades through every later version after one backup of the version 1 file', async () => {
+    const { db, fromVersion, userVersion: version, backupFile } = await open([...MIGRATIONS, NEXT]);
     expect(fromVersion).toBe(1);
-    expect(version).toBe(2);
+    expect(version).toBe(NEXT.version);
     expect(db.prepare('SELECT color FROM workspaces').pluck().all()).toEqual(['']);
     expect(count(db, 'tabs')).toBe(3);
 
-    expect(backupFile).toBe(join(backupDir, 'veltriva-v1-before-v2-2026-10-21T08-30-15Z.db'));
+    expect(backupFile).toBe(
+      join(backupDir, `veltriva-v1-before-v${String(NEXT.version)}-2026-10-21T08-30-15Z.db`),
+    );
     expect(userVersion(backupFile ?? '')).toBe(1);
     inspect(backupFile ?? '', (backup) => {
       expect(count(backup, 'tabs')).toBe(3);
@@ -235,7 +237,8 @@ describe('the version 1 fixture', () => {
       name: 'broken',
       sql: 'CREATE TABLE half_done (x); SELECT no_such_function();',
     };
-    const error = await openError([...MIGRATIONS, broken]);
+    // In place of the real migration 2.
+    const error = await openError([...MIGRATIONS.slice(0, 1), broken]);
     expect(error.code).toBe('migration_failed');
     expect(error.detail).toBe('2 SQLITE_ERROR');
     expect(userVersion(file)).toBe(1);
@@ -253,14 +256,86 @@ describe('the version 1 fixture', () => {
       writeFileSync(join(backupDir, `veltriva-v0-before-v1-${stamp}.db`), '');
     }
     writeFileSync(join(backupDir, 'notes.txt'), 'mine');
-    await open([...MIGRATIONS, V2]);
+    await open([...MIGRATIONS, NEXT]);
     expect(readdirSync(backupDir).sort()).toEqual([
       'notes.txt',
       'veltriva-v0-before-v1-2026-02-01T00-00-00Z.db',
       'veltriva-v0-before-v1-2026-03-01T00-00-00Z.db',
-      'veltriva-v1-before-v2-2026-10-21T08-30-15Z.db',
+      `veltriva-v1-before-v${String(NEXT.version)}-2026-10-21T08-30-15Z.db`,
     ]);
     expect(KEPT_BACKUPS).toBe(3);
+  });
+});
+
+describe('migration 2: favicons keep their bytes and type (M2.2b, threat T5)', () => {
+  beforeEach(() => {
+    copyFileSync(V1_FIXTURE, file);
+  });
+
+  it('upgrades the version 1 fixture after a backup, keeping its icon and every reference to it', async () => {
+    const { db, fromVersion, userVersion: version, backupFile } = await open();
+    expect(fromVersion).toBe(1);
+    expect(version).toBe(2);
+    expect(backupFile).toBe(join(backupDir, 'veltriva-v1-before-v2-2026-10-21T08-30-15Z.db'));
+
+    const icon = db.prepare('SELECT id, sha256, mime, bytes FROM favicons').all() as {
+      id: number;
+      sha256: string;
+      mime: string;
+      bytes: Buffer;
+    }[];
+    expect(icon).toEqual([
+      { id: 1, sha256: 'aa', mime: 'image/png', bytes: Buffer.from([0x89, 0x50, 0x4e, 0x47]) },
+    ]);
+    // No table rebuild, so no ON DELETE SET NULL ran: the fixture's page still has its icon.
+    expect(db.prepare('SELECT favicon_id FROM pages WHERE id = 1').pluck().get()).toBe(1);
+    expect(db.pragma('foreign_key_check')).toEqual([]);
+    expect(db.pragma('quick_check', { simple: true })).toBe('ok');
+  });
+
+  it('renames png to bytes and adds mime', async () => {
+    const { db } = await open();
+    const columns = (db.pragma('table_info(favicons)') as { name: string }[]).map((c) => c.name);
+    expect(columns).toEqual(['id', 'sha256', 'bytes', 'updated_at', 'mime']);
+  });
+
+  it('allows only the raster types the favicon service sniffs', async () => {
+    const { db } = await open();
+    const insert = db.prepare(
+      "INSERT INTO favicons (sha256, bytes, mime, updated_at) VALUES (?, x'00', ?, 1)",
+    );
+    for (const mime of [
+      'image/png',
+      'image/x-icon',
+      'image/gif',
+      'image/jpeg',
+      'image/webp',
+      'image/bmp',
+    ]) {
+      expect(() => insert.run([`ok-${mime}`, mime])).not.toThrow();
+    }
+    for (const mime of ['image/svg+xml', 'text/html', 'IMAGE/PNG', '']) {
+      expect(() => insert.run([`bad-${mime}`, mime])).toThrow(/CHECK/);
+    }
+  });
+
+  it('leaves an upgraded file with the same schema as a new one', async () => {
+    const schema = (db: { prepare: OpenedDatabase['db']['prepare'] }) =>
+      db
+        .prepare(
+          "SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name",
+        )
+        .all();
+    const upgraded = schema((await open()).db);
+    // Closed before deleting: Windows refuses to delete an open file.
+    for (const { db } of opened.splice(0)) {
+      db.close();
+    }
+    rmSync(file);
+    rmSync(`${file}-wal`, { force: true });
+    rmSync(`${file}-shm`, { force: true });
+    const fresh = schema((await open()).db);
+    expect(upgraded).toEqual(fresh);
   });
 });
 
@@ -293,7 +368,7 @@ describe('a database the app must refuse', () => {
   });
 
   it('refuses to run a migration history with a gap', async () => {
-    const error = await openError([{ ...V2, version: 3 }]);
+    const error = await openError([{ ...NEXT, version: 2 }]);
     expect(error).toMatchObject({ code: 'internal', detail: 'migration history' });
     expect(existsSync(file)).toBe(false);
   });

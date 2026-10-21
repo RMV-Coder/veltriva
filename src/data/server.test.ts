@@ -9,6 +9,8 @@ import { DATA_METHODS } from '../shared/contracts/data-rpc';
 import { openDatabase } from './database';
 import type { OpenedDatabase } from './database';
 import { DataError } from './errors';
+import { DATA_WRITES } from './handlers';
+import { LATEST_VERSION } from './migrations';
 import type { RepositoryHandlers } from './handlers';
 import { NEEDS_CHECK_SUFFIX } from './integrity';
 import { Maintenance } from './maintenance';
@@ -192,7 +194,7 @@ describe('createDataServer', () => {
     expect(reply).toMatchObject({ ok: true });
     const value = (reply as { value: unknown }).value;
     expect(DATA_METHODS['db.info'].output.parse(value)).toMatchObject({
-      userVersion: 1,
+      userVersion: LATEST_VERSION,
       latestVersion: 1,
       journalMode: 'wal',
       autoVacuum: 2,
@@ -230,5 +232,234 @@ describe('createDataServer', () => {
     expect((await closing).reply).toMatchObject({ ok: true });
     expect(opened.db.open).toBe(false);
     expect(existsSync(join(dir, 'backups'))).toBe(true);
+  });
+});
+
+describe('createDataServer: maintenance.run', () => {
+  const NOW = Date.UTC(2026, 9, 21);
+  const DAY = 86_400_000;
+  const ran = {
+    check: 'ok',
+    backup: 'unchanged',
+    backupFile: null,
+    pruned: { visits: 3, pages: 2, closedTabs: 1 },
+  } as const;
+
+  it('passes the time and the visit retention it was given to Maintenance', async () => {
+    const run = vi.spyOn(maintenance, 'run').mockResolvedValue(ran);
+
+    await handle(request('maintenance.run', { now: NOW, visitRetentionDays: 30 }));
+
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith(NOW, 30);
+  });
+
+  it.each([1, 365, 36_500])('passes a retention of %s days on as it is', async (days) => {
+    const run = vi.spyOn(maintenance, 'run').mockResolvedValue(ran);
+
+    await handle(request('maintenance.run', { now: NOW, visitRetentionDays: days }));
+
+    expect(run).toHaveBeenCalledWith(NOW, days);
+  });
+
+  it('answers with what the run did, including what it pruned', async () => {
+    vi.spyOn(maintenance, 'run').mockResolvedValue(ran);
+
+    const { reply } = await handle(
+      request('maintenance.run', { now: NOW, visitRetentionDays: 365 }, 21),
+    );
+
+    expect(reply).toEqual({ kind: 'response', id: 21, ok: true, value: ran });
+    expect(
+      DATA_METHODS['maintenance.run'].output.safeParse((reply as { value: unknown }).value).success,
+    ).toBe(true);
+  });
+
+  it.each([
+    ['no retention', { now: NOW }],
+    ['a retention of 0', { now: NOW, visitRetentionDays: 0 }],
+    ['a retention of 36,501 days', { now: NOW, visitRetentionDays: 36_501 }],
+    ['a fractional retention', { now: NOW, visitRetentionDays: 1.5 }],
+    ['a retention that is text', { now: NOW, visitRetentionDays: '365' }],
+    ['no time', { visitRetentionDays: 365 }],
+    ['a key more', { now: NOW, visitRetentionDays: 365, force: true }],
+  ])('refuses %s as invalid input, without running anything', async (_what, input) => {
+    const run = vi.spyOn(maintenance, 'run');
+
+    const { reply } = await handle(request('maintenance.run', input));
+
+    expect(reply).toEqual({
+      kind: 'response',
+      id: 7,
+      ok: false,
+      error: { code: 'invalid_input' },
+    });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('retains for real: only the visits older than the given retention go', async () => {
+    opened.db
+      .prepare(
+        `INSERT INTO pages (url_key, url, host, site, first_visit_at, last_visit_at)
+         VALUES ('k', 'https://x.example/', 'x.example', 'x.example', 1, 1)`,
+      )
+      .run();
+    const insert = opened.db.prepare(
+      "INSERT INTO visits (page_id, visited_at, transition) VALUES (1, ?, 'link')",
+    );
+    insert.run([NOW - 40 * DAY]);
+    insert.run([NOW - 10 * DAY]);
+
+    const { reply } = await handle(
+      request('maintenance.run', { now: NOW, visitRetentionDays: 30 }),
+    );
+
+    expect(reply).toMatchObject({
+      ok: true,
+      value: { pruned: { visits: 1, pages: 0, closedTabs: 0 } },
+    });
+    expect(opened.db.prepare('SELECT COUNT(*) FROM visits').pluck().get()).toBe(1);
+  });
+
+  it('keeps all of them under a longer retention, from the same database', async () => {
+    opened.db
+      .prepare(
+        `INSERT INTO pages (url_key, url, host, site, first_visit_at, last_visit_at)
+         VALUES ('k', 'https://x.example/', 'x.example', 'x.example', 1, 1)`,
+      )
+      .run();
+    opened.db
+      .prepare("INSERT INTO visits (page_id, visited_at, transition) VALUES (1, ?, 'link')")
+      .run([NOW - 40 * DAY]);
+
+    const { reply } = await handle(
+      request('maintenance.run', { now: NOW, visitRetentionDays: 365 }),
+    );
+
+    expect(reply).toMatchObject({
+      ok: true,
+      value: { pruned: { visits: 0, pages: 0, closedTabs: 0 } },
+    });
+  });
+
+  it('reports a run that is turned away as the busy error', async () => {
+    vi.spyOn(maintenance, 'run').mockRejectedValue(new DataError('busy'));
+
+    const { reply } = await handle(
+      request('maintenance.run', { now: NOW, visitRetentionDays: 365 }),
+    );
+
+    expect(reply).toMatchObject({ ok: false, error: { code: 'busy' } });
+  });
+});
+
+describe('DATA_WRITES', () => {
+  const visit = {
+    page: {
+      urlKey: 'https://example.com/',
+      url: 'https://example.com/',
+      host: 'example.com',
+      site: 'example.com',
+      title: '',
+    },
+    transition: 'link',
+    visitedAt: 1,
+    tabId: null,
+  };
+
+  it.each(['history.recordVisit', 'history.updatePage', 'favicons.put'] as const)(
+    'includes %s, so a visit, a title or an icon makes the next backup worth taking',
+    (method) => {
+      expect(DATA_WRITES.has(method)).toBe(true);
+    },
+  );
+
+  it('marks a backup as due after a recorded visit', async () => {
+    repositories['history.recordVisit'] = () => ({ pageId: 1 });
+    expect(maintenance.status().changedSinceBackup).toBe(false);
+
+    expect((await handle(request('history.recordVisit', visit))).reply).toMatchObject({ ok: true });
+
+    expect(maintenance.status().changedSinceBackup).toBe(true);
+  });
+
+  it('marks a backup as due after the title of a page is set', async () => {
+    repositories['history.updatePage'] = () => ({ count: 1 });
+
+    await handle(request('history.updatePage', { pageId: 1, title: 'x' }));
+
+    expect(maintenance.status().changedSinceBackup).toBe(true);
+  });
+
+  it('marks one as due for a visit that the memory refused too, since the call succeeded', async () => {
+    repositories['history.recordVisit'] = () => ({ pageId: null });
+
+    await handle(request('history.recordVisit', visit));
+
+    expect(maintenance.status().changedSinceBackup).toBe(true);
+  });
+
+  it('does not mark one for a write that failed', async () => {
+    repositories['history.recordVisit'] = () => {
+      throw new Database.SqliteError('full', 'SQLITE_FULL');
+    };
+
+    await handle(request('history.recordVisit', visit));
+
+    expect(maintenance.status().changedSinceBackup).toBe(false);
+  });
+
+  it('does not mark one for input the schema refused', async () => {
+    const handler = vi.fn();
+    repositories['history.recordVisit'] = handler;
+
+    await handle(request('history.recordVisit', { ...visit, transition: 'click' }));
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(maintenance.status().changedSinceBackup).toBe(false);
+  });
+
+  it.each([
+    ['history.pages', { limit: 5 }, { pages: [] }],
+    ['history.visits', { pageId: 1, limit: 5 }, { visits: [] }],
+    ['favicons.get', { ids: [1] }, { favicons: [] }],
+  ] as const)('does not mark one for the read %s', async (method, input, answer) => {
+    repositories[method] = () => answer;
+
+    expect((await handle(request(method, input))).reply).toMatchObject({ ok: true });
+
+    expect(maintenance.status().changedSinceBackup).toBe(false);
+  });
+
+  it('is exactly the writes: every other repository method only reads, or is a heartbeat', () => {
+    const repositoryMethods = Object.keys(DATA_METHODS).filter(
+      (method) => !method.startsWith('db.') && !method.startsWith('maintenance.'),
+    );
+
+    const notWrites = repositoryMethods.filter(
+      (method) => !(DATA_WRITES as ReadonlySet<string>).has(method),
+    );
+
+    expect(notWrites.sort()).toEqual([
+      'appRuns.end',
+      'appRuns.heartbeat',
+      'appRuns.recent',
+      'appRuns.start',
+      'appState.get',
+      'downloads.list',
+      'favicons.get',
+      'history.pages',
+      'history.visits',
+      'permissions.list',
+      'settings.get',
+      'tabs.list',
+      'tabs.listClosed',
+    ]);
+  });
+
+  it('names only methods that exist', () => {
+    for (const method of DATA_WRITES) {
+      expect(Object.hasOwn(DATA_METHODS, method), method).toBe(true);
+    }
   });
 });

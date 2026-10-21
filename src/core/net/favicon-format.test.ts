@@ -5,6 +5,7 @@ import {
   faviconDataUrl,
   MAX_FAVICON_BYTES,
   sniffRasterType,
+  storedFavicon,
 } from './favicon-format';
 
 const bytes = (...values: number[]): Uint8Array => Uint8Array.from(values);
@@ -89,5 +90,53 @@ describe('decodeDataUrl', () => {
     ['oversized input', `data:image/png;base64,${'A'.repeat(MAX_FAVICON_BYTES * 2)}`],
   ])('refuses %s', (_label, url) => {
     expect(decodeDataUrl(url)).toBeUndefined();
+  });
+});
+
+describe('storedFavicon', () => {
+  const asBase64 = (data: Uint8Array): string => btoa(String.fromCharCode(...data));
+
+  it.each([
+    ['PNG', PNG, 'image/png'],
+    ['ICO', ICO, 'image/x-icon'],
+    ['GIF', GIF, 'image/gif'],
+    ['JPEG', JPEG, 'image/jpeg'],
+    ['WebP', WEBP, 'image/webp'],
+    ['BMP', BMP, 'image/bmp'],
+  ])('keeps a %s as its own bytes, with the type they sniff as', (_label, data, type) => {
+    const url = faviconDataUrl(data);
+    expect(url).toBeDefined();
+    expect(storedFavicon(url ?? '')).toEqual({ mime: type, bytes: asBase64(data) });
+  });
+
+  it('takes the type from the bytes, not from what the URL declares', () => {
+    expect(storedFavicon(`data:image/gif;base64,${asBase64(PNG)}`)).toEqual({
+      mime: 'image/png',
+      bytes: asBase64(PNG),
+    });
+  });
+
+  it.each([
+    ['an SVG', `data:image/svg+xml;base64,${btoa('<svg xmlns="http://www.w3.org/2000/svg"/>')}`],
+    ['SVG text declared as a PNG', `data:image/png;base64,${btoa('<svg onload="alert(1)"/>')}`],
+    ['no bytes', 'data:image/png;base64,'],
+    ['not a data URL', 'https://example.com/favicon.ico'],
+    ['broken base64', 'data:image/png;base64,***'],
+  ])('refuses %s', (_label, url) => {
+    expect(storedFavicon(url)).toBeUndefined();
+  });
+
+  it('takes MAX_FAVICON_BYTES and refuses a byte more', () => {
+    const icon = (length: number): string => {
+      const data = new Uint8Array(length);
+      data.set(PNG);
+      let binary = '';
+      for (const byte of data) {
+        binary += String.fromCharCode(byte);
+      }
+      return `data:image/png;base64,${btoa(binary)}`;
+    };
+    expect(storedFavicon(icon(MAX_FAVICON_BYTES))?.mime).toBe('image/png');
+    expect(storedFavicon(icon(MAX_FAVICON_BYTES + 1))).toBeUndefined();
   });
 });

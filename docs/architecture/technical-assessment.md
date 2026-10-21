@@ -779,10 +779,14 @@ CREATE TABLE workspaces (
 
 CREATE TABLE favicons (
   id          INTEGER PRIMARY KEY,
-  sha256      TEXT    NOT NULL UNIQUE,                -- of the normalized PNG
-  png         BLOB    NOT NULL,                       -- re-encoded, ≤ 64×64, size-capped
-  updated_at  INTEGER NOT NULL
+  sha256      TEXT    NOT NULL UNIQUE,                -- of the bytes
+  bytes       BLOB    NOT NULL,                       -- as sniffed, ≤ 64 KiB, never decoded in main (T5)
+  updated_at  INTEGER NOT NULL,
+  mime        TEXT    NOT NULL DEFAULT 'image/png'    -- the raster type the bytes sniff as
+              CHECK (mime IN ('image/png','image/x-icon','image/gif','image/jpeg','image/webp','image/bmp'))
 ) STRICT;
+-- As built: 0001 created `png` (for a re-encoded PNG); migration 0002 (M2.2b) renamed it to
+-- `bytes` and added `mime`, once re-encoding in main was ruled out. The shell scales the image.
 
 -- Memory: one row per distinct normalized URL.
 CREATE TABLE pages (
@@ -1185,7 +1189,7 @@ A *hostile fixture page* in the E2E suite tries to reach `window.veltriva`, `req
 | T2 | A page reaches privileged APIs | Preload or IPC exposure | No preload for web content; sender and schema checks; hostile-page E2E test | None known by design |
 | T3 | A page pivots into the shell | Shell navigation, `window.open` from the shell | Shell navigation blocked, popups denied, CSP | Low |
 | T4 | XSS in our UI via page data | Titles, URLs | React escaping; lint ban on `dangerouslySetInnerHTML`; highlight markers aren't HTML | Low |
-| T5 | Shell compromise through image decoding; requests into the local network | Malicious favicon, or a favicon URL on a local host | Main fetches favicons through the browsing session with a 64 KB cap, accepts only raster formats it recognizes by their magic bytes (no SVG), and hands the shell a `data:` URL it built itself, so the shell never loads a remote image (M1.3a). Main's fetch skips Chromium's local-network-access check, so main refuses favicon URLs on loopback, private and link-local addresses and on local-only names (single label, `.local` and similar), unless the page is on the same kind of host (M1.3b, `src/core/url/local-network.ts`). Post-MVP: decode and re-encode with a memory-safe JS decoder | Moderate until re-encoding lands. Impact: history readable through IPC. **DNS rebinding:** the check classifies names as written, so a public name that resolves to a private address still gets a request. Closing it needs a resolver-level check, such as resolving first and refusing private results |
+| T5 | Shell compromise through image decoding; requests into the local network | Malicious favicon, or a favicon URL on a local host | Main fetches favicons through the browsing session with a 64 KB cap, accepts only raster formats it recognizes by their magic bytes (no SVG), and hands the shell a `data:` URL it built itself, so the shell never loads a remote image (M1.3a). Main's fetch skips Chromium's local-network-access check, so main refuses favicon URLs on loopback, private and link-local addresses and on local-only names (single label, `.local` and similar), unless the page is on the same kind of host (M1.3b, `src/core/url/local-network.ts`). **Stored favicons (M2.2b)** keep those sniffed bytes and their type, deduplicated by SHA-256; the data worker sniffs them again before storing, and main never decodes them (an ESLint rule bans `nativeImage` in `src/main`). Post-MVP: decode and re-encode with a memory-safe JS decoder | Moderate until re-encoding lands. Impact: history readable through IPC. **DNS rebinding:** the check classifies names as written, so a public name that resolves to a private address still gets a request. Closing it needs a resolver-level check, such as resolving first and refusing private results |
 | T6 | UI spoofing | Fake browser chrome in fullscreen, chromeless popups, imitation prompts | Fullscreen notice with origin, built from the committed URL and drawn above the page for 4 s; Esc always leaves fullscreen, and main can end it whatever the page's script does (M1.3b, ADR-0002 item 8). Popups always show a URL bar; prompts anchored in the toolbar, outside the page area | Low |
 | T7 | Phishing and homographs | IDN hosts, `user@host` URLs | Punycode display; userinfo stripped and warned | No Safe Browsing list (documented gap) |
 | T8 | Malicious downloads | Drive-by downloads | No auto-open, Mark-of-the-Web and SmartScreen, dangerous-type confirmation | A user can still choose to run malware |

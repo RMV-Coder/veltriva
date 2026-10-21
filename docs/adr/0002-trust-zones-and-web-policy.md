@@ -102,7 +102,7 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - Main fetches the page's first http(s) or `data:` candidate through the browsing session, with a 10 s timeout and a 64 KB cap enforced while streaming.
      - It accepts only raster formats it recognizes by their magic bytes: PNG, ICO, GIF, JPEG, WebP and BMP. SVG is never accepted.
      - The shell receives a `data:` URL that main built itself, and the IPC contract re-checks its form.
-     - Decoding and re-encoding the image in main would go further; that's left for later.
+     - Main never decodes the image: only the sandboxed shell renderer does. Stored favicons (M2.2b) keep the same sniffed bytes and their type, and the data worker sniffs them again (ADR-0004 item 10). ESLint bans `nativeImage` in `src/main`. Re-encoding with a memory-safe decoder outside main would go further; that's left for later.
    - **The omnibox opens only local drive paths.** A typed Windows path or `file:` URL opens only as `file:///C:/…`. Network paths (`\\server\share`, `file://server/share`, `file:////server/share`) become searches: Windows would connect over SMB and may send the user's NTLM credentials to that server.
    - **Other apps' schemes do nothing yet.** Until the M1.4 protocol guard can ask, typed `zoommtg:`, `mailto:` and similar input is neither opened nor searched for. A search would send `user:pass@host`, which reads exactly like `xmpp:user@host`, to the search engine.
    - **No default application menu.** Its accelerators would act on the browser itself: Ctrl+W would close the window and Ctrl+R would reload the shell. Browser shortcuts arrive in M1.3b, through `before-input-event`.

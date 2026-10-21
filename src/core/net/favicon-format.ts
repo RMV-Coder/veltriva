@@ -1,12 +1,22 @@
 // Favicon validation (threat T5). The shell never loads remote images: main fetches each favicon
 // and hands the shell a `data:` URL it built itself, only for small raster images identified by
 // their bytes, never by a server's Content-Type. SVG is refused outright (it can carry script and
-// external references). Pure, so the checks are unit-tested.
+// external references). Pure, so the checks are unit-tested, and shared: main runs them on what
+// it fetched, and the data worker again on what main asks it to store (M2.2b). Nothing in main
+// ever decodes the image; only the sandboxed shell renderer draws it.
 
 export const MAX_FAVICON_BYTES = 64 * 1024;
 
-export type RasterType =
-  'image/png' | 'image/x-icon' | 'image/gif' | 'image/jpeg' | 'image/webp' | 'image/bmp';
+/** The raster types a favicon may be, as stored in `favicons.mime` (migration 0002's CHECK). */
+export const RASTER_TYPES = [
+  'image/png',
+  'image/x-icon',
+  'image/gif',
+  'image/jpeg',
+  'image/webp',
+  'image/bmp',
+] as const;
+export type RasterType = (typeof RASTER_TYPES)[number];
 
 const startsWith = (bytes: Uint8Array, prefix: readonly number[], offset = 0): boolean =>
   bytes.length >= offset + prefix.length &&
@@ -80,6 +90,22 @@ export function decodeDataUrl(url: string): Uint8Array | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * A favicon `data:` URL as the memory stores it (M2.2b): its bytes, as base64, and the type the
+ * bytes say they are. The same checks as above: undefined unless it is a small raster image.
+ * Nothing is decoded as an image.
+ */
+export function storedFavicon(
+  url: string,
+): { readonly mime: RasterType; readonly bytes: string } | undefined {
+  const bytes = decodeDataUrl(url);
+  if (bytes === undefined || bytes.length === 0 || bytes.length > MAX_FAVICON_BYTES) {
+    return undefined;
+  }
+  const mime = sniffRasterType(bytes);
+  return mime === undefined ? undefined : { mime, bytes: toBase64(bytes) };
 }
 
 function toBase64(bytes: Uint8Array): string {

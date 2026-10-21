@@ -20,7 +20,6 @@ import { systemFileActions } from './downloads/file-actions';
 import { systemLauncher } from './external/launcher';
 import { ExternalProtocolGuard } from './external/protocol-guard';
 import { FocusManager } from './focus/focus-manager';
-import { encodeFaviconPng } from './history/favicon-png';
 import { HistoryRecorder } from './history/history-recorder';
 import { installPageMenu } from './input/page-menu';
 import { createShortcutHandler } from './input/shortcuts';
@@ -370,7 +369,6 @@ async function start(): Promise<void> {
   const historyRecorder = new HistoryRecorder({
     data,
     logger: consoleLogger,
-    encodeFavicon: (dataUrl) => encodeFaviconPng(dataUrl),
   });
   dataLifecycle.addFlush(() => historyRecorder.flush());
   const tabs = new TabManager({

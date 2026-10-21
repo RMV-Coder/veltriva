@@ -33,7 +33,7 @@ describe('migration 0001 schema', () => {
 
   function addFavicon(db: DatabaseConnection, id: number): void {
     db.prepare(
-      "INSERT INTO favicons (id, sha256, png, updated_at) VALUES (?, ?, x'89504e47', 1)",
+      "INSERT INTO favicons (id, sha256, bytes, updated_at) VALUES (?, ?, x'89504e47', 1)",
     ).run([id, `sha-${String(id)}`]);
   }
 

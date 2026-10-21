@@ -20,6 +20,10 @@ declare class URL {
   toString(): string;
 }
 
+/** Base64, as every runtime above provides it (core/net/favicon-format.ts). */
+declare function atob(data: string): string;
+declare function btoa(data: string): string;
+
 /** The WHATWG query-string class, as far as core/url/hygiene.ts uses it. */
 declare class URLSearchParams {
   constructor(init?: string);

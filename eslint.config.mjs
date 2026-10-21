@@ -40,6 +40,26 @@ function bannedImports(message, { electron = false } = {}) {
 }
 
 const RAW_HTML = 'Never render raw HTML: the shell displays untrusted titles and URLs (ADR-0002).';
+const RAW_HTML_SINKS = [
+  { selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']", message: RAW_HTML },
+  { selector: "Property[key.name='dangerouslySetInnerHTML']", message: RAW_HTML },
+  {
+    selector:
+      'AssignmentExpression > MemberExpression.left[property.name=/^(innerHTML|outerHTML)$/]',
+    message: RAW_HTML,
+  },
+  {
+    selector: "CallExpression[callee.property.name='insertAdjacentHTML']",
+    message: RAW_HTML,
+  },
+  {
+    selector: "CallExpression[callee.object.name='document'][callee.property.name=/^writeln?$/]",
+    message: RAW_HTML,
+  },
+];
+const NO_IMAGE_DECODING =
+  'Main never decodes image bytes (threat T5): sniff them (core/net/favicon-format.ts) and let ' +
+  'the sandboxed shell draw them. nativeImage needs a reviewed exception.';
 
 export default defineConfig(
   globalIgnores([
@@ -85,24 +105,26 @@ export default defineConfig(
   {
     files: ['**/*.{ts,tsx}'],
     rules: {
+      'no-restricted-syntax': ['error', ...RAW_HTML_SINKS],
+    },
+  },
+
+  // Main never decodes an image (threat T5): a decoder bug reached from a server's bytes would run
+  // in the one process with no sandbox. Favicons are sniffed by their bytes and drawn by the
+  // sandboxed shell renderer. A later trusted asset (an app icon) needs a reviewed exception.
+  {
+    files: ['src/main/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: {
       'no-restricted-syntax': [
         'error',
-        { selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']", message: RAW_HTML },
-        { selector: "Property[key.name='dangerouslySetInnerHTML']", message: RAW_HTML },
+        ...RAW_HTML_SINKS,
         {
           selector:
-            'AssignmentExpression > MemberExpression.left[property.name=/^(innerHTML|outerHTML)$/]',
-          message: RAW_HTML,
+            'MemberExpression[property.name=/^createFrom(Buffer|DataURL|Path|Bitmap|NamedImage)$/]',
+          message: NO_IMAGE_DECODING,
         },
-        {
-          selector: "CallExpression[callee.property.name='insertAdjacentHTML']",
-          message: RAW_HTML,
-        },
-        {
-          selector:
-            "CallExpression[callee.object.name='document'][callee.property.name=/^writeln?$/]",
-          message: RAW_HTML,
-        },
+        { selector: "Identifier[name='nativeImage']", message: NO_IMAGE_DECODING },
       ],
     },
   },

@@ -11,6 +11,7 @@
 import { z } from 'zod';
 
 import { UUID_V7_PATTERN } from '../../core/id/uuidv7';
+import { MAX_FAVICON_BYTES, RASTER_TYPES } from '../../core/net/favicon-format';
 import { VISIT_TRANSITIONS } from '../../core/search/frecency';
 
 // ── Field schemas ───────────────────────────────────────────────────────────────────────────
@@ -132,13 +133,19 @@ export type DownloadRow = z.infer<typeof downloadRowSchema>;
 export const MAINTENANCE_STATE_KEY = 'maintenance';
 /** A host name or registrable domain (DNS allows 253 characters). */
 const hostName = z.string().min(1).max(253);
-/** A favicon as stored (§5.3): a PNG Veltriva re-encoded itself, at most 64×64, as base64. */
-export const MAX_FAVICON_PNG_BASE64 = 90_000;
-const faviconPng = z
+/**
+ * A favicon as stored (migration 0002): the bytes the favicon service validated, as base64, never
+ * decoded in main. At most MAX_FAVICON_BYTES, so at most this many base64 characters.
+ */
+export const MAX_FAVICON_BASE64 = Math.ceil(MAX_FAVICON_BYTES / 3) * 4;
+const faviconBytes = z
   .string()
   .min(1)
-  .max(MAX_FAVICON_PNG_BASE64)
+  .max(MAX_FAVICON_BASE64)
   .regex(/^[A-Za-z0-9+/]+={0,2}$/);
+const faviconMime = z.enum(RASTER_TYPES);
+/** Icons per `favicons.get`: at 64 KiB each, a reply stays under 10 MB. */
+export const MAX_FAVICONS_PER_GET = 100;
 
 /** One `pages` row: a distinct page in the memory (M2.2b, §5.3). */
 export const pageRowSchema = z.strictObject({
@@ -359,15 +366,20 @@ export const DATA_METHODS = {
     }),
   },
 
-  /** Stores a favicon once, by its SHA-256 (computed by the worker), and returns its id. */
+  /**
+   * Stores a favicon once, by the SHA-256 of its bytes (computed by the worker), and returns its
+   * id. The worker sniffs the bytes again and refuses them unless they are a `mime` image.
+   */
   'favicons.put': {
-    input: z.strictObject({ png: faviconPng, at: timestamp }),
+    input: z.strictObject({ bytes: faviconBytes, mime: faviconMime, at: timestamp }),
     output: z.strictObject({ id: rowId }),
   },
   'favicons.get': {
-    input: z.strictObject({ ids: z.array(rowId).min(1).max(MAX_BATCH) }),
+    input: z.strictObject({ ids: z.array(rowId).min(1).max(MAX_FAVICONS_PER_GET) }),
     output: z.strictObject({
-      favicons: z.array(z.strictObject({ id: rowId, png: faviconPng })).max(MAX_BATCH),
+      favicons: z
+        .array(z.strictObject({ id: rowId, mime: faviconMime, bytes: faviconBytes }))
+        .max(MAX_FAVICONS_PER_GET),
     }),
   },
 
