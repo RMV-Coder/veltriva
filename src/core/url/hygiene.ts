@@ -109,9 +109,14 @@ export function historyUrl(raw: string): HistoryUrl | null {
   identity.hash = '';
 
   const host = url.hostname;
+  const shownUrl = stripTokenFragment(shown.href);
+  // Parsing percent-encodes: 20,000 non-ASCII characters become 120,000. The limit is on what is stored.
+  if (identity.href.length > MAX_URL || shownUrl.length > MAX_URL) {
+    return null;
+  }
   return {
     urlKey: identity.href,
-    url: stripTokenFragment(shown.href),
+    url: shownUrl,
     host,
     site: getDomain(host, { allowPrivateDomains: true }) ?? host,
   };
@@ -141,26 +146,35 @@ export function withoutSecrets(raw: string): string {
   }
   url.username = '';
   url.password = '';
-  return stripTokenFragment(without(url, (name) => isSecret(name, url.searchParams)).href);
+  const kept = stripTokenFragment(without(url, (name) => isSecret(name, url.searchParams)).href);
+  return kept.length > MAX_URL ? '' : kept;
 }
 
 /**
- * The URL without the query parameters `drop` picks, as a new URL. Deleting re-serializes the
- * whole query, so the URL is only rebuilt when something actually goes.
+ * The URL without the query parameters `drop` picks, as a new URL. The rest of the query stays
+ * exactly as it was: going through URLSearchParams would re-encode it (`,` to `%2C`, `%20` to
+ * `+`), and a page with a tracking parameter would get another key than the same page without.
  */
 function without(url: URL, drop: (name: string) => boolean): URL {
   const copy = new URL(url.href);
-  const names = [...new Set(copy.searchParams.keys())].filter(drop);
-  if (names.length === 0) {
+  const pairs = copy.search.slice(1).split('&');
+  const kept = pairs.filter((pair) => pair === '' || !drop(parameterName(pair)));
+  if (kept.length === pairs.length) {
     return copy;
   }
-  for (const name of names) {
-    copy.searchParams.delete(name);
-  }
-  if (copy.search === '?') {
-    copy.search = ''; // A `?` alone, left when every parameter went.
-  }
+  const query = kept.filter((pair) => pair !== '').join('&');
+  copy.search = query === '' ? '' : `?${query}`;
   return copy;
+}
+
+/** A query pair's name, decoded as URLSearchParams decodes it. */
+function parameterName(pair: string): string {
+  const raw = (pair.split('=', 1)[0] ?? '').replace(/+/g, ' ');
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw; // A stray `%`: compared as written.
+  }
 }
 
 /**

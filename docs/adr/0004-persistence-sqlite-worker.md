@@ -115,7 +115,7 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
      - the stored address drops parameters that carry credentials (`token`, `password`, `sig`, `X-Amz-*`, `code` beside `state`, …) and a token fragment.
    - **Excluded sites.** The worker records nothing for a site whose `site_rules` row says `exclude_memory` (`pageId` comes back null), so main never needs the list.
    - **Frecency** (core/search/frecency.ts) is updated in O(1) per visit: the stored score decays to the visit's time (half-life 30 days, as the index expects), plus the visit's weight (typed 2, link and generated 1, restore, back/forward and other 0.5, reload and redirect 0). A clock that went back never moves a page's times backwards.
-   - **Favicons.** Main re-encodes the favicon service's validated image to a PNG of at most 64×64 with `nativeImage`, so the file holds pixels Chromium decoded, never a server's bytes. The worker checks the PNG signature, hashes it and stores it once per SHA-256. nativeImage decodes PNG, JPEG and ICO; other formats are shown but not stored. An icon is stored only for a page that was.
+   - **Favicons.** Main re-encodes the favicon service's validated image to a PNG of at most 64×64 with `nativeImage`, so the file holds pixels Chromium decoded, never a server's bytes. The worker checks the PNG signature, hashes it and stores it once per SHA-256. nativeImage decodes PNG, JPEG and ICO; other formats are shown but not stored. An icon is stored only for a page that was. The cost: main now decodes images a server chose, at most 64 KiB and identified by their bytes (threat T5). Moving the re-encoding to a sandboxed utility process is a follow-up.
    - **Retention**, in the idle upkeep (`maintenance.run` now takes `visitRetentionDays` from the settings document): visits older than the setting (365 days by default), pages and icons nothing refers to any more, and closed tabs older than 7 days.
      - Each statement deletes at most 2,000 rows in its own transaction, at most 25 chunks per table per run, and the worker answers other calls between chunks. A first run after a long time away catches up over a few idle periods.
      - The orphan scan reads every page, so it runs only after visits were deleted, and once per worker start.
@@ -126,6 +126,12 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
      - permission decisions (`permission_decisions`); the dismissal embargo stays in memory, for the run;
      - external-protocol "always allow" answers, as `protocol:<scheme>` rows (amendment (b));
      - client-hint opt-ins, as the `client_hints` document (amendment (d)), written at most every 5 s and at quit. Stored entries are checked again on load: secure origins only, known hints only.
+   - **Download history** (amendment (c), src/main/downloads/download-store.ts):
+     - Download ids are UUIDv7, the rows' keys; the shell's schema now expects one.
+     - A row is written when a download starts, on every change of state, on Keep, and when it ends; progress at most every 2 s. Removing a download from the list deletes its row.
+     - The source address is kept without secrets (`withoutSecrets`: a `data:` address keeps only its scheme), and the site is the initiator's registrable domain.
+     - At startup the stored rows come back finished, with no DownloadItem. One that was running is `interrupted`. A dangerous file waiting for Keep stays so if its `.unconfirmed` file is still there, else it is `cancelled`.
+     - The file is not trusted, and Open and Keep act on the stored path, so a row whose path is not absolute, or does not end in its own file name (plus `.unconfirmed` while it waits for Keep), is dropped and deleted.
    - A failed write is logged by code and dropped; the decision still holds for the run. Without a readable database, everything starts empty, as before Phase 2.
 
 ## Consequences

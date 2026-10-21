@@ -37,6 +37,12 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
     - **After a crash** a notice says your tabs are back. After two crashes in a row right after starting, Veltriva opens your tabs without loading any (safe mode).
     - **Nothing secret is saved:** passwords in addresses, and sign-in tokens after a `#`, are left out.
     - **One Veltriva at a time:** opening it again brings the open window to the front.
+  - Milestone 2.2b starts the memory, and keeps your choices:
+    - **Every page you visit is remembered**, with its title and icon, in your profile only. Search over it arrives in Phase 4.
+    - **What's left out:** sign-in callbacks, addresses with a password in them, and parameters that carry a token or a signature. Tracking parameters (`utm_*`, `fbclid`, …) don't make a page count twice.
+    - **A year of history** is kept, then removed while you're away; closed tabs go after 7 days.
+    - **Your answers are kept:** permissions you allowed or blocked, "always open" for another app's links, and the extra browser details a site asked for. A prompt you dismissed three times still stays quiet only until you restart.
+    - **Downloads** stay listed after a restart; one cut off by a crash shows as interrupted.
 
 ## Why
 
