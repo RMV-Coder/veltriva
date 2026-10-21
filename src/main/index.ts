@@ -270,7 +270,6 @@ async function start(): Promise<void> {
     store: createDownloadStore({ data, logger: consoleLogger }),
     newId: () => uuidv7(Date.now(), getRandomValues(new Uint8Array(10))),
   });
-  downloads.restore(stored.downloads);
   allowManagedDownloads(browsing);
   downloads.attach(browsing);
   // Client hints: navigations carry the Sec-CH-UA headers Chrome sends, with Chromium's own
@@ -363,6 +362,10 @@ async function start(): Promise<void> {
       events.emit('workspace.changed', snapshot);
     },
   });
+  // The stored download history (M2.2b). Here, not where the manager is made: restoring calls
+  // onChange, which marks the projector dirty, so the projector must exist first (an E2E restart
+  // after a download found the start aborting). No tab exists yet, so nothing has downloaded.
+  downloads.restore(stored.downloads);
   // Created once the session is restored, below; until then TabManager's changes are its own.
   let sessionStore: SessionStore | undefined;
   // The memory (§5.5): visits, titles and icons, as tabs commit them.
