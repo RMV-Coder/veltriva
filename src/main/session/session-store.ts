@@ -233,7 +233,12 @@ export class SessionStore {
       }
     });
     for (const tab of this.#source.closedTabs()) {
-      const row = this.#row(tab, { placement: 'closed', position: 0, closedAt: tab.closedAt });
+      // For a closed tab, `position` is where it was in the strip: Ctrl+Shift+T puts it back there.
+      const row = this.#row(tab, {
+        placement: 'closed',
+        position: Math.min(Math.max(tab.index, 0), 1_000_000),
+        closedAt: tab.closedAt,
+      });
       if (row !== null) {
         rows.push(row);
       }

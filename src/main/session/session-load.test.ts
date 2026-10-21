@@ -406,9 +406,10 @@ describe('loadSession', () => {
           createdAt: T0 + 3,
           lastUsedAt: T0 + 13,
           closedAt: T0 + 300,
-          index: 0,
+          // A closed row keeps its strip index in `position`.
+          index: 3,
         },
-        expect.objectContaining({ id: id(2), closedAt: T0 + 200, index: 0 }),
+        expect.objectContaining({ id: id(2), closedAt: T0 + 200, index: 2 }),
       ]);
     });
 

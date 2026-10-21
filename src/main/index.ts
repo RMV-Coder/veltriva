@@ -93,9 +93,23 @@ app.on('window-all-closed', () => {
 
 // One Veltriva per profile (M2.2a): a second launch hands over to the first and quits, so two
 // processes never write the same session. Electron keys the lock on the userData path set above.
-const hasInstanceLock = app.requestSingleInstanceLock();
-if (!hasInstanceLock) {
-  app.quit();
+// Right after a hard kill, Windows can refuse the lock file for a moment ("Access is denied",
+// measured by the session E2E): the launch tries again for about two seconds before it gives up,
+// so restarting after a crash doesn't silently do nothing. A running Veltriva is told each time.
+const INSTANCE_LOCK_RETRY_MS: readonly number[] = [250, 400, 600, 800];
+let hasInstanceLock = app.requestSingleInstanceLock();
+
+async function acquireInstanceLock(): Promise<boolean> {
+  for (const delay of INSTANCE_LOCK_RETRY_MS) {
+    if (hasInstanceLock) {
+      return true;
+    }
+    await new Promise((resolve) => {
+      setTimeout(resolve, delay);
+    });
+    hasInstanceLock = app.requestSingleInstanceLock();
+  }
+  return hasInstanceLock;
 }
 
 // Development builds only: `import.meta.env.DEV` is a build-time constant, so production
@@ -509,7 +523,13 @@ async function start(): Promise<void> {
 
 app
   .whenReady()
-  .then(() => (hasInstanceLock ? start() : undefined))
+  .then(async () => {
+    if (await acquireInstanceLock()) {
+      await start();
+    } else {
+      app.quit();
+    }
+  })
   .catch((error: unknown) => {
     console.error('Veltriva failed to start:', error);
     app.exit(1);

@@ -7,6 +7,8 @@
 //   - `report-session` prints what the next launch read from the database, and what it did.
 // The test then checks the restored state is exactly the one after the last acknowledged save,
 // or after the one in flight: a hard kill may lose the last second, never leave half a save.
+import { appendFileSync } from 'node:fs';
+
 import type { DataClient } from '../persistence/data-client';
 import type { StartupSession } from '../session/session-startup';
 import type { TabManager } from '../tabs/tab-manager';
@@ -24,8 +26,22 @@ export interface SessionScenarioContext {
   readonly startup: StartupSession | null;
 }
 
+/** A JSON-lines file the churn's events also go to: see `print`. */
+export const CHURN_LOG_ENV = 'VELTRIVA_CHURN_LOG';
+
+/**
+ * Prints an event, and appends it to the churn log synchronously. On Windows, Node writes to a
+ * pipe asynchronously, so lines still queued when the process is killed are lost while their
+ * saves were committed (found by the first run of this test). appendFileSync returns once the
+ * OS has the line, which a kill can't take back: a save is on record before it is sent.
+ */
 function print(event: unknown): void {
-  process.stdout.write(`${EVENT_PREFIX}${JSON.stringify(event)}\n`);
+  const line = `${EVENT_PREFIX}${JSON.stringify(event)}\n`;
+  const log = process.env[CHURN_LOG_ENV];
+  if (log !== undefined && log !== '') {
+    appendFileSync(log, line);
+  }
+  process.stdout.write(line);
 }
 
 /** A small seeded generator (mulberry32), so a failing run can be replayed by its seed. */

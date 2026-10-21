@@ -51,6 +51,11 @@ export function createMainWindow(options: {
     minHeight: MIN_SIZE.height,
     backgroundColor: windowBackground(nativeTheme.shouldUseDarkColors),
   });
+  if (placed !== null) {
+    // Again, exactly: at a fractional display scale (125%) the constructor rounds the size up
+    // a few pixels, so a window would grow on every restart (measured by the session E2E).
+    window.setBounds({ x: placed.x, y: placed.y, width: placed.width, height: placed.height });
+  }
   if (placed?.maximized === true) {
     window.maximize();
   }

@@ -614,7 +614,8 @@ describe('SessionStore', () => {
       const rows = harness.data.saves[0]?.tabs ?? [];
       expect(rows.find((row) => row.id === id(2))).toMatchObject({
         placement: 'closed',
-        position: 0,
+        // Where it was in the strip, for Ctrl+Shift+T after a restart.
+        position: 4,
         // The schema allows a pin only in the strip.
         pinned: false,
         closedAt: T0 + 7777,

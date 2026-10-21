@@ -13,6 +13,7 @@ import Database from 'better-sqlite3/win32-x64';
 import type { DataRecovery } from '../shared/contracts/data-rpc';
 import { backupStamp, listBackups } from './backups';
 import { openDatabase } from './database';
+import { DataError } from './errors';
 import type { OpenedDatabase, OpenOptions } from './database';
 import { clearNeedsCheck, fullCheck, isCorruption, needsCheck, quickCheck } from './integrity';
 import { LATEST_VERSION } from './migrations';
@@ -35,7 +36,7 @@ export async function startDatabase(options: StartupOptions): Promise<StartupRes
   let recovery: DataRecovery | null = null;
   let opened: OpenedDatabase;
   try {
-    opened = await openDatabase(options);
+    opened = await openRetrying(options);
   } catch (error) {
     if (!isCorruption(error)) {
       throw error; // A newer or foreign database is refused, never replaced.
@@ -60,6 +61,12 @@ export async function startDatabase(options: StartupOptions): Promise<StartupRes
   clearNeedsCheck(options.file);
 
   const { db } = opened;
+  if (previousExit === 'crash' && recovery === null) {
+    // A killed run leaves its WAL behind, never folded into the file. Fold it now, where nothing
+    // is waiting: otherwise closing at the next quit has to, inside the 3 s cap, and on a loaded
+    // machine it didn't always make it (found by the 20-kill test).
+    db.pragma('wal_checkpoint(TRUNCATE)');
+  }
   // A run that never ended was a crash (or a hard kill); it ended at its last heartbeat.
   db.prepare(
     "UPDATE app_runs SET ended_at = last_heartbeat_at, exit_kind = 'crash' WHERE ended_at IS NULL",
@@ -71,6 +78,40 @@ export async function startDatabase(options: StartupOptions): Promise<StartupRes
       .run([startedAt, startedAt, options.appVersion]).lastInsertRowid,
   );
   return { opened, runId, previousExit, checked, recovery };
+}
+
+/** Attempts at opening while the files are briefly unavailable, and the waits between them. */
+export const OPEN_RETRY_DELAYS_MS: readonly number[] = [150, 300, 600, 900, 1200];
+
+/**
+ * Opens the database, waiting out errors that pass: right after a hard kill, Windows (or a file
+ * scanner) can still hold the killed process's files for a few seconds, and SQLite then fails
+ * to truncate or lock them (SQLITE_IOERR_TRUNCATE was measured, even 4 s after the kill). A
+ * corrupt, newer or foreign database fails at once.
+ */
+async function openRetrying(options: StartupOptions): Promise<OpenedDatabase> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await openDatabase(options);
+    } catch (error) {
+      const delay = OPEN_RETRY_DELAYS_MS[attempt];
+      if (delay === undefined || !isTransient(error)) {
+        throw error;
+      }
+      await new Promise((resolve) => {
+        setTimeout(resolve, delay);
+      });
+    }
+  }
+}
+
+function isTransient(error: unknown): boolean {
+  const detail = error instanceof DataError ? error.detail : undefined;
+  return (
+    detail !== undefined &&
+    /^SQLITE_(IOERR|BUSY|LOCKED|CANTOPEN)/.test(detail) &&
+    !isCorruption(error)
+  );
 }
 
 /**

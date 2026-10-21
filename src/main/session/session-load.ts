@@ -55,7 +55,9 @@ export async function loadSession(
     workspaceId,
     tabs: strip.tabs.map(toSessionTab),
     closed: closed.tabs.flatMap((row) =>
-      row.closedAt === null ? [] : [{ ...toSessionTab(row), closedAt: row.closedAt, index: 0 }],
+      row.closedAt === null
+        ? []
+        : [{ ...toSessionTab(row), closedAt: row.closedAt, index: row.position }],
     ),
     selectedTabId: selectedOf(session.value),
     window: parseSavedWindow(window.value),

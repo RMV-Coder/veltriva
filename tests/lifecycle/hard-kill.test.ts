@@ -7,14 +7,17 @@
 // replaying them onto the rows it started from gives each state the database could hold. The
 // restored strip, Recently closed and selection must be the state after the last acknowledged
 // save, or after the one in flight: a kill may lose the last second, never leave half a save.
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { join } from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { makeProfile, removeProfile, runScenario, runUntilKilled } from './harness';
 
 const ROUNDS = 20;
+const EVENT_PREFIX = 'VELTRIVA_LIFECYCLE_EVENT ';
 /** Kills land this long after the churn starts: 0.3 s to 5.3 s, seeded per round. */
 const KILL_MIN_MS = 300;
 const KILL_SPAN_MS = 5000;
@@ -118,7 +121,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
   removeProfile(profile);
-  await new Promise<void>((resolve) => server.close(() => { resolve(); }));
+  await new Promise<void>((resolve) =>
+    server.close(() => {
+      resolve();
+    }),
+  );
 });
 
 describe('session restore after hard kills', () => {
@@ -128,12 +135,22 @@ describe('session restore after hard kills', () => {
       const outcomes: string[] = [];
       for (let round = 1; round <= ROUNDS; round += 1) {
         const killAfterMs = KILL_MIN_MS + ((round * 7919) % KILL_SPAN_MS);
-        const { events, killedAfterMs } = await runUntilKilled('session-churn', {
+        const log = join(profile, `churn-${String(round)}.jsonl`);
+        const { killedAfterMs } = await runUntilKilled('session-churn', {
           userDataDir: profile,
           killAfterMs,
           startEvent: 'churn-started',
-          env: { VELTRIVA_CHURN_BASE: base, VELTRIVA_CHURN_SEED: String(round) },
+          env: {
+            VELTRIVA_CHURN_BASE: base,
+            VELTRIVA_CHURN_SEED: String(round),
+            VELTRIVA_CHURN_LOG: log,
+          },
         });
+        // The log, not stdout: its lines were written synchronously, so the kill lost none.
+        const events: unknown[] = readFileSync(log, 'utf8')
+          .split('\n')
+          .filter((line) => line.startsWith(EVENT_PREFIX))
+          .map((line): unknown => JSON.parse(line.slice(EVENT_PREFIX.length)));
 
         // Every state the database could hold at the kill: the starting rows, then each save.
         const start = events.find(
