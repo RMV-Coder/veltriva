@@ -382,6 +382,33 @@ describe('historyUrl: the key', () => {
     expect(keys.size).toBe(8);
   });
 
+  // A parameter's name is decoded as URLSearchParams decodes it: `+` is a space, `%xx` a byte.
+  it.each([
+    ['a + for the space', 'https://example.com/?utm+source=x&id=1'],
+    ['%20 for the space', 'https://example.com/?utm%20source=x&id=1'],
+  ])('reads a name written with %s as URLSearchParams does', (_what, raw) => {
+    const name = new URL(raw).searchParams.keys().next().value;
+
+    expect(name).toBe('utm source');
+    // Not a tracking name (that has an underscore), so it stays, as written.
+    expect(recorded(raw).urlKey).toBe(raw);
+  });
+
+  it('decodes an encoded name before matching it', () => {
+    expect(recorded('https://example.com/?utm%5Fsource=x&id=1').urlKey).toBe(
+      'https://example.com/?id=1',
+    );
+    expect(recorded('https://example.com/p?id=7&%74oken=hunter2').url).toBe(
+      'https://example.com/p?id=7',
+    );
+  });
+
+  it('compares a name with a stray % as written, without throwing', () => {
+    expect(recorded('https://example.com/?a%zz=1&fbclid=2').urlKey).toBe(
+      'https://example.com/?a%zz=1',
+    );
+  });
+
   // Regression: removing a parameter used to re-serialize the whole query in form-encoding (`,`
   // became `%2C`, `%20` became `+`), so one page got two keys depending on whether the link
   // carried a tracking parameter. The rest of the query now stays as it was written.

@@ -6,8 +6,8 @@
 //   - the omnibox's `external` outcome (typed input counts as a gesture).
 // (The `openExternal` permission is refused outright by the permission broker.)
 // Always-blocked schemes never launch. Everything else needs a recent trusted gesture and the
-// user's yes in the toolbar, unless they chose "always allow" for that site and scheme (in memory
-// until Phase 2). The launch gets only the parsed, escaped, length-capped URL.
+// user's yes in the toolbar, unless they chose "always allow" for that site and scheme (kept in
+// the database since M2.2b, as a `protocol:<scheme>` decision). The launch gets only the parsed, escaped, length-capped URL.
 import { originOf } from '../../core/permissions/permission-policy';
 import { originLabel } from '../../core/url/display';
 import { classifyExternalUrl } from '../../core/url/external-protocol';

@@ -169,7 +169,7 @@ function without(url: URL, drop: (name: string) => boolean): URL {
 
 /** A query pair's name, decoded as URLSearchParams decodes it. */
 function parameterName(pair: string): string {
-  const raw = (pair.split('=', 1)[0] ?? '').replace(/+/g, ' ');
+  const raw = (pair.split('=', 1)[0] ?? '').replaceAll('+', ' ');
   try {
     return decodeURIComponent(raw);
   } catch {
