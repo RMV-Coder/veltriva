@@ -43,8 +43,9 @@ test.describe('the data worker', () => {
     expect(info).toMatchObject({
       ok: true,
       value: {
-        userVersion: 1,
-        latestVersion: 1,
+        // Migration 0002 (M2.2b). Specs may not import src/data, so the number is written here.
+        userVersion: 2,
+        latestVersion: 2,
         journalMode: 'wal',
         autoVacuum: 2,
         synchronous: 1,
