@@ -122,6 +122,12 @@ Wall-clock timers would also archive a user's workspace after a weekend away.
       - Ctrl+Shift+T reopens the newest one, with its own id and stack, where it was. Up to 100 are reopenable per run, and the newest 100 are loaded at startup.
       - The schema allows a pin only in the strip, so a tab closed while pinned reopens unpinned after a restart.
     - **One instance per profile.** A second launch hands over to the first, which comes to the front, and quits.
+      - Right after a hard kill, Windows can refuse Chromium's lock file for a moment ("Access is denied", seen in E2E). So a launch retries the lock for about 2 s before handing over; otherwise restarting after a crash would silently do nothing.
+    - **Found by the tests and fixed:**
+      - At 125% scaling, the window constructor rounded the size up, so the window grew on every restart. The saved bounds are now applied again with `setBounds`, which is exact.
+      - A closed tab's place was lost on restart. Its row now keeps its strip index in `position`, so after a restart Ctrl+Shift+T puts it back where it was.
+      - A restored tab's saved address and title are checked at restore, like any input. An address it may not load falls back to the stack's active entry, else the tab becomes a new-tab page.
+      - A restored tab keeps its saved stack until its first commit.
     - **Shutdown.** The window's `closed` handler freezes the store before TabManager tears the tabs down; otherwise that would look like the user closing them all. The frozen state is written inside the 3 s cap (ADR-0004 item 8).
     - **Acceptance.** `tests/lifecycle/hard-kill.test.ts` runs 20 rounds on one profile. Each round is a launch that changes the session without pause, hard-killed at a seeded random moment, then a launch that reports what it restored.
       - The restored strip, Recently closed and selection must equal the state after the last acknowledged save, or the one in flight, rebuilt from the saves the churn printed.

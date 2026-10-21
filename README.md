@@ -26,9 +26,17 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
   - **Downloads:** files go to your Downloads folder under safe, unique names, with progress, pause, cancel, Open and Show in folder in a panel under the toolbar. Programs and other risky types stay unrunnable until you choose Keep. Nothing is ever opened for you.
   - **Certificate errors:** a site whose certificate can't be trusted gets a warning page with no way past it, and so does a site that asks for a client certificate.
   - **Sign-in:** a site that asks for a password (HTTP authentication) gets a sign-in form in the toolbar strip. The password is sent once and never stored.
-- The Phase 1 wrap-up moved to Electron 44.9.0 (Phase 2 began with the 44.9.1 patch).
+- The Phase 1 wrap-up moved to Electron 44.9.0 (Phase 2 began with the 44.9.1 patch). It also added a checklist for the checks only a person can run, with real sites, real accounts, the keyboard and the packaged build: [docs/testing/phase-1-manual-checks.md](docs/testing/phase-1-manual-checks.md).
 - Phase 2 (persistence and session restore) is under way. [Its plan](docs/plans/phase-2-plan.md) is in the repository.
-  - Milestone 2.1a adds the local database: SQLite (better-sqlite3), opened in your profile folder by a worker thread, so a slow query never holds up a page. Nothing is saved in it yet; later milestones save your session, history and decisions there. It also added a checklist for the checks only a person can run, with real sites, real accounts, the keyboard and the packaged build: [docs/testing/phase-1-manual-checks.md](docs/testing/phase-1-manual-checks.md).
+  - Milestone 2.1a adds the local database: SQLite (better-sqlite3), opened in your profile folder by a worker thread, so a slow query never holds up a page.
+  - Milestone 2.1b makes it durable: after a crash the file is checked, a damaged one is set aside and restored from a backup (a notice says so), a backup is taken daily while you're away, and quitting never waits more than 3 seconds for it.
+  - Milestone 2.2a restores your session:
+    - **Your tabs come back** where you left them, pinned ones first, the same one selected, each with its back/forward history. Only the selected tab loads; the others load when you pick them.
+    - **The window** opens where it was.
+    - **Recently closed:** Ctrl+Shift+T brings back a closed tab with its history, even after a restart, for 7 days.
+    - **After a crash** a notice says your tabs are back. After two crashes in a row right after starting, Veltriva opens your tabs without loading any (safe mode).
+    - **Nothing secret is saved:** passwords in addresses, and sign-in tokens after a `#`, are left out.
+    - **One Veltriva at a time:** opening it again brings the open window to the front.
 
 ## Why
 
@@ -113,7 +121,7 @@ npm run dev
 | `npm run format` / `npm run format:check` | Prettier writes or checks formatting. Markdown is excluded. |
 | `npm test` | Vitest unit tests on Node. |
 | `npm run test:e2e` | Builds the test variant, then runs the Playwright tests against the built, unpackaged app. They cover the shell, its CSP and protocol, the IPC contract and a hostile page in a tab. They also cover tabs, navigation, the address bar, crashes, PDFs, the clipboard and generated (`data:`, `blob:`) documents. M1.3b adds find, zoom, fullscreen and its notice, DevTools, the keyboard shortcuts (against a page that tries to block them), keyboard focus and the context menus. Every page comes from a local fixture server. |
-| `npm run test:lifecycle` | Builds the test variant, then runs the lifecycle-behavior checks without Playwright (ADR-0008 4a): a background tab is hidden and throttled, closing the window with live tabs quits cleanly, and a page under the fullscreen notice stays visible and live. |
+| `npm run test:lifecycle` | Builds the test variant, then runs the lifecycle-behavior checks without Playwright (ADR-0008 4a): a background tab is hidden and throttled, closing the window with live tabs quits cleanly, and a page under the fullscreen notice stays visible and live. Phase 2 adds the database across launches (a quit capped at 3 s while a statement runs, recovery from a damaged file) and session restore after 20 hard kills at random moments, which takes a few minutes. |
 | `npm run package:dir` | Checks better-sqlite3's binary, builds, checks that the build contains no test-only code (the test hooks, the lifecycle runner and the test build's crash handler) and that only the data worker loads SQLite, then packages an unpacked app with electron-builder into `release/win-unpacked/` (`Veltriva.exe`), with the production Electron fuses applied. It is unsigned, and no installer is built or installed. Last, it checks that only SQLite's binary was unpacked from `app.asar`. |
 
 ### Project layout

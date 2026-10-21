@@ -97,6 +97,13 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
      - **The weekly check stays in the worker.** A second, read-only connection can run `integrity_check` and a backup alongside a writer (measured), but FTS5's check is refused there as a write.
    - **Quitting.** `DataLifecycle.shutdown` first runs the registered flushes (`addFlush`, for M2.2a's batched writes), then ends the run cleanly, then closes, all inside one 3 s cap. If the cap is reached, the process hard-exits with `process.kill(process.pid)`, which gives exit code 1 on Windows.
      - A lifecycle check holds the worker in a 20 s statement and closes the window. The process exits at the cap, and the next launch reports a crash and quick-checks the file.
+9. **As built in M2.2a** (session restore, ADR-0003 item 11):
+   - **New methods.**
+     - `session.save` holds one flush of the live session in one transaction: the changed tab rows, the deleted ids, and the `session` and `window` documents. A kill can never leave half of one.
+     - `tabs.listClosed` returns Recently closed, newest first.
+     - `tabs.purgeClosed` removes closed tabs older than 7 days, bounded.
+   - **After a crash**, the WAL the killed run left behind is folded into the file at startup (`wal_checkpoint(TRUNCATE)`). Otherwise closing at the next quit had to do it inside the 3 s cap, and on a loaded laptop it sometimes didn't make it (found by the 20-kill test).
+   - **Opening retries** transient `SQLITE_IOERR*`, `BUSY`, `LOCKED` and `CANTOPEN` errors for about 3 s. One `SQLITE_IOERR_TRUNCATE` was seen when E2E relaunched right after a kill. Every probe that relaunched the app directly, or opened the file from plain Node, opened cleanly. Corruption never retries.
 
 ## Consequences
 
