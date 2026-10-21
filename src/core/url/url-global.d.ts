@@ -15,6 +15,17 @@ declare class URL {
   port: string;
   protocol: string;
   search: string;
+  readonly searchParams: URLSearchParams;
   username: string;
+  toString(): string;
+}
+
+/** The WHATWG query-string class, as far as core/url/hygiene.ts uses it. */
+declare class URLSearchParams {
+  constructor(init?: string);
+  has(name: string): boolean;
+  get(name: string): string | null;
+  delete(name: string): void;
+  keys(): IterableIterator<string>;
   toString(): string;
 }

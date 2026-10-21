@@ -31,4 +31,7 @@ export const DATA_WRITES: ReadonlySet<RepositoryMethod> = new Set<RepositoryMeth
   'downloads.clear',
   'tabs.purgeClosed',
   'session.save',
+  'history.recordVisit',
+  'history.updatePage',
+  'favicons.put',
 ]);

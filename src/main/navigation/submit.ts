@@ -16,10 +16,15 @@ export function submitAddress(
   const action = classifyOmniboxInput(text);
   switch (action.kind) {
     case 'navigate':
-      tabs.navigate(tabId, action.url, { credentialsRemoved: action.credentialsRemoved === true });
+      tabs.navigate(tabId, action.url, {
+        credentialsRemoved: action.credentialsRemoved === true,
+        transition: 'typed',
+      });
       return 'navigate';
     case 'search':
-      tabs.navigate(tabId, buildSearchUrl(searchTemplate, action.query));
+      tabs.navigate(tabId, buildSearchUrl(searchTemplate, action.query), {
+        transition: 'generated',
+      });
       return 'search';
     case 'external':
       // Another app's scheme: the external-protocol guard asks the user (M1.4). It is never

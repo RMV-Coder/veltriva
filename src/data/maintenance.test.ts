@@ -33,6 +33,7 @@ type RunResult = DataOutput<'maintenance.run'>;
 const T0 = Date.UTC(2026, 9, 21, 8, 0, 0);
 const HOUR = 60 * 60 * 1000;
 const DAY = BACKUP_EVERY_MS;
+const NOTHING_PRUNED = { visits: 0, pages: 0, closedTabs: 0 };
 const FRESH: MaintenanceState = {
   lastBackupAt: null,
   changedSinceBackup: false,
@@ -53,7 +54,7 @@ async function openFresh(): Promise<void> {
 
 /** Runs maintenance as main would, and checks the answer is one the contract allows. */
 async function runAt(now: number, target: Maintenance = maintenance): Promise<RunResult> {
-  const result = await target.run(now);
+  const result = await target.run(now, 365);
   return DATA_METHODS['maintenance.run'].output.parse(result);
 }
 
@@ -210,6 +211,7 @@ describe('Maintenance: what it remembers', () => {
       check: 'not_due',
       backup: 'not_due',
       backupFile: null,
+      pruned: NOTHING_PRUNED,
     });
   });
 
@@ -268,6 +270,7 @@ describe('Maintenance: what it remembers', () => {
       check: 'ok',
       backup: 'unchanged',
       backupFile: null,
+      pruned: NOTHING_PRUNED,
     });
     expect(storedState()).toEqual({ ...FRESH, lastCheckAt: T0, lastCheckOk: true });
   });
@@ -286,7 +289,12 @@ describe('Maintenance: what it remembers', () => {
 
 describe('Maintenance: the weekly full check', () => {
   it('is due the first time, and with no write the backup has nothing to take', async () => {
-    expect(await runAt(T0)).toEqual({ check: 'ok', backup: 'unchanged', backupFile: null });
+    expect(await runAt(T0)).toEqual({
+      check: 'ok',
+      backup: 'unchanged',
+      backupFile: null,
+      pruned: NOTHING_PRUNED,
+    });
     expect(maintenance.status()).toEqual({
       lastBackupAt: null,
       changedSinceBackup: false,
@@ -324,7 +332,12 @@ describe('Maintenance: the weekly full check', () => {
     change();
 
     const result = await runAt(T0);
-    expect(result).toEqual({ check: 'failed', backup: 'skipped', backupFile: null });
+    expect(result).toEqual({
+      check: 'failed',
+      backup: 'skipped',
+      backupFile: null,
+      pruned: NOTHING_PRUNED,
+    });
     expect(needsCheck(file)).toBe(true);
     expect(maintenance.status()).toEqual({
       lastBackupAt: null,
@@ -350,7 +363,12 @@ describe('Maintenance: the weekly full check', () => {
     desyncSearchIndex();
     change('after');
     const result = await runAt(T0 + CHECK_EVERY_MS);
-    expect(result).toEqual({ check: 'failed', backup: 'skipped', backupFile: null });
+    expect(result).toEqual({
+      check: 'failed',
+      backup: 'skipped',
+      backupFile: null,
+      pruned: NOTHING_PRUNED,
+    });
     expect(backupFiles()).toEqual([dailyBackupName(T0)]);
     expect(inspectBackup(dailyBackupName(T0), (copy) => userKeys(copy))).toEqual(['row']);
   });
@@ -379,6 +397,7 @@ describe('Maintenance: the weekly full check', () => {
         check: 'failed',
         backup: 'skipped',
         backupFile: null,
+        pruned: NOTHING_PRUNED,
       });
     }
     expect(backupFiles()).toEqual([dailyBackupName(T0)]);
@@ -398,6 +417,7 @@ describe('Maintenance: the weekly full check', () => {
         check: 'failed',
         backup: 'skipped',
         backupFile: null,
+        pruned: NOTHING_PRUNED,
       });
     }
     expect(maintenance.status()).toMatchObject({ lastCheckAt: T0 + 3 * DAY, lastCheckOk: false });
@@ -413,6 +433,7 @@ describe('Maintenance: the weekly full check', () => {
       check: 'ok',
       backup: 'done',
       backupFile: dailyBackupName(repairedAt),
+      pruned: NOTHING_PRUNED,
     });
     expect(maintenance.status()).toEqual({
       lastBackupAt: repairedAt,
@@ -426,6 +447,7 @@ describe('Maintenance: the weekly full check', () => {
       check: 'not_due',
       backup: 'not_due',
       backupFile: null,
+      pruned: NOTHING_PRUNED,
     });
   });
 
@@ -435,6 +457,7 @@ describe('Maintenance: the weekly full check', () => {
       check: 'ok',
       backup: 'done',
       backupFile: dailyBackupName(T0),
+      pruned: NOTHING_PRUNED,
     });
     change('again');
     expect((await runAt(T0 + DAY)).check).toBe('ok');
@@ -452,7 +475,12 @@ describe('Maintenance: the daily backup', () => {
   it('takes a complete copy of the database when the data changed', async () => {
     change('before');
     const result = await runAt(T0);
-    expect(result).toEqual({ check: 'ok', backup: 'done', backupFile: dailyBackupName(T0) });
+    expect(result).toEqual({
+      check: 'ok',
+      backup: 'done',
+      backupFile: dailyBackupName(T0),
+      pruned: NOTHING_PRUNED,
+    });
 
     // Only the finished file is there: nothing half-written was left behind.
     expect(backupFiles()).toEqual([dailyBackupName(T0)]);
@@ -475,6 +503,10 @@ describe('Maintenance: the daily backup', () => {
       `INSERT INTO pages (url_key, url, host, site, title, first_visit_at, last_visit_at)
        VALUES ('example.com/', 'https://example.com/', 'example.com', 'example.com', 'Example', 1, 1)`,
     ).run();
+    // With a recent visit, or retention would rightly take the page before the backup.
+    db.prepare(
+      "INSERT INTO visits (page_id, visited_at, transition) VALUES (last_insert_rowid(), ?, 'typed')",
+    ).run([T0 - HOUR]);
     change('before');
     await runAt(T0);
     inspectBackup(dailyBackupName(T0), (copy) => {
@@ -506,7 +538,12 @@ describe('Maintenance: the daily backup', () => {
     change();
     await runAt(T0);
 
-    const notDue = { check: 'not_due', backup: 'not_due', backupFile: null };
+    const notDue = {
+      check: 'not_due',
+      backup: 'not_due',
+      backupFile: null,
+      pruned: NOTHING_PRUNED,
+    };
     expect(await runAt(T0)).toEqual(notDue);
     change('again');
     expect(await runAt(T0)).toEqual(notDue);
@@ -527,6 +564,7 @@ describe('Maintenance: the daily backup', () => {
       check: 'ok',
       backup: 'done',
       backupFile: dailyBackupName(T0 + DAY),
+      pruned: NOTHING_PRUNED,
     });
     expect(maintenance.status().lastCheckAt).toBe(T0 + DAY);
     expect(backupFiles()).toEqual([dailyBackupName(T0), dailyBackupName(T0 + DAY)]);
@@ -542,6 +580,7 @@ describe('Maintenance: the daily backup', () => {
       check: 'not_due',
       backup: 'unchanged',
       backupFile: null,
+      pruned: NOTHING_PRUNED,
     });
     expect(backupFiles()).toEqual([dailyBackupName(T0)]);
   });
@@ -554,6 +593,7 @@ describe('Maintenance: the daily backup', () => {
       check: 'not_due',
       backup: 'unchanged',
       backupFile: null,
+      pruned: NOTHING_PRUNED,
     });
     expect(maintenance.status()).toMatchObject({ lastBackupAt: T0, lastCheckAt: T0 });
 
@@ -562,6 +602,7 @@ describe('Maintenance: the daily backup', () => {
       check: 'ok',
       backup: 'done',
       backupFile: dailyBackupName(T0 + 3 * DAY + 1000),
+      pruned: NOTHING_PRUNED,
     });
   });
 
@@ -573,7 +614,12 @@ describe('Maintenance: the daily backup', () => {
     const earlier = T0 - HOUR;
     const result = await runAt(earlier);
     // The full check comes first, as before every backup (and the clock went back past it too).
-    expect(result).toEqual({ check: 'ok', backup: 'done', backupFile: dailyBackupName(earlier) });
+    expect(result).toEqual({
+      check: 'ok',
+      backup: 'done',
+      backupFile: dailyBackupName(earlier),
+      pruned: NOTHING_PRUNED,
+    });
     expect(maintenance.status().lastBackupAt).toBe(earlier);
     expect(backupFiles()).toEqual([dailyBackupName(earlier), dailyBackupName(T0)]);
 
@@ -628,7 +674,12 @@ describe('Maintenance: the daily backup', () => {
 
     // A day on, the week's check is not due; the backup that is brings the full check with it.
     const result = await runAt(T0 + DAY);
-    expect(result).toEqual({ check: 'failed', backup: 'skipped', backupFile: null });
+    expect(result).toEqual({
+      check: 'failed',
+      backup: 'skipped',
+      backupFile: null,
+      pruned: NOTHING_PRUNED,
+    });
     expect(needsCheck(file)).toBe(true);
     expect(backupFiles()).toEqual([dailyBackupName(T0)]);
     expect(maintenance.status()).toEqual({
@@ -655,7 +706,12 @@ describe('Maintenance: the daily backup', () => {
     expect(needsCheck(file)).toBe(false);
 
     const result = await runAt(T0 + DAY);
-    expect(result).toEqual({ check: 'failed', backup: 'skipped', backupFile: null });
+    expect(result).toEqual({
+      check: 'failed',
+      backup: 'skipped',
+      backupFile: null,
+      pruned: NOTHING_PRUNED,
+    });
     expect(needsCheck(file)).toBe(true);
     expect(backupFiles()).toEqual([dailyBackupName(T0)]);
     expect(maintenance.status()).toMatchObject({ lastBackupAt: T0, changedSinceBackup: true });
@@ -668,7 +724,12 @@ describe('Maintenance: the daily backup', () => {
     writeFileSync(backupDir, 'a file where the folder should be');
     change();
 
-    expect(await runAt(T0)).toEqual({ check: 'ok', backup: 'failed', backupFile: null });
+    expect(await runAt(T0)).toEqual({
+      check: 'ok',
+      backup: 'failed',
+      backupFile: null,
+      pruned: NOTHING_PRUNED,
+    });
     expect(maintenance.status()).toMatchObject({ lastBackupAt: null, changedSinceBackup: true });
 
     rmSync(backupDir);
@@ -677,6 +738,7 @@ describe('Maintenance: the daily backup', () => {
       check: 'ok',
       backup: 'done',
       backupFile: dailyBackupName(T0),
+      pruned: NOTHING_PRUNED,
     });
     expect(maintenance.status()).toMatchObject({ lastBackupAt: T0, changedSinceBackup: false });
   });
@@ -736,6 +798,7 @@ describe('Maintenance: the leftovers of a backup cut short', () => {
       check: 'ok',
       backup: 'done',
       backupFile: dailyBackupName(T0),
+      pruned: NOTHING_PRUNED,
     });
     expect(backupFiles()).toEqual([dailyBackupName(T0)]);
     inspectBackup(dailyBackupName(T0), (copy) => {
@@ -763,7 +826,12 @@ describe('Maintenance: a backup that is still running', () => {
     expect(finished, 'the backup should still be running').toBe(false);
 
     const result = await running;
-    expect(result).toEqual({ check: 'ok', backup: 'done', backupFile: dailyBackupName(T0) });
+    expect(result).toEqual({
+      check: 'ok',
+      backup: 'done',
+      backupFile: dailyBackupName(T0),
+      pruned: NOTHING_PRUNED,
+    });
     // Finishing records the backup without forgetting the write that came during it.
     expect(maintenance.status()).toEqual({
       lastBackupAt: T0,
@@ -777,6 +845,7 @@ describe('Maintenance: a backup that is still running', () => {
       check: 'ok',
       backup: 'done',
       backupFile: dailyBackupName(T0 + DAY),
+      pruned: NOTHING_PRUNED,
     });
     expect(maintenance.status().changedSinceBackup).toBe(false);
     inspectBackup(dailyBackupName(T0 + DAY), (copy) => {
@@ -793,12 +862,17 @@ describe('Maintenance: a backup that is still running', () => {
 
     const stopping = maintenance.stop();
     // Once stopping has begun, nothing new starts.
-    const late = await rejectionOf(maintenance.run(T0 + DAY));
+    const late = await rejectionOf(maintenance.run(T0 + DAY, 365));
     expect(late).toBeInstanceOf(DataError);
     expect(late).toMatchObject({ code: 'closed' });
     await stopping;
 
-    expect(await running).toEqual({ check: 'ok', backup: 'failed', backupFile: null });
+    expect(await running).toEqual({
+      check: 'ok',
+      backup: 'failed',
+      backupFile: null,
+      pruned: NOTHING_PRUNED,
+    });
     expect(backupFiles()).toEqual([]);
     expect(maintenance.status()).toEqual({
       lastBackupAt: null,
@@ -816,13 +890,18 @@ describe('Maintenance: a backup that is still running', () => {
     const running = runAt(T0);
     await untilBackupStarted(T0);
 
-    const second = await rejectionOf(maintenance.run(T0));
+    const second = await rejectionOf(maintenance.run(T0, 365));
     expect(second).toBeInstanceOf(DataError);
     expect(second).toMatchObject({ code: 'busy' });
-    const third = await rejectionOf(maintenance.run(T0 + 5 * DAY));
+    const third = await rejectionOf(maintenance.run(T0 + 5 * DAY, 365));
     expect(third).toMatchObject({ code: 'busy' });
 
-    expect(await running).toEqual({ check: 'ok', backup: 'done', backupFile: dailyBackupName(T0) });
+    expect(await running).toEqual({
+      check: 'ok',
+      backup: 'done',
+      backupFile: dailyBackupName(T0),
+      pruned: NOTHING_PRUNED,
+    });
     expect(backupFiles()).toEqual([dailyBackupName(T0)]);
 
     // Once it is over, runs are accepted again.
@@ -830,6 +909,7 @@ describe('Maintenance: a backup that is still running', () => {
       check: 'not_due',
       backup: 'not_due',
       backupFile: null,
+      pruned: NOTHING_PRUNED,
     });
   }, 30_000);
 });
@@ -837,10 +917,10 @@ describe('Maintenance: a backup that is still running', () => {
 describe('Maintenance: stopping', () => {
   it('with nothing running returns at once, and refuses every run after it', async () => {
     await maintenance.stop();
-    const error = await rejectionOf(maintenance.run(T0));
+    const error = await rejectionOf(maintenance.run(T0, 365));
     expect(error).toBeInstanceOf(DataError);
     expect(error).toMatchObject({ code: 'closed' });
-    expect(await rejectionOf(maintenance.run(T0 + DAY))).toMatchObject({ code: 'closed' });
+    expect(await rejectionOf(maintenance.run(T0 + DAY, 365))).toMatchObject({ code: 'closed' });
   });
 
   it('can be asked twice', async () => {
@@ -860,7 +940,7 @@ describe('Maintenance: stopping', () => {
 
   it('after a refused run, leaves no check marker or backup behind', async () => {
     await maintenance.stop();
-    await rejectionOf(maintenance.run(T0));
+    await rejectionOf(maintenance.run(T0, 365));
     expect(needsCheck(file)).toBe(false);
     expect(backupFiles()).toEqual([]);
     expect(maintenance.status()).toEqual(FRESH);

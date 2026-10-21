@@ -6,26 +6,38 @@ import type { WebContents } from 'electron';
 
 import { uuidv7 } from '../core/id/uuidv7';
 import { ActivationTracker } from '../core/input/user-activation';
+import { ClientHintOptIns } from '../core/net/client-hints';
+import { PermissionDecisions } from '../core/permissions/permission-decisions';
+import { DEFAULT_SETTINGS } from '../shared/contracts/settings';
+import type { Settings } from '../shared/contracts/settings';
 import { APP_USER_MODEL_ID, BROWSING_PARTITION } from '../shared/constants/app-identity';
 import { cleanUserAgent } from './app/user-agent';
 import { resolveUserDataDir, USER_DATA_DIR_OVERRIDE_ENV } from './app/user-data-dir';
 import { createLoginHandler } from './auth/sign-in';
-import { DownloadManager } from './downloads/download-manager';
+import { DownloadManager, MAX_LISTED_DOWNLOADS } from './downloads/download-manager';
 import { systemFileActions } from './downloads/file-actions';
 import { systemLauncher } from './external/launcher';
 import { ExternalProtocolGuard } from './external/protocol-guard';
 import { FocusManager } from './focus/focus-manager';
+import { encodeFaviconPng } from './history/favicon-png';
+import { HistoryRecorder } from './history/history-recorder';
 import { installPageMenu } from './input/page-menu';
 import { createShortcutHandler } from './input/shortcuts';
 import { createCommandHandlers } from './ipc/commands';
 import { createShellEvents } from './ipc/events';
 import { installIpcRouter } from './ipc/install';
 import { createContextMenus } from './menus/context-menu';
-import { searchEngineName, searchTemplate } from './navigation/search-engine';
+import { searchEngineName, searchTemplate, setSearchTemplate } from './navigation/search-engine';
 import { installPermissionBroker } from './permissions/permission-broker';
 import { AppNotices } from './notices/app-notices';
 import { DataLifecycle } from './persistence/data-lifecycle';
 import { closeDataOnQuit, startDataWorker } from './persistence/data-worker';
+import {
+  ClientHintsWriter,
+  decisionWriters,
+  EMPTY_STORED_STATE,
+  readStoredState,
+} from './persistence/stored-state';
 import { readSessionAtStartup } from './session/session-startup';
 import { SessionStore } from './session/session-store';
 import { consoleLogger } from './platform/logger';
@@ -129,6 +141,8 @@ async function start(): Promise<void> {
   // the profile folder, off main's thread. Nothing reads it yet. The lifecycle keeps the run's
   // heartbeat, does upkeep while the user is away, and holds the quit until it has closed.
   const notices = new AppNotices();
+  /** The settings document (M2.2b); its defaults until it has been read. */
+  let settings: Settings = DEFAULT_SETTINGS;
   const { client: data, worker: dataWorker } = startDataWorker(
     app.getPath('userData'),
     consoleLogger,
@@ -137,6 +151,7 @@ async function start(): Promise<void> {
     client: data,
     logger: consoleLogger,
     idleSeconds: () => powerMonitor.getSystemIdleTime(),
+    visitRetentionDays: () => settings.history.retentionDays,
     onRecovered: (recovery) => {
       notices.show(
         recovery.kind === 'restored'
@@ -153,6 +168,15 @@ async function start(): Promise<void> {
   // The saved session decides where the window opens and which tabs it has, so it is read first
   // (bounded; without it the app starts as new, and writes nothing over what was saved).
   const startup = await readSessionAtStartup(data, consoleLogger);
+  // Then the rest of what was kept: settings, decisions, opt-ins, download history. Without the
+  // database (startup failed), everything starts empty, as before Phase 2.
+  const stored =
+    startup === null
+      ? EMPTY_STORED_STATE
+      : await readStoredState(data, consoleLogger, { downloads: MAX_LISTED_DOWNLOADS });
+  settings = stored.settings;
+  setSearchTemplate(settings.search.template);
+  const writeDecision = decisionWriters(data, consoleLogger);
 
   // Created lazily by Electron; harden them explicitly too (hardenSession is idempotent).
   hardenSession(session.defaultSession);
@@ -210,6 +234,8 @@ async function start(): Promise<void> {
     // Test builds never launch a real app.
     launch: import.meta.env.MODE === 'test' ? recordExternalLaunch : systemLauncher,
     logger: consoleLogger,
+    alwaysAllowed: stored.alwaysAllowed,
+    onAlwaysAllowed: writeDecision.alwaysAllow,
   });
   const tabIdOf = (contents: WebContents): string | undefined => {
     for (const [tabId, view] of runtimes.views) {
@@ -220,7 +246,12 @@ async function start(): Promise<void> {
     return undefined;
   };
   // Before any tab exists: the broker replaces the baseline's deny-all on the browsing session.
-  installPermissionBroker(browsing, { prompts, tabIdOf, logger: consoleLogger });
+  // Decisions are kept (M2.2b); the dismissal embargo is for the run only.
+  const decisions = new PermissionDecisions({
+    stored: stored.decisions,
+    onDecided: writeDecision.permission,
+  });
+  installPermissionBroker(browsing, { prompts, decisions, tabIdOf, logger: consoleLogger });
   // HTTP authentication: a sign-in question in the strip, never stored (src/main/auth).
   setLoginHandler(createLoginHandler({ prompts, tabIdOf, logger: consoleLogger }));
   // Downloads (M1.4b): the browsing session, the only one a page can download from: tabs and
@@ -241,7 +272,19 @@ async function start(): Promise<void> {
   // Client hints: navigations carry the Sec-CH-UA headers Chrome sends, with Chromium's own
   // values, read from the shell once it has loaded. Google's sign-in still warned without a
   // Firefox user agent for accounts.google.com (manual check M1), so that host gets one.
-  const clientHints = new ClientHints(consoleLogger);
+  const clientHintsWriter = new ClientHintsWriter({
+    data,
+    logger: consoleLogger,
+    document: () => optIns.toDocument(),
+  });
+  const optIns = new ClientHintOptIns({
+    stored: stored.clientHints,
+    onChange: () => {
+      clientHintsWriter.changed();
+    },
+  });
+  dataLifecycle.addFlush(() => clientHintsWriter.flush());
+  const clientHints = new ClientHints(consoleLogger, optIns);
   installRequestHeaders(browsing, { clientHints });
   main.shell.webContents.once('did-finish-load', () => {
     void clientHints.readFrom(main.shell.webContents);
@@ -318,6 +361,13 @@ async function start(): Promise<void> {
   });
   // Created once the session is restored, below; until then TabManager's changes are its own.
   let sessionStore: SessionStore | undefined;
+  // The memory (§5.5): visits, titles and icons, as tabs commit them.
+  const historyRecorder = new HistoryRecorder({
+    data,
+    logger: consoleLogger,
+    encodeFavicon: (dataUrl) => encodeFaviconPng(dataUrl),
+  });
+  dataLifecycle.addFlush(() => historyRecorder.flush());
   const tabs = new TabManager({
     createRuntime: runtimes.factory,
     newId: () => uuidv7(Date.now(), getRandomValues(new Uint8Array(10))),
@@ -333,6 +383,7 @@ async function start(): Promise<void> {
       prompts.dismissAll(tabId);
       blockedPopups.clear(tabId);
     },
+    history: historyRecorder,
   });
   const focus = new FocusManager({ shell: main.shell, tabs: () => tabs, events });
   const fullscreen = new FullscreenController({

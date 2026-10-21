@@ -23,6 +23,7 @@ import { restorableUrl, sanitizeHistory, singleEntryHistory } from '../../core/s
 import type { TabHistory } from '../../core/session/history';
 import { errorPageFor } from '../../core/net/error-pages';
 import type { ZoomDirection } from '../../core/layout/zoom';
+import type { VisitTransition } from '../../core/search/frecency';
 import type { InternalPage } from '../../core/url/internal-pages';
 
 export type TabId = string;
@@ -167,8 +168,29 @@ export interface TabManagerOptions {
    * page replaced it, or the tab closed. Its permission prompts and blocked popups no longer apply.
    */
   readonly onPageGone?: (tabId: TabId) => void;
+  /** What the memory records (main/history/history-recorder.ts). Each is called after the change. */
+  readonly history?: TabHistoryObserver;
   /** Wall-clock time, for the session's timestamps. */
   readonly now?: () => number;
+}
+
+/** A tab's page changes, as the memory needs them. Never called for internal pages. */
+export interface TabHistoryObserver {
+  /** A main-frame commit, and how the user got there. */
+  committed(
+    tabId: TabId,
+    commit: {
+      readonly url: string;
+      readonly sameDocument: boolean;
+      readonly transition: VisitTransition;
+    },
+  ): void;
+  /** The page's title, sanitized. */
+  titleChanged(tabId: TabId, title: string): void;
+  /** The page's icon, as the favicon service validated it (a `data:` URL). */
+  faviconChanged(tabId: TabId, favicon: string): void;
+  /** The tab closed: nothing more arrives for it. */
+  closed(tabId: TabId): void;
 }
 
 /**
@@ -224,6 +246,11 @@ interface TabRecord {
   lastFindText: string;
   /** An unloaded tab's stack, restored when it is next selected (or reloaded). */
   pendingHistory: TabHistory | null;
+  /**
+   * How the navigation main started last got there, for the commit it leads to. A commit with
+   * none (a link, a form, a page's own script) is a `link`.
+   */
+  nextTransition: VisitTransition | null;
   readonly createdAt: number;
   lastUsedAt: number;
 }
@@ -314,6 +341,7 @@ export class TabManager {
     record.runtime?.destroy();
     record.runtime = undefined;
     this.#options.onPageGone?.(tabId);
+    this.#options.history?.closed(tabId);
 
     if (this.#order.length === 0) {
       this.#selected = null;
@@ -537,7 +565,12 @@ export class TabManager {
   navigate(
     tabId: TabId,
     url: string,
-    options: { readonly focus?: boolean; readonly credentialsRemoved?: boolean } = {},
+    options: {
+      readonly focus?: boolean;
+      readonly credentialsRemoved?: boolean;
+      /** For the memory: `typed` from the address bar, `generated` for its searches. */
+      readonly transition?: VisitTransition;
+    } = {},
   ): void {
     const record = this.#record(tabId);
     if (record.runtime === undefined) {
@@ -546,6 +579,7 @@ export class TabManager {
       record.runtime = this.#options.createRuntime(tabId, this.#eventsFor(tabId, token));
     }
     record.pendingHistory = null;
+    record.nextTransition = options.transition ?? 'link';
     record.focusOnCommit = options.focus ?? true;
     record.credentialsRemovedOnCommit = options.credentialsRemoved ?? false;
     record.state = {
@@ -590,15 +624,17 @@ export class TabManager {
 
   goBack(tabId: TabId): void {
     const record = this.#record(tabId);
-    if (record.state.canGoBack) {
-      record.runtime?.goBack();
+    if (record.state.canGoBack && record.runtime !== undefined) {
+      record.nextTransition = 'back_forward';
+      record.runtime.goBack();
     }
   }
 
   goForward(tabId: TabId): void {
     const record = this.#record(tabId);
-    if (record.state.canGoForward) {
-      record.runtime?.goForward();
+    if (record.state.canGoForward && record.runtime !== undefined) {
+      record.nextTransition = 'back_forward';
+      record.runtime.goForward();
     }
   }
 
@@ -614,6 +650,7 @@ export class TabManager {
       record.state = { ...record.state, runtime: 'creating' };
       this.#changed();
     }
+    record.nextTransition = 'reload';
     record.runtime.reload({ ignoreCache: options.ignoreCache ?? false });
   }
 
@@ -746,6 +783,7 @@ export class TabManager {
       findRequestId: undefined,
       lastFindText: '',
       pendingHistory: web ? (tab.history ?? null) : null,
+      nextTransition: null,
       createdAt: tab.createdAt,
       lastUsedAt: tab.lastUsedAt,
     };
@@ -773,6 +811,7 @@ export class TabManager {
     record.runtimeToken = token;
     record.runtime = this.#options.createRuntime(tabId, this.#eventsFor(tabId, token));
     record.state = { ...record.state, runtime: 'creating', loading: true };
+    record.nextTransition = 'restore';
     this.#syncVisibility();
     record.runtime.restore(history);
     this.#changed();
@@ -914,6 +953,8 @@ export class TabManager {
         }
         // The runtime has a stack of its own now.
         record.pendingHistory = null;
+        const transition = record.nextTransition ?? 'link';
+        record.nextTransition = null;
         const leavingInternalPage = record.state.page.kind !== 'web';
         if (!sameDocument) {
           // A new document closes the find bar, as in Chrome; Ctrl+F reopens it with the same
@@ -950,12 +991,21 @@ export class TabManager {
           record.focusOnCommit = false;
           record.runtime?.focus();
         }
+        this.#options.history?.committed(tabId, { url, sameDocument, transition });
       },
       titleChanged: (title) => {
+        const record = current();
         update({ title: sanitizeTitle(title) });
+        if (record?.state.page.kind === 'web') {
+          this.#options.history?.titleChanged(tabId, record.state.title);
+        }
       },
       faviconChanged: (favicon) => {
+        const record = current();
         update({ favicon });
+        if (favicon !== null && record?.state.page.kind === 'web') {
+          this.#options.history?.faviconChanged(tabId, favicon);
+        }
       },
       loadingChanged: (loading) => {
         update({ loading });
@@ -966,6 +1016,7 @@ export class TabManager {
           return;
         }
         record.findRequestId = undefined;
+        record.nextTransition = null;
         if (this.#fullscreen === tabId) {
           this.#setFullscreen(null);
         }
@@ -1050,7 +1101,10 @@ export class TabManager {
         record.runtime?.destroy();
         record.runtime = undefined;
         record.runtimeToken = undefined;
-        this.navigate(tabId, record.state.url, { focus: this.#selected === tabId });
+        this.navigate(tabId, record.state.url, {
+          focus: this.#selected === tabId,
+          transition: 'restore',
+        });
         // The replacement is attached now: its commit attaches nothing, the page being 'web'.
         this.#syncVisibility();
       },

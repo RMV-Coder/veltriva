@@ -59,11 +59,13 @@ function headerValue(
 
 export class ClientHints {
   readonly #logger: Logger;
-  readonly #optIns = new ClientHintOptIns();
+  readonly #optIns: ClientHintOptIns;
   #data: UserAgentData | null = null;
 
-  constructor(logger: Logger) {
+  /** `optIns`: the stored ones (M2.2b); none by default. */
+  constructor(logger: Logger, optIns: ClientHintOptIns = new ClientHintOptIns()) {
     this.#logger = logger;
+    this.#optIns = optIns;
   }
 
   /** Whether Chromium's values are known, so requests get the hints. */

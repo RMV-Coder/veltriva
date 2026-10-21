@@ -10,8 +10,8 @@
 //   - A document request (top-level or frame) gets each default hint it lacks: `Sec-CH-UA`,
 //     `Sec-CH-UA-Mobile`, `Sec-CH-UA-Platform`. Chromium adds them to subresources itself.
 //   - An origin that asked for more with `Accept-CH` on its top-level page gets those hints on its
-//     later requests, as in Chrome. The opt-in lasts until the app quits (Chrome keeps it on
-//     disk) and is never delegated to other origins.
+//     later requests, as in Chrome. The opt-in is kept on disk, as Chrome keeps it (the app_state
+//     document `client_hints`, M2.2b), and is never delegated to other origins.
 //   - Only to potentially trustworthy URLs (https, or http on loopback), as in Chrome.
 //   - Never replaces a header Chromium set.
 // Pure, so the rules and the exact header format are unit-tested.
@@ -141,9 +141,42 @@ export function parseAcceptCh(value: string): Set<OptInHint> {
   return hints;
 }
 
-/** What each origin asked for with `Accept-CH` on a top-level page, for this run of the app. */
+/** The opt-ins as stored: origins oldest first, each with the hints it asked for. */
+// A type, not an interface: it must be assignable to a JSON document, which needs an index signature.
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+export type ClientHintsDocument = {
+  v: 1;
+  origins: Record<string, OptInHint[]>;
+};
+
+/** What each origin asked for with `Accept-CH` on a top-level page. */
 export class ClientHintOptIns {
   readonly #byOrigin = new Map<string, ReadonlySet<OptInHint>>();
+  readonly #onChange: (() => void) | undefined;
+
+  constructor(
+    options: {
+      /** The stored document, unchecked: whatever isn't a secure origin and known hints is skipped. */
+      readonly stored?: unknown;
+      /** Called when what an origin asked for changed, to store the document. */
+      readonly onChange?: () => void;
+    } = {},
+  ) {
+    for (const [origin, hints] of storedOptIns(options.stored)) {
+      if (this.#byOrigin.size < MAX_OPT_IN_ORIGINS) {
+        this.#byOrigin.set(origin, hints);
+      }
+    }
+    this.#onChange = options.onChange;
+  }
+
+  toDocument(): ClientHintsDocument {
+    const origins: Record<string, OptInHint[]> = {};
+    for (const [origin, hints] of this.#byOrigin) {
+      origins[origin] = [...hints];
+    }
+    return { v: 1, origins };
+  }
 
   /**
    * A top-level page's response from `url` carried `Accept-CH: value`. It replaces what that
@@ -154,12 +187,20 @@ export class ClientHintOptIns {
     if (origin === null || !isPromptableOrigin(origin)) {
       return;
     }
+    const before = this.#byOrigin.get(origin);
     this.#byOrigin.delete(origin);
     const hints = parseAcceptCh(value);
+    const same = before?.size === hints.size && [...hints].every((hint) => before.has(hint));
     if (hints.size === 0) {
+      if (before !== undefined) {
+        this.#onChange?.();
+      }
       return;
     }
     this.#byOrigin.set(origin, hints);
+    if (!same) {
+      this.#onChange?.();
+    }
     if (this.#byOrigin.size > MAX_OPT_IN_ORIGINS) {
       const oldest = this.#byOrigin.keys().next().value;
       if (oldest !== undefined) {
@@ -173,6 +214,30 @@ export class ClientHintOptIns {
     const origin = originOf(url);
     return (origin === null ? undefined : this.#byOrigin.get(origin)) ?? new Set();
   }
+}
+
+/** The usable entries of a stored document: secure origins as `originOf` writes them, known hints. */
+function storedOptIns(stored: unknown): [string, ReadonlySet<OptInHint>][] {
+  if (typeof stored !== 'object' || stored === null || !('v' in stored) || stored.v !== 1) {
+    return [];
+  }
+  const origins = 'origins' in stored ? stored.origins : undefined;
+  if (typeof origins !== 'object' || origins === null || Array.isArray(origins)) {
+    return [];
+  }
+  const entries: [string, ReadonlySet<OptInHint>][] = [];
+  for (const [origin, hints] of Object.entries(origins)) {
+    if (originOf(origin) !== origin || !isPromptableOrigin(origin) || !Array.isArray(hints)) {
+      continue;
+    }
+    const known = new Set(
+      hints.filter((hint): hint is OptInHint => typeof hint === 'string' && OPT_IN_SET.has(hint)),
+    );
+    if (known.size > 0) {
+      entries.push([origin, known]);
+    }
+  }
+  return entries;
 }
 
 export interface HintRequest {

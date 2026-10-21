@@ -145,7 +145,7 @@ describe('DataLifecycle', () => {
       expect(client.calls.filter((call) => call.method === 'maintenance.run')).toEqual([
         {
           method: 'maintenance.run',
-          input: { now: NOW + MAINTENANCE_POLL_MS * 2 },
+          input: { now: NOW + MAINTENANCE_POLL_MS * 2, visitRetentionDays: 365 },
           timeoutMs: MAINTENANCE_TIMEOUT_MS,
         },
       ]);
@@ -173,7 +173,12 @@ describe('DataLifecycle', () => {
     it('logs a failed check or backup by its outcome only', async () => {
       client.open();
       client.respond = () =>
-        Promise.resolve({ check: 'failed', backup: 'skipped', backupFile: null });
+        Promise.resolve({
+          check: 'failed',
+          backup: 'skipped',
+          backupFile: null,
+          pruned: { visits: 0, pages: 0, closedTabs: 0 },
+        });
       idle = IDLE_FOR_MAINTENANCE_S;
       await lifecycle.maintainIfIdle();
       expect(logger.events).toEqual(['data.maintenance']);

@@ -6,6 +6,8 @@ import type { RepositoryHandlers } from '../handlers';
 import { appRunHandlers } from './app-runs';
 import { appStateHandlers } from './app-state';
 import { downloadHandlers } from './downloads';
+import { faviconHandlers } from './favicons';
+import { historyHandlers } from './history';
 import { permissionHandlers } from './permissions';
 import { settingsHandlers } from './settings';
 import { tabHandlers } from './tabs';
@@ -21,5 +23,7 @@ export function createRepositoryHandlers(db: DatabaseConnection): RepositoryHand
     ...settingsHandlers(db),
     ...permissionHandlers(db),
     ...downloadHandlers(db),
+    ...historyHandlers(db),
+    ...faviconHandlers(db),
   };
 }

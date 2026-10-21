@@ -11,7 +11,7 @@ import type { DataMessage, DataOutput } from '../shared/contracts/data-rpc';
 import { DATA_METHODS, dataRequestSchema, isDataMethod } from '../shared/contracts/data-rpc';
 import { toErrorInfo } from './errors';
 import { DATA_WRITES } from './handlers';
-import type { RepositoryHandlers } from './handlers';
+import type { HandlerInput, RepositoryHandlers } from './handlers';
 import { isCorruption, markNeedsCheck } from './integrity';
 import type { Maintenance } from './maintenance';
 
@@ -114,8 +114,10 @@ export function createDataServer(
             }, fail);
           case 'maintenance.status':
             return answer(maintenance.status());
-          case 'maintenance.run':
-            return maintenance.run((input as { now: number }).now).then(answer, fail);
+          case 'maintenance.run': {
+            const { now, visitRetentionDays } = input as HandlerInput<'maintenance.run'>;
+            return maintenance.run(now, visitRetentionDays).then(answer, fail);
+          }
           default: {
             const handler = repositories[method] as (input: unknown) => unknown;
             const value = handler(input);

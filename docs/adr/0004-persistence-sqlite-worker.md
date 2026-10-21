@@ -104,6 +104,29 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
      - `tabs.purgeClosed` removes closed tabs older than 7 days, bounded.
    - **After a crash**, the WAL the killed run left behind is folded into the file at startup (`wal_checkpoint(TRUNCATE)`). Otherwise closing at the next quit had to do it inside the 3 s cap, and on a loaded laptop it sometimes didn't make it (found by the 20-kill test).
    - **Opening retries** transient `SQLITE_IOERR*`, `BUSY`, `LOCKED` and `CANTOPEN` errors for about 3 s. One `SQLITE_IOERR_TRUNCATE` was seen when E2E relaunched right after a kill. Every probe that relaunched the app directly, or opened the file from plain Node, opened cleanly. Corruption never retries.
+10. **As built in M2.2b** (the memory and stored decisions; assessment §5.4, §5.5, §5.7):
+   - **Visits.** TabManager tells `HistoryRecorder` (src/main/history) about each main-frame commit, with how the user got there: `typed` from the address bar, `generated` for its searches, `back_forward`, `reload`, `restore` (a restored or reopened tab), and `link` for anything else (a link, a form, a page's own script).
+     - A cross-document commit is a visit. A same-document commit is one only when the page's key changed, so a fragment or a tracking parameter alone adds nothing.
+     - The title at a commit is usually the previous page's, so a visit carries none. The title is written once it has been stable for 2 s (one write for a page that animates its title), and at once when the tab moves on or closes.
+     - `history.recordVisit` finds or creates the page by its key and adds the visit in one transaction. A redirect hop is kept as a visit but not counted.
+   - **URL hygiene** (core/url/hygiene.ts) runs in main, before anything is sent:
+     - only http and https are recorded; an address with a username or password, or an OAuth callback (`code` with `state`, or a token in the query or the fragment), is never recorded;
+     - the key (`url_key`) drops the fragment and tracking parameters (`utm_*`, `fbclid`, `gclid`, …);
+     - the stored address drops parameters that carry credentials (`token`, `password`, `sig`, `X-Amz-*`, `code` beside `state`, …) and a token fragment.
+   - **Excluded sites.** The worker records nothing for a site whose `site_rules` row says `exclude_memory` (`pageId` comes back null), so main never needs the list.
+   - **Frecency** (core/search/frecency.ts) is updated in O(1) per visit: the stored score decays to the visit's time (half-life 30 days, as the index expects), plus the visit's weight (typed 2, link and generated 1, restore, back/forward and other 0.5, reload and redirect 0). A clock that went back never moves a page's times backwards.
+   - **Favicons.** Main re-encodes the favicon service's validated image to a PNG of at most 64×64 with `nativeImage`, so the file holds pixels Chromium decoded, never a server's bytes. The worker checks the PNG signature, hashes it and stores it once per SHA-256. nativeImage decodes PNG, JPEG and ICO; other formats are shown but not stored. An icon is stored only for a page that was.
+   - **Retention**, in the idle upkeep (`maintenance.run` now takes `visitRetentionDays` from the settings document): visits older than the setting (365 days by default), pages and icons nothing refers to any more, and closed tabs older than 7 days.
+     - Each statement deletes at most 2,000 rows in its own transaction, at most 25 chunks per table per run, and the worker answers other calls between chunks. A first run after a long time away catches up over a few idle periods.
+     - The orphan scan reads every page, so it runs only after visits were deleted, and once per worker start.
+     - Free pages then go back to the file system, 4,096 at most per run (`incremental_vacuum`).
+     - Retention runs before the check and the backup, so both see what it changed. Nothing is deleted from a file whose last check failed, and damage the deletes run into counts as a failed check, with no backup.
+   - **Settings.** The `settings` row is a Zod document (src/shared/contracts/settings.ts): the search template and the history retention for now. A missing or invalid field takes its default alone, and unknown fields are ignored. Main reads it at startup; nothing writes it until the settings page (Phase 5).
+   - **Stored decisions,** read at startup within 3 s (src/main/persistence/stored-state.ts) and written through as the user makes them:
+     - permission decisions (`permission_decisions`); the dismissal embargo stays in memory, for the run;
+     - external-protocol "always allow" answers, as `protocol:<scheme>` rows (amendment (b));
+     - client-hint opt-ins, as the `client_hints` document (amendment (d)), written at most every 5 s and at quit. Stored entries are checked again on load: secure origins only, known hints only.
+   - A failed write is logged by code and dropped; the decision still holds for the run. Without a readable database, everything starts empty, as before Phase 2.
 
 ## Consequences
 

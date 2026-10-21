@@ -41,17 +41,32 @@ export class ExternalProtocolGuard {
   readonly #logger: Logger;
   /** Site origin → schemes the user allowed without asking again. */
   readonly #alwaysAllowed = new Map<string, Set<string>>();
+  readonly #onAlwaysAllowed: ((site: string, scheme: string) => void) | undefined;
 
   constructor(options: {
     readonly prompts: PromptManager;
     readonly appNameFor: (url: string) => string;
     readonly launch: Launcher;
     readonly logger: Logger;
+    /** Stored "always allow" answers, as (site origin, scheme) pairs (M2.2b). */
+    readonly alwaysAllowed?: Iterable<{ readonly site: string; readonly scheme: string }>;
+    /** Called when the user ticks "always allow", to store it. */
+    readonly onAlwaysAllowed?: (site: string, scheme: string) => void;
   }) {
     this.#prompts = options.prompts;
+    this.#onAlwaysAllowed = options.onAlwaysAllowed;
+    for (const { site, scheme } of options.alwaysAllowed ?? []) {
+      this.#allow(site, scheme);
+    }
     this.#appNameFor = options.appNameFor;
     this.#launch = options.launch;
     this.#logger = options.logger;
+  }
+
+  #allow(site: string, scheme: string): void {
+    const schemes = this.#alwaysAllowed.get(site) ?? new Set<string>();
+    schemes.add(scheme);
+    this.#alwaysAllowed.set(site, schemes);
   }
 
   async request(request: ExternalRequest): Promise<ExternalOutcome> {
@@ -93,9 +108,8 @@ export class ExternalProtocolGuard {
         return 'declined';
       }
       if (answer.remember && site !== null) {
-        const schemes = this.#alwaysAllowed.get(site) ?? new Set<string>();
-        schemes.add(scheme);
-        this.#alwaysAllowed.set(site, schemes);
+        this.#allow(site, scheme);
+        this.#onAlwaysAllowed?.(site, scheme);
       }
     }
 

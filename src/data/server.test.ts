@@ -219,7 +219,9 @@ describe('createDataServer', () => {
       "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 3000) INSERT INTO app_state SELECT 'k' || i, json_object('pad', hex(randomblob(500))) FROM n",
     );
     maintenance.noteWrite();
-    const backup = handle(request('maintenance.run', { now: Date.UTC(2026, 9, 21) }, 10));
+    const backup = handle(
+      request('maintenance.run', { now: Date.UTC(2026, 9, 21), visitRetentionDays: 365 }, 10),
+    );
     const closing = handle(request('db.close', {}, 11));
     expect((await backup).reply).toMatchObject({
       ok: true,

@@ -11,6 +11,7 @@
 import { z } from 'zod';
 
 import { UUID_V7_PATTERN } from '../../core/id/uuidv7';
+import { VISIT_TRANSITIONS } from '../../core/search/frecency';
 
 // ── Field schemas ───────────────────────────────────────────────────────────────────────────
 
@@ -129,6 +130,34 @@ export type DownloadRow = z.infer<typeof downloadRowSchema>;
 
 /** The data worker's own app_state document (backup and check times); no method may touch it. */
 export const MAINTENANCE_STATE_KEY = 'maintenance';
+/** A host name or registrable domain (DNS allows 253 characters). */
+const hostName = z.string().min(1).max(253);
+/** A favicon as stored (§5.3): a PNG Veltriva re-encoded itself, at most 64×64, as base64. */
+export const MAX_FAVICON_PNG_BASE64 = 90_000;
+const faviconPng = z
+  .string()
+  .min(1)
+  .max(MAX_FAVICON_PNG_BASE64)
+  .regex(/^[A-Za-z0-9+/]+={0,2}$/);
+
+/** One `pages` row: a distinct page in the memory (M2.2b, §5.3). */
+export const pageRowSchema = z.strictObject({
+  id: rowId,
+  urlKey: url,
+  url,
+  host: hostName,
+  site: hostName,
+  title,
+  faviconId: rowId.nullable(),
+  firstVisitAt: timestamp,
+  lastVisitAt: timestamp,
+  visitCount: count,
+  typedCount: count,
+  frecency: z.number().min(0),
+  frecencyAt: timestamp,
+});
+export type PageRow = z.infer<typeof pageRowSchema>;
+
 /** An app_state key: `session`, `window`, `client_hints`, … */
 const stateKey = z
   .string()
@@ -286,18 +315,81 @@ export const DATA_METHODS = {
   'downloads.clear': { input: nothing, output: changed },
 
   /**
+   * One visit (§5.5): the page is found by its key, or created, and its counts and frecency move;
+   * the visit is added. Main has applied URL hygiene (core/url/hygiene.ts) already. A page on a
+   * site excluded from the memory (site_rules) records nothing: `pageId` is null.
+   */
+  'history.recordVisit': {
+    input: z.strictObject({
+      page: z.strictObject({ urlKey: url, url, host: hostName, site: hostName, title }),
+      transition: z.enum(VISIT_TRANSITIONS),
+      visitedAt: timestamp,
+      tabId: uuid.nullable(),
+    }),
+    output: z.strictObject({ pageId: rowId.nullable() }),
+  },
+  /** A page's title settled (debounced 2 s) or its icon arrived. */
+  'history.updatePage': {
+    input: z.strictObject({
+      pageId: rowId,
+      title: title.optional(),
+      faviconId: rowId.optional(),
+    }),
+    output: changed,
+  },
+  /** The memory, most recently visited first. Search arrives in Phase 4. */
+  'history.pages': {
+    input: z.strictObject({ limit: limit(1000) }),
+    output: z.strictObject({ pages: z.array(pageRowSchema).max(1000) }),
+  },
+  /** One page's visits, newest first. */
+  'history.visits': {
+    input: z.strictObject({ pageId: rowId, limit: limit(1000) }),
+    output: z.strictObject({
+      visits: z
+        .array(
+          z.strictObject({
+            id: rowId,
+            visitedAt: timestamp,
+            transition: z.enum(VISIT_TRANSITIONS),
+            tabId: uuid.nullable(),
+          }),
+        )
+        .max(1000),
+    }),
+  },
+
+  /** Stores a favicon once, by its SHA-256 (computed by the worker), and returns its id. */
+  'favicons.put': {
+    input: z.strictObject({ png: faviconPng, at: timestamp }),
+    output: z.strictObject({ id: rowId }),
+  },
+  'favicons.get': {
+    input: z.strictObject({ ids: z.array(rowId).min(1).max(MAX_BATCH) }),
+    output: z.strictObject({
+      favicons: z.array(z.strictObject({ id: rowId, png: faviconPng })).max(MAX_BATCH),
+    }),
+  },
+
+  /**
    * Idle-time upkeep (assessment §5.6), which main calls only while the user is away: a full
    * integrity and FTS check if the last one is a week old, then a backup if the last one is a day
    * old and data changed since. The full check also runs before every backup, so a damaged
    * database never replaces a good backup. `now` is main's clock.
    */
   'maintenance.run': {
-    input: z.strictObject({ now: timestamp }),
+    input: z.strictObject({
+      now: timestamp,
+      /** Visits older than this go, and pages left with none (§5.7; the settings document's). */
+      visitRetentionDays: z.number().int().min(1).max(36_500),
+    }),
     output: z.strictObject({
       check: z.enum(['ok', 'failed', 'not_due']),
       backup: z.enum(['done', 'unchanged', 'not_due', 'failed', 'skipped']),
       /** The backup's file name, when one was written. */
       backupFile: fileName.nullable(),
+      /** What the retention pass removed this time (bounded per pass). */
+      pruned: z.strictObject({ visits: count, pages: count, closedTabs: count }),
     }),
   },
   'maintenance.status': {

@@ -139,7 +139,11 @@ async function reportDataStartup({ data, notices }: ScenarioContext): Promise<un
 async function writeAndBackUp({ data }: ScenarioContext): Promise<unknown> {
   await data.ready;
   await data.call('appState.set', { key: 'session', value: { written: 'before the backup' } });
-  const upkeep = await data.call('maintenance.run', { now: Date.now() }, { timeoutMs: 60_000 });
+  const upkeep = await data.call(
+    'maintenance.run',
+    { now: Date.now(), visitRetentionDays: 365 },
+    { timeoutMs: 60_000 },
+  );
   return { upkeep };
 }
 

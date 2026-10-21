@@ -17,6 +17,9 @@ export const IDLE_FOR_MAINTENANCE_S = 5 * 60;
 /** A backup is stepped and a full check is about half a second at 50,000 pages (S5, M2.1b). */
 export const MAINTENANCE_TIMEOUT_MS = 120_000;
 
+/** §5.7: a year of history, unless the settings document says otherwise. */
+export const DEFAULT_VISIT_RETENTION_DAYS = 365;
+
 export type ShutdownResult = 'closed' | 'timeout' | 'failed';
 
 export interface DataLifecycleOptions {
@@ -25,6 +28,8 @@ export interface DataLifecycleOptions {
   /** Seconds since the user's last input (Electron's powerMonitor.getSystemIdleTime). */
   readonly idleSeconds: () => number;
   readonly onRecovered: (recovery: DataRecovery) => void;
+  /** The settings document's history retention, read when upkeep runs (default 365 days). */
+  readonly visitRetentionDays?: () => number;
   readonly now?: () => number;
 }
 
@@ -33,6 +38,7 @@ export class DataLifecycle {
   readonly #logger: Logger;
   readonly #idleSeconds: () => number;
   readonly #now: () => number;
+  readonly #visitRetentionDays: () => number;
   readonly #flushes = new Set<() => Promise<void>>();
   readonly #timers: ReturnType<typeof setInterval>[] = [];
   #runId: number | null = null;
@@ -44,6 +50,7 @@ export class DataLifecycle {
     this.#logger = options.logger;
     this.#idleSeconds = options.idleSeconds;
     this.#now = options.now ?? Date.now;
+    this.#visitRetentionDays = options.visitRetentionDays ?? (() => DEFAULT_VISIT_RETENTION_DAYS);
     options.client.ready.then(
       (ready) => {
         if (this.#shuttingDown) {
@@ -84,7 +91,7 @@ export class DataLifecycle {
     try {
       const result = await this.#client.call(
         'maintenance.run',
-        { now: this.#now() },
+        { now: this.#now(), visitRetentionDays: this.#visitRetentionDays() },
         { timeoutMs: MAINTENANCE_TIMEOUT_MS },
       );
       if (result.check === 'failed' || result.backup === 'failed' || result.backup === 'skipped') {
