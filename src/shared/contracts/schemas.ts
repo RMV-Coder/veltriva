@@ -176,6 +176,8 @@ const workspaceSnapshot = z.strictObject({
           kind: z.literal('database-reset'),
           corruptFile: noticeFileName,
         }),
+        z.strictObject({ id: noticeId, kind: z.literal('session-recovered') }),
+        z.strictObject({ id: noticeId, kind: z.literal('safe-mode') }),
       ]),
     )
     .max(3),

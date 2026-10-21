@@ -277,7 +277,9 @@ test.describe('a hostile file name', () => {
     const notice = (await workspaceSnapshot(shell)).notices.find(
       (candidate) => candidate.id === id,
     );
-    expect(notice?.corruptFile).toBe(CLEANED);
+    expect(notice !== undefined && 'corruptFile' in notice ? notice.corruptFile : null).toBe(
+      CLEANED,
+    );
 
     const name = sentenceOf(shell, id).locator('bdi');
     await expect(name).toHaveText(CLEANED);
@@ -310,7 +312,9 @@ test.describe('a hostile file name', () => {
     const notice = (await workspaceSnapshot(shell)).notices.find(
       (candidate) => candidate.id === id,
     );
-    expect(notice?.corruptFile).toBe('veltriva.db.corrupt-x');
+    expect(notice !== undefined && 'corruptFile' in notice ? notice.corruptFile : null).toBe(
+      'veltriva.db.corrupt-x',
+    );
   });
 
   test('that has nothing in it gets a placeholder, and the sentence still reads', async ({

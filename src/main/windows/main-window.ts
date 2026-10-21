@@ -1,6 +1,8 @@
-import { BaseWindow, nativeTheme } from 'electron';
+import { BaseWindow, nativeTheme, screen } from 'electron';
 import type { Session, WebContentsView } from 'electron';
 
+import { placeWindow } from '../../core/layout/window-bounds';
+import type { SavedWindow } from '../../core/layout/window-bounds';
 import { PRODUCT_NAME } from '../../shared/constants/app-identity';
 import { createViewWithRole } from '../web/roles';
 import { shellWebPreferences } from '../web/web-preferences';
@@ -17,6 +19,14 @@ export interface MainWindow {
   readonly shell: WebContentsView;
 }
 
+const DEFAULT_SIZE = { width: 1280, height: 800 } as const;
+const MIN_SIZE = { width: 640, height: 480 } as const;
+
+/** The window's place and size to save (M2.2a): its normal bounds, even while maximized. */
+export function savedWindowOf(window: BaseWindow): SavedWindow {
+  return { ...window.getNormalBounds(), maximized: window.isMaximized() };
+}
+
 /**
  * The one `BaseWindow` (ADR-0009 D8) and the shell view under everything else. Sizing is the
  * LayoutManager's job; the caller loads the shell once its IPC handlers are in place.
@@ -24,15 +34,26 @@ export interface MainWindow {
 export function createMainWindow(options: {
   readonly shellSession: Session;
   readonly preload: string;
+  /** Where the window was last time (app_state `window`), used only if still on a screen. */
+  readonly saved?: SavedWindow | null;
 }): MainWindow {
+  const placed = placeWindow(
+    options.saved,
+    screen.getAllDisplays().map((display) => display.workArea),
+    MIN_SIZE,
+  );
   const window = new BaseWindow({
     title: PRODUCT_NAME,
-    width: 1280,
-    height: 800,
-    minWidth: 640,
-    minHeight: 480,
+    ...(placed === null
+      ? DEFAULT_SIZE
+      : { x: placed.x, y: placed.y, width: placed.width, height: placed.height }),
+    minWidth: MIN_SIZE.width,
+    minHeight: MIN_SIZE.height,
     backgroundColor: windowBackground(nativeTheme.shouldUseDarkColors),
   });
+  if (placed?.maximized === true) {
+    window.maximize();
+  }
 
   const shell = createViewWithRole('shell', {
     webPreferences: shellWebPreferences({

@@ -239,6 +239,61 @@ export function createTabRuntimes(options: {
           contents.focus();
         }
       },
+      restore(history) {
+        if (destroyed) {
+          return;
+        }
+        // S2's three failure shapes: a synchronous throw (bad index, no entries), a rejection
+        // without a failed load (an invalid entry, a used web contents) — both mean this web
+        // contents can't be used — and a rejection after did-fail-load, which leaves the tab live
+        // on an error page with its stack intact (loadFailed has already reported it). HTTP
+        // errors resolve, and did-finish-load is no success signal (error pages emit it too).
+        let failedLoad = false;
+        const onFailedLoad = (
+          _event: Event,
+          _code: number,
+          _name: string,
+          _url: string,
+          isMainFrame: boolean,
+        ): void => {
+          failedLoad ||= isMainFrame;
+        };
+        contents.on('did-fail-load', onFailedLoad);
+        const done = (): void => {
+          contents.off('did-fail-load', onFailedLoad);
+        };
+        let restoring: Promise<void>;
+        try {
+          restoring = contents.navigationHistory.restore({
+            index: history.index,
+            // URLs and titles only: page state is never persisted, and '' would be rejected.
+            entries: history.entries.map(({ url, title }) => ({ url, title })),
+          });
+        } catch {
+          done();
+          events.restoreFailed();
+          return;
+        }
+        restoring.then(done, () => {
+          done();
+          if (!destroyed && !failedLoad) {
+            events.restoreFailed();
+          }
+        });
+      },
+      history() {
+        if (destroyed) {
+          return null;
+        }
+        const entries = contents.navigationHistory.getAllEntries();
+        if (entries.length === 0) {
+          return null;
+        }
+        return {
+          index: contents.navigationHistory.getActiveIndex(),
+          entries: entries.map(({ url, title }) => ({ url, title })),
+        };
+      },
       destroy() {
         if (destroyed) {
           return;

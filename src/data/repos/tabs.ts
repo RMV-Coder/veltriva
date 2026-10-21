@@ -12,16 +12,24 @@ type StoredTab = Omit<TabRow, 'pinned' | 'userProtected' | 'restoreState'> & {
   readonly restoreState: string | null;
 };
 
-const LIST = `
+const SELECT = `
   SELECT id, workspace_id AS workspaceId, placement, position, pinned,
          user_protected AS userProtected, page_id AS pageId, url, title, favicon_id AS faviconId,
          restore_state AS restoreState, opener_tab_id AS openerTabId, created_at AS createdAt,
          last_used_at AS lastUsedAt, last_used_engaged AS lastUsedEngaged,
          last_used_active_day AS lastUsedActiveDay, placement_changed_at AS placementChangedAt,
          archived_at AS archivedAt, archive_reason AS archiveReason, closed_at AS closedAt
-  FROM tabs
+  FROM tabs`;
+
+const LIST = `${SELECT}
   WHERE workspace_id = ? AND placement = ?
   ORDER BY position, id
+  LIMIT ?`;
+
+/** Recently closed, newest first; tabs_closed_idx serves it. */
+const LIST_CLOSED = `${SELECT}
+  WHERE workspace_id = ? AND placement = 'closed'
+  ORDER BY closed_at DESC, id DESC
   LIMIT ?`;
 
 const UPSERT = `
@@ -57,18 +65,55 @@ const UPSERT = `
 
 export function tabHandlers(
   db: DatabaseConnection,
-): Pick<RepositoryHandlers, 'tabs.list' | 'tabs.upsertMany' | 'tabs.deleteMany'> {
+): Pick<
+  RepositoryHandlers,
+  | 'tabs.list'
+  | 'tabs.upsertMany'
+  | 'tabs.deleteMany'
+  | 'tabs.listClosed'
+  | 'tabs.purgeClosed'
+  | 'session.save'
+> {
   const list = db.prepare(LIST);
+  const listClosed = db.prepare(LIST_CLOSED);
+  const purgeClosed = db.prepare(
+    `DELETE FROM tabs WHERE id IN (
+       SELECT id FROM tabs WHERE placement = 'closed' AND closed_at < ? ORDER BY closed_at LIMIT ?
+     )`,
+  );
   const upsert = db.prepare(UPSERT);
   const deleteMany = db.prepare('DELETE FROM tabs WHERE id IN (SELECT value FROM json_each(?))');
+  const putDocument = db.prepare(
+    'INSERT INTO app_state (key, json) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET json = excluded.json',
+  );
+  const saveSession = db.transaction(
+    (
+      tabs: readonly TabRow[],
+      deleteIds: readonly string[],
+      documents: readonly { readonly key: string; readonly value: unknown }[],
+    ): number => {
+      for (const tab of tabs) {
+        upsertRow(tab);
+      }
+      const deleted =
+        deleteIds.length === 0 ? 0 : deleteMany.run([JSON.stringify(deleteIds)]).changes;
+      for (const { key, value } of documents) {
+        putDocument.run([key, JSON.stringify(value)]);
+      }
+      return tabs.length + deleted;
+    },
+  );
+  const upsertRow = (tab: TabRow): void => {
+    upsert.run({
+      ...tab,
+      pinned: bit(tab.pinned),
+      userProtected: bit(tab.userProtected),
+      restoreState: tab.restoreState === null ? null : JSON.stringify(tab.restoreState),
+    });
+  };
   const upsertAll = db.transaction((tabs: readonly TabRow[]) => {
     for (const tab of tabs) {
-      upsert.run({
-        ...tab,
-        pinned: bit(tab.pinned),
-        userProtected: bit(tab.userProtected),
-        restoreState: tab.restoreState === null ? null : JSON.stringify(tab.restoreState),
-      });
+      upsertRow(tab);
     }
   });
 
@@ -81,6 +126,15 @@ export function tabHandlers(
       return { count: tabs.length };
     },
     'tabs.deleteMany': ({ ids }) => ({ count: deleteMany.run([JSON.stringify(ids)]).changes }),
+    'tabs.listClosed': ({ workspaceId, limit }) => ({
+      tabs: (listClosed.all([workspaceId, limit]) as StoredTab[]).map(toTabRow),
+    }),
+    'session.save': ({ tabs, deleteIds, documents }) => ({
+      count: saveSession(tabs, deleteIds, documents),
+    }),
+    'tabs.purgeClosed': ({ before, limit }) => ({
+      count: purgeClosed.run([before, limit]).changes,
+    }),
   };
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { sanitizeTitle, TabManager, TabNotFoundError } from './tab-manager';
+import type { TabHistory } from '../../core/session/history';
 import type { TabId, TabRuntime, TabRuntimeEvents } from './tab-manager';
 
 /** Zoom per host, as Chromium keeps it: shared by every fake runtime of one test. */
@@ -74,6 +75,20 @@ class FakeRuntime implements TabRuntime {
   destroy(): void {
     this.shown = false;
     this.destroyed = true;
+  }
+  /** Each restore, with whether the view was attached by then (S2: it must be). */
+  readonly restores: { history: TabHistory; shownFirst: boolean }[] = [];
+  /** What `history()` reports; tests set it as a page would build it. */
+  historyValue: TabHistory | null = null;
+  restore(history: TabHistory): void {
+    this.assertAlive();
+    if (this.loads.length > 0 || this.restores.length > 0) {
+      throw new Error(`runtime of ${this.tabId} restored after it loaded (S2 forbids it)`);
+    }
+    this.restores.push({ history, shownFirst: this.shown });
+  }
+  history(): TabHistory | null {
+    return this.historyValue;
   }
   private assertAlive(): void {
     if (this.destroyed) {
@@ -935,18 +950,39 @@ describe('TabManager in M1.3b', () => {
   });
 
   describe('reopening closed tabs', () => {
-    it('brings back the last closed tab where it was, pinned if it was', () => {
+    it('brings back the last closed tab where it was, pinned if it was, with its id and stack', () => {
       const { manager, runtimeOf, webTab } = setup();
       const a = webTab('https://a.example/');
       const b = webTab('https://b.example/');
       webTab('https://c.example/');
+      runtimeOf(a).historyValue = {
+        index: 1,
+        entries: [
+          { url: 'https://a.example/', title: 'A' },
+          { url: 'https://a.example/next', title: 'A next' },
+        ],
+      };
       manager.setPinned(b, true);
       manager.close(b);
       manager.close(a);
 
       const reopenedA = manager.reopenClosed();
-      expect(reopenedA).not.toBeNull();
-      expect(runtimeOf(reopenedA ?? '').loads).toEqual(['https://a.example/']);
+      expect(reopenedA).toBe(a);
+      expect(manager.selectedTabId()).toBe(a);
+      // Restored into a new runtime, attached first (S2), with the stack it had.
+      expect(runtimeOf(a).loads).toEqual([]);
+      expect(runtimeOf(a).restores).toEqual([
+        {
+          history: {
+            index: 1,
+            entries: [
+              { url: 'https://a.example/', title: 'A' },
+              { url: 'https://a.example/next', title: 'A next' },
+            ],
+          },
+          shownFirst: true,
+        },
+      ]);
       const reopenedB = manager.reopenClosed();
       expect(manager.tabs()[0]?.id).toBe(reopenedB);
       expect(manager.get(reopenedB ?? '').pinned).toBe(true);
@@ -960,16 +996,16 @@ describe('TabManager in M1.3b', () => {
       expect(manager.reopenClosed()).toBeNull();
     });
 
-    it('keeps at most 25 closed tabs', () => {
+    it('keeps at most 100 closed tabs in a run', () => {
       const { manager, webTab } = setup();
-      for (let i = 0; i < 30; i += 1) {
+      for (let i = 0; i < 105; i += 1) {
         manager.close(webTab('https://site' + String(i) + '.example/'));
       }
       let reopened = 0;
       while (manager.reopenClosed() !== null) {
         reopened += 1;
       }
-      expect(reopened).toBe(25);
+      expect(reopened).toBe(100);
     });
   });
 

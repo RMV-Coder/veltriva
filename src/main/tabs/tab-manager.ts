@@ -12,8 +12,15 @@
 // is a subset of its states (unloaded, creating, live, crashed).
 //
 // M1.3b adds what the browser does to a page: find in page, zoom, HTML fullscreen (at most one
-// tab, always the selected one), DevTools, and reopening closed tabs (in memory until Phase 2).
+// tab, always the selected one), DevTools, and reopening closed tabs.
+//
+// M2.2a adds the session (ADR-0003 items 6 and 8, spike S2). A restored tab starts unloaded, with
+// its sanitized back/forward stack, and is restored into a brand-new runtime only when selected:
+// at startup that is the selected tab alone. A closed tab keeps its stack for Ctrl+Shift+T, and
+// the session store (src/main/session) persists both lists.
 import { nextZoomFactor, zoomPercent } from '../../core/layout/zoom';
+import { sanitizeHistory, singleEntryHistory } from '../../core/session/history';
+import type { TabHistory } from '../../core/session/history';
 import { errorPageFor } from '../../core/net/error-pages';
 import type { ZoomDirection } from '../../core/layout/zoom';
 import type { InternalPage } from '../../core/url/internal-pages';
@@ -99,6 +106,14 @@ export interface TabRuntime {
   focus(): void;
   /** Detaches and closes the web contents. The runtime is unusable afterwards. */
   destroy(): void;
+  /**
+   * Rebuilds a back/forward stack in this runtime, which must never have loaded anything (S2).
+   * TabManager attaches the view first. A failure to create it arrives as `restoreFailed`; a
+   * page that fails to load arrives as `loadFailed`, with the stack intact.
+   */
+  restore(history: TabHistory): void;
+  /** The current back/forward stack (URLs and titles), unsanitized; null before any load. */
+  history(): TabHistory | null;
 }
 
 /**
@@ -131,6 +146,11 @@ export interface TabRuntimeEvents {
   zoomRequested(direction: 'in' | 'out'): void;
   /** The page entered or left HTML fullscreen. */
   fullscreenChanged(fullscreen: boolean): void;
+  /**
+   * `restore()` threw, or rejected without a failed load: the runtime is unusable (S2's
+   * "creation failure"). TabManager replaces it and loads the active entry instead.
+   */
+  restoreFailed(): void;
 }
 
 export type TabRuntimeFactory = (tabId: TabId, events: TabRuntimeEvents) => TabRuntime;
@@ -147,14 +167,35 @@ export interface TabManagerOptions {
    * page replaced it, or the tab closed. Its permission prompts and blocked popups no longer apply.
    */
   readonly onPageGone?: (tabId: TabId) => void;
+  /** Wall-clock time, for the session's timestamps. */
+  readonly now?: () => number;
 }
 
-/** How many closed tabs Ctrl+Shift+T can bring back. */
-const MAX_CLOSED_TABS = 25;
+/**
+ * How many closed tabs Ctrl+Shift+T can bring back in a run. The database keeps every closed tab
+ * for 7 days (ADR-0003 item 8); the session store loads the newest of them at startup.
+ */
+export const MAX_CLOSED_TABS = 100;
 
-interface ClosedTab {
-  readonly url: string;
+/** How a new-tab page is stored in the session: its typeable address (internal-pages.ts). */
+export const SESSION_NEW_TAB_URL = 'veltriva://newtab';
+
+/** A tab as the session stores it and restores it. */
+export interface SessionTab {
+  readonly id: TabId;
   readonly pinned: boolean;
+  /** The address on display, or SESSION_NEW_TAB_URL for a new-tab page. */
+  readonly url: string;
+  readonly title: string;
+  /** Sanitized (core/session/history.ts); null for a new-tab page. */
+  readonly history: TabHistory | null;
+  readonly createdAt: number;
+  readonly lastUsedAt: number;
+}
+
+export interface ClosedTab extends SessionTab {
+  readonly closedAt: number;
+  /** Where it was in the strip, for reopening it there. */
   readonly index: number;
 }
 
@@ -181,6 +222,10 @@ interface TabRecord {
   findRequestId: number | undefined;
   /** What the find bar searched for last, offered again when it reopens. */
   lastFindText: string;
+  /** An unloaded tab's stack, restored when it is next selected (or reloaded). */
+  pendingHistory: TabHistory | null;
+  readonly createdAt: number;
+  lastUsedAt: number;
 }
 
 const NEW_TAB_PAGE: TabPage = { kind: 'internal', name: 'new-tab' };
@@ -223,31 +268,11 @@ export class TabManager {
   create(options: { readonly select?: boolean; readonly afterTabId?: TabId } = {}): TabId {
     const after = options.afterTabId === undefined ? undefined : this.#record(options.afterTabId);
     const id = this.#options.newId();
-    const record: TabRecord = {
-      state: {
-        id,
-        pinned: after?.state.pinned ?? false,
-        placement: 'strip',
-        runtime: 'unloaded',
-        page: NEW_TAB_PAGE,
-        url: '',
-        credentialsRemoved: false,
-        title: '',
-        favicon: null,
-        loading: false,
-        canGoBack: false,
-        canGoForward: false,
-        zoomPercent: 100,
-        find: null,
-      },
-      runtime: undefined,
-      runtimeToken: undefined,
-      focusOnCommit: false,
-      credentialsRemovedOnCommit: false,
-      findRequestId: undefined,
-      lastFindText: '',
-    };
-    this.#records.set(id, record);
+    const now = this.#now();
+    this.#records.set(
+      id,
+      this.#newRecord({ id, pinned: after?.state.pinned ?? false, createdAt: now, lastUsedAt: now }),
+    );
     if (after === undefined) {
       this.#order.push(id);
     } else {
@@ -270,7 +295,8 @@ export class TabManager {
     const record = this.#record(tabId);
     const index = this.#order.indexOf(tabId);
     if (record.state.url !== '') {
-      this.#closed.push({ url: record.state.url, pinned: record.state.pinned, index });
+      // Its stack is read before the runtime goes (Recently closed keeps it for 7 days).
+      this.#closed.push({ ...this.#sessionTab(record), closedAt: this.#now(), index });
       if (this.#closed.length > MAX_CLOSED_TABS) {
         this.#closed.shift();
       }
@@ -305,21 +331,87 @@ export class TabManager {
   }
 
   /**
-   * Reopens the most recently closed tab where it was and loads its last address (Ctrl+Shift+T).
-   * In memory only, and without its history: Phase 2 brings session restore.
+   * Reopens the most recently closed tab where it was, with its back/forward stack and its own id
+   * (Ctrl+Shift+T), and selects it, which restores it.
    */
   reopenClosed(): TabId | null {
     const closed = this.#closed.pop();
     if (closed === undefined) {
       return null;
     }
-    const id = this.create();
-    if (closed.pinned) {
-      this.setPinned(id, true);
-    }
-    this.move(id, closed.index);
-    this.navigate(id, closed.url);
+    const id = this.#records.has(closed.id) ? this.#options.newId() : closed.id;
+    this.#records.set(id, this.#newRecord({ ...closed, id, lastUsedAt: this.#now() }));
+    // Pinned or not, it goes back inside its own section.
+    const pinnedCount = this.#pinnedCount();
+    const [first, last] = closed.pinned
+      ? [0, pinnedCount]
+      : [pinnedCount, this.#order.length];
+    this.#order.splice(Math.min(Math.max(closed.index, first), last), 0, id);
+    this.#setSelected(id, true);
+    this.#changed();
     return id;
+  }
+
+  /** Recently closed, newest first: what the session stores. */
+  closedTabs(): readonly ClosedTab[] {
+    return [...this.#closed].reverse();
+  }
+
+  /** Every tab in strip order, as the session stores it. */
+  sessionTabs(): readonly SessionTab[] {
+    return this.#order.map((id) => this.#sessionTab(this.#record(id)));
+  }
+
+  /**
+   * Puts back a saved session into an empty TabManager (startup, assessment §5.9): every tab
+   * unloaded, pinned ones first, the saved one selected. Only the selected tab is restored, and
+   * only if `loadSelected` (safe mode leaves it unloaded until the user picks a tab). With no
+   * tabs it opens a new-tab page. `closed` is newest first.
+   */
+  restoreSession(session: {
+    readonly tabs: readonly SessionTab[];
+    readonly selectedTabId: TabId | null;
+    readonly closed: readonly ClosedTab[];
+    readonly loadSelected: boolean;
+  }): void {
+    if (this.#records.size > 0) {
+      throw new Error('restoreSession needs an empty TabManager.');
+    }
+    const sorted = [
+      ...session.tabs.filter((tab) => tab.pinned),
+      ...session.tabs.filter((tab) => !tab.pinned),
+    ];
+    for (const tab of sorted) {
+      if (this.#records.has(tab.id)) {
+        continue; // A duplicate id: keep the first.
+      }
+      const web = tab.url !== SESSION_NEW_TAB_URL;
+      this.#records.set(
+        tab.id,
+        this.#newRecord(web ? tab : { ...tab, url: '', title: '', history: null }),
+      );
+      this.#order.push(tab.id);
+    }
+    this.#closed.length = 0;
+    for (const closed of [...session.closed].reverse().slice(-MAX_CLOSED_TABS)) {
+      if (!this.#records.has(closed.id) && closed.url !== SESSION_NEW_TAB_URL) {
+        this.#closed.push(closed);
+      }
+    }
+    const selected =
+      session.selectedTabId !== null && this.#records.has(session.selectedTabId)
+        ? session.selectedTabId
+        : this.#order[0];
+    if (selected === undefined) {
+      this.create();
+      return;
+    }
+    this.#selected = selected;
+    if (session.loadSelected) {
+      this.#ensureLive(selected);
+    }
+    this.#syncVisibility();
+    this.#changed();
   }
 
   /** Closes every tab without opening a new one. For shutdown only. */
@@ -509,6 +601,8 @@ export class TabManager {
   reload(tabId: TabId, options: { readonly ignoreCache?: boolean } = {}): void {
     const record = this.#record(tabId);
     if (record.runtime === undefined) {
+      // An unloaded tab (safe mode leaves the selected one so): Reload loads it.
+      this.#ensureLive(tabId);
       return;
     }
     if (record.state.runtime === 'crashed') {
@@ -608,6 +702,97 @@ export class TabManager {
     this.#setFullscreen(null);
   }
 
+  #now(): number {
+    return (this.#options.now ?? Date.now)();
+  }
+
+  /** A record for a tab that has no runtime: a new-tab page, or an unloaded restored page. */
+  #newRecord(tab: {
+    readonly id: TabId;
+    readonly pinned: boolean;
+    readonly createdAt: number;
+    readonly lastUsedAt: number;
+    readonly url?: string;
+    readonly title?: string;
+    readonly history?: TabHistory | null;
+  }): TabRecord {
+    const web = tab.url !== undefined && tab.url !== '';
+    return {
+      state: {
+        id: tab.id,
+        pinned: tab.pinned,
+        placement: 'strip',
+        runtime: 'unloaded',
+        page: web ? { kind: 'web' } : NEW_TAB_PAGE,
+        url: web ? (tab.url ?? '') : '',
+        credentialsRemoved: false,
+        title: web ? (tab.title ?? '') : '',
+        favicon: null,
+        loading: false,
+        canGoBack: false,
+        canGoForward: false,
+        zoomPercent: 100,
+        find: null,
+      },
+      runtime: undefined,
+      runtimeToken: undefined,
+      focusOnCommit: false,
+      credentialsRemovedOnCommit: false,
+      findRequestId: undefined,
+      lastFindText: '',
+      pendingHistory: web ? (tab.history ?? null) : null,
+      createdAt: tab.createdAt,
+      lastUsedAt: tab.lastUsedAt,
+    };
+  }
+
+  /**
+   * Brings an unloaded web tab to life: a new runtime, attached, then `restore()` with its stack
+   * (S2: a brand-new web contents, attached before restoring). A tab with only an address
+   * restores a one-entry stack; one whose address can't be restored becomes a new-tab page.
+   */
+  #ensureLive(tabId: TabId): void {
+    const record = this.#record(tabId);
+    if (record.runtime !== undefined || record.state.page.kind !== 'web') {
+      return;
+    }
+    const history =
+      record.pendingHistory ?? singleEntryHistory(record.state.url, record.state.title);
+    record.pendingHistory = null;
+    if (history === null) {
+      this.showInternal(tabId, 'new-tab');
+      return;
+    }
+    const token = Symbol(tabId);
+    record.runtimeToken = token;
+    record.runtime = this.#options.createRuntime(tabId, this.#eventsFor(tabId, token));
+    record.state = { ...record.state, runtime: 'creating', loading: true };
+    this.#syncVisibility();
+    record.runtime.restore(history);
+    this.#changed();
+  }
+
+  /** What the session stores for a tab: a live tab's current stack, else its pending one. */
+  #sessionTab(record: TabRecord): SessionTab {
+    const { state } = record;
+    const base = {
+      id: state.id,
+      pinned: state.pinned,
+      createdAt: record.createdAt,
+      lastUsedAt: record.lastUsedAt,
+    };
+    if (state.url === '') {
+      return { ...base, url: SESSION_NEW_TAB_URL, title: '', history: null };
+    }
+    const live = record.runtime === undefined ? null : sanitizeHistory(record.runtime.history());
+    return {
+      ...base,
+      url: state.url,
+      title: state.title,
+      history: live ?? record.pendingHistory ?? singleEntryHistory(state.url, state.title),
+    };
+  }
+
   #record(tabId: TabId): TabRecord {
     const record = this.#records.get(tabId);
     if (record === undefined) {
@@ -632,8 +817,11 @@ export class TabManager {
       this.exitFullscreen();
     }
     this.#selected = tabId;
-    this.#syncVisibility();
     const record = this.#record(tabId);
+    record.lastUsedAt = this.#now();
+    // An unloaded tab (restored at startup, or reopened) is restored when it is selected.
+    this.#ensureLive(tabId);
+    this.#syncVisibility();
     if (focus && record.state.page.kind === 'web') {
       record.runtime?.focus();
     }
@@ -843,6 +1031,18 @@ export class TabManager {
           return;
         }
         this.#setFullscreen(tabId);
+      },
+      restoreFailed: () => {
+        const record = current();
+        if (record === undefined) {
+          return;
+        }
+        // S2: the web contents is unusable for another restore. A new one loads the address
+        // alone; the stack is lost, the page is not.
+        record.runtime?.destroy();
+        record.runtime = undefined;
+        record.runtimeToken = undefined;
+        this.navigate(tabId, record.state.url, { focus: this.#selected === tabId });
       },
     };
   }

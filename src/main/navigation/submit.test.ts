@@ -25,6 +25,8 @@ function setup() {
     hide: () => undefined,
     focus: () => undefined,
     destroy: () => undefined,
+    restore: () => undefined,
+    history: () => null,
   };
   let next = 0;
   const tabs = new TabManager({

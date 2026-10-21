@@ -30,7 +30,7 @@ async function waitForData(app: ElectronApplication): Promise<void> {
 }
 
 const NOW = Date.UTC(2026, 9, 21);
-const WORKSPACE = '0199f000-0000-7000-8000-000000000001';
+const CANDIDATE_WORKSPACE = '0199f000-0000-7000-8000-000000000001';
 const TAB = '0199f000-0000-7000-8000-0000000000a1';
 
 test.describe('the data worker', () => {
@@ -75,17 +75,18 @@ test.describe('the data worker', () => {
     electronApp,
   }) => {
     await waitForData(electronApp);
-    expect(
-      await dataCall(electronApp, 'workspaces.ensureDefault', {
-        candidateId: WORKSPACE,
-        name: 'Default',
-        now: NOW,
-      }),
-    ).toEqual({ ok: true, value: { id: WORKSPACE, created: true } });
+    // Startup has made the default workspace already (M2.2a's session restore).
+    const ensured = await dataCall(electronApp, 'workspaces.ensureDefault', {
+      candidateId: CANDIDATE_WORKSPACE,
+      name: 'Default',
+      now: NOW,
+    });
+    expect(ensured).toMatchObject({ ok: true, value: { created: false } });
+    const workspaceId = ensured.ok ? (ensured.value as { id: string }).id : '';
 
     const tab = {
       id: TAB,
-      workspaceId: WORKSPACE,
+      workspaceId,
       placement: 'strip',
       position: 0,
       pinned: false,
@@ -113,18 +114,21 @@ test.describe('the data worker', () => {
       ok: true,
       value: { count: 1 },
     });
+    // The strip also holds the app's own tab, saved by the session store.
+    const listed = await dataCall(electronApp, 'tabs.list', {
+      workspaceId,
+      placement: 'strip',
+      limit: 10,
+    });
     expect(
-      await dataCall(electronApp, 'tabs.list', {
-        workspaceId: WORKSPACE,
-        placement: 'strip',
-        limit: 10,
-      }),
-    ).toEqual({ ok: true, value: { tabs: [tab] } });
+      listed.ok && (listed.value as { tabs: { id: string }[] }).tabs.find((row) => row.id === TAB),
+    ).toEqual(tab);
 
     // Refused by the contract in main, before anything reaches the worker.
-    expect(
-      await dataCall(electronApp, 'tabs.list', { workspaceId: WORKSPACE, placement: 'strip' }),
-    ).toEqual({ ok: false, code: 'invalid_input' });
+    expect(await dataCall(electronApp, 'tabs.list', { workspaceId, placement: 'strip' })).toEqual({
+      ok: false,
+      code: 'invalid_input',
+    });
     // Refused by the schema's CHECK in the worker: an archived tab needs archived_at.
     expect(
       await dataCall(electronApp, 'tabs.upsertMany', { tabs: [{ ...tab, placement: 'archive' }] }),

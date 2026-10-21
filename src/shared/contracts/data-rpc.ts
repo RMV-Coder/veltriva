@@ -196,6 +196,36 @@ export const DATA_METHODS = {
     input: z.strictObject({ ids: z.array(uuid).min(1).max(MAX_BATCH) }),
     output: changed,
   },
+  /**
+   * One flush of the live session (M2.2a, §5.5): the changed tab rows, the rows that went, and
+   * small app_state documents (`session`, `window`), all in one transaction, so a hard kill
+   * leaves either this flush or the previous one, never half of it.
+   */
+  'session.save': {
+    input: z.strictObject({
+      tabs: z.array(tabRowSchema).max(MAX_BATCH),
+      deleteIds: z.array(uuid).max(MAX_BATCH),
+      documents: z
+        .array(
+          z.strictObject({
+            key: stateKey,
+            value: jsonDocument.refine((value) => value !== null, 'null document'),
+          }),
+        )
+        .max(4),
+    }),
+    output: changed,
+  },
+  /** Recently closed (placement 'closed'), newest first (M2.2a). */
+  'tabs.listClosed': {
+    input: z.strictObject({ workspaceId: uuid, limit: limit(1000) }),
+    output: z.strictObject({ tabs: z.array(tabRowSchema).max(1000) }),
+  },
+  /** Deletes closed tabs closed before `before`, at most `limit` of them (kept 7 days, §5.7). */
+  'tabs.purgeClosed': {
+    input: z.strictObject({ before: timestamp, limit: limit(MAX_BATCH) }),
+    output: changed,
+  },
 
   'appState.get': {
     input: z.strictObject({ key: stateKey }),

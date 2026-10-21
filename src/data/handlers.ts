@@ -29,4 +29,6 @@ export const DATA_WRITES: ReadonlySet<RepositoryMethod> = new Set<RepositoryMeth
   'downloads.upsert',
   'downloads.delete',
   'downloads.clear',
+  'tabs.purgeClosed',
+  'session.save',
 ]);

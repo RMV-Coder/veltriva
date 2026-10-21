@@ -12,7 +12,11 @@ export type AppNotice =
       readonly corruptFile: string;
     }
   /** The database was damaged and no backup was usable: Veltriva started with an empty one. */
-  | { readonly id: string; readonly kind: 'database-reset'; readonly corruptFile: string };
+  | { readonly id: string; readonly kind: 'database-reset'; readonly corruptFile: string }
+  /** The last run ended without closing; its tabs are back (M2.2a, assessment §5.9). */
+  | { readonly id: string; readonly kind: 'session-recovered' }
+  /** Two quick crashes in a row: the tabs are back, but none loaded (§5.9's safe mode). */
+  | { readonly id: string; readonly kind: 'safe-mode' };
 
 type WithoutId<T> = T extends unknown ? Omit<T, 'id'> : never;
 export type NewAppNotice = WithoutId<AppNotice>;

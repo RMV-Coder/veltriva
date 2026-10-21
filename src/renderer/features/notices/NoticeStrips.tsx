@@ -1,4 +1,4 @@
-import { DatabaseBackup, TriangleAlert } from 'lucide-react';
+import { DatabaseBackup, History, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { Fragment, useRef } from 'react';
 import type { FocusEvent } from 'react';
 
@@ -15,6 +15,14 @@ import type { Notice, NoticePart } from './notice-display';
 const NO_NOTICES: readonly Notice[] = [];
 
 /** Veltriva's own notices, oldest first. The same array until the next snapshot. */
+/** One icon per kind of notice. */
+const NOTICE_ICONS = {
+  'database-restored': DatabaseBackup,
+  'database-reset': TriangleAlert,
+  'session-recovered': History,
+  'safe-mode': ShieldAlert,
+} as const satisfies Record<Notice['kind'], unknown>;
+
 function useNotices(): readonly Notice[] {
   return useWorkspaceStore((state) => state.snapshot?.notices ?? NO_NOTICES);
 }
@@ -98,7 +106,7 @@ function NoticeStrip({
 }) {
   const textId = `notice-text-${notice.id}`;
   // The restore went well; a reset lost the user's data, so it gets the warning sign.
-  const Icon = notice.kind === 'database-restored' ? DatabaseBackup : TriangleAlert;
+  const Icon = NOTICE_ICONS[notice.kind];
 
   return (
     <div

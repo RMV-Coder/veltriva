@@ -20,7 +20,9 @@ describe('AppNotices', () => {
     for (let i = 0; i < MAX_NOTICES + 2; i++) {
       notices.show({ kind: 'database-reset', corruptFile: String(i) });
     }
-    expect(notices.list().map((notice) => notice.corruptFile)).toEqual(['2', '3', '4']);
+    expect(
+      notices.list().map((notice) => ('corruptFile' in notice ? notice.corruptFile : '')),
+    ).toEqual(['2', '3', '4']);
   });
 
   it('dismisses by id, once', () => {

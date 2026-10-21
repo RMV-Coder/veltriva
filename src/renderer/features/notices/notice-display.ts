@@ -32,6 +32,10 @@ export function noticeLabel(kind: NoticeKind): string {
       return 'Database restored from backup';
     case 'database-reset':
       return 'Database reset';
+    case 'session-recovered':
+      return 'Session recovered';
+    case 'safe-mode':
+      return 'Safe mode';
   }
 }
 
@@ -101,6 +105,18 @@ export function noticeSentence(notice: Notice, format: TimeFormat = {}): readonl
           "Veltriva's database was damaged and no backup could be used, so Veltriva started with an empty one.",
         ),
         ...keptAs(notice.corruptFile),
+      ];
+    case 'session-recovered':
+      return [
+        plain(
+          "Veltriva didn't close properly last time. Your tabs are back; the others load when you select them.",
+        ),
+      ];
+    case 'safe-mode':
+      return [
+        plain(
+          'Veltriva closed unexpectedly twice soon after starting, so your tabs are back without loading. Select a tab, or press Reload, to load it.',
+        ),
       ];
   }
 }

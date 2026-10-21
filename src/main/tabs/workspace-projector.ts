@@ -114,15 +114,20 @@ function timestamp(ms: number): number {
 }
 
 export function projectNotice(notice: AppNotice): NoticeSnapshot {
-  const corruptFile = noticeFileName(notice.corruptFile);
-  return notice.kind === 'database-restored'
-    ? {
+  switch (notice.kind) {
+    case 'database-restored':
+      return {
         id: notice.id,
         kind: notice.kind,
         backupAt: timestamp(notice.backupAt),
-        corruptFile,
-      }
-    : { id: notice.id, kind: notice.kind, corruptFile };
+        corruptFile: noticeFileName(notice.corruptFile),
+      };
+    case 'database-reset':
+      return { id: notice.id, kind: notice.kind, corruptFile: noticeFileName(notice.corruptFile) };
+    case 'session-recovered':
+    case 'safe-mode':
+      return { id: notice.id, kind: notice.kind };
+  }
 }
 
 /**

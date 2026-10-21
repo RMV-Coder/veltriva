@@ -26,6 +26,8 @@ import { installPermissionBroker } from './permissions/permission-broker';
 import { AppNotices } from './notices/app-notices';
 import { DataLifecycle } from './persistence/data-lifecycle';
 import { closeDataOnQuit, startDataWorker } from './persistence/data-worker';
+import { readSessionAtStartup } from './session/session-startup';
+import { SessionStore } from './session/session-store';
 import { consoleLogger } from './platform/logger';
 import { BlockedPopups } from './popups/blocked-popups';
 import { createWindowOpenHandler } from './popups/popup-policy';
@@ -55,7 +57,7 @@ import {
 } from './web/session-baseline';
 import { FullscreenController } from './windows/fullscreen';
 import { LayoutManager } from './windows/layout-manager';
-import { createMainWindow, windowBackground } from './windows/main-window';
+import { createMainWindow, savedWindowOf, windowBackground } from './windows/main-window';
 import { PopupWindows } from './windows/popup-windows';
 
 // ── Before `ready` (ADR-0002 §4–5, ADR-0007 §6). Moving any of these later silently weakens them.
@@ -89,6 +91,13 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
+// One Veltriva per profile (M2.2a): a second launch hands over to the first and quits, so two
+// processes never write the same session. Electron keys the lock on the userData path set above.
+const hasInstanceLock = app.requestSingleInstanceLock();
+if (!hasInstanceLock) {
+  app.quit();
+}
+
 // Development builds only: `import.meta.env.DEV` is a build-time constant, so production
 // builds contain neither this branch nor the dev-server origin in the IPC allow-list.
 const devServer =
@@ -96,7 +105,7 @@ const devServer =
     ? parseDevServerUrl(process.env.ELECTRON_RENDERER_URL)
     : undefined;
 
-function start(): void {
+async function start(): Promise<void> {
   // No default application menu: its accelerators (Ctrl+W closes the window, Ctrl+R reloads the
   // shell) would act on the browser itself. The browser's shortcuts are below: reserved ones in
   // before-input-event, page-first ones in the window's hidden menu (assessment §3.9).
@@ -127,6 +136,9 @@ function start(): void {
     },
   });
   closeDataOnQuit(dataLifecycle, consoleLogger);
+  // The saved session decides where the window opens and which tabs it has, so it is read first
+  // (bounded; without it the app starts as new, and writes nothing over what was saved).
+  const startup = await readSessionAtStartup(data, consoleLogger);
 
   // Created lazily by Electron; harden them explicitly too (hardenSession is idempotent).
   hardenSession(session.defaultSession);
@@ -137,7 +149,17 @@ function start(): void {
     rendererRoot: join(__dirname, '../renderer'),
     devServerOrigin: devServer?.origin,
   });
-  const main = createMainWindow({ shellSession, preload: join(__dirname, '../preload/shell.js') });
+  const main = createMainWindow({
+    shellSession,
+    preload: join(__dirname, '../preload/shell.js'),
+    saved: startup?.loaded.window ?? null,
+  });
+  app.on('second-instance', () => {
+    if (main.window.isMinimized()) {
+      main.window.restore();
+    }
+    main.window.focus();
+  });
   const layout = new LayoutManager(main.window, main.shell);
   const events = createShellEvents(() => main.shell.webContents);
 
@@ -280,12 +302,15 @@ function start(): void {
       events.emit('workspace.changed', snapshot);
     },
   });
+  // Created once the session is restored, below; until then TabManager's changes are its own.
+  let sessionStore: SessionStore | undefined;
   const tabs = new TabManager({
     createRuntime: runtimes.factory,
     newId: () => uuidv7(Date.now(), getRandomValues(new Uint8Array(10))),
     onChange: () => {
       showPromptsOf();
       projector.markDirty();
+      sessionStore?.changed();
     },
     onFullscreenChange: (tabId) => {
       fullscreen.update(tabId);
@@ -368,7 +393,42 @@ function start(): void {
       }
     });
   }
-  tabs.create();
+  // Session restore (assessment §5.9): every tab comes back unloaded, and only the selected one
+  // loads; in safe mode none does. Without a readable database: one new tab, as before Phase 2.
+  if (startup === null) {
+    tabs.create();
+  } else {
+    const { loaded, ready, safeMode } = startup;
+    tabs.restoreSession({
+      tabs: loaded.tabs,
+      selectedTabId: loaded.selectedTabId,
+      closed: loaded.closed,
+      loadSelected: !safeMode,
+    });
+    if (safeMode) {
+      notices.show({ kind: 'safe-mode' });
+    } else if (ready.previousExit === 'crash' && loaded.tabs.length > 0) {
+      notices.show({ kind: 'session-recovered' });
+    }
+    const store = new SessionStore({
+      source: tabs,
+      data,
+      workspaceId: loaded.workspaceId,
+      logger: consoleLogger,
+      loaded: loaded.rows,
+    });
+    sessionStore = store;
+    // The restored state (and any repair restoreSession made) is written once at the start.
+    store.changed();
+    dataLifecycle.addFlush(() => store.flush());
+    const saveWindow = (): void => {
+      store.windowChanged(savedWindowOf(main.window));
+    };
+    main.window.on('resize', saveWindow);
+    main.window.on('move', saveWindow);
+    main.window.on('maximize', saveWindow);
+    main.window.on('unmaximize', saveWindow);
+  }
 
   installIpcRouter({
     handlers: createCommandHandlers({
@@ -405,6 +465,8 @@ function start(): void {
     fullscreen.dispose();
     prompts.dispose();
     popupWindows.closeAll();
+    // Before the tabs go: closing them all here is shutdown, not the user closing tabs.
+    sessionStore?.freeze();
     tabs.closeAll();
     main.shell.webContents.close();
   });
@@ -446,7 +508,7 @@ function start(): void {
 
 app
   .whenReady()
-  .then(start)
+  .then(() => (hasInstanceLock ? start() : undefined))
   .catch((error: unknown) => {
     console.error('Veltriva failed to start:', error);
     app.exit(1);
