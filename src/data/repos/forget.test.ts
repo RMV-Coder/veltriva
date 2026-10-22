@@ -297,11 +297,25 @@ describe('memory.forget (M5.2)', () => {
 
     it('the database and its WAL shrink: the WAL is emptied and the freed pages given back', () => {
       const db = database();
-      for (let n = 0; n < 1500; n += 1) {
-        visit(`/bulk/${String(n)}`, T0 + n, {
-          title: `Bulk page ${String(n)} ${'lorem ipsum dolor sit amet '.repeat(20)}`,
-        });
-      }
+      // 1,500 pages and visits in one transaction (through the handlers, one each, it took 3-6 s
+      // on the loaded laptop); the FTS triggers index them as they would any page.
+      const page = db.prepare(
+        `INSERT INTO pages (url_key, url, host, site, title, first_visit_at, last_visit_at,
+           visit_count, frecency, frecency_at)
+         VALUES (?, ?, 'example.com', 'example.com', ?, ?, ?, 1, 1, ?)`,
+      );
+      const addVisit = db.prepare(
+        "INSERT INTO visits (page_id, tab_id, visited_at, transition) VALUES (?, NULL, ?, 'link')",
+      );
+      db.transaction(() => {
+        for (let n = 0; n < 1500; n += 1) {
+          const url = `https://example.com/bulk/${String(n)}`;
+          const at = T0 + n;
+          const title = `Bulk page ${String(n)} ${'lorem ipsum dolor sit amet '.repeat(20)}`;
+          const id = page.run([url, url, title, at, at, at]).lastInsertRowid;
+          addVisit.run([id, at]);
+        }
+      })();
       db.pragma('wal_checkpoint(TRUNCATE)');
       // More visits, so the WAL holds something too.
       for (let n = 0; n < 50; n += 1) {
@@ -319,6 +333,6 @@ describe('memory.forget (M5.2)', () => {
       expect(dbAfter).toBeLessThan(dbBefore / 2);
       expect(db.pragma('freelist_count', { simple: true })).toBe(0);
       integrity(db);
-    });
+    }, 20_000);
   });
 });
