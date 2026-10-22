@@ -20,6 +20,8 @@ const TABLE: Readonly<
   devtools: { hard: true, blocks: ['discard'] },
   'open-popup': { hard: true, blocks: ['discard', 'archive'] },
   'recent-interaction': { hard: false, blocks: ['discard', 'shelve', 'archive'] },
+  // M3.3: the user's own protection.
+  'user-protected': { hard: true, blocks: ['freeze', 'discard', 'shelve', 'archive'] },
 };
 const REASONS = Object.keys(TABLE) as ProtectionReason[];
 /** Every real protection, in the order of TABLE. */
@@ -57,6 +59,7 @@ describe('protectionFor', () => {
     ['devtools', 'hard'],
     ['open-popup', 'hard'],
     ['recent-interaction', 'soft'],
+    ['user-protected', 'hard'],
   ] as const)('makes %s %s (assessment §4.10)', (reason, strength) => {
     expect(protectionFor(reason).hard).toBe(strength === 'hard');
   });
@@ -73,6 +76,7 @@ describe('protectionFor', () => {
       'open-popup',
       'page-unsaved-changes',
       'unsaved-input',
+      'user-protected',
     ]);
   });
 
@@ -92,6 +96,7 @@ describe('protectionFor', () => {
       'page-unsaved-changes',
       'recent-interaction',
       'unsaved-input',
+      'user-protected',
     ]);
     expect(protectionFor('sensitive-page').blocks).toEqual(['discard']);
   });
@@ -99,10 +104,10 @@ describe('protectionFor', () => {
   it('blocks freeze only for audio and capture, and shelve for those and a recent interaction', () => {
     expect(
       REASONS.filter((reason) => protectionFor(reason).blocks.includes('freeze')).sort(),
-    ).toEqual(['audio', 'capture']);
+    ).toEqual(['audio', 'capture', 'user-protected']);
     expect(
       REASONS.filter((reason) => protectionFor(reason).blocks.includes('shelve')).sort(),
-    ).toEqual(['audio', 'capture', 'recent-interaction']);
+    ).toEqual(['audio', 'capture', 'recent-interaction', 'user-protected']);
   });
 
   it('blocks only actions that exist, each once', () => {
@@ -307,7 +312,7 @@ describe('blockingProtection', () => {
     it('is blocked from discarding by the first hard reason, wherever it sits', () => {
       expect(blockingProtection(ALL, 'discard')?.reason).toBe('unsaved-input');
       // Reversed, the first hard reason is the table's last hard one.
-      expect(blockingProtection([...ALL].reverse(), 'discard')?.reason).toBe('open-popup');
+      expect(blockingProtection([...ALL].reverse(), 'discard')?.reason).toBe('user-protected');
     });
 
     it('is blocked from archiving by the same reasons, and sensitive-page is no part of it', () => {

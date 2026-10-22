@@ -31,6 +31,11 @@
 // queue, every runtime transition bumps the tab's epoch, and each operation re-validates before
 // its irreversible step (§4.11). A discarded tab keeps its stack with Chromium's page state in
 // memory, so selecting it brings back the page, its scroll position and plain form values.
+//
+// M3.3 adds the placement dimension of §4.4 (core/lifecycle/placement.ts): Tabs (the strip),
+// Sleeping (the shelf: still in memory, possibly live) and Archive (data only, like Recently
+// closed, and never holding a web contents: I3). Restoring a tab puts it next to the current one.
+// A user close asks "Leave page?" when the page objects (§4.9 Close).
 import { nextZoomFactor, zoomPercent } from '../../core/layout/zoom';
 import {
   CLOSE_TIMEOUT_MS,
@@ -60,6 +65,13 @@ import { SerialQueue } from '../../core/lifecycle/serial-queue';
 import { restorableSnapshot, sameStack, withoutPageState } from '../../core/lifecycle/snapshot';
 import type { NavigationSnapshot } from '../../core/lifecycle/snapshot';
 import type { LifecycleClock, TabFacts } from '../../core/lifecycle/policy';
+import type {
+  ArchiveReason,
+  MoveOutcome,
+  MoveRequest,
+  MoveSkip,
+  PlacementMove,
+} from '../../core/lifecycle/placement';
 import { restorableUrl, sanitizeHistory, singleEntryHistory } from '../../core/session/history';
 import type { TabHistory } from '../../core/session/history';
 import { errorPageFor } from '../../core/net/error-pages';
@@ -87,7 +99,10 @@ export type TabPage =
 export interface TabState {
   readonly id: TabId;
   readonly pinned: boolean;
-  readonly placement: 'strip';
+  /** Tabs or Sleeping (§4.4). An archived tab isn't a live record (see `archivedTabs`). */
+  readonly placement: 'strip' | 'shelf';
+  /** The user protected the tab: automation leaves it alone (a hard protection, §4.10). */
+  readonly userProtected: boolean;
   /**
    * Never persisted or recorded in the memory (invariant I6). Nothing opens one yet: the option
    * exists so private windows can slot in later (ADR-0009 item 4).
@@ -249,6 +264,12 @@ export interface TabRuntimeEvents {
    * reports it at most once a second; it feeds the recent-interaction guard (§4.10).
    */
   interacted?(): void;
+  /**
+   * The user activated the page (a click, a key press): what Chromium calls user activation, as
+   * main sees it, including a click into a cross-site frame (S3). A user close of a page activated
+   * since it loaded gives the page its `beforeunload` (§4.9 Close).
+   */
+  activated?(): void;
 }
 
 export type TabRuntimeFactory = (tabId: TabId, events: TabRuntimeEvents) => TabRuntime;
@@ -291,6 +312,11 @@ export interface TabManagerOptions {
    * use is wall-clock only (engaged 0, active day 1).
    */
   readonly activityClock?: () => LifecycleClock;
+  /**
+   * The user closed a tab whose page objected to unloading (`beforeunload`): ask "Leave page?".
+   * The tab is selected by then. Leaving is `close()`; staying needs nothing.
+   */
+  readonly onLeaveRequested?: (tabId: TabId) => void;
 }
 
 /** A tab's page changes, as the memory needs them. Never called for internal pages. */
@@ -358,7 +384,25 @@ export interface SessionTab {
   readonly lastUsedEngaged?: number;
   /** The active day of its last use (§4.6); absent from older rows, then "today". */
   readonly lastUsedActiveDay?: number;
+  /** The user protected it (`tabs.user_protected`). */
+  readonly userProtected?: boolean;
+  /** When it last moved between Tabs, Sleeping and Archive (`tabs.placement_changed_at`). */
+  readonly placementChangedAt?: number;
 }
+
+/** An archived tab: data only, never a web contents (I3). */
+export interface ArchivedTab extends SessionTab {
+  readonly archivedAt: number;
+  readonly reason: ArchiveReason;
+  /** Its icon when it was archived, for the sidebar; memory only (not in its row). */
+  readonly favicon?: string | null;
+}
+
+/**
+ * Archived tabs kept in memory: the newest, for the sidebar and Undo. The database keeps them
+ * all; Phase 4's Archive list and search read it.
+ */
+export const MAX_ARCHIVED_IN_MEMORY = 200;
 
 export interface ClosedTab extends SessionTab {
   readonly closedAt: number;
@@ -438,6 +482,11 @@ interface TabRecord {
   hiddenSince: number | null;
   /** Wall-clock time of the user's last input in its page. */
   lastInteractionAt: number | null;
+  /** The user activated the page since it loaded (as main sees input). */
+  activated: boolean;
+  /** A user close is asking the page whether it may unload. */
+  userClosing: boolean;
+  placementChangedAt: number;
 }
 
 const NEW_TAB_PAGE: TabPage = { kind: 'internal', name: 'new-tab' };
@@ -445,6 +494,7 @@ const NEW_TAB_PAGE: TabPage = { kind: 'internal', name: 'new-tab' };
 const skipped = (why: DiscardSkip): DiscardOutcome => ({ outcome: 'skipped', why });
 const blocked = (reason: DiscardBlock): DiscardOutcome => ({ outcome: 'blocked', reason });
 const DISCARDED: DiscardOutcome = { outcome: 'discarded' };
+const skippedMove = (why: MoveSkip): MoveOutcome => ({ outcome: 'skipped', why });
 
 export class TabManager {
   readonly #options: TabManagerOptions;
@@ -452,6 +502,10 @@ export class TabManager {
   readonly #order: TabId[] = [];
   readonly #records = new Map<TabId, TabRecord>();
   readonly #closed: ClosedTab[] = [];
+  /** Sleeping, most recently moved there first. */
+  readonly #shelf: TabId[] = [];
+  /** Archived tabs in memory, oldest first (MAX_ARCHIVED_IN_MEMORY). */
+  readonly #archived: ArchivedTab[] = [];
   #selected: TabId | null = null;
   /** The tab in HTML fullscreen, if any. Only the selected tab can be. */
   #fullscreen: TabId | null = null;
@@ -464,6 +518,16 @@ export class TabManager {
   /** Every tab in strip order: pinned first. */
   tabs(): readonly TabState[] {
     return this.#order.map((id) => this.#record(id).state);
+  }
+
+  /** Sleeping (§4.4), most recently moved there first. */
+  sleepingTabs(): readonly TabState[] {
+    return this.#shelf.map((id) => this.#record(id).state);
+  }
+
+  /** Archived tabs in memory, newest first. */
+  archivedTabs(): readonly ArchivedTab[] {
+    return [...this.#archived].reverse();
   }
 
   selectedTabId(): TabId | null {
@@ -501,7 +565,7 @@ export class TabManager {
    */
   lifecycleTabs(): TabFacts[] {
     const clock = this.#clock();
-    return this.#order.map((id) => {
+    return [...this.#order, ...this.#shelf].map((id) => {
       const record = this.#record(id);
       const { state } = record;
       const selected = this.#selected === id;
@@ -520,7 +584,7 @@ export class TabManager {
         lastUsedEngaged: selected ? clock.engagedNow : record.lastUsedEngaged,
         lastUsedActiveDay: selected ? clock.activeDay : record.lastUsedActiveDay,
         lastInteractionAt: record.lastInteractionAt,
-        protections: [...(this.#options.protections?.(id) ?? []), ...this.#freshLearned(record)],
+        protections: this.#protectionsOf(record),
       };
     });
   }
@@ -549,10 +613,11 @@ export class TabManager {
         lastUsedAt: now,
       }),
     );
-    if (after === undefined) {
-      this.#order.push(id);
+    const afterIndex = after === undefined ? -1 : this.#order.indexOf(after.state.id);
+    if (afterIndex === -1) {
+      this.#order.push(id); // After nothing, or after a Sleeping tab: at the end of the strip.
     } else {
-      this.#order.splice(this.#order.indexOf(after.state.id) + 1, 0, id);
+      this.#order.splice(afterIndex + 1, 0, id);
     }
     if (options.select !== false || this.#selected === null) {
       this.#setSelected(id, true);
@@ -569,16 +634,90 @@ export class TabManager {
    * the newly selected page.
    */
   close(tabId: TabId, options: { readonly focus?: boolean } = {}): void {
+    this.#closeRecord(this.#record(tabId), options, null);
+  }
+
+  /**
+   * A close the user asked for (§4.9 Close). A page the user activated may object to unloading
+   * (`beforeunload`): then the tab is selected and `onLeaveRequested` asks "Leave page?", where
+   * only the user can override. Other pages close at once, without the round trip that would let
+   * an untouched page object (S3).
+   */
+  requestClose(tabId: TabId, options: { readonly focus?: boolean } = {}): void {
     const record = this.#record(tabId);
-    const index = this.#order.indexOf(tabId);
+    const runtime = record.runtime;
+    if (record.userClosing) {
+      return; // Already asking the page.
+    }
+    const asks =
+      runtime !== undefined &&
+      record.activated &&
+      record.state.page.kind === 'web' &&
+      (record.state.runtime === 'live' || record.state.runtime === 'frozen');
+    if (!asks) {
+      this.close(tabId, options);
+      return;
+    }
+    record.userClosing = true;
+    // The stack is read now: the close may destroy the web contents.
+    const captured = record.state.ephemeral ? null : this.#sessionTab(record);
+    void record.queue.run(async () => {
+      if (this.#records.get(tabId) !== record) {
+        return;
+      }
+      if (record.state.runtime === 'frozen') {
+        this.#thaw(record);
+      }
+      const closed = await withDeadline(
+        Promise.resolve().then(() => runtime.closeForDiscard('beforeunload')),
+        CLOSE_TIMEOUT_MS,
+        this.#timers,
+      );
+      if (this.#records.get(tabId) !== record) {
+        return;
+      }
+      record.userClosing = false;
+      if (closed.kind === 'value' && closed.value === 'closed') {
+        this.#closeRecord(record, options, captured);
+        return;
+      }
+      // The page objects, or is stuck in its handler: the user decides. The close detached its
+      // view; it is shown again with the tab selected.
+      if (this.#selected === tabId) {
+        this.#syncVisibility();
+      } else {
+        this.#setSelected(tabId, true);
+      }
+      this.#changed();
+      this.#options.onLeaveRequested?.(tabId);
+    });
+  }
+
+  #closeRecord(
+    record: TabRecord,
+    options: { readonly focus?: boolean },
+    captured: SessionTab | null,
+  ): void {
+    const tabId = record.state.id;
+    const sleeping = record.state.placement === 'shelf';
+    // A Sleeping tab reopens at the end of the strip.
+    const index = sleeping ? this.#order.length : this.#order.indexOf(tabId);
     if (record.state.url !== '' && !record.state.ephemeral) {
       // Its stack is read before the runtime goes (Recently closed keeps it for 7 days).
-      this.#closed.push({ ...this.#sessionTab(record), closedAt: this.#now(), index });
+      this.#closed.push({
+        ...(captured ?? this.#sessionTab(record)),
+        closedAt: this.#now(),
+        index,
+      });
       if (this.#closed.length > MAX_CLOSED_TABS) {
         this.#closed.shift();
       }
     }
-    this.#order.splice(index, 1);
+    if (sleeping) {
+      this.#shelf.splice(this.#shelf.indexOf(tabId), 1);
+    } else {
+      this.#order.splice(index, 1);
+    }
     this.#records.delete(tabId);
     if (this.#fullscreen === tabId) {
       this.#setFullscreen(null);
@@ -664,6 +803,10 @@ export class TabManager {
     readonly selectedTabId: TabId | null;
     readonly closed: readonly ClosedTab[];
     readonly loadSelected: boolean;
+    /** Sleeping, most recently moved there first (M3.3). */
+    readonly shelf?: readonly SessionTab[];
+    /** Archived tabs, newest first, as many as are kept in memory (M3.3). */
+    readonly archived?: readonly ArchivedTab[];
   }): void {
     if (this.#records.size > 0) {
       throw new Error('restoreSession needs an empty TabManager.');
@@ -678,6 +821,29 @@ export class TabManager {
       }
       this.#records.set(tab.id, this.#newRecord({ ...checkedSessionTab(tab), ephemeral: false }));
       this.#order.push(tab.id);
+    }
+    for (const tab of session.shelf ?? []) {
+      if (this.#records.has(tab.id)) {
+        continue;
+      }
+      // I8: a pinned tab is in the strip, so a Sleeping one never is.
+      this.#records.set(
+        tab.id,
+        this.#newRecord({
+          ...checkedSessionTab(tab),
+          pinned: false,
+          ephemeral: false,
+          placement: 'shelf',
+        }),
+      );
+      this.#shelf.push(tab.id);
+    }
+    this.#archived.length = 0;
+    for (const archived of [...(session.archived ?? [])].reverse().slice(-MAX_ARCHIVED_IN_MEMORY)) {
+      const checked = checkedSessionTab(archived);
+      if (!this.#records.has(archived.id) && checked.url !== '') {
+        this.#archived.push({ ...archived, ...checked, pinned: false });
+      }
     }
     this.#closed.length = 0;
     for (const closed of [...session.closed].reverse().slice(-MAX_CLOSED_TABS)) {
@@ -717,6 +883,7 @@ export class TabManager {
     }
     this.#records.clear();
     this.#order.length = 0;
+    this.#shelf.length = 0;
     this.#selected = null;
     this.#fullscreen = null;
     this.#changed();
@@ -728,6 +895,11 @@ export class TabManager {
    */
   select(tabId: TabId, options: { readonly focus?: boolean } = {}): void {
     const record = this.#record(tabId);
+    if (record.state.placement === 'shelf') {
+      // I1: the selected tab is in the strip. Picking a Sleeping tab brings it back.
+      this.restoreToStrip(tabId, { select: true, focus: options.focus ?? true });
+      return;
+    }
     if (this.#selected === tabId) {
       // Safe mode leaves the selected tab unloaded: picking it again loads it.
       const epoch = record.epoch;
@@ -802,6 +974,10 @@ export class TabManager {
     const record = this.#record(tabId);
     if (record.state.pinned === pinned) {
       return;
+    }
+    if (record.state.placement === 'shelf') {
+      // I8: a pinned tab is in the strip.
+      this.restoreToStrip(tabId, { select: false });
     }
     this.#order.splice(this.#order.indexOf(tabId), 1);
     const target = this.#pinnedCount();
@@ -1058,6 +1234,157 @@ export class TabManager {
     this.#setFullscreen(null);
   }
 
+  /** Protects a tab from automation, or stops protecting it (a hard protection, §4.10). */
+  setProtected(tabId: TabId, on: boolean): void {
+    const record = this.#record(tabId);
+    if (record.state.userProtected === on) {
+      return;
+    }
+    record.state = { ...record.state, userProtected: on };
+    this.#changed();
+  }
+
+  /**
+   * Moves a strip tab to Sleeping (§4.4). Never a pinned tab (I8). The user may move the selected
+   * tab: the one next to it is selected first. Automation re-validates its decision: not the
+   * selected tab, not a busy one, the epoch it saw, and no protection that blocks shelving.
+   */
+  shelve(tabId: TabId, request: MoveRequest): MoveOutcome {
+    const record = this.#records.get(tabId);
+    if (record === undefined) {
+      return skippedMove('closed');
+    }
+    if (record.state.placement !== 'strip') {
+      return skippedMove('wrong-placement');
+    }
+    if (record.state.pinned) {
+      return skippedMove('pinned');
+    }
+    if (request.origin === 'automation') {
+      const refusal = this.#automationRefusal(record, request, 'shelve');
+      if (refusal !== null) {
+        return refusal;
+      }
+    }
+    const index = this.#order.indexOf(tabId);
+    this.#leaveSelection(record);
+    this.#order.splice(this.#order.indexOf(tabId), 1);
+    this.#shelf.unshift(tabId);
+    record.state = { ...record.state, placement: 'shelf' };
+    record.placementChangedAt = this.#clock().wallNow;
+    this.#ensureStripNotEmpty();
+    this.#syncVisibility();
+    this.#changed();
+    return { outcome: 'moved', move: { tabId, from: 'strip', to: 'shelf', index } };
+  }
+
+  /**
+   * Brings a Sleeping tab back to the strip (§4.4): next to the selected tab, or at `index`
+   * (Undo puts a tab back where it was). Selects it unless `select` is false.
+   */
+  restoreToStrip(
+    tabId: TabId,
+    options: { readonly select?: boolean; readonly index?: number; readonly focus?: boolean } = {},
+  ): void {
+    const record = this.#record(tabId);
+    if (record.state.placement !== 'shelf') {
+      return;
+    }
+    this.#shelf.splice(this.#shelf.indexOf(tabId), 1);
+    this.#order.splice(this.#stripSlot(record.state.pinned, options.index), 0, tabId);
+    record.state = { ...record.state, placement: 'strip' };
+    record.placementChangedAt = this.#clock().wallNow;
+    if (options.select !== false) {
+      this.#setSelected(tabId, options.focus ?? true);
+    } else {
+      this.#syncVisibility();
+    }
+    this.#changed();
+  }
+
+  /**
+   * Archives a strip or Sleeping tab (§4.4, §4.9 Archive). An archived tab holds no web contents
+   * (I3), so a live one is discarded first, in the same operation, on the tab's queue; a discard
+   * that is blocked leaves the tab where it was, with the reason. The tab then leaves the
+   * workspace: its stack is kept (without page state) and `restoreArchived` brings it back.
+   * The user may archive the selected or a pinned tab; automation re-validates its decision.
+   */
+  archive(tabId: TabId, request: MoveRequest): Promise<MoveOutcome> {
+    const record = this.#records.get(tabId);
+    if (record === undefined) {
+      return Promise.resolve(skippedMove('closed'));
+    }
+    return record.queue.run(() => this.#runArchive(record, request));
+  }
+
+  /**
+   * Brings an archived tab back (§4.4): to the strip next to the selected tab and selected, or,
+   * for an Undo, to where it was (`to`, `index`) without selecting it. Null if it isn't in memory.
+   */
+  restoreArchived(
+    tabId: TabId,
+    options: {
+      readonly select?: boolean;
+      readonly to?: 'strip' | 'shelf';
+      readonly index?: number;
+      readonly focus?: boolean;
+    } = {},
+  ): TabId | null {
+    const at = this.#archived.findIndex((entry) => entry.id === tabId);
+    const entry = this.#archived[at];
+    if (entry === undefined) {
+      return null;
+    }
+    this.#archived.splice(at, 1);
+    const id = this.#records.has(entry.id) ? this.#options.newId() : entry.id;
+    const to = options.to ?? 'strip';
+    const record = this.#newRecord({
+      ...checkedSessionTab(entry),
+      id,
+      ephemeral: false,
+      // An archived tab is never pinned (I8): it comes back in the unpinned section.
+      pinned: false,
+      placement: to,
+      placementChangedAt: this.#clock().wallNow,
+    });
+    this.#records.set(id, record);
+    if (to === 'shelf') {
+      this.#shelf.splice(Math.min(Math.max(options.index ?? 0, 0), this.#shelf.length), 0, id);
+    } else {
+      this.#order.splice(this.#stripSlot(false, options.index), 0, id);
+    }
+    if (to === 'strip' && options.select !== false) {
+      this.#setSelected(id, options.focus ?? true);
+    }
+    this.#changed();
+    return id;
+  }
+
+  /**
+   * Puts back what an automated batch moved (§4.13: every move has an Undo), newest first. A tab
+   * that moved again since, or closed, is left as it is. Returns how many came back.
+   */
+  undoMoves(moves: readonly PlacementMove[]): number {
+    let undone = 0;
+    for (const move of [...moves].reverse()) {
+      if (move.to === 'archive') {
+        if (
+          this.restoreArchived(move.tabId, { select: false, to: move.from, index: move.index }) !==
+          null
+        ) {
+          undone += 1;
+        }
+        continue;
+      }
+      const record = this.#records.get(move.tabId);
+      if (record?.state.placement === 'shelf') {
+        this.restoreToStrip(move.tabId, { select: false, index: move.index });
+        undone += 1;
+      }
+    }
+    return undone;
+  }
+
   /**
    * Discards a tab's page to free its renderer (assessment §4.9): LIVE or FROZEN → UNLOADED. The
    * tab keeps its back/forward stack, with Chromium's page state in memory for this run, and
@@ -1185,6 +1512,142 @@ export class TabManager {
     return this.#discardKept(record, progress, blocked('page-unsaved-changes'));
   }
 
+  async #runArchive(record: TabRecord, request: MoveRequest): Promise<MoveOutcome> {
+    const tabId = record.state.id;
+    if (this.#records.get(tabId) !== record) {
+      return skippedMove('closed');
+    }
+    if (record.state.ephemeral) {
+      return skippedMove('wrong-placement'); // I6: never stored, so never archived.
+    }
+    if (request.origin === 'automation') {
+      if (record.state.pinned) {
+        return skippedMove('pinned');
+      }
+      const refusal = this.#automationRefusal(record, request, 'archive');
+      if (refusal !== null) {
+        return refusal;
+      }
+    }
+    if (record.state.loading) {
+      return skippedMove('loading');
+    }
+    // The user's own archive of the tab in use: the one next to it is selected first.
+    this.#leaveSelection(record);
+    // I3: no web contents in the Archive. A live page is discarded first; a dead one let go.
+    if (record.runtime !== undefined) {
+      if (record.state.runtime === 'live' || record.state.runtime === 'frozen') {
+        const discarded = await this.#runDiscard(record, {
+          origin: request.origin === 'user' ? 'user' : 'automation',
+        });
+        if (discarded.outcome !== 'discarded') {
+          return discarded;
+        }
+      } else if (record.state.runtime === 'crashed') {
+        const runtime = record.runtime;
+        record.runtime = undefined;
+        record.runtimeToken = undefined;
+        runtime.destroy();
+        this.#transition(record, 'gone');
+      } else {
+        return skippedMove('not-live');
+      }
+    }
+    if (this.#records.get(tabId) !== record) {
+      return skippedMove('closed');
+    }
+    if (record.runtime !== undefined || this.#selected === tabId) {
+      return skippedMove('cancelled'); // Picked again while its page was closing.
+    }
+    const from = record.state.placement;
+    const list = from === 'strip' ? this.#order : this.#shelf;
+    const index = list.indexOf(tabId);
+    list.splice(index, 1);
+    this.#records.delete(tabId);
+    // §4.9 Archive: the stack is kept, in-memory page state is not.
+    record.memorySnapshot = null;
+    this.#archived.push({
+      ...this.#sessionTab(record),
+      pinned: false,
+      archivedAt: this.#clock().wallNow,
+      reason: request.origin === 'user' ? 'manual' : 'auto',
+      favicon: record.state.favicon,
+    });
+    if (this.#archived.length > MAX_ARCHIVED_IN_MEMORY) {
+      this.#archived.shift();
+    }
+    this.#options.onPageGone?.(tabId);
+    this.#options.history?.closed(tabId);
+    this.#ensureStripNotEmpty();
+    this.#changed();
+    return { outcome: 'moved', move: { tabId, from, to: 'archive', index } };
+  }
+
+  /** Why automation may not move this tab now (I5), or null. */
+  #automationRefusal(
+    record: TabRecord,
+    request: MoveRequest,
+    action: 'shelve' | 'archive',
+  ): MoveOutcome | null {
+    if (this.#selected === record.state.id) {
+      return skippedMove('selected');
+    }
+    if (request.epoch !== undefined && request.epoch !== record.epoch) {
+      return skippedMove('stale');
+    }
+    if (record.queue.running > 0 && action === 'shelve') {
+      return skippedMove('cancelled');
+    }
+    const protection = blockingProtection(this.#protectionsOf(record), action);
+    return protection === null ? null : { outcome: 'blocked', reason: protection.reason };
+  }
+
+  /** The protections of a tab: the monitor's, the user's, and what discards learned. */
+  #protectionsOf(record: TabRecord): Protection[] {
+    return [
+      ...(this.#options.protections?.(record.state.id) ?? []),
+      ...(record.state.userProtected ? [protectionFor('user-protected')] : []),
+      ...this.#freshLearned(record),
+    ];
+  }
+
+  /** If this tab is selected, selects the strip tab next to it (or a new tab if it is the last). */
+  #leaveSelection(record: TabRecord): void {
+    if (this.#selected !== record.state.id) {
+      return;
+    }
+    const index = this.#order.indexOf(record.state.id);
+    const others = this.#order.filter((id) => id !== record.state.id);
+    const next = others[Math.min(index, others.length - 1)];
+    if (next === undefined) {
+      this.create(); // Selects the new tab.
+    } else {
+      this.#setSelected(next, true);
+    }
+  }
+
+  /** The strip always has a tab once a session exists (I1): a new one if it emptied. */
+  #ensureStripNotEmpty(): void {
+    if (this.#order.length === 0) {
+      this.#selected = null;
+      this.create();
+    }
+  }
+
+  /**
+   * Where a tab joins the strip: at `index` (clamped to its section), else right after the
+   * selected tab within its section, else at the end of its section.
+   */
+  #stripSlot(pinned: boolean, index: number | undefined): number {
+    const pinnedCount = this.#pinnedCount();
+    const [first, last] = pinned ? [0, pinnedCount] : [pinnedCount, this.#order.length];
+    if (index !== undefined) {
+      return Math.min(Math.max(Math.trunc(index), first), last);
+    }
+    const selected = this.#selected === null ? -1 : this.#order.indexOf(this.#selected);
+    return selected >= first && selected < last ? selected + 1 : last;
+  }
+
   async #runFreeze(record: TabRecord): Promise<FreezeOutcome> {
     const tabId = record.state.id;
     if (this.#records.get(tabId) !== record) {
@@ -1269,7 +1732,10 @@ export class TabManager {
     request: DiscardRequest,
     useLearned: boolean,
   ): DiscardOutcome | null {
-    const protections: Protection[] = [...(this.#options.protections?.(record.state.id) ?? [])];
+    const protections: Protection[] = [
+      ...(this.#options.protections?.(record.state.id) ?? []),
+      ...(record.state.userProtected ? [protectionFor('user-protected')] : []),
+    ];
     if (useLearned) {
       protections.push(...this.#freshLearned(record));
     }
@@ -1474,6 +1940,9 @@ export class TabManager {
     readonly url?: string;
     readonly title?: string;
     readonly history?: TabHistory | null;
+    readonly userProtected?: boolean;
+    readonly placement?: 'strip' | 'shelf';
+    readonly placementChangedAt?: number;
   }): TabRecord {
     const web = tab.url !== undefined && tab.url !== '';
     const clock = this.#clock();
@@ -1481,7 +1950,8 @@ export class TabManager {
       state: {
         id: tab.id,
         pinned: tab.pinned,
-        placement: 'strip',
+        placement: tab.placement ?? 'strip',
+        userProtected: tab.userProtected ?? false,
         ephemeral: tab.ephemeral,
         runtime: 'unloaded',
         page: web ? { kind: 'web' } : NEW_TAB_PAGE,
@@ -1523,6 +1993,9 @@ export class TabManager {
           : clock.activeDay,
       hiddenSince: clock.wallNow,
       lastInteractionAt: null,
+      activated: false,
+      userClosing: false,
+      placementChangedAt: tab.placementChangedAt ?? tab.createdAt,
     };
   }
 
@@ -1601,6 +2074,8 @@ export class TabManager {
       lastUsedAt: record.lastUsedAt,
       lastUsedEngaged: record.lastUsedEngaged,
       lastUsedActiveDay: record.lastUsedActiveDay,
+      userProtected: state.userProtected,
+      placementChangedAt: record.placementChangedAt,
     };
     if (state.url === '') {
       return { ...base, url: SESSION_NEW_TAB_URL, title: '', history: null };
@@ -1774,8 +2249,10 @@ export class TabManager {
         record.nextTransition = null;
         const leavingInternalPage = record.state.page.kind !== 'web';
         if (!sameDocument) {
-          // A new document: what a discard learned about the old one no longer applies.
+          // A new document: what a discard learned about the old one no longer applies, and the
+          // page hasn't been activated yet.
           record.learned.clear();
+          record.activated = false;
           record.lateCloseSnapshot = null;
           // A new document closes the find bar, as in Chrome; Ctrl+F reopens it with the same
           // text, searched on the new page. Stopping also resets Chromium's find state, which
@@ -1958,8 +2435,8 @@ export class TabManager {
       },
       gone: () => {
         const record = current();
-        if (record === undefined) {
-          return;
+        if (record === undefined || record.userClosing) {
+          return; // A user close that went through: requestClose finishes it.
         }
         const progress = record.discard;
         if (progress !== null) {
@@ -2017,6 +2494,12 @@ export class TabManager {
         if (record !== undefined) {
           // A stamp only: no change any view shows.
           record.lastInteractionAt = this.#clock().wallNow;
+        }
+      },
+      activated: () => {
+        const record = current();
+        if (record !== undefined) {
+          record.activated = true;
         }
       },
     };

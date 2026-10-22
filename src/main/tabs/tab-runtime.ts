@@ -142,6 +142,7 @@ export function createTabRuntimes(options: {
       const now = Date.now();
       if (isActivationInput(input)) {
         options.activation.record(contents.id, now);
+        events.activated?.();
       }
       if (now - interactionReportedAt >= INTERACTION_REPORT_MS || now < interactionReportedAt) {
         interactionReportedAt = now;
@@ -201,6 +202,12 @@ export function createTabRuntimes(options: {
         views.delete(tabId);
       }
       events.gone();
+    });
+    // A click into a cross-site frame reaches main only here (S3): it activates the page too.
+    contents.on('before-mouse-event', (_event, mouse) => {
+      if (!destroyed && mouse.type === 'mouseDown') {
+        events.activated?.();
+      }
     });
     contents.debugger.on('detach', () => {
       if (frozenByDebugger) {

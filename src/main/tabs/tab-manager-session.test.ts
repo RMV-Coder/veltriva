@@ -199,6 +199,9 @@ function savedTab(id: string, overrides: Partial<SessionTab> = {}): SessionTab {
     // The engagement clock's values (M3.2); without an activity clock, engaged 0 on day 1.
     lastUsedEngaged: 0,
     lastUsedActiveDay: 1,
+    // M3.3: placement facts; a tab that never moved shows its creation time.
+    userProtected: false,
+    placementChangedAt: 1000,
     ...overrides,
   };
 }
@@ -1411,6 +1414,8 @@ describe('TabManager session', () => {
           lastUsedAt: 10_000,
           lastUsedEngaged: 0,
           lastUsedActiveDay: 1,
+          userProtected: false,
+          placementChangedAt: 10_000,
         },
       ]);
     });

@@ -945,6 +945,9 @@ describe('TabManager activity: sessionTabs()', () => {
       lastUsedAt: START.wallNow,
       lastUsedEngaged: START.engagedNow,
       lastUsedActiveDay: START.activeDay,
+      // M3.3: the user's protection and the last move between Tabs, Sleeping and Archive.
+      userProtected: false,
+      placementChangedAt: START.wallNow,
     });
   });
 

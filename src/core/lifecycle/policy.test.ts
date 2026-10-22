@@ -88,6 +88,7 @@ const PROTECTION_TABLE: Readonly<
   devtools: { hard: true, blocks: ['discard'] },
   'open-popup': { hard: true, blocks: ['discard', 'archive'] },
   'recent-interaction': { hard: false, blocks: ['discard', 'shelve', 'archive'] },
+  'user-protected': { hard: true, blocks: ['freeze', 'discard', 'shelve', 'archive'] },
 };
 const REASONS = Object.keys(PROTECTION_TABLE) as ProtectionReason[];
 

@@ -29,7 +29,9 @@ export type ProtectionReason =
   /** It opened a popup window that is still open (a sign-in, a payment). */
   | 'open-popup'
   /** The user interacted with it within the preset's guard (wall clock). */
-  | 'recent-interaction';
+  | 'recent-interaction'
+  /** The user protected the tab (M3.3): automation leaves it alone. */
+  | 'user-protected';
 
 export interface Protection {
   readonly reason: ProtectionReason;
@@ -54,6 +56,11 @@ const PROTECTIONS: Readonly<Record<ProtectionReason, Protection>> = {
     reason: 'recent-interaction',
     hard: false,
     blocks: ['discard', 'shelve', 'archive'],
+  },
+  'user-protected': {
+    reason: 'user-protected',
+    hard: true,
+    blocks: ['freeze', 'discard', 'shelve', 'archive'],
   },
 };
 
