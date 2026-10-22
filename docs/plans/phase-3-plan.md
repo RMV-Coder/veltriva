@@ -1,0 +1,57 @@
+# Phase 3 plan: lifecycle and protection
+
+Pre-approved by the user on 2026-10-22, with Phases 2–6 ("make commits and merge when done … finish all phases"): the orchestrator reviews each milestone, re-runs the checks, scans with Veyra and merges. The user runs the manual checks once all phases are done.
+
+Sources of truth: ADR-0003 (the four-dimension tab model, its invariants and the S2 restore procedure), ADR-0004 (persistence), ADR-0005 (main is authoritative, Zod IPC), ADR-0006 (no overlay over a page), ADR-0008 (testing); the technical assessment's Part 4 (§4.3–§4.13: runtime, placement, engagement clock, policy, scheduler, discard, protection engine, races, safeguards, transparency), §8.2 (the Phase 3 acceptance) and §9.3 (benchmark method); spikes S1 (view lifecycle), S2 (restore fidelity), S3 (unsaved-work detection) and S8 (measurement method).
+
+Working rules: one stacked branch per milestone, each started from the previous one's tip; commits with Veyra (`--assisted-by`), never pushed or merged by the implementer. Subagents (Sonnet 5.5) wrote most tests and the renderer UI under review; the lifecycle engine, TabManager, the scheduler and the contract were written and reviewed in the Phase 3 session.
+
+**Status: done, except the memory measurement**, whose harness is built but which the reference laptop was too loaded to run on 2026-10-22 (see the acceptance below). M3.1–M3.3 are merged into main (dcef885, M3.3, the last merged); M3.4 and this wrap-up are on `claude/m3.4-protection`. The as-built record and the acceptance follow.
+
+## The milestones as planned
+
+- **M3.1 runtime:** the runtime state machine (unloaded, creating, live, frozen, discarding, crashed) with epochs; per-tab serial queues (I7); the discard of §4.9 (re-validate, thaw, wake-up and probe for unsaved input in an isolated world, page-state flush, snapshot, close with `beforeunload` only for an activated page) and the restore of S2; model-based tests of I1–I8.
+- **M3.2 policy:** activity per tab; the engagement clock (§4.6); `planLifecycle()` with the Gentle, Balanced and Aggressive presets (§4.7); the scheduler (§4.8: one timer, triggers, quiet start, at most 3 discards per evaluation, staggered, logged); memory pressure; the lifecycle settings; an accelerated clock for tests.
+- **M3.3 placement and UI:** the placement transitions of §4.4 end to end (Tabs, Sleeping, Archive, closed), sidebar sections with counts, manual archive, protect and pin, restore next to the current tab, an Undo toast for every automated batch, Recently archived, the local activity log, status tooltips (§4.13); "Leave page?" on a user close a page objects to.
+- **M3.4 protection:** the protection monitor with every §4.10 signal (camera and microphone capture included), the "why" explanations (saying plainly when memory pressure unloaded a tab), preview mode for the first 3 active days, the local regret metric, Pause automation.
+- **Wrap-up:** this record, the manual checks, the README, and the §9.3 memory measurement in `docs/benchmarks/`.
+
+## As built
+
+Each milestone's full report (features, decisions, tests run, limitations) is in the orchestrator's shared notes; ADR-0003 items 12–15, ADR-0004 item 11, ADR-0005 items 11–12 and ADR-0008 4a record the design as built.
+
+| Step | Branch, tip | Result |
+|---|---|---|
+| M3.1 | `claude/m3.1-runtime`, 94b6287 | The runtime state machine, per-tab queues, the discard (wake-up dry run, 100 ms probe, flush, snapshot, close) and restore, model-based tests |
+| M3.2 | `claude/m3.2-policy`, 19dd392 | The engagement clock, activity, the policy and its presets, the scheduler, memory pressure (4%/10% of RAM, measured), the first protections, the accelerated clock |
+| M3.3 | `claude/m3.3-ui`, dcef885 | Sleeping and the Archive, persisted; automation moves tabs; Undo; the activity log; protect; "Leave page?"; the sidebar sections, toast, tooltips and Activity view |
+| M3.4 | `claude/m3.4-protection`, ed0dc88 (code; the docs follow it) | The complete protection table, the "why", preview mode, Pause, the regret metric and the diagnostics page; the memory benchmark harness |
+
+### Deviations from the plan
+
+- **M3.1: a wake-up before the probe.** On this laptop the first script call into a just-hidden tab took 0.9–3.1 s, so a 100 ms probe alone would almost always keep the tab. The discard first runs the probe's dry run (5 s budget), then the real 100 ms probe; agreed with the orchestrator.
+- **M3.2: shelving and archiving were planned and logged, not carried out,** until M3.3 brought the sections that show where tabs go; the cheap protections (audio, capture, DevTools, an open popup) came in M3.2 instead of M3.4, so automation never started without them.
+- **M3.2: memory pressure is measured, not assumed.** Electron's `free` is Windows' available memory (the assessment thought it wasn't reported). Thresholds are fractions of total RAM: critical under 4%, moderate under 10%. This laptop reads moderate most of the time.
+- **M3.3: Undo counts as using the tabs it puts back,** and the user's own moves get the same Undo (§4.13 "every move has an Undo"); only automation is logged. Unloads have no Undo.
+- **M3.4: preview previews moves only.** Unloads go on during the first 3 active days: they change nothing the user sees but a reload, and memory pressure can't wait.
+- **M3.4: the regret metric and the diagnostics page come early** (Phase 5 in §8.2): the orchestrator asked for them, so dogfooding can tune the defaults now.
+- **M3.4: the user's own Archive gets past soft protections** (notifications, background activity, a focused editor); hard ones still keep the tab.
+- **M3.4: playing media is found by the discard's probe,** not by counting Chromium's `media-started-playing` and `media-paused` as §4.10 proposed. A page whose Web Audio context stays open, even silent, never gets `media-paused`, so the count stuck and kept such a tab forever; the probe asks the page at decision time and the finding is learned like unsaved input. Like every probe finding it sees the top frame only: a muted video in a cross-origin iframe isn't protected, while audible playback, frames included, still is (the audio protection).
+- **Found by Phase 3's tests and fixed** (beyond each milestone's own): in M3.3, a Sleeping tab whose page objected to a close was asked about out of sight (I1), "Protect from automation" also stopped the user, `move()` of a Sleeping tab cut the strip; in M3.4, engaged time with a fraction made every session save fail while the user was active (latent since M3.2), a page loading in the background counted as active, and an unloaded tab kept naming what earlier discard attempts had learned.
+
+### Phase 3 acceptance (assessment §8.2)
+
+Phase 3's acceptance, with its evidence. The runs are on M3.4's code tip (ed0dc88) unless noted, on the user's laptop (i3-1215U, 7.9 GB, Windows 11) under load.
+
+| Criterion | Evidence | Proved by |
+|---|---|---|
+| **With 50 fixture tabs and an accelerated clock, actions exactly match policy** | A seeded 50-tab session (2 pinned, 11 shown, 37 never loaded) is restored, and the lifecycle clock is fast-forwarded. The tabs discarded are exactly the 10 the policy planned (hidden an hour, live, unpinned), at most 3 started per evaluation and 7 rate-limited in the first; the 37 never-shown tabs go to Sleeping in the first evaluation and V1 in one after its discard, exactly the 38 beyond the 10 most recently used, each once (`shelve-beyond-cap`); three active days later all 38 are archived (`archive-dormant`) and the plan is empty. Pinned and selected tabs keep their pages, and the activity log holds exactly those actions with their rules. M3.4 adds the same exactness for preview: a fresh profile's first days only plan and mark the moves, and day 4 carries them out. | `tests/e2e/automation.spec.ts`: "exactly the actions the policy plans are carried out: discards 3 at a time, then the shelves, then the archives"; `tests/e2e/protection.spec.ts`: "on the first active days automation marks the tabs it would move; from day 4 it moves them" |
+| **Protected fixtures (audio, `beforeunload`, dirty form, open popup) are never discarded** | Audio, capture, a page that objects to unloading, unsaved input, an open popup and open DevTools each keep their tab however far the clock runs and under critical pressure, and each tab is discardable once its protection ends. M3.4 adds playing media (muted too), a protected site (loaded or not, across a restart), notifications and activity in the background (soft: critical pressure gets past them) and fullscreen. The discard procedure's own checks (the probe, `beforeunload` after real input, page state) are in `lifecycle.spec.ts` and the lifecycle harness. | `tests/e2e/automation.spec.ts` "protections"; `tests/e2e/protection.spec.ts` (media, a protected site, soft signals); `tests/e2e/lifecycle.spec.ts`; `tests/lifecycle/discard.test.ts` |
+| **10,000-step model-based runs show no invariant violations** | `tab-manager-model.test.ts` runs random command sequences, now with the placement commands (the user's and automation's shelve and archive, restore, Undo, protection, user closes with every answer to "Leave page?") and the real policy's discards, shelves and archives, under fast-check's scheduler; I1–I8 are checked after every command and every released task, with I1, I3 and I8 meaningful since M3.3. Three runs of exactly 10,000 commands pass (about 54,000 checks on the longest), with 500 fixed-seed sequences that must reach every discard outcome and transition. | `src/main/tabs/tab-manager-model.test.ts`, in the unit suite: 7,352 of 7,352 on ed0dc88 |
+| **Memory reduction measured and published with the method in §9.3** | **Not met yet.** The method is built (`memory-benchmark` scenario without Playwright, 10/25/50 tabs × all live, moved to Sleeping, unloaded; 1 warm-up + 5 runs; private bytes by process type, CPU, switch latency), but on 2026-10-22 the laptop was too loaded to finish a run: 93–690 MB free, commit 28.1 of 31.7 GB, and each of three attempts failed in its first measured 10-tab run. The readings that finished, labelled as warm-ups and a harness check, not results: 10 tabs, all live 609–614 MB private, unloaded 302–307 MB (about 307 MB freed by unloading 9 tabs); moving tabs to Sleeping alone freed nothing. To finish: `npm run bench:memory` on a quiet machine. | `tests/benchmarks/memory.bench.ts` (`npm run bench:memory`); [docs/benchmarks/phase-3-memory.md](../benchmarks/phase-3-memory.md) |
+
+The other gates on ed0dc88: typecheck, lint and format clean; unit 7,352 of 7,352 (113 files); full E2E 427 of 428 in one run (56.4 min), the one failure a synthetic click that didn't register in the setup of a M3.1 test, which then passed 3 of 3 alone; lifecycle harness 12 of 12; the production build check, the data isolation check and the packaged-app check clean, and a packaged launch clean (window in 5.0 s, exit code 0, a database at schema 2 that passed its quick check). `npm run package:dir` itself stopped at its last step because Windows held the previous build's `app.asar` open; the same electron-builder run into another folder, checked by the same script, passed.
+
+## What only a person can check
+
+The checklist is [docs/testing/phase-3-manual-checks.md](../testing/phase-3-manual-checks.md): real pages, real time passing, the sidebar under your hands, and this laptop's memory.

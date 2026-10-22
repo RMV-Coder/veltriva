@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| **Status** | **Approved 2026-10-16**: decisions D1–D8 accepted as recommended, recorded as [ADRs 0001–0009](../adr/README.md). Phase 0 spikes done; Phase 1 done (2026-10-17); Phase 2 done (2026-10-22, Milestone 0.1 reached, see §8.2); Phase 3 next |
+| **Status** | **Approved 2026-10-16**: decisions D1–D8 accepted as recommended, recorded as [ADRs 0001–0009](../adr/README.md). Phase 0 spikes done; Phase 1 done (2026-10-17); Phase 2 done (2026-10-22, Milestone 0.1 reached, see §8.2); Phase 3 done (2026-10-22, see §8.2; the memory measurement still to run on a quiet machine); Phase 4 next |
 | **Date** | 2026-10-16 |
 | **Scope** | MVP for Windows 10/11 x64 |
 | **Identity** | Project *Veltriva* · repo `veltriva` · app *Veltriva Browser* · MIT license (after dependency license review) |
@@ -680,7 +680,7 @@ These defaults are **hypotheses**. They get tuned during dogfooding with the loc
 | Protected site | site rule | everything | hard | exact for listed sites |
 | Pinned | user flag | shelve, archive (discard per setting) | hard | exact |
 | Audio playing (and 2 min after) | `audio-state-changed` (`event.audible`), `isCurrentlyAudible()` | freeze, discard, shelve | hard | high |
-| Video playing | `media-started-playing` / `media-paused` (no payload, so we keep a per-tab counter) | freeze, discard | hard | medium. S1: the events fire as documented, and a muted tab still reports audible, so muted-but-playing tabs are protected too. Whether that should become a soft protection is a Phase 3 tuning question |
+| Video playing | `media-started-playing` / `media-paused` (no payload, so we keep a per-tab counter) | freeze, discard | hard | medium. S1: the events fire as documented, and a muted tab still reports audible, so muted-but-playing tabs are protected too. Whether that should become a soft protection is a Phase 3 tuning question. **As built (M3.4):** the counter never ends for a Web Audio context a page keeps open, even silent, so the discard's probe finds playing media at decision time instead, muted or not, and the finding is learned (ADR-0003 item 15) |
 | Camera, microphone or screen capture | permission granted to the page + `isBeingCaptured()` | everything | hard | medium: we know when it starts, not exactly when it stops, so protection lasts until navigation or close |
 | Fullscreen | `enter-html-full-screen` | everything | hard | high |
 | Page declares unsaved changes | For tabs whose `hasBeenActive` is true, `beforeunload` cancels the discard attempt and Electron emits `will-prevent-unload`. A cross-site iframe's objection counts only if that iframe itself was interacted with (S3) | discard, archive | hard | high for sites that use `beforeunload` (Google Docs, GitHub, Jira, mail compose); blind to sites that don't |
@@ -1354,7 +1354,9 @@ Effort assumes one developer at 15–20 h/week.
 | **6 · Quality & release** | Benchmark report (10, 25, 50, 100 tabs × 3 modes). Security review (checklist, threat-model re-check, dependency and **license audit**). Accessibility pass. NSIS installer with fuses and ASAR integrity. Signing, if approved. Update notification. README, architecture docs, screenshots and GIFs, release notes. Manual release workflow (tag → build → draft release) | all | Clean install on Windows 10 and 11 VMs. Reproducible benchmark report. Known limitations documented. CI green | 55–75 | 3–4 |
 | **Total** | | | | **440–585 h** | **~25–33 weeks** |
 
-**Progress, 2026-10-22.** Phases 0, 1 and 2 are done; **Milestone 0.1 (daily dogfooding) is reached**. Each Phase 2 acceptance criterion above, with its evidence and the test that proves it, is in [the Phase 2 plan's as-built record](../plans/phase-2-plan.md#milestone-01-acceptance-assessment-82); the hands-on checks are in `docs/testing/phase-2-manual-checks.md`. Still open from earlier phases: S7's OAuth-popup check (M2), and the manual checklists, which the user runs at the end. Phase 3 is next.
+**Progress, 2026-10-22.** Phases 0, 1 and 2 are done; **Milestone 0.1 (daily dogfooding) is reached**. Each Phase 2 acceptance criterion above, with its evidence and the test that proves it, is in [the Phase 2 plan's as-built record](../plans/phase-2-plan.md#milestone-01-acceptance-assessment-82); the hands-on checks are in `docs/testing/phase-2-manual-checks.md`. Still open from earlier phases: S7's OAuth-popup check (M2), and the manual checklists, which the user runs at the end.
+
+**Progress, 2026-10-22 (Phase 3).** Phase 3 (lifecycle and protection) is done: each acceptance criterion above, with its evidence, is in [the Phase 3 plan's as-built record](../plans/phase-3-plan.md#phase-3-acceptance-assessment-82), and the memory measurement's method and status in [docs/benchmarks/phase-3-memory.md](../benchmarks/phase-3-memory.md): its harness is built, but the reference laptop was too loaded on 2026-10-22 to finish a run, so that criterion is still open. Two parts of later phases came early at the orchestrator's request: the regret metric and its diagnostics page (Phase 5). The hands-on checks are in `docs/testing/phase-3-manual-checks.md`. Phase 4 is next.
 
 At 15–20 h/week that's **about 6–8 months**. Add 15–20% contingency for Electron surprises. Daily dogfooding starts around **week 11–16**. Subagent assistance may shorten the *coding* hours, but review, debugging, dogfooding and decisions don't shrink the same way, so I plan against the full estimate and treat any speed-up as buffer.
 

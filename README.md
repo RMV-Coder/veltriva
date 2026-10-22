@@ -4,7 +4,7 @@
 
 Veltriva is a local-first, Chromium-powered desktop browser that intelligently manages inactive tabs, preserves browsing context, and makes previously visited pages instantly searchable.
 
-**Status: Phase 2 done; Phase 3 (tab lifecycle) next.** Veltriva has reached Milestone 0.1, daily dogfooding: it keeps your tabs, history and choices across restarts and crashes. Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 (the browser foundation) is done:
+**Status: Phase 3 done; Phase 4 (search and the memory) next.** Veltriva manages your tabs for you: it unloads the ones you left to free memory, moves the ones you stopped using to Sleeping and then the Archive, and leaves alone anything that might hold your work. It reached Milestone 0.1, daily dogfooding, in Phase 2: it keeps your tabs, history and choices across restarts and crashes. Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 (the browser foundation) is done:
 - Milestone 1.1 built the project scaffold and CI.
 - Milestone 1.2 built the secure shell. The UI is served from `app://shell` with a strict Content Security Policy. It talks to the main process through a typed, validated IPC contract, and every web page gets a role and a locked-down policy.
 - Milestone 1.3a made it a browser, with tabs in a vertical sidebar (pinned first; reorder by dragging or with Alt+Shift+arrow keys). Its pieces:
@@ -43,6 +43,22 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
     - **A year of history** is kept, then removed while you're away; closed tabs go after 7 days.
     - **Your answers are kept:** permissions you allowed or blocked, "always open" for another app's links, and the extra browser details a site asked for. A prompt you dismissed three times still stays quiet only until you restart.
     - **Downloads** stay listed after a restart; one cut off by a crash shows as interrupted.
+- Phase 3 (the tab lifecycle) is done. [Its plan](docs/plans/phase-3-plan.md) records what was built and the evidence for each acceptance criterion, and [docs/benchmarks/phase-3-memory.md](docs/benchmarks/phase-3-memory.md) the memory measurement's method and where it stands (the laptop was too loaded to finish it; `npm run bench:memory` on a quiet machine does). The checks only a person can run (real pages, real time, this laptop's memory) are in [docs/testing/phase-3-manual-checks.md](docs/testing/phase-3-manual-checks.md).
+  - Milestone 3.1 unloads a background tab to free its memory and brings it back when you select it, with its back/forward history and, in the same run, where you had scrolled and what you had typed in plain fields. A page with unsaved work, or one that asks "Leave site?" after you used it, is never unloaded.
+  - Milestone 3.2 adds automation, timed in *your* use of the computer, so a weekend away changes nothing:
+    - **Presets:** Balanced unloads a tab hidden for an hour; Gentle and Aggressive are slower and faster. Pinned tabs stay loaded in Balanced.
+    - **Memory pressure:** when memory runs low, the tabs left longest go first, one or three at a time, never the one you're using.
+    - **Never touched:** a tab playing sound, using the camera or microphone, with DevTools open, or with a sign-in window open.
+  - Milestone 3.3 moves tabs out of the way, and lets you take them back:
+    - **Sleeping:** past your 10 most recent unpinned tabs, ones you haven't used for 2 hours of use move to Sleeping under the tab list. After 3 days of use there, they go to the Archive. One click brings a tab back next to the one you're on.
+    - **Undo** for every move, yours or automation's, in a toast at the foot of the sidebar; **Activity** lists every automatic action and why.
+    - **Protect from automation** in a tab's menu; **"Leave page?"** when you close a page that warns about unsaved changes.
+    - **Tooltips** say why a tab is unloaded, or what keeps it awake.
+  - Milestone 3.4 completes the protections and makes automation explain itself:
+    - **More reasons to keep a tab:** playing video, full screen, a site you allowed to send notifications, a chat or inbox active in the background, and **Always protect ‹site›** in the tab menu.
+    - **Preview:** for your first 3 days of use, automation only marks the tabs it would move, so you can see what it would do; **Start now** ends it early.
+    - **Pause automation** in the sidebar.
+    - **A local diagnostics page**, `veltriva://diagnostics`, counts how often you took back a tab automation had just moved (the regret rate used to tune the defaults). It never leaves your machine.
 
 ## Why
 
@@ -127,7 +143,8 @@ npm run dev
 | `npm run format` / `npm run format:check` | Prettier writes or checks formatting. Markdown is excluded. |
 | `npm test` | Vitest unit tests on Node. |
 | `npm run test:e2e` | Builds the test variant, then runs the Playwright tests against the built, unpackaged app. They cover the shell, its CSP and protocol, the IPC contract and a hostile page in a tab. They also cover tabs, navigation, the address bar, crashes, PDFs, the clipboard and generated (`data:`, `blob:`) documents. M1.3b adds find, zoom, fullscreen and its notice, DevTools, the keyboard shortcuts (against a page that tries to block them), keyboard focus and the context menus. Every page comes from a local fixture server. |
-| `npm run test:lifecycle` | Builds the test variant, then runs the lifecycle-behavior checks without Playwright (ADR-0008 4a): a background tab is hidden and throttled, closing the window with live tabs quits cleanly, and a page under the fullscreen notice stays visible and live. Phase 2 adds the database across launches (a quit capped at 3 s while a statement runs, recovery from a damaged file) and session restore after 20 hard kills at random moments, which takes a few minutes. |
+| `npm run test:lifecycle` | Builds the test variant, then runs the lifecycle-behavior checks without Playwright (ADR-0008 4a): a background tab is hidden and throttled, closing the window with live tabs quits cleanly, and a page under the fullscreen notice stays visible and live. Phase 2 adds the database across launches (a quit capped at 3 s while a statement runs, recovery from a damaged file) and session restore after 20 hard kills at random moments, which takes a few minutes. Phase 3 adds what a discard does to real hidden tabs: the page state it keeps, the renderer it frees, a page that objects, and the freeze experiment. |
+| `npm run bench:memory` | Builds the test variant, then runs the memory benchmark of assessment §9.3 without Playwright: 10, 25 and 50 tabs of a controlled-cost page, all live, moved to Sleeping, and unloaded, one warm-up and 5 measured runs each. It takes over an hour and writes its raw readings to `docs/benchmarks/data/`. Run it on a quiet machine. |
 | `npm run package:dir` | Checks better-sqlite3's binary, builds, checks that the build contains no test-only code (the test hooks, the lifecycle runner and the test build's crash handler) and that only the data worker loads SQLite, then packages an unpacked app with electron-builder into `release/win-unpacked/` (`Veltriva.exe`), with the production Electron fuses applied. It is unsigned, and no installer is built or installed. Last, it checks that only SQLite's binary was unpacked from `app.asar`. |
 
 ### Project layout

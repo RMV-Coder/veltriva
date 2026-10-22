@@ -1,0 +1,350 @@
+{
+  "machine": {
+    "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+    "logicalCpus": 8,
+    "totalMemoryMb": 7916,
+    "windows": "Microsoft Windows 11 Home Single Language 10.0.26200 build 26200",
+    "power": "AC power",
+    "powerPlan": "Power Scheme GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)",
+    "defenderRealTime": "True",
+    "electron": "see package.json"
+  },
+  "sizes": [
+    3
+  ],
+  "runs": 1,
+  "settleMs": 2000,
+  "cpuMs": 3000,
+  "results": [
+    {
+      "size": 3,
+      "run": 0,
+      "warmUp": true,
+      "freeMbAtStart": 471,
+      "reading": {
+        "tabs": 3,
+        "settleMs": 2000,
+        "cpuWindowMs": 3000,
+        "empty": {
+          "privateMb": 255.1,
+          "workingSetMb": 368.1,
+          "cpuPercent": null,
+          "processes": 4,
+          "byGroup": {
+            "browser": {
+              "count": 1,
+              "privateMb": 106.2,
+              "workingSetMb": 135.5,
+              "cpuPercent": 0
+            },
+            "gpu": {
+              "count": 1,
+              "privateMb": 102.5,
+              "workingSetMb": 120.2,
+              "cpuPercent": 0
+            },
+            "utility": {
+              "count": 1,
+              "privateMb": 12.4,
+              "workingSetMb": 34.4,
+              "cpuPercent": 0
+            },
+            "shell": {
+              "count": 1,
+              "privateMb": 34,
+              "workingSetMb": 78,
+              "cpuPercent": 0
+            }
+          },
+          "liveTabs": 0
+        },
+        "allLive": {
+          "privateMb": 414.7,
+          "workingSetMb": 629.8,
+          "cpuPercent": 0.1,
+          "processes": 7,
+          "byGroup": {
+            "browser": {
+              "count": 1,
+              "privateMb": 111.3,
+              "workingSetMb": 142.5,
+              "cpuPercent": 0.05
+            },
+            "gpu": {
+              "count": 1,
+              "privateMb": 124.4,
+              "workingSetMb": 142.4,
+              "cpuPercent": 0.03
+            },
+            "utility": {
+              "count": 1,
+              "privateMb": 12.8,
+              "workingSetMb": 37,
+              "cpuPercent": 0.01
+            },
+            "shell": {
+              "count": 1,
+              "privateMb": 36.6,
+              "workingSetMb": 77.7,
+              "cpuPercent": 0
+            },
+            "tabs": {
+              "count": 3,
+              "privateMb": 129.5,
+              "workingSetMb": 230.3,
+              "cpuPercent": 0
+            }
+          },
+          "liveTabs": 3
+        },
+        "collapsed": {
+          "privateMb": 421,
+          "workingSetMb": 642.9,
+          "cpuPercent": 0.12,
+          "processes": 7,
+          "byGroup": {
+            "browser": {
+              "count": 1,
+              "privateMb": 111.8,
+              "workingSetMb": 143.2,
+              "cpuPercent": 0.04
+            },
+            "gpu": {
+              "count": 1,
+              "privateMb": 123.3,
+              "workingSetMb": 141.9,
+              "cpuPercent": 0
+            },
+            "utility": {
+              "count": 1,
+              "privateMb": 12.9,
+              "workingSetMb": 37.1,
+              "cpuPercent": 0.06
+            },
+            "shell": {
+              "count": 1,
+              "privateMb": 37.4,
+              "workingSetMb": 78.6,
+              "cpuPercent": 0
+            },
+            "tabs": {
+              "count": 3,
+              "privateMb": 135.7,
+              "workingSetMb": 242.1,
+              "cpuPercent": 0.02
+            }
+          },
+          "liveTabs": 3
+        },
+        "discarded": {
+          "privateMb": 327.4,
+          "workingSetMb": 475.9,
+          "cpuPercent": 0.04,
+          "processes": 5,
+          "byGroup": {
+            "browser": {
+              "count": 1,
+              "privateMb": 110.7,
+              "workingSetMb": 141.8,
+              "cpuPercent": 0.03
+            },
+            "gpu": {
+              "count": 1,
+              "privateMb": 120.5,
+              "workingSetMb": 139.2,
+              "cpuPercent": 0
+            },
+            "utility": {
+              "count": 1,
+              "privateMb": 12.9,
+              "workingSetMb": 37.1,
+              "cpuPercent": 0
+            },
+            "shell": {
+              "count": 1,
+              "privateMb": 37.3,
+              "workingSetMb": 78.6,
+              "cpuPercent": 0
+            },
+            "tabs": {
+              "count": 1,
+              "privateMb": 46.1,
+              "workingSetMb": 79.2,
+              "cpuPercent": 0.01
+            }
+          },
+          "liveTabs": 1
+        },
+        "switchLiveMs": 38.7,
+        "switchUnloadedMs": 276.6,
+        "loadAllMs": 733,
+        "discardAllMs": 33
+      }
+    },
+    {
+      "size": 3,
+      "run": 1,
+      "warmUp": false,
+      "freeMbAtStart": 690,
+      "reading": {
+        "tabs": 3,
+        "settleMs": 2000,
+        "cpuWindowMs": 3000,
+        "empty": {
+          "privateMb": 258.5,
+          "workingSetMb": 362.6,
+          "cpuPercent": null,
+          "processes": 4,
+          "byGroup": {
+            "browser": {
+              "count": 1,
+              "privateMb": 110,
+              "workingSetMb": 139.6,
+              "cpuPercent": 0
+            },
+            "gpu": {
+              "count": 1,
+              "privateMb": 102.7,
+              "workingSetMb": 118,
+              "cpuPercent": 0
+            },
+            "utility": {
+              "count": 1,
+              "privateMb": 12.3,
+              "workingSetMb": 33.9,
+              "cpuPercent": 0
+            },
+            "shell": {
+              "count": 1,
+              "privateMb": 33.6,
+              "workingSetMb": 71.1,
+              "cpuPercent": 0
+            }
+          },
+          "liveTabs": 0
+        },
+        "allLive": {
+          "privateMb": 406.8,
+          "workingSetMb": 616.6,
+          "cpuPercent": 0.14,
+          "processes": 7,
+          "byGroup": {
+            "browser": {
+              "count": 1,
+              "privateMb": 114.1,
+              "workingSetMb": 145.8,
+              "cpuPercent": 0.05
+            },
+            "gpu": {
+              "count": 1,
+              "privateMb": 116.6,
+              "workingSetMb": 132.2,
+              "cpuPercent": 0.08
+            },
+            "utility": {
+              "count": 1,
+              "privateMb": 12.7,
+              "workingSetMb": 36.5,
+              "cpuPercent": 0
+            },
+            "shell": {
+              "count": 1,
+              "privateMb": 36.7,
+              "workingSetMb": 74,
+              "cpuPercent": 0.01
+            },
+            "tabs": {
+              "count": 3,
+              "privateMb": 126.7,
+              "workingSetMb": 228,
+              "cpuPercent": 0.01
+            }
+          },
+          "liveTabs": 3
+        },
+        "collapsed": {
+          "privateMb": 424,
+          "workingSetMb": 638.8,
+          "cpuPercent": 0.17,
+          "processes": 7,
+          "byGroup": {
+            "browser": {
+              "count": 1,
+              "privateMb": 114.5,
+              "workingSetMb": 146.5,
+              "cpuPercent": 0.1
+            },
+            "gpu": {
+              "count": 1,
+              "privateMb": 126.5,
+              "workingSetMb": 142.5,
+              "cpuPercent": 0
+            },
+            "utility": {
+              "count": 1,
+              "privateMb": 13,
+              "workingSetMb": 36.9,
+              "cpuPercent": 0.05
+            },
+            "shell": {
+              "count": 1,
+              "privateMb": 37.1,
+              "workingSetMb": 74.9,
+              "cpuPercent": 0.01
+            },
+            "tabs": {
+              "count": 3,
+              "privateMb": 132.8,
+              "workingSetMb": 238,
+              "cpuPercent": 0.01
+            }
+          },
+          "liveTabs": 3
+        },
+        "discarded": {
+          "privateMb": 325.4,
+          "workingSetMb": 466.4,
+          "cpuPercent": 0.03,
+          "processes": 5,
+          "byGroup": {
+            "browser": {
+              "count": 1,
+              "privateMb": 112.1,
+              "workingSetMb": 143.8,
+              "cpuPercent": 0.02
+            },
+            "gpu": {
+              "count": 1,
+              "privateMb": 119.8,
+              "workingSetMb": 136,
+              "cpuPercent": 0
+            },
+            "utility": {
+              "count": 1,
+              "privateMb": 13,
+              "workingSetMb": 37,
+              "cpuPercent": 0
+            },
+            "shell": {
+              "count": 1,
+              "privateMb": 37.1,
+              "workingSetMb": 74.9,
+              "cpuPercent": 0
+            },
+            "tabs": {
+              "count": 1,
+              "privateMb": 43.4,
+              "workingSetMb": 74.8,
+              "cpuPercent": 0
+            }
+          },
+          "liveTabs": 1
+        },
+        "switchLiveMs": 51.45,
+        "switchUnloadedMs": 252.2,
+        "loadAllMs": 533,
+        "discardAllMs": 20
+      }
+    }
+  ]
+}

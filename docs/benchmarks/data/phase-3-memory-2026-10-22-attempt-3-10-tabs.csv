@@ -1,0 +1,6 @@
+size,run,warm_up,free_mb_at_start,phase,live_tabs,processes,private_mb,working_set_mb,cpu_percent,browser_count,browser_private_mb,gpu_count,gpu_private_mb,utility_count,utility_private_mb,shell_count,shell_private_mb,tabs_count,tabs_private_mb,error,switch_live_ms,switch_unloaded_ms,switch_timeouts,load_all_ms,discard_all_ms,discard_retries
+10,0,true,187,,,,,,,,,,,,,,,,,"The app did not exit within 980000 ms; killed it.",,,,,,
+10,1,false,93,empty,0,4,250.8,351.1,,1,109.3,1,95.4,1,12.3,1,33.7,0,0,,135.8,746.7,0,9233,10782,1
+10,1,false,93,A,10,14,623,238.6,0.29,1,102.6,1,110.3,1,13.1,1,38.4,10,358.5,,135.8,746.7,0,9233,10782,1
+10,1,false,93,B,10,14,634.3,245.2,0.06,1,103.8,1,113.6,1,13,1,37.8,10,366.2,,135.8,746.7,0,9233,10782,1
+10,1,false,93,C,1,5,298.3,77.1,0.08,1,102.8,1,107.1,1,12.9,1,36.9,1,38.6,,135.8,746.7,0,9233,10782,1

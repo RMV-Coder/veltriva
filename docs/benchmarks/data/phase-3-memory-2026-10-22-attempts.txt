@@ -1,0 +1,16 @@
+# Phase 3 memory benchmark: output of the attempts on 2026-10-22, verbatim excerpts
+
+## Attempt 1 (runner before per-run saving; stopped at 10 tabs, run 1)
+10 tabs, warm-up: A 613.8 MB, B 629.8 MB, C 306.6 MB private (free at start 187 MB)
+Error: Scenario memory-benchmark failed: Tab 01a1640b-2aba-72a6-803c-52c90bfd83ae was not discarded: {"outcome":"blocked","reason":"probe-unanswered"}
+   Start at  22:31:41
+   Duration  486.94s (tests 100%)
+
+## Attempt 2 (probe retries added; stopped at 10 tabs, run 1)
+10 tabs, warm-up: A 609.1 MB, B 622.8 MB, C 302.2 MB private (free at start 268 MB)
+Error: The app did not exit within 640000 ms; killed it.
+VELTRIVA_LIFECYCLE_RESULT {"scenario":"memory-benchmark","error":"Timed out waiting for tab 01a1641b-673d-76f4-a13c-c28bd358c72f to show its page"}
+   Start at  22:46:44
+   Duration  1071.89s (tests 100%)
+
+## Attempt 3 (per-run saving, longer load and switch limits): see phase-3-memory-2026-10-22-attempt-3-10-tabs.json

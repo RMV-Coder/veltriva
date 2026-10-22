@@ -93,6 +93,8 @@
 
    **As built in M3.1:** `tests/lifecycle/discard.test.ts` starts the E2E fixture server and passes its origin to the app in `VELTRIVA_FIXTURE_ORIGIN`; the scenarios are in `src/main/testing/discard-scenarios.ts`. They cover what only real hidden tabs show: the page-state flush of a just-hidden tab, renderer release, `beforeunload` with real input, background restore at 125% scaling, and freezing.
 
+   **As built in Phase 3 (the §9.3 memory benchmark):** `tests/benchmarks/memory.bench.ts` (`npm run bench:memory`, its own Vitest config, never part of `npm test`) runs the `memory-benchmark` scenario (`src/main/testing/benchmark-scenarios.ts`) through the same harness, with no Playwright attached, once per run: a fresh launch on a fresh profile, a warm-up per size, then the measured runs. The harness gained `switches` (here `--host-resolver-rules`, so each tab's page is on a site of its own, `m<i>.test`) and `timeoutMs`. The scenario pauses automation and makes every move itself; it is the only caller of `getAppMetrics()` while it runs, because the call resets the CPU interval for every caller (§9.3). The fixture server's `/cost/page` is spike S8's controlled-cost page. Raw readings go to `docs/benchmarks/data/`; the write-up reports them.
+
    **As built in M1.3a:**
    - **How it runs.** `npm run test:lifecycle` builds the test variant, then Vitest (`vitest.lifecycle.config.mts`, specs in `tests/lifecycle`) starts the app once per check with `VELTRIVA_LIFECYCLE_SCENARIO` set. The app runs that scenario (`src/main/testing/lifecycle-scenarios.ts`), prints one result line and exits. CI runs it after the E2E tests.
    - **Two checks so far:**

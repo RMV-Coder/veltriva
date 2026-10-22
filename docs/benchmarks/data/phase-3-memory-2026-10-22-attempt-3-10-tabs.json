@@ -1,0 +1,194 @@
+{
+  "machine": {
+    "cpu": "12th Gen Intel(R) Core(TM) i3-1215U",
+    "logicalCpus": 8,
+    "totalMemoryMb": 7916,
+    "windows": "Microsoft Windows 11 Home Single Language 10.0.26200 build 26200",
+    "power": "AC power",
+    "powerPlan": "Power Scheme GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)",
+    "defenderRealTime": "True",
+    "electron": "see package.json"
+  },
+  "sizes": [
+    10
+  ],
+  "runs": 5,
+  "settleMs": 10000,
+  "cpuMs": 60000,
+  "results": [
+    {
+      "size": 10,
+      "run": 0,
+      "warmUp": true,
+      "freeMbAtStart": 187,
+      "error": "The app did not exit within 980000 ms; killed it."
+    },
+    {
+      "size": 10,
+      "run": 1,
+      "warmUp": false,
+      "freeMbAtStart": 93,
+      "reading": {
+        "tabs": 10,
+        "settleMs": 10000,
+        "cpuWindowMs": 60000,
+        "empty": {
+          "privateMb": 250.8,
+          "workingSetMb": 351.1,
+          "cpuPercent": null,
+          "processes": 4,
+          "byGroup": {
+            "browser": {
+              "count": 1,
+              "privateMb": 109.3,
+              "workingSetMb": 137.8,
+              "cpuPercent": 0
+            },
+            "gpu": {
+              "count": 1,
+              "privateMb": 95.4,
+              "workingSetMb": 110.2,
+              "cpuPercent": 0
+            },
+            "utility": {
+              "count": 1,
+              "privateMb": 12.3,
+              "workingSetMb": 32.3,
+              "cpuPercent": 0
+            },
+            "shell": {
+              "count": 1,
+              "privateMb": 33.7,
+              "workingSetMb": 70.7,
+              "cpuPercent": 0
+            }
+          },
+          "liveTabs": 0
+        },
+        "allLive": {
+          "privateMb": 623,
+          "workingSetMb": 238.6,
+          "cpuPercent": 0.29,
+          "processes": 14,
+          "byGroup": {
+            "browser": {
+              "count": 1,
+              "privateMb": 102.6,
+              "workingSetMb": 47.3,
+              "cpuPercent": 0.04
+            },
+            "gpu": {
+              "count": 1,
+              "privateMb": 110.3,
+              "workingSetMb": 12.9,
+              "cpuPercent": 0.01
+            },
+            "utility": {
+              "count": 1,
+              "privateMb": 13.1,
+              "workingSetMb": 5.5,
+              "cpuPercent": 0
+            },
+            "shell": {
+              "count": 1,
+              "privateMb": 38.4,
+              "workingSetMb": 27.8,
+              "cpuPercent": 0.02
+            },
+            "tabs": {
+              "count": 10,
+              "privateMb": 358.5,
+              "workingSetMb": 145.1,
+              "cpuPercent": 0.22
+            }
+          },
+          "liveTabs": 10
+        },
+        "collapsed": {
+          "privateMb": 634.3,
+          "workingSetMb": 245.2,
+          "cpuPercent": 0.06,
+          "processes": 14,
+          "byGroup": {
+            "browser": {
+              "count": 1,
+              "privateMb": 103.8,
+              "workingSetMb": 42.6,
+              "cpuPercent": 0.04
+            },
+            "gpu": {
+              "count": 1,
+              "privateMb": 113.6,
+              "workingSetMb": 23.1,
+              "cpuPercent": 0.01
+            },
+            "utility": {
+              "count": 1,
+              "privateMb": 13,
+              "workingSetMb": 6,
+              "cpuPercent": 0
+            },
+            "shell": {
+              "count": 1,
+              "privateMb": 37.8,
+              "workingSetMb": 24.1,
+              "cpuPercent": 0
+            },
+            "tabs": {
+              "count": 10,
+              "privateMb": 366.2,
+              "workingSetMb": 149.4,
+              "cpuPercent": 0.01
+            }
+          },
+          "liveTabs": 10
+        },
+        "discarded": {
+          "privateMb": 298.3,
+          "workingSetMb": 77.1,
+          "cpuPercent": 0.08,
+          "processes": 5,
+          "byGroup": {
+            "browser": {
+              "count": 1,
+              "privateMb": 102.8,
+              "workingSetMb": 33,
+              "cpuPercent": 0.04
+            },
+            "gpu": {
+              "count": 1,
+              "privateMb": 107.1,
+              "workingSetMb": 19,
+              "cpuPercent": 0.02
+            },
+            "utility": {
+              "count": 1,
+              "privateMb": 12.9,
+              "workingSetMb": 3.8,
+              "cpuPercent": 0
+            },
+            "shell": {
+              "count": 1,
+              "privateMb": 36.9,
+              "workingSetMb": 19.7,
+              "cpuPercent": 0.01
+            },
+            "tabs": {
+              "count": 1,
+              "privateMb": 38.6,
+              "workingSetMb": 1.5,
+              "cpuPercent": 0
+            }
+          },
+          "liveTabs": 1
+        },
+        "switchLiveMs": 135.8,
+        "switchUnloadedMs": 746.7,
+        "switchTimeouts": 0,
+        "loadAllMs": 9233,
+        "discardAllMs": 10782,
+        "discardRetries": 1
+      }
+    }
+  ]
+}

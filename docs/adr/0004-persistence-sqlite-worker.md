@@ -144,6 +144,7 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
       - Two data methods, both served by `tabs_archived_idx`: `tabs.listArchived` (newest first) and `tabs.countArchived` (the sidebar's count).
       - Main keeps the newest 200 archived tabs in memory. An archived tab that leaves that list keeps its row: the session store forgets it rather than deleting it, and the count still includes it.
       - The activity log is the app_state document `activity` (`{ entries }`, the newest 500), written at most every 10 s and at quit. A tab's title and address are cut to 200 and 500 characters, so the document stays under 1 MiB. It is read leniently: a field a later version adds is ignored, and a damaged entry is dropped alone. A private tab's entries are never written (I6).
+    - **M3.4:** the regret metric is the app_state document `regret` (`{ since, counts, events }`, the newest 200 events), written at most every 10 s and at quit, checked when read (an unreadable one starts counting again). The settings document's lifecycle section gains `preview` (`auto` or `off`) and `protectedSites` (at most 1,000 sites); main writes the settings document for the first time, when the user pauses automation, starts it early or protects a site (Phase 5's settings page will write the rest). Each field still falls back to its default alone.
 
 ## Consequences
 

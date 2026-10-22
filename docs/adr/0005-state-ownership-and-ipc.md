@@ -76,6 +76,11 @@ The tab lifecycle mixes asynchronous Chromium events, user commands, a scheduler
    - **Batch ids** are main's own handles, `batch-N` for an evaluation and `manual-N` for the user's move, so a late click can't undo another batch.
    - **"Leave page?"** is a fourth prompt kind, `leave-page`, answered with `prompts.respond` like the others (allow = Leave). Its sentence names main's label of the site; the page's own text is never shown, as in Chromium.
 
+12. **As built in M3.4 (protection, preview, Pause, diagnostics):**
+   - **Snapshot fields.** Per tab: `keptAwake` (the protection reasons observed now, in the order the sidebar names them), `unloadPressure`, `previewMove`, `movedBy`. On the workspace: `automation` (paused, preview with its last day and today's active day, the memory pressure).
+   - **New commands.** `lifecycle.setPaused`, `lifecycle.endPreview`, `tabs.setSiteProtected` (answers the site; `not_found` for a page without one) and `lifecycle.diagnostics` (the regret metric and what automation sees, for the `diagnostics` internal page, `veltriva://diagnostics`).
+   - **Main writes the settings document** for these switches; the shell never sends settings, only the intent.
+
 ## Consequences
 
 - **Positive:** one source of truth. Races are handled in one place (the per-tab queues in ADR-0003).
