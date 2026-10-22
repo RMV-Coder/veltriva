@@ -193,6 +193,8 @@ const workspaceSnapshot = z.strictObject({
       archived: z.number().int().nonnegative(),
     })
     .nullable(),
+  /** The activity log's newest entry id (0 for none): the open log view refreshes when it moves. */
+  activityVersion: z.number().int().nonnegative(),
   /**
    * A tab in HTML fullscreen (threat T6). While `notice` is true the shell draws only the notice,
    * naming `origin`, because main raises it above the page (ADR-0006 A′).

@@ -1,6 +1,7 @@
 // Thin wrappers over `window.veltriva`. The shell is advisory (ADR-0005): it sends a command and
 // waits for the next workspace snapshot to change, so nothing here updates any state. A failed
 // command resolves (it doesn't throw) and is logged; these helpers never reject either.
+import type { ActivityEntry } from '../../shared/contracts/activity';
 import type { Result } from '../../shared/contracts/ipc';
 import type { CommandInput, CommandOutput } from '../../shared/contracts/schemas';
 import type { Insets } from '../features/layout/insets';
@@ -46,6 +47,70 @@ export async function closeTab(tabId: string, options?: FocusOptions): Promise<b
 export async function selectTab(tabId: string, options?: FocusOptions): Promise<boolean> {
   return (await run('tabs.select', () => window.veltriva.tabs.select(withFocus(tabId, options))))
     .ok;
+}
+
+/**
+ * Moves a strip tab to Sleeping (the tab's menu also offers it). Resolves to true only if the tab
+ * moved: a pinned tab stays. Main offers Undo in the next snapshot.
+ */
+export async function shelveTab(tabId: string): Promise<boolean> {
+  const result = await run('tabs.shelve', () => window.veltriva.tabs.shelve({ tabId }));
+  return result.ok && result.value.moved;
+}
+
+/**
+ * Archives a tab from the strip or Sleeping. A loaded page is unloaded first, and a page that
+ * objects (unsaved changes) keeps the tab where it is: false.
+ */
+export async function archiveTab(tabId: string): Promise<boolean> {
+  const result = await run('tabs.archive', () => window.veltriva.tabs.archive({ tabId }));
+  return result.ok && result.value.moved;
+}
+
+/**
+ * Brings a tab back from Sleeping or the Archive to the strip, next to the current tab, and
+ * selects it. An archived tab may come back under a new id, so this resolves to the id the tab has
+ * now, or undefined if main refused (the tab is gone). `keepFocus` as for `selectTab`.
+ */
+export async function restoreTab(
+  tabId: string,
+  options?: FocusOptions,
+): Promise<string | undefined> {
+  const result = await run('tabs.restore', () =>
+    window.veltriva.tabs.restore(withFocus(tabId, options)),
+  );
+  return result.ok ? result.value.tabId : undefined;
+}
+
+/** Protects the tab from automation (or ends the protection). */
+export async function setTabProtected(tabId: string, protect: boolean): Promise<boolean> {
+  return (
+    await run('tabs.setProtected', () =>
+      window.veltriva.tabs.setProtected({ tabId, protected: protect }),
+    )
+  ).ok;
+}
+
+/**
+ * Undoes the batch of moves the toast offers. Resolves to how many tabs went back (0 if the offer
+ * had already expired), or undefined if the command failed.
+ */
+export async function undoBatch(batchId: string): Promise<number | undefined> {
+  const result = await run('lifecycle.undo', () => window.veltriva.lifecycle.undo({ batchId }));
+  return result.ok ? result.value.undone : undefined;
+}
+
+/** Closes the Undo offer without undoing anything. */
+export async function dismissUndo(batchId: string): Promise<boolean> {
+  return (
+    await run('lifecycle.dismissUndo', () => window.veltriva.lifecycle.dismissUndo({ batchId }))
+  ).ok;
+}
+
+/** The activity log, newest first, or undefined if it could not be read. */
+export async function fetchActivity(): Promise<readonly ActivityEntry[] | undefined> {
+  const result = await run('lifecycle.activity', () => window.veltriva.lifecycle.activity());
+  return result.ok ? result.value.entries : undefined;
 }
 
 /** `toIndex` is the tab's final index in the whole strip. Main clamps it into the tab's section. */

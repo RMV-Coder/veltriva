@@ -197,7 +197,14 @@ export async function tabState(
   app: ElectronApplication,
   tabId: TabId,
 ): Promise<TabStateEntry | undefined> {
-  return (await tabStates(app)).find((tab) => tab.id === tabId);
+  // In the strip or in Sleeping (M3.3): a live record either way. Archived tabs have none.
+  return app.evaluate((_electron, id) => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return [...hooks.tabStates(), ...hooks.sleepingTabStates()].find((tab) => tab.id === id);
+  }, tabId);
 }
 
 /** The id of the selected tab, as TabManager has it. */

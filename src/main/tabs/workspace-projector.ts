@@ -180,6 +180,7 @@ export function createWorkspaceProjector(options: {
   readonly archived?: () => readonly ArchivedTab[];
   readonly counts?: () => WorkspaceSnapshot['counts'];
   readonly undo?: () => WorkspaceSnapshot['undo'];
+  readonly activityVersion?: () => number;
   readonly publish: (snapshot: WorkspaceSnapshot) => void;
   readonly schedule?: (callback: () => void, ms: number) => unknown;
   readonly cancel?: (handle: unknown) => void;
@@ -206,6 +207,7 @@ export function createWorkspaceProjector(options: {
       archived: (options.archived?.() ?? []).slice(0, MAX_LISTED_ARCHIVED).map(projectArchived),
       counts: options.counts?.() ?? { sleeping: 0, archived: 0, archivedToday: 0 },
       undo: options.undo?.() ?? null,
+      activityVersion: options.activityVersion?.() ?? 0,
     };
   };
 

@@ -24,6 +24,19 @@ interface UiStore {
    */
   readonly downloadsPanelOpen: boolean;
   readonly setDownloadsPanelOpen: (open: boolean) => void;
+  /**
+   * Whether the sidebar's Sleeping section is open, or null while the user hasn't chosen: it is
+   * then open exactly while something sleeps (placement-display.ts). Which tabs sleep is main's;
+   * whether the shell lists them is the viewer's, so this is not kept anywhere else.
+   */
+  readonly sleepingExpanded: boolean | null;
+  readonly setSleepingExpanded: (expanded: boolean) => void;
+  /** The Archive section: null (not chosen) means closed. */
+  readonly archiveExpanded: boolean | null;
+  readonly setArchiveExpanded: (expanded: boolean) => void;
+  /** The sidebar shows the activity log in place of its sections. */
+  readonly activityOpen: boolean;
+  readonly setActivityOpen: (open: boolean) => void;
 }
 
 export const useUiStore = create<UiStore>()((set) => ({
@@ -44,5 +57,17 @@ export const useUiStore = create<UiStore>()((set) => ({
   downloadsPanelOpen: false,
   setDownloadsPanelOpen: (open) => {
     set({ downloadsPanelOpen: open });
+  },
+  sleepingExpanded: null,
+  setSleepingExpanded: (expanded) => {
+    set({ sleepingExpanded: expanded });
+  },
+  archiveExpanded: null,
+  setArchiveExpanded: (expanded) => {
+    set({ archiveExpanded: expanded });
+  },
+  activityOpen: false,
+  setActivityOpen: (open) => {
+    set({ activityOpen: open });
   },
 }));

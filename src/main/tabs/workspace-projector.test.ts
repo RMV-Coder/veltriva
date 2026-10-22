@@ -92,6 +92,7 @@ describe('projectTab', () => {
       archived: [],
       counts: { sleeping: 1, archived: 0, archivedToday: 0 },
       undo: { batchId: 'batch-1', automated: true, shelved: 1, archived: 0 },
+      activityVersion: 3,
       notices: [
         {
           id: 'notice-1',
@@ -171,6 +172,7 @@ describe('noticeFileName', () => {
         archived: [],
         counts: { sleeping: 0, archived: 0, archivedToday: 0 },
         undo: null,
+        activityVersion: 0,
       }).success;
     for (const name of [
       '',

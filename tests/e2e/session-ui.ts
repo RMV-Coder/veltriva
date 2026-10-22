@@ -333,7 +333,7 @@ export function noticeStrip(shell: Page, kind: AppNotice['kind']): Locator {
 }
 
 /** A candidate id for `workspaces.ensureDefault`; the default workspace already exists. */
-const WORKSPACE_CANDIDATE = '0199f000-0000-7000-8000-0000000000b1';
+export const WORKSPACE_CANDIDATE = '0199f000-0000-7000-8000-0000000000b1';
 
 export interface SavedSession {
   /** The strip's rows, by position. */

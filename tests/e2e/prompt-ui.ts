@@ -18,7 +18,8 @@ import type { TabId } from './hooks';
 import type { PageGlobal } from './page-globals';
 import { SLOW_TIMEOUT_MS } from './shell-ui';
 
-export type StripKind = 'permission' | 'external-protocol' | 'http-auth' | 'blocked-popups';
+export type StripKind =
+  'permission' | 'external-protocol' | 'http-auth' | 'blocked-popups' | 'leave-page';
 
 /**
  * PRIVACY: an automated test never turns on this machine's camera or microphone and never makes a
@@ -52,7 +53,7 @@ export function stripSentence(shell: Page): Locator {
 }
 
 export type StripButtonName =
-  'Allow' | 'Block' | 'Dismiss' | 'Open' | 'Cancel' | 'Open pop-up' | 'Sign in';
+  'Allow' | 'Block' | 'Dismiss' | 'Open' | 'Cancel' | 'Open pop-up' | 'Sign in' | 'Leave' | 'Stay';
 
 export function stripButton(shell: Page, name: StripButtonName): Locator {
   return promptStrip(shell).getByRole('button', { name, exact: true });
@@ -153,7 +154,7 @@ export async function expectNoStripFor(
  */
 export async function clickYes(
   shell: Page,
-  name: 'Allow' | 'Open' | 'Sign in' = 'Allow',
+  name: 'Allow' | 'Open' | 'Sign in' | 'Leave' = 'Allow',
 ): Promise<void> {
   await expect(stripButton(shell, name)).toBeVisible({ timeout: SLOW_TIMEOUT_MS });
   await refuseToAllowDevices(shell);

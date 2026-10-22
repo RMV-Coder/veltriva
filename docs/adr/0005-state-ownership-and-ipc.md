@@ -64,6 +64,18 @@ The tab lifecycle mixes asynchronous Chromium events, user commands, a scheduler
    - **Notices about Veltriva itself.** The snapshot has a workspace-level `notices` list of at most 3, which M2.1b uses for database recovery (`database-restored`, `database-reset`). The new command `notices.dismiss({ noticeId })` answers `not_found` for an id that isn't shown.
    - **The kept file's name is untrusted text.** Main keeps only its last path segment and replaces controls, bidi overrides and Windows-forbidden characters. The shell cleans it again and isolates it in `<bdi dir="ltr">`, as it does for sites in the prompt strip.
 
+11. **As built in M3.3 (Sleeping, the Archive and Undo):**
+   - **Snapshot fields.**
+     - On the workspace: `sleeping` (tab snapshots, most recently moved first), `archived` (the newest 200: id, title, address, favicon, `archivedAt`, `reason` auto or manual), `counts` (`sleeping`, `archived` in all, `archivedToday`) and `undo` (the batch the sidebar offers to undo, whether automation made it, and how many tabs went where; null when there is none).
+     - Per tab: `userProtected`, and `unloadedBy` (automation, memory pressure or the user, while the tab stays unloaded after a discard) for the status tooltips.
+   - **New commands.**
+     - `tabs.shelve`, `tabs.archive`: answer `{ moved }`. An archive waits for the page to be unloaded, and a page that objects keeps its tab (`moved: false`).
+     - `tabs.restore`: from Sleeping or the Archive to the strip, next to the current tab, selected. It answers the tab's id, which for an archived tab may be new.
+     - `tabs.setProtected`.
+     - `lifecycle.undo` (`{ undone }`; 0 once the batch is no longer offered), `lifecycle.dismissUndo`, `lifecycle.activity` (the activity log, newest first).
+   - **Batch ids** are main's own handles, `batch-N` for an evaluation and `manual-N` for the user's move, so a late click can't undo another batch.
+   - **"Leave page?"** is a fourth prompt kind, `leave-page`, answered with `prompts.respond` like the others (allow = Leave). Its sentence names main's label of the site; the page's own text is never shown, as in Chromium.
+
 ## Consequences
 
 - **Positive:** one source of truth. Races are handled in one place (the per-tab queues in ADR-0003).

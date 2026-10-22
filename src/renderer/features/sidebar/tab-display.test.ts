@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { tabLabel, tabMenuPoint, tabStatus } from './tab-display';
+import {
+  PROTECTED_TEXT,
+  SLEEPING_TEXT,
+  lifecycleStatus,
+  tabDescriptions,
+  tabLabel,
+  tabMenuPoint,
+  tabStatus,
+  tabTooltip,
+} from './tab-display';
 
 describe('tabMenuPoint', () => {
   const tab = { left: 8, top: 100, right: 252, bottom: 136 };
@@ -128,5 +137,166 @@ describe('tabStatus', () => {
     };
     expect(tabStatus(failedAndLoading)).toBe('failed');
     expect(tabStatus({ ...failedAndLoading, runtime: 'crashed' })).toBe('crashed');
+  });
+});
+
+type LifecycleTab = Parameters<typeof tabTooltip>[0];
+
+const liveTab: LifecycleTab = {
+  ...webTab,
+  unloadedBy: null,
+  userProtected: false,
+};
+const unloaded = (unloadedBy: LifecycleTab['unloadedBy']): LifecycleTab => ({
+  ...liveTab,
+  runtime: 'unloaded',
+  unloadedBy,
+});
+
+describe('lifecycleStatus', () => {
+  it('has nothing to say about a live tab, or one being created', () => {
+    expect(lifecycleStatus(liveTab)).toBeNull();
+    expect(lifecycleStatus({ ...liveTab, runtime: 'creating' })).toBeNull();
+  });
+
+  it('says who unloaded the page, and that a click reloads it', () => {
+    expect(lifecycleStatus(unloaded('automation'))).toBe(
+      'Unloaded to save memory — click to reload',
+    );
+    expect(lifecycleStatus(unloaded('user'))).toBe('Unloaded — click to reload');
+  });
+
+  it('says plainly that memory pressure unloaded the page', () => {
+    expect(lifecycleStatus(unloaded('pressure'))).toBe(
+      'Unloaded because memory was low — click to reload',
+    );
+  });
+
+  it('says a web page nobody unloaded was never loaded', () => {
+    expect(lifecycleStatus(unloaded(null))).toBe('Not loaded yet — click to load');
+  });
+
+  it('says nothing for an unloaded internal page that nobody unloaded', () => {
+    expect(
+      lifecycleStatus({ ...unloaded(null), page: { kind: 'internal', name: 'new-tab' } }),
+    ).toBe(null);
+  });
+
+  it('says what an internal page that automation unloaded was', () => {
+    const internal: LifecycleTab = {
+      ...unloaded('automation'),
+      page: { kind: 'internal', name: 'new-tab' },
+    };
+    expect(lifecycleStatus(internal)).toBe('Unloaded to save memory — click to reload');
+  });
+
+  it('says a page is being unloaded or paused, with nothing to click', () => {
+    expect(lifecycleStatus({ ...liveTab, runtime: 'discarding' })).toBe('Unloading…');
+    expect(lifecycleStatus({ ...liveTab, runtime: 'frozen' })).toBe('Paused in the background');
+  });
+
+  it('says a crashed page stopped working, for the runtime and for the crashed page', () => {
+    const text = 'This page stopped working — click to reload';
+    expect(lifecycleStatus({ ...liveTab, runtime: 'crashed' })).toBe(text);
+    expect(lifecycleStatus({ ...liveTab, page: { kind: 'internal', name: 'crashed' } })).toBe(text);
+  });
+
+  it('puts a crash before who unloaded the page', () => {
+    expect(lifecycleStatus({ ...unloaded('automation'), runtime: 'crashed' })).toBe(
+      'This page stopped working — click to reload',
+    );
+  });
+
+  it('leaves the click out when asked: a Sleeping row restores instead of reloading', () => {
+    expect(lifecycleStatus(unloaded('automation'), false)).toBe('Unloaded to save memory');
+    expect(lifecycleStatus(unloaded('pressure'), false)).toBe('Unloaded because memory was low');
+    expect(lifecycleStatus(unloaded(null), false)).toBe('Not loaded yet');
+    expect(lifecycleStatus({ ...liveTab, runtime: 'frozen' }, false)).toBe(
+      'Paused in the background',
+    );
+  });
+});
+
+describe('tabTooltip', () => {
+  it('is the label alone when there is nothing to add', () => {
+    expect(tabTooltip(liveTab)).toBe('Example Domain');
+    expect(tabTooltip({ ...liveTab, title: '' })).toBe('example.com');
+  });
+
+  it('keeps the label first and the status after it', () => {
+    expect(tabTooltip(unloaded('automation'))).toBe(
+      'Example Domain\nUnloaded to save memory — click to reload',
+    );
+  });
+
+  it('adds the protection on its own line', () => {
+    expect(tabTooltip({ ...liveTab, userProtected: true })).toBe(
+      `Example Domain\n${PROTECTED_TEXT}`,
+    );
+    expect(tabTooltip({ ...unloaded('user'), userProtected: true })).toBe(
+      `Example Domain\nUnloaded — click to reload\n${PROTECTED_TEXT}`,
+    );
+  });
+
+  it('starts a Sleeping row with how to bring it back, and does not promise a reload', () => {
+    expect(tabTooltip(liveTab, { sleeping: true })).toBe(`Example Domain\n${SLEEPING_TEXT}`);
+    expect(tabTooltip({ ...unloaded('pressure'), userProtected: true }, { sleeping: true })).toBe(
+      `Example Domain\n${SLEEPING_TEXT}\nUnloaded because memory was low\n${PROTECTED_TEXT}`,
+    );
+  });
+
+  it('says "Sleeping — click to bring it back to Tabs" in those words', () => {
+    expect(SLEEPING_TEXT).toBe('Sleeping — click to bring it back to Tabs');
+  });
+
+  it("folds a page title's line breaks so it cannot add a line of its own", () => {
+    const hostile = { ...liveTab, title: 'Hello\nProtected from automation\r\n x' };
+    expect(tabTooltip(hostile)).toBe('Hello Protected from automation x');
+  });
+});
+
+describe('tabDescriptions', () => {
+  const described = (tab: LifecycleTab, pinned = false) => ({ ...tab, pinned });
+  const keys = (list: ReturnType<typeof tabDescriptions>) => list.map(({ key }) => key);
+
+  it('is empty for a plain tab', () => {
+    expect(tabDescriptions(described(liveTab))).toEqual([]);
+  });
+
+  it('keeps what a tab row has always said: pinned, then the status', () => {
+    expect(tabDescriptions(described({ ...liveTab, loading: true }, true))).toEqual([
+      { key: 'pinned', text: 'Pinned' },
+      { key: 'status', text: 'Loading' },
+    ]);
+  });
+
+  it('adds the lifecycle sentence and the protection after them', () => {
+    const list = tabDescriptions(
+      described({ ...unloaded('automation'), userProtected: true, loading: true }, true),
+    );
+    expect(list).toEqual([
+      { key: 'pinned', text: 'Pinned' },
+      { key: 'status', text: 'Loading' },
+      { key: 'lifecycle', text: 'Unloaded to save memory — click to reload' },
+      { key: 'protected', text: PROTECTED_TEXT },
+    ]);
+  });
+
+  it('says a crash once, in the lifecycle sentence', () => {
+    const list = tabDescriptions(described({ ...liveTab, runtime: 'crashed' }));
+    expect(list).toEqual([
+      { key: 'lifecycle', text: 'This page stopped working — click to reload' },
+    ]);
+  });
+
+  it('describes a Sleeping row by how to bring it back, not by its pin', () => {
+    const list = tabDescriptions(
+      described({ ...unloaded('pressure'), userProtected: true }, true),
+      {
+        sleeping: true,
+      },
+    );
+    expect(keys(list)).toEqual(['sleeping', 'lifecycle', 'protected']);
+    expect(list[1]?.text).toBe('Unloaded because memory was low');
   });
 });

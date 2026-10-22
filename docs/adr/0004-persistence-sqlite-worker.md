@@ -140,6 +140,10 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
 11. **As built in Phase 3** (no migration; the schema of §5.3 already had the columns):
     - **M3.1:** a discarded tab's stack reaches `tabs.restore_state` like any other, as URLs and titles. Chromium's page state stays in memory (item 4); an E2E test checks that the string `pageState` is nowhere in the file.
     - **M3.2:** `tabs.last_used_engaged` and `last_used_active_day` now hold the engagement clock's values at each tab's last use (Phase 2 wrote 0, which is read as "now"). The clock itself is the app_state document `engagement` (`{ engagedMs, activeDay, dayKey, dayEngagedMs }`), written every 5 minutes, on a new day and at quit, and checked like any input when read. The settings document gains its `lifecycle` section (ADR-0003 item 13).
+    - **M3.3:** Sleeping and the Archive are rows like the strip's: `placement` `shelf` (with its position, newest first) and `archive` (with `archived_at` and `archive_reason`), plus `user_protected` and `placement_changed_at`, all columns §5.3 already had.
+      - Two data methods, both served by `tabs_archived_idx`: `tabs.listArchived` (newest first) and `tabs.countArchived` (the sidebar's count).
+      - Main keeps the newest 200 archived tabs in memory. An archived tab that leaves that list keeps its row: the session store forgets it rather than deleting it, and the count still includes it.
+      - The activity log is the app_state document `activity` (`{ entries }`, the newest 500), written at most every 10 s and at quit. A tab's title and address are cut to 200 and 500 characters, so the document stays under 1 MiB. It is read leniently: a field a later version adds is ignored, and a damaged entry is dropped alone. A private tab's entries are never written (I6).
 
 ## Consequences
 

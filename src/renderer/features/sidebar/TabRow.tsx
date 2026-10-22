@@ -1,4 +1,4 @@
-import { Pin, PinOff, X } from 'lucide-react';
+import { Pin, PinOff, ShieldCheck, X } from 'lucide-react';
 import type { KeyboardEvent, ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,14 @@ import type { TabSnapshot } from '../../../shared/contracts/schemas';
 import { closeTab, setTabPinned, showTabMenu } from '../../state/commands';
 import { CONTENT_AREA_ID, tabDomId } from '../layout/ids';
 import { TabIcon } from './TabIcon';
-import { TAB_STATUS_TEXT, tabLabel, tabMenuPoint, tabStatus } from './tab-display';
+import {
+  PROTECTED_TEXT,
+  tabDescriptions,
+  tabLabel,
+  tabMenuPoint,
+  tabStatus,
+  tabTooltip,
+} from './tab-display';
 import type { TabDragBindings } from './use-tab-reorder';
 
 interface TabRowProps {
@@ -42,12 +49,13 @@ export function TabRow({
   const label = tabLabel(tab);
   const status = tabStatus(tab);
   const domId = tabDomId(tab.id);
-  // What a screen reader hears after the label. The text sits in `hidden` elements: a description
-  // may point at them, and they stay out of the tablist, which may only own tabs.
-  const descriptions = [
-    ...(tab.pinned ? [{ id: `${domId}-pinned`, text: 'Pinned' }] : []),
-    ...(status === null ? [] : [{ id: `${domId}-status`, text: TAB_STATUS_TEXT[status] }]),
-  ];
+  // What a screen reader hears after the label: pinned, the status, what automation did to the
+  // tab, its protection. The text sits in `hidden` elements: a description may point at them, and
+  // they stay out of the tablist, which may only own tabs.
+  const descriptions = tabDescriptions(tab).map(({ key, text }) => ({
+    id: `${domId}-${key}`,
+    text,
+  }));
 
   return (
     // The row only groups the tab with its action buttons, which are its siblings: a button
@@ -65,10 +73,14 @@ export function TabRow({
           descriptions.length === 0 ? undefined : descriptions.map(({ id }) => id).join(' ')
         }
         tabIndex={tabStop ? 0 : -1}
-        title={label}
+        // The label first, then what automation did to the tab and any protection (§4.13).
+        title={tabTooltip(tab)}
         data-tab-id={tab.id}
         data-pinned={tab.pinned}
         data-selected={selected}
+        data-runtime={tab.runtime}
+        data-unloaded-by={tab.unloadedBy ?? undefined}
+        data-user-protected={tab.userProtected}
         onClick={onActivate}
         onKeyDown={onKeyDown}
         // Right-click, the Menu key or Shift+F10: main shows the tab's native menu (pin, duplicate,
@@ -95,6 +107,14 @@ export function TabRow({
       >
         <TabIcon tab={tab} status={status} />
         <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+        {tab.userProtected ? (
+          <ShieldCheck
+            role="img"
+            aria-label={PROTECTED_TEXT}
+            data-protected-icon=""
+            className="size-3.5 shrink-0 text-sidebar-foreground/70"
+          />
+        ) : null}
       </div>
       {descriptions.map(({ id, text }) => (
         <span key={id} id={id} hidden>

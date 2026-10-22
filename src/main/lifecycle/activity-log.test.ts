@@ -183,6 +183,19 @@ function build(options: BuildOptions = {}) {
   return { log, timers, writes, state, events, changes };
 }
 
+describe('ActivityLog: version', () => {
+  it('is 0 with nothing logged, the newest stored id after a restart, and moves with each entry', () => {
+    expect(build().log.version()).toBe(0);
+    const h = build({ stored: [stored(4), stored(9)] });
+    expect(h.log.version()).toBe(9);
+    h.log.add(entry());
+    expect(h.log.version()).toBe(10);
+    // A private tab's entry is not written, but the open log view must still refresh for it.
+    h.log.add(entry(), { ephemeral: true });
+    expect(h.log.version()).toBe(11);
+  });
+});
+
 describe('ActivityLog: ids and entries', () => {
   it('numbers entries from 1, each one more than the last', () => {
     const h = build();

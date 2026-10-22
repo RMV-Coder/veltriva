@@ -85,6 +85,11 @@ export class ActivityLog {
     return kept;
   }
 
+  /** The newest entry's id, or 0 when there is none yet: changes with every entry. */
+  version(): number {
+    return this.#nextId - 1;
+  }
+
   /** The entries, newest first, at most `limit`. */
   entries(limit = MAX_ACTIVITY_ENTRIES): ActivityEntry[] {
     // Not `slice(-limit)`: `slice(-0)` is everything (found by tests).

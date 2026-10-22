@@ -1,7 +1,9 @@
-// Lifecycle automation, M3.2 (assessment §4.6–§4.8 and §4.10, ADR-0003 item 13): the engagement
-// clock and the policy, the scheduler that carries the policy out, memory pressure, and the
-// protections automation must respect. Discarding a tab is M3.1's job (lifecycle.spec.ts); these
-// specs check WHICH tabs the scheduler discards, WHEN, and that it logs why.
+// Lifecycle automation, M3.2 and M3.3 (assessment §4.4, §4.6–§4.8 and §4.10, ADR-0003 items 13
+// and 14): the engagement clock and the policy, the scheduler that carries the policy out (from
+// M3.3 also moving tabs to Sleeping and the Archive, with Undo and an activity log), memory
+// pressure, and the protections automation must respect. Discarding a tab is M3.1's job
+// (lifecycle.spec.ts); these specs check WHICH tabs the scheduler acts on, WHEN, and that it logs
+// why.
 //
 // How time passes. Nothing here waits an hour. `advanceLifecycleClock` fast-forwards the clock the
 // policy, TabManager's activity and the protections see, and `lifecycleEvaluate` evaluates now,
@@ -40,7 +42,9 @@ import { startFixtureServer } from '../fixtures/server';
 import type { FixtureServer } from '../fixtures/server';
 import { expect } from './expect';
 import {
+  activityEntries,
   advanceLifecycleClock,
+  archivedTabs,
   clickElement,
   closeWindowShowing,
   evaluateInTab,
@@ -56,10 +60,13 @@ import {
   sendKey,
   setLifecycleSettings,
   setMemoryPressure,
+  sleepingTabStates,
   tabState,
   tabStates,
+  undoOffer,
 } from './hooks';
 import type { ActionRecord, LifecycleAction, LifecycleSettingsChange, TabId } from './hooks';
+import type { PageGlobal } from './page-globals';
 import { dataValue, expectSaved, readSavedSession, test } from './session-ui';
 import type { Launcher, RunningApp } from './session-ui';
 import {
@@ -419,6 +426,28 @@ async function settled(app: ElectronApplication): Promise<void> {
 }
 
 /**
+ * Evaluates until the plan holds nothing at all: every discard, shelve and archive carried out.
+ * Returns how many evaluations that took.
+ */
+async function drainAll(app: ElectronApplication, limit = 15): Promise<number> {
+  let evaluations = 0;
+  for (;;) {
+    await settled(app);
+    const plan = await lifecyclePlan(app);
+    if (plan.length === 0) {
+      return evaluations;
+    }
+    if (evaluations >= limit) {
+      throw new Error(
+        `The plan still holds actions after ${String(limit)} evaluations: ${JSON.stringify(plan)}`,
+      );
+    }
+    evaluations += 1;
+    await lifecycleEvaluate(app);
+  }
+}
+
+/**
  * Evaluates until the plan holds no discard (a tab whose probe went unanswered is planned again),
  * and returns how many evaluations that took.
  */
@@ -520,7 +549,9 @@ function note(type: string, description: string): void {
  * the strip cap of 10. Policy, after a fast-forward of 61 min and over 2 engaged hours:
  *   discard V1..V10 (hidden an hour, live), longest hidden first;
  *   shelve the 37 unloaded, and V1 once it is discarded (it is no longer planned as a discard).
- * A tab gets one action at a time, which is why V1 is a discard first and a shelve later.
+ * A tab gets one action at a time, which is why V1 is a discard first and a shelve later. Three
+ * active days later, every Sleeping tab is archived (Balanced), and V2, now beyond the cap,
+ * goes to Sleeping and then to the Archive too.
  */
 interface FiftyLayout {
   /** The strip in order. */
@@ -607,7 +638,7 @@ async function seedFiftyTabs(
 }
 
 test.describe('fifty tabs', () => {
-  test('exactly the discards the policy plans are carried out, 3 at a time, and the shelves are only logged', async ({
+  test('exactly the actions the policy plans are carried out: discards 3 at a time, then the shelves, then the archives', async ({
     launcher,
     fixtureServer,
   }) => {
@@ -769,41 +800,102 @@ test.describe('fifty tabs', () => {
     const memoryDiscarded = await readMemory(app);
     note('memory', `after the 10 discards: ${JSON.stringify(memoryDiscarded)}`);
 
-    // ── Shelving is planned and logged, never carried out (until M3.3): exactly the tabs beyond
-    // the 10 most recently used unpinned ones, each logged once.
+    // ── Shelving is carried out (M3.3): exactly the tabs beyond the 10 most recently used
+    // unpinned ones, each once. A shelve costs nothing, so no limit held the 37 back: they all
+    // went in the first evaluation, and V1 in one after its discard.
+    await drainAll(app);
+    const full = await lifecycleLog(app);
     const shelfIds = [firstShown, ...layout.neverShown];
-    const planAfter = await lifecyclePlan(app);
-    expect(planAfter.every((action) => action.kind === 'shelve')).toBe(true);
-    expect(new Set(planAfter.map((action) => action.tabId))).toEqual(new Set(shelfIds));
-    expect(planAfter).toHaveLength(38);
-    const shelveLog = log.filter((record) => record.kind === 'shelve');
+    const shelveLog = full.filter((record) => record.kind === 'shelve');
     for (const record of shelveLog) {
       expect(record).toMatchObject({ rule: 'shelve-beyond-cap' });
-      expect(word(record.result)).toBe('planned');
+      expect(word(record.result), `shelve of ${record.tabId}`).toBe('moved');
     }
     expect(shelveLog.map((record) => record.tabId).sort()).toEqual([...shelfIds].sort());
     expect(
-      log.filter((record) => record.kind === 'archive' || record.kind === 'freeze'),
-      'no archive and no freeze were planned',
+      new Set(
+        firstEvaluation?.filter((record) => record.kind === 'shelve').map((record) => record.tabId),
+      ),
+      'the first evaluation shelves the 37 at once',
+    ).toEqual(new Set(layout.neverShown));
+    expect(
+      full.filter((record) => record.kind === 'archive' || record.kind === 'freeze'),
+      'no archive and no freeze yet',
     ).toEqual([]);
-    // They stay where they are: all 50 in the strip, in order, the pinned ones first.
-    const strip = await tabStates(app);
-    expect(strip.map((tab) => tab.id)).toEqual(layout.ids);
-    const placements: string[] = strip.map((tab) => tab.placement);
-    expect(placements.every((placement) => placement === 'strip')).toBe(true);
-    expect(await sidebarIds(shell)).toEqual(layout.ids);
+    // Where the tabs are: the pinned ones and V2..V11 in the strip, in order; the rest Sleeping,
+    // unloaded, never pinned (I8). The selected tab and the pinned ones kept their pages.
+    const kept = layout.ids.filter((id) => !shelfIds.includes(id));
+    await expect.poll(() => sidebarIds(shell)).toEqual(kept);
+    expect((await tabStates(app)).map((tab) => tab.id)).toEqual(kept);
+    const sleeping = await sleepingTabStates(app);
+    expect(new Set(sleeping.map((tab) => tab.id))).toEqual(new Set(shelfIds));
+    for (const tab of sleeping) {
+      expect(tab, `Sleeping tab ${tab.id}`).toMatchObject({
+        placement: 'shelf',
+        pinned: false,
+        runtime: 'unloaded',
+        webContentsId: null,
+      });
+    }
+    for (const tabId of [...layout.pinned, lastShown]) {
+      expect(await tabState(app, tabId), `tab ${tabId} is untouched`).toMatchObject({
+        placement: 'strip',
+        runtime: 'live',
+        webContentsId: contents.get(tabId),
+      });
+    }
+    expect(await selectedTabId(app)).toBe(lastShown);
+    // The plan is empty now, and stays so: nothing is planned twice.
+    expect(await lifecyclePlan(app)).toEqual([]);
+    // Each was logged locally with its rule, as the activity log shows it (§4.12).
+    const activity = await activityEntries(app);
+    expect(
+      new Set(activity.filter((entry) => entry.action === 'discard').map((entry) => entry.tabId)),
+    ).toEqual(new Set(expectedDiscards));
+    expect(
+      new Set(activity.filter((entry) => entry.action === 'shelve').map((entry) => entry.tabId)),
+    ).toEqual(new Set(shelfIds));
+    for (const entry of activity) {
+      expect(entry.rule).toBe(entry.action === 'discard' ? 'discard-hidden' : 'shelve-beyond-cap');
+      expect(entry.pressure).toBeNull();
+      expect(entry.title).toBe('Lifecycle plain');
+    }
+    // The newest automated batch is offered for Undo (it may have expired on a slow run).
+    const offer = await undoOffer(app);
+    if (offer !== null) {
+      expect(offer).toMatchObject({ automated: true, archived: 0 });
+    }
 
-    // A planned shelf is logged once, however many evaluations see it, and nothing new happens.
-    await lifecycleEvaluate(app);
-    await lifecycleEvaluate(app);
-    await settled(app);
-    expect(await lifecycleLog(app)).toEqual(log);
-
-    // Active days move nothing here either: an archive needs a Sleeping tab, and nothing is
-    // shelved before M3.3.
-    const days = await lifecyclePlanWith(app, { clock: { activeDays: 10 } });
-    expect(days.every((action) => action.kind === 'shelve')).toBe(true);
+    // ── Three active days later (Balanced), the Sleeping tabs are archived: they are unloaded,
+    // so no limit holds them back. The strip holds exactly its cap of unpinned tabs, so nothing
+    // more goes to Sleeping.
+    const days = await lifecyclePlanWith(app, { clock: { activeDays: 3 } });
+    expect(days.every((action) => action.kind === 'archive')).toBe(true);
     expect(new Set(days.map((action) => action.tabId))).toEqual(new Set(shelfIds));
+    for (const action of days) {
+      expect(action.rule).toBe('archive-dormant');
+    }
+    await drainAll(app);
+    const archived = await archivedTabs(app);
+    const archivedIds = shelfIds;
+    expect(archived.count).toBe(archivedIds.length);
+    expect(new Set(archived.entries.map((tab) => tab.id))).toEqual(new Set(archivedIds));
+    for (const tab of archived.entries) {
+      expect(tab.reason).toBe('auto');
+    }
+    expect(await sleepingTabStates(app)).toEqual([]);
+    const strip = layout.ids.filter((id) => !archivedIds.includes(id));
+    await expect.poll(() => sidebarIds(shell)).toEqual(strip);
+    const archiveLog = (await lifecycleLog(app)).filter((record) => record.kind === 'archive');
+    expect(archiveLog.map((record) => word(record.result))).toEqual(archivedIds.map(() => 'moved'));
+    expect(
+      new Set(
+        (await activityEntries(app))
+          .filter((entry) => entry.action === 'archive' && entry.rule === 'archive-dormant')
+          .map((entry) => entry.tabId),
+      ),
+    ).toEqual(new Set(archivedIds));
+    expect(await selectedTabId(app)).toBe(lastShown);
   });
 });
 
@@ -1663,5 +1755,74 @@ test.describe('activity', () => {
     log = await lifecycleLog(app);
     expect(attemptsAt(log, touched.tabId)).toMatchObject({ results: ['discarded'] });
     await expectUnloaded(app, touched.tabId);
+  });
+});
+
+// ── 7. Moves and Undo (M3.3) ────────────────────────────────────────────────────────────────────
+
+test.describe('moves and Undo', () => {
+  test('an automated batch can be undone: the tabs go back where they were, the undo is logged, and they are not moved straight back', async ({
+    launcher,
+    fixtureServer,
+  }) => {
+    const rig = await launchRig(launcher);
+    const { app, shell } = rig;
+    // 12 pages and the new-tab page: 13 unpinned tabs, 3 beyond Balanced's cap of 10.
+    const pages: OpenedPage[] = [];
+    for (let index = 0; index < 12; index += 1) {
+      pages.push(await openPage(rig, plain(fixtureServer, `undo-${String(index)}`)));
+    }
+    await showBlank(rig);
+    const strip = await sidebarIds(shell);
+    const oldest = pages.slice(0, 3).map((page) => page.tabId);
+    const next = pages.slice(3, 6).map((page) => page.tabId);
+
+    // Three engaged hours later the three least recently used go to Sleeping, in one batch. The
+    // wall clock moves 16 minutes, past the recent-interaction guard (a real mouse over the
+    // window counts as input to the page shown) but short of the 60-minute discard rule.
+    await advanceLifecycleClock(app, { engagedMs: 3 * HOUR, wallMs: 16 * MINUTE });
+    const plan = await lifecyclePlan(app);
+    expect(plan.every((action) => action.kind === 'shelve')).toBe(true);
+    expect(new Set(plan.map((action) => action.tabId))).toEqual(new Set(oldest));
+    await lifecycleEvaluate(app);
+    await settled(app);
+    const moved = (await lifecycleLog(app)).filter(
+      (record) => record.kind === 'shelve' && record.result.outcome === 'moved',
+    );
+    expect(new Set(moved.map((record) => record.tabId))).toEqual(new Set(oldest));
+    expect(new Set(moved.map((record) => record.batchId)).size, 'one batch').toBe(1);
+    await expect.poll(() => sidebarIds(shell)).toEqual(strip.filter((id) => !oldest.includes(id)));
+    const offer = await undoOffer(app);
+    expect(offer).toMatchObject({ automated: true, shelved: 3, archived: 0 });
+    expect(offer?.batchId).toBe(moved[0]?.batchId);
+
+    // Undo, as the toast's button does: back in their places, still live, not selected.
+    const undone = await shell.evaluate(
+      (batchId) => (globalThis as PageGlobal).veltriva.lifecycle.undo({ batchId }),
+      offer?.batchId ?? '',
+    );
+    expect(undone).toEqual({ ok: true, value: { undone: 3 } });
+    await expect.poll(() => sidebarIds(shell)).toEqual(strip);
+    expect(await sleepingTabStates(app)).toEqual([]);
+    expect(await undoOffer(app)).toBeNull();
+    expect(await selectedTabId(app)).toBe(rig.blank);
+    for (const page of pages.slice(0, 3)) {
+      await expectLive(app, page);
+    }
+    // The activity log tells the story: three moves and three undos, newest first.
+    const activity = await activityEntries(app);
+    expect(activity.slice(0, 3).map((entry) => entry.action)).toEqual(['undo', 'undo', 'undo']);
+    expect(new Set(activity.slice(0, 3).map((entry) => entry.tabId))).toEqual(new Set(oldest));
+    expect(
+      new Set(
+        activity
+          .filter((entry) => entry.action === 'shelve' && entry.rule === 'shelve-beyond-cap')
+          .map((entry) => entry.tabId),
+      ),
+    ).toEqual(new Set(oldest));
+
+    // An undo counts as using the tabs: the next plan leaves them alone and takes the next three.
+    const after = await lifecyclePlan(app);
+    expect(new Set(after.map((action) => action.tabId))).toEqual(new Set(next));
   });
 });

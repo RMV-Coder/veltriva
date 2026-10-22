@@ -400,6 +400,7 @@ async function start(): Promise<void> {
       };
     },
     undo: () => undo.current(),
+    activityVersion: () => activity.version(),
     publish: (snapshot) => {
       events.emit('workspace.changed', snapshot);
     },
@@ -533,6 +534,10 @@ async function start(): Promise<void> {
     persist: activityWriter(data),
     timers: SYSTEM_TIMERS,
     logger: consoleLogger,
+    // The open log view refreshes on the snapshot's activityVersion.
+    onChange: () => {
+      projector.markDirty();
+    },
   });
   dataLifecycle.addFlush(() => activity.flush());
   /** A tab as the activity log names it: live, Sleeping or archived. Null if it is gone. */

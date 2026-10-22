@@ -13,6 +13,7 @@ const PLACEMENT_FIELDS = {
   archived: [],
   counts: { sleeping: 0, archived: 0, archivedToday: 0 },
   undo: null,
+  activityVersion: 0,
 } as const;
 
 function withNotices(notices: unknown): unknown {

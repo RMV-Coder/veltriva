@@ -1,6 +1,7 @@
 // The shell's copy of main's workspace. Main owns every tab (ADR-0005); this store only holds the
 // latest snapshot it was sent, so components render from it and nothing is updated optimistically.
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 
 import type { TabSnapshot, WorkspaceSnapshot } from '../../shared/contracts/schemas';
 import { findSelectedTab, fullscreenNotice, isNewerSnapshot } from './workspace-snapshot';
@@ -31,6 +32,32 @@ const NO_DOWNLOADS: WorkspaceSnapshot['downloads'] = [];
 /** The downloads, newest first. The same array until the next snapshot. */
 export function useDownloads(): WorkspaceSnapshot['downloads'] {
   return useWorkspaceStore((state) => state.snapshot?.downloads ?? NO_DOWNLOADS);
+}
+
+const NO_SLEEPING: WorkspaceSnapshot['sleeping'] = [];
+
+/** The Sleeping tabs, most recently moved first. The same array until the next snapshot. */
+export function useSleeping(): WorkspaceSnapshot['sleeping'] {
+  return useWorkspaceStore((state) => state.snapshot?.sleeping ?? NO_SLEEPING);
+}
+
+const NO_ARCHIVED: WorkspaceSnapshot['archived'] = [];
+
+/** The newest archived tabs, newest first. The same array until the next snapshot. */
+export function useArchived(): WorkspaceSnapshot['archived'] {
+  return useWorkspaceStore((state) => state.snapshot?.archived ?? NO_ARCHIVED);
+}
+
+const NO_COUNTS: WorkspaceSnapshot['counts'] = { sleeping: 0, archived: 0, archivedToday: 0 };
+
+/** The sidebar's counts. Re-renders only when a number changes, not at every snapshot. */
+export function useCounts(): WorkspaceSnapshot['counts'] {
+  return useWorkspaceStore(useShallow((state) => state.snapshot?.counts ?? NO_COUNTS));
+}
+
+/** The Undo offer, or null. Re-renders only when the offer changes, not at every snapshot. */
+export function useUndoOffer(): WorkspaceSnapshot['undo'] {
+  return useWorkspaceStore(useShallow((state) => state.snapshot?.undo ?? null));
 }
 
 export function useSelectedTabId(): string | null {
