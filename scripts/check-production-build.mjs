@@ -115,6 +115,9 @@ const MARKERS = [
   'paletteKeepsPageVisible',
   'recordNetworkRequests',
   'clearNetworkRequests',
+  // M5.0: src/main/testing/print-requests.ts
+  'recordPrintRequest',
+  'recordedPrintRequests',
   // src/main/testing/fail-fast.ts
   'exitOnUncaughtException',
   'Uncaught exception in main',

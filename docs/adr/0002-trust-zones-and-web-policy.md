@@ -203,6 +203,21 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - **E2E never contacts Google.** `--host-resolver-rules` maps `accounts.google.com` to a local HTTPS fixture and makes every other name unresolvable.
      - **Retest of the fallback (2026-10-19): passed.** In the packaged build, the user's Google sign-in went straight through, with no warning and no "Try again".
 
+12. **JS dialogs, the file chooser and printing** (Phase 5, M5.0). These were *measured* on Electron 45.0.0, reading the native windows with Windows UI Automation (`docs/plans/mvp-gap-audit.md`).
+   - **`alert` and `confirm`** are Electron's own native message boxes.
+     - **Modal to the whole window:** the box is owned by the browser window and disables it until answered, so no tab, the toolbar or the sidebar can be used meanwhile.
+     - **Background tabs too:** a background tab's dialog appears at once.
+     - **No site named:** the box is titled "Veltriva Browser", shows the page's text, and never names the site.
+     - **Stopping a page:** from the second dialog on, `safeDialogs` (set on every tab) offers "Prevent this app from creating additional dialogs".
+   - **`prompt()`** isn't supported by Electron: it returns `null` at once, with nothing shown.
+   - **No hook.** Electron 45 has no API to handle these dialogs itself. A DevTools-protocol session with `Page.enable` gets no `Page.javascriptDialogOpening`, and `Page.handleJavaScriptDialog` answers "No dialog is showing" while the native box is up.
+   - **The choice.** Turning dialogs off (`disableDialogs`) would silently break every page's `confirm`. Replacing them would mean a script in every page's own world, which this ADR rules out. So v1.0 keeps the native dialogs, stated as a known limitation; an Electron dialog-handler API is what to watch for.
+   - **`<input type="file">`** opens Windows' native Open dialog, modal to the window, as in Chrome.
+   - **Printing.**
+     - **Already worked:** a page's `window.print()` opened Windows' print dialog.
+     - **Didn't work:** Ctrl+P did nothing.
+     - **M5.0's fix:** Ctrl+P is a page-first accelerator, like Ctrl+F (`src/main/input/page-menu.ts`), and the page's context menu gains "Print…". Both call `webContents.print({ silent: false })`, so the user picks the printer and nothing prints by itself.
+
 ## Consequences
 
 - **Positive:** web pages can't reach any Veltriva API by construction, and privileged UI never lives inside the tab system.

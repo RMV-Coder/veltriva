@@ -126,6 +126,8 @@ test.describe('page context menu', () => {
         'forward: Forward (disabled)',
         'reload: Reload',
         '---',
+        'print: Print…',
+        '---',
         'inspect: Inspect',
       ]);
 
@@ -137,6 +139,8 @@ test.describe('page context menu', () => {
         'forward: Forward (disabled)',
         'reload: Reload',
         '---',
+        'print: Print…',
+        '---',
         'inspect: Inspect',
       ]);
 
@@ -147,6 +151,8 @@ test.describe('page context menu', () => {
         'back: Back (disabled)',
         'forward: Forward',
         'reload: Reload',
+        '---',
+        'print: Print…',
         '---',
         'inspect: Inspect',
       ]);
@@ -258,6 +264,8 @@ test.describe('page context menu', () => {
         'forward: Forward (disabled)',
         'reload: Reload',
         '---',
+        'print: Print…',
+        '---',
         'inspect: Inspect',
       ]);
 
@@ -333,6 +341,8 @@ test.describe('page context menu', () => {
         'back: Back (disabled)',
         'forward: Forward (disabled)',
         'reload: Reload',
+        '---',
+        'print: Print…',
         '---',
         'inspect: Inspect',
       ]);
@@ -474,6 +484,8 @@ test.describe('page context menu', () => {
         'back: Back (disabled)',
         'forward: Forward (disabled)',
         'reload: Reload',
+        '---',
+        'print: Print…',
         '---',
         'inspect: Inspect',
       ]);

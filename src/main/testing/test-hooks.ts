@@ -50,6 +50,7 @@ import {
   recordedNetworkRequests,
 } from './network-log';
 import type { NetworkRequestEntry } from './network-log';
+import { recordedPrintRequests } from './print-requests';
 import { recordedRuntimeTransitions } from './runtime-transitions';
 import { recordedFileActions, testDownloadsFolder } from './test-files';
 
@@ -117,6 +118,8 @@ export interface VeltrivaTestHooks {
    */
   networkRequests(): NetworkRequestEntry[];
   clearNetworkRequests(): void;
+  /** The tabs whose page was asked to print (M5.0: Ctrl+P, the context menu), oldest first. */
+  printRequests(): TabId[];
   /** The open popup windows, with what their address bar shows and their layout. */
   popupWindows(): PopupWindowInfo[];
   /** Whether main knows Chromium's client-hint values, so navigations carry the hints. */
@@ -386,6 +389,10 @@ export function installTestHooks({
 
     clearNetworkRequests() {
       clearNetworkRequests();
+    },
+
+    printRequests() {
+      return recordedPrintRequests();
     },
 
     popupWindows() {

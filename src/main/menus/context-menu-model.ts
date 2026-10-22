@@ -58,6 +58,7 @@ export type MenuItemId =
   | 'paste'
   | 'paste-plain'
   | 'select-all'
+  | 'print'
   /** A spelling suggestion, by its index among `dictionarySuggestions`. */
   | `suggestion-${string}`
   | 'add-to-dictionary'
@@ -162,6 +163,8 @@ export function buildContextMenu(params: MenuParams, context: MenuContext): Menu
       item('back', 'Back', context.canGoBack),
       item('forward', 'Forward', context.canGoForward),
       item('reload', 'Reload'),
+      SEPARATOR,
+      item('print', 'Print…'),
       SEPARATOR,
     );
   }

@@ -168,6 +168,9 @@ export function createContextMenus(deps: ContextMenuDependencies): ContextMenus 
       case 'reload':
         tabs.reload(tabId);
         return;
+      case 'print':
+        tabs.print(tabId);
+        return;
       case 'inspect':
         if (!contents.isDevToolsOpened()) {
           contents.openDevTools({ mode: 'detach', activate: true });

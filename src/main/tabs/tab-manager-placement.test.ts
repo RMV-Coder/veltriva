@@ -153,6 +153,12 @@ class FakeRuntime implements TabRuntime {
   reload(): void {
     this.#use('reload');
   }
+  allowNextUnload(): void {
+    this.#use('allowNextUnload');
+  }
+  print(): void {
+    this.#use('print');
+  }
   stop(): void {
     this.calls.push('stop');
   }
@@ -2598,5 +2604,147 @@ describe('TabManager placement: the session', () => {
       page: { kind: 'internal', name: 'new-tab' },
       url: '',
     });
+  });
+});
+
+describe('TabManager: a page stops a navigation ("Leave page?", M5.0)', () => {
+  /** A selected, activated page that will object, with its runtime's calls cleared. */
+  function objecting(env: Env) {
+    const id = env.webTab(A, { select: true });
+    const runtime = env.runtimeOf(id);
+    runtime.activate();
+    runtime.calls.length = 0;
+    return { id, runtime };
+  }
+  /** What the runtime was asked to do about navigating, without showing or focusing. */
+  const navigations = (runtime: FakeRuntime): string[] =>
+    runtime.calls.filter((call) =>
+      ['load', 'reload', 'goBack', 'goForward', 'allowNextUnload'].includes(call),
+    );
+  const answer = async (env: Env, leave: boolean): Promise<void> => {
+    pick(env.leaveQuestions, 0, 'question').answer.resolve(leave);
+    await flush();
+  };
+
+  it('asks about the address the user typed, and goes there once the user leaves', async () => {
+    const env = setup();
+    const { id, runtime } = objecting(env);
+
+    env.manager.navigate(id, B, { transition: 'typed' });
+    runtime.events.unloadBlocked?.();
+
+    expect(env.leaveQuestions.map((question) => [question.tabId, question.selected])).toEqual([
+      [id, id],
+    ]);
+    await answer(env, true);
+    expect(navigations(runtime)).toEqual(['load', 'allowNextUnload', 'load']);
+    expect(runtime.loads.slice(-2)).toEqual([B, B]);
+  });
+
+  it('stays when the user stays: nothing is done again', async () => {
+    const env = setup();
+    const { id, runtime } = objecting(env);
+
+    env.manager.navigate(id, B);
+    runtime.events.unloadBlocked?.();
+    await answer(env, false);
+
+    expect(navigations(runtime)).toEqual(['load']);
+  });
+
+  it('reloads, goes back or forward again, as the user asked', async () => {
+    const env = setup();
+    const { id, runtime } = objecting(env);
+    runtime.events.committed({ url: A, sameDocument: true, canGoBack: true, canGoForward: true });
+
+    for (const [act, call] of [
+      [
+        () => {
+          env.manager.reload(id);
+        },
+        'reload',
+      ],
+      [
+        () => {
+          env.manager.goBack(id);
+        },
+        'goBack',
+      ],
+      [
+        () => {
+          env.manager.goForward(id);
+        },
+        'goForward',
+      ],
+    ] as const) {
+      runtime.calls.length = 0;
+      env.leaveQuestions.length = 0;
+      act();
+      runtime.events.unloadBlocked?.();
+      await answer(env, true);
+      expect(navigations(runtime), call).toEqual([call, 'allowNextUnload', call]);
+    }
+  });
+
+  it("asks nothing about a navigation the page started itself: no recent navigation of the user's", () => {
+    const env = setup();
+    const { id, runtime } = objecting(env);
+
+    runtime.events.unloadBlocked?.();
+    env.manager.navigate(id, B);
+    env.clock.now += 6000;
+    runtime.events.unloadBlocked?.();
+
+    expect(env.leaveQuestions).toEqual([]);
+  });
+
+  it('asks nothing for a tab in the background', () => {
+    const env = setup();
+    objecting(env);
+
+    const background = env.webTab(B);
+    const hidden = env.runtimeOf(background);
+    hidden.activate();
+    env.manager.navigate(background, C);
+    hidden.events.unloadBlocked?.();
+
+    expect(env.leaveQuestions).toEqual([]);
+  });
+
+  it("forgets the user's navigation once a page commits", () => {
+    const env = setup();
+    const { id, runtime } = objecting(env);
+
+    env.manager.navigate(id, B);
+    runtime.events.committed({ url: B, sameDocument: false, canGoBack: true, canGoForward: false });
+    runtime.events.unloadBlocked?.();
+
+    expect(env.leaveQuestions).toEqual([]);
+  });
+
+  it('asks once while a question waits', async () => {
+    const env = setup();
+    const { id, runtime } = objecting(env);
+
+    env.manager.navigate(id, B);
+    runtime.events.unloadBlocked?.();
+    env.manager.reload(id);
+    runtime.events.unloadBlocked?.();
+
+    expect(env.leaveQuestions).toHaveLength(1);
+    await answer(env, true);
+    expect(runtime.loads.at(-1)).toBe(B);
+  });
+});
+
+describe('TabManager: printing (M5.0)', () => {
+  it("prints a tab's web page through its runtime, and nothing else", () => {
+    const env = setup();
+    const page = env.webTab(A);
+    const runtime = env.runtimeOf(page);
+
+    expect(env.manager.print(page)).toBe(true);
+    expect(runtime.calls).toContain('print');
+    expect(env.manager.print(env.home)).toBe(false);
   });
 });

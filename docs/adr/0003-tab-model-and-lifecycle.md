@@ -266,6 +266,14 @@ Wall-clock timers would also archive a user's workspace after a weekend away.
       - `background-activity` can't tell a chat's new message from any other title change while hidden; it is soft, so critical pressure gets past it.
       - The regret metric forgets pending moves at a restart (the totals persist), and doesn't count a tab restored under a new id.
 
+16. **As built in M5.0: "Leave page?" for a navigation.**
+   - **The problem, measured on Electron 45:** a page whose `beforeunload` objects used to stop the user's own navigation silently. Electron cancels the typed address, the reload, or back and forward with no dialog (`will-prevent-unload` left alone). The address stayed and nothing said why; only closing the tab asked (M3.3).
+   - **The fix.** TabManager keeps each tab's last user navigation for 5 s, until a commit. The runtime reports an objection outside a close as `unloadBlocked`, and the selected tab is then asked the same "Leave page?" as for a close. Leave calls `allowNextUnload()` (the next `will-prevent-unload` is `preventDefault`ed, once) and repeats the navigation.
+   - **Not asked:**
+     - a background tab;
+     - an objection while a question already waits;
+     - a navigation the page started itself, such as a link in it. Its handler runs in the renderer before main hears of any navigation (*measured*), so there is nothing to repeat, and the page's objection stands, as before.
+
 ## Consequences
 
 - **Positive:** both product-critical states are first-class, the policy is unit-testable without Electron, and every automatic action can be explained.

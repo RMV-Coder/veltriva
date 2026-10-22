@@ -81,6 +81,7 @@ import { TabManager } from './tabs/tab-manager';
 import { createTabRuntimes } from './tabs/tab-runtime';
 import { createWorkspaceProjector } from './tabs/workspace-projector';
 import { recordExternalLaunch } from './testing/external-launches';
+import { recordPrintRequest } from './testing/print-requests';
 import { recordRuntimeTransition } from './testing/runtime-transitions';
 import { testClockAdjustment, testIsCaptured, testMemoryPressure } from './testing/test-clock';
 import { exitOnUncaughtException } from './testing/fail-fast';
@@ -597,7 +598,9 @@ async function start(): Promise<void> {
       regret.reloaded(tabId);
     },
     // Test builds record the runtime transitions for the specs (M3.1).
-    ...(import.meta.env.MODE === 'test' ? { onTransition: recordRuntimeTransition } : {}),
+    ...(import.meta.env.MODE === 'test'
+      ? { onTransition: recordRuntimeTransition, printPage: recordPrintRequest }
+      : {}),
   });
   // M3.3: Undo for moves, the user's own moves, and the activity log of what automation did.
   const undo = new UndoManager({
@@ -788,6 +791,12 @@ async function start(): Promise<void> {
   });
   // Find and zoom: the page's own handlers come first.
   installPageMenu(main.window, {
+    print: () => {
+      const selected = tabs.selectedTabId();
+      if (selected !== null) {
+        tabs.print(selected);
+      }
+    },
     find: () => {
       const selected = tabs.selectedTabId();
       if (selected !== null && tabs.openFind(selected)) {

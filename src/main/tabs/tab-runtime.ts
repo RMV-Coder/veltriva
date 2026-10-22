@@ -22,6 +22,13 @@
 //   destroyed                    → settles every close; `gone` unless destroy() asked for it
 //   freeze() / thaw()            → CDP Page.setWebLifecycleState through webContents.debugger
 //                                  (experimental, off by default; a detach means thawed)
+//
+// M5.0: a page's `beforeunload` that stops a navigation or a reload (outside a close above) is
+//   `will-prevent-unload`, which Electron answers by cancelling silently: it becomes
+//   `unloadBlocked`, so TabManager can ask "Leave page?" about the user's own navigation.
+//   `allowNextUnload()` lets the next objection through (`preventDefault`), once, after the user
+//   chose to leave. A navigation the page starts itself (a link in it) gives no target: its
+//   handler runs in the renderer before main hears of any navigation (measured, Electron 45).
 import type { ContextMenuParams, Event, Input, WebContents, WebContentsView } from 'electron';
 
 import { isActivationInput } from '../../core/input/user-activation';
@@ -118,6 +125,10 @@ export function createTabRuntimes(options: {
     let candidatesFor = 0;
     /** The main frame failed after the last commit: an error page shows, with no icon. */
     let failedSinceCommit = false;
+    /** A close for a discard or for the user is asking the page; its own listener answers. */
+    let closingForDiscard = false;
+    /** The user chose to leave: the page's next objection is overridden (M5.0). */
+    let allowUnload = false;
 
     const resolveFavicon = (candidates: readonly string[]): void => {
       const forDocument = document;
@@ -158,12 +169,26 @@ export function createTabRuntimes(options: {
       canGoForward: contents.navigationHistory.canGoForward(),
     });
 
+    contents.on('will-prevent-unload', (event) => {
+      if (destroyed || closingForDiscard) {
+        return;
+      }
+      if (allowUnload) {
+        allowUnload = false;
+        event.preventDefault();
+        return;
+      }
+      // Electron cancels the navigation or reload now, with no dialog: TabManager asks the user.
+      events.unloadBlocked?.();
+    });
+
     contents.on('did-navigate', (_event, url) => {
       if (destroyed) {
         return;
       }
       document += 1;
       failedSinceCommit = false;
+      allowUnload = false;
       events.committed({ url, sameDocument: false, ...history() });
     });
     contents.on('did-navigate-in-page', (_event, url, isMainFrame) => {
@@ -481,6 +506,20 @@ export function createTabRuntimes(options: {
         }
         return { index: contents.navigationHistory.getActiveIndex(), entries };
       },
+      allowNextUnload() {
+        allowUnload = true;
+      },
+      print() {
+        if (destroyed || contents.isDestroyed()) {
+          return;
+        }
+        // The system dialog: the user chooses the printer, or cancels. Nothing prints silently.
+        contents.print({ silent: false }, (succeeded, reason) => {
+          if (!succeeded && reason !== 'Print job canceled' && reason !== 'cancelled') {
+            options.logger.warn('tab.printFailed', { reason });
+          }
+        });
+      },
       closeForDiscard(mode) {
         if (destroyed || contents.isDestroyed()) {
           return Promise.resolve<CloseResult>('closed');
@@ -492,6 +531,7 @@ export function createTabRuntimes(options: {
               return;
             }
             settled = true;
+            closingForDiscard = false;
             // S3: a listener left from one attempt must not answer for the next.
             contents.off('will-prevent-unload', onPreventUnload);
             closeWaiters.delete(onClosed);
@@ -512,6 +552,7 @@ export function createTabRuntimes(options: {
             contents.closeDevTools();
           }
           if (mode === 'beforeunload') {
+            closingForDiscard = true;
             contents.on('will-prevent-unload', onPreventUnload);
             contents.close({ waitForBeforeUnload: true });
           } else {

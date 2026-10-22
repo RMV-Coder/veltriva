@@ -179,6 +179,13 @@ export interface TabRuntime {
   setZoomFactor(factor: number): void;
   /** Opens the page's DevTools in their own window, or closes them. */
   toggleDevTools(): void;
+  /** The system print dialog for the page (M5.0: Ctrl+P, the context menu's "Print…"). */
+  print?(): void;
+  /**
+   * The user chose to leave a page whose `beforeunload` stopped a navigation (M5.0): its next
+   * objection is overridden, once. Optional: a runtime without it never reports `unloadBlocked`.
+   */
+  allowNextUnload?(): void;
   /** Makes the page leave HTML fullscreen, whatever the page's own script does. */
   exitFullscreen(): void;
   /** Attaches the view in the content area. Idempotent. */
@@ -286,6 +293,11 @@ export interface TabRuntimeEvents {
    * since it loaded gives the page its `beforeunload` (§4.9 Close).
    */
   activated?(): void;
+  /**
+   * The page's `beforeunload` stopped a navigation or a reload, outside a close (M5.0): Electron
+   * cancelled it silently. Where it was going is not reported: TabManager knows the user's own.
+   */
+  unloadBlocked?(): void;
 }
 
 export type TabRuntimeFactory = (tabId: TabId, events: TabRuntimeEvents) => TabRuntime;
@@ -323,6 +335,11 @@ export interface TabManagerOptions {
   readonly protections?: (tabId: TabId) => Iterable<Protection>;
   /** Every runtime transition, after it happened. */
   readonly onTransition?: (transition: RuntimeTransition) => void;
+  /**
+   * How a tab's page is printed: by default the runtime's system dialog. Test builds record the
+   * request instead, since no E2E run can close that dialog (M5.0).
+   */
+  readonly printPage?: (tabId: TabId) => void;
   /**
    * The engagement clock (§4.6) with the wall clock, for each tab's last use. Without it, last
    * use is wall-clock only (engaged 0, active day 1).
@@ -520,8 +537,33 @@ interface TabRecord {
   documentAt: number | null;
   /** The page objected to a user close and "Leave page?" waits for the user's answer. */
   askingToLeave: boolean;
+  /**
+   * The user's last navigation of this tab (address bar, reload, back, forward), and when, until
+   * a commit: what to do again if the page's `beforeunload` stopped it and the user leaves (M5.0).
+   */
+  lastNavigation: { readonly action: NavigationAction; readonly at: number } | null;
+  /** The page stopped a navigation and "Leave page?" waits for the user's answer (M5.0). */
+  askingToLeaveFor: NavigationAction | null;
   placementChangedAt: number;
 }
+
+/** A navigation of the user's that TabManager can do again. */
+type NavigationAction =
+  | {
+      readonly kind: 'load';
+      readonly url: string;
+      readonly transition: VisitTransition;
+      readonly credentialsRemoved: boolean;
+    }
+  | { readonly kind: 'reload'; readonly ignoreCache: boolean }
+  | { readonly kind: 'back' }
+  | { readonly kind: 'forward' };
+
+/**
+ * How long a user's navigation stays the one a page's objection stopped. The objection arrives
+ * within milliseconds; a later one stopped a navigation of the page's own.
+ */
+const NAVIGATION_STOPPED_WINDOW_MS = 5000;
 
 const NEW_TAB_PAGE: TabPage = { kind: 'internal', name: 'new-tab' };
 
@@ -1139,6 +1181,15 @@ export class TabManager {
     record.pendingHistory = null;
     record.memorySnapshot = null;
     record.heldUnloaded = false;
+    record.lastNavigation = {
+      action: {
+        kind: 'load',
+        url,
+        transition: options.transition ?? 'link',
+        credentialsRemoved: options.credentialsRemoved ?? false,
+      },
+      at: this.#now(),
+    };
     record.nextTransition = options.transition ?? 'link';
     record.focusOnCommit = options.focus ?? true;
     record.credentialsRemovedOnCommit = options.credentialsRemoved ?? false;
@@ -1204,6 +1255,7 @@ export class TabManager {
     }
     if (record.state.canGoBack && record.runtime !== undefined) {
       record.nextTransition = 'back_forward';
+      record.lastNavigation = { action: { kind: 'back' }, at: this.#now() };
       record.runtime.goBack();
     }
   }
@@ -1219,6 +1271,7 @@ export class TabManager {
     }
     if (record.state.canGoForward && record.runtime !== undefined) {
       record.nextTransition = 'back_forward';
+      record.lastNavigation = { action: { kind: 'forward' }, at: this.#now() };
       record.runtime.goForward();
     }
   }
@@ -1248,6 +1301,10 @@ export class TabManager {
       this.#changed();
     }
     record.nextTransition = 'reload';
+    record.lastNavigation = {
+      action: { kind: 'reload', ignoreCache: options.ignoreCache ?? false },
+      at: this.#now(),
+    };
     record.runtime.reload({ ignoreCache: options.ignoreCache ?? false });
   }
 
@@ -1311,6 +1368,20 @@ export class TabManager {
     record.runtime?.stopFind('keepSelection');
     record.state = { ...record.state, find: null };
     this.#changed();
+  }
+
+  /** The system print dialog for a tab's web page (M5.0); false if it has no page to print. */
+  print(tabId: TabId): boolean {
+    const record = this.#record(tabId);
+    if (record.runtime?.print === undefined || record.state.page.kind !== 'web') {
+      return false;
+    }
+    if (this.#options.printPage === undefined) {
+      record.runtime.print();
+    } else {
+      this.#options.printPage(tabId);
+    }
+    return true;
   }
 
   /** Zooms a tab's page one preset step, or back to 100%. */
@@ -2226,6 +2297,8 @@ export class TabManager {
       activated: false,
       userClosing: false,
       askingToLeave: false,
+      lastNavigation: null,
+      askingToLeaveFor: null,
       placementChangedAt: tab.placementChangedAt ?? tab.createdAt,
     };
   }
@@ -2491,6 +2564,8 @@ export class TabManager {
           record.backgroundActivityAt = null;
           record.documentAt = this.#clock().wallNow;
           record.lateCloseSnapshot = null;
+          // The navigation went through: nothing is left to do again (M5.0).
+          record.lastNavigation = null;
           // A new document closes the find bar, as in Chrome; Ctrl+F reopens it with the same
           // text, searched on the new page. Stopping also resets Chromium's find state, which
           // otherwise carried over: the first search on a new page with 2 matches reported
@@ -2745,7 +2820,72 @@ export class TabManager {
           record.activated = true;
         }
       },
+      unloadBlocked: () => {
+        const record = current();
+        if (record !== undefined) {
+          this.#navigationStopped(record);
+        }
+      },
     };
+  }
+
+  /**
+   * The page's `beforeunload` stopped a navigation or a reload (M5.0): Electron cancelled it with
+   * no dialog. The user's own navigation of a moment ago (address bar, reload, back, forward) is
+   * what was stopped; "Leave page?" asks, in the selected tab only, and leaving overrides the page
+   * once and does it again. A navigation the page started itself (a link in it) is not asked
+   * about: Electron reports no target for it, so the page's objection stands, as it did before.
+   */
+  #navigationStopped(record: TabRecord): void {
+    const action =
+      record.lastNavigation !== null &&
+      this.#now() - record.lastNavigation.at <= NAVIGATION_STOPPED_WINDOW_MS
+        ? record.lastNavigation.action
+        : null;
+    record.lastNavigation = null;
+    const confirm = this.#options.confirmLeave;
+    const tabId = record.state.id;
+    if (
+      action === null ||
+      confirm === undefined ||
+      this.#selected !== tabId ||
+      record.askingToLeave ||
+      record.userClosing ||
+      record.askingToLeaveFor !== null
+    ) {
+      return;
+    }
+    record.askingToLeaveFor = action;
+    const answered = (leave: boolean): void => {
+      if (this.#records.get(tabId) !== record || record.askingToLeaveFor !== action) {
+        return; // Closed, or asked again, meanwhile.
+      }
+      record.askingToLeaveFor = null;
+      if (!leave || record.runtime === undefined) {
+        return;
+      }
+      record.runtime.allowNextUnload?.();
+      switch (action.kind) {
+        case 'load':
+          this.navigate(tabId, action.url, {
+            transition: action.transition,
+            credentialsRemoved: action.credentialsRemoved,
+          });
+          return;
+        case 'reload':
+          this.reload(tabId, { ignoreCache: action.ignoreCache });
+          return;
+        case 'back':
+          this.goBack(tabId);
+          return;
+        case 'forward':
+          this.goForward(tabId);
+          return;
+      }
+    };
+    confirm(tabId).then(answered, () => {
+      answered(false);
+    });
   }
 }
 

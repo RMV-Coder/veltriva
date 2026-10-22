@@ -51,14 +51,27 @@ const ids = (entries: readonly MenuEntry[]): string[] =>
   entries.flatMap((entry) => (entry.type === 'item' ? [entry.id] : []));
 
 describe('buildContextMenu', () => {
-  it('offers page actions on a plain part of a page', () => {
+  it('offers page actions on a plain part of a page, Print among them (M5.0)', () => {
     expect(shape(buildContextMenu(params(), context()))).toEqual([
       'Back',
       'Forward (disabled)',
       'Reload',
       '---',
+      'Print…',
+      '---',
       'Inspect',
     ]);
+  });
+
+  it('offers no Print on a link, an image, a selection or a field', () => {
+    for (const where of [
+      params({ linkURL: 'https://a.example/next' }),
+      params({ mediaType: 'image', srcURL: 'https://a.example/i.png', hasImageContents: true }),
+      params({ selectionText: 'words' }),
+      params({ isEditable: true }),
+    ]) {
+      expect(shape(buildContextMenu(where, context()))).not.toContain('Print…');
+    }
   });
 
   it('offers to open, save and copy a link', () => {

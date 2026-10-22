@@ -1,4 +1,4 @@
-// Shortcuts a page may claim first (assessment §3.9): find and zoom. They are accelerators of a
+// Shortcuts a page may claim first (assessment §3.9): find, zoom and print (M5.0). They are accelerators of a
 // window menu that is never shown. Electron runs a menu accelerator only for a key event that the
 // renderer did not handle (no preventDefault), so a page with its own Ctrl+F (Google Docs) keeps
 // it, and every other page gets the browser's. The same holds while the shell has focus (Ctrl+F
@@ -10,6 +10,8 @@ import type { ZoomDirection } from '../../core/layout/zoom';
 
 export interface PageMenuActions {
   find(): void;
+  /** Ctrl+P (M5.0): the system print dialog for the selected tab's page. */
+  print(): void;
   findNext(forward: boolean): void;
   zoom(direction: ZoomDirection): void;
 }
@@ -54,6 +56,9 @@ export function installPageMenu(window: BaseWindow, actions: PageMenuActions): v
         item('Zoom out', 'CommandOrControl+numsub', zoomOut),
         item('Actual size', 'CommandOrControl+0', resetZoom),
         item('Actual size', 'CommandOrControl+num0', resetZoom),
+        item('Print…', 'CommandOrControl+P', () => {
+          actions.print();
+        }),
       ],
     },
   ]);

@@ -112,6 +112,7 @@ A page gets these keys first, and the browser acts only if the page doesn't use 
 | Ctrl+F | Find in page |
 | F3, Ctrl+G and Shift+F3, Ctrl+Shift+G | Next or previous match |
 | Ctrl+Plus, Ctrl+Minus, Ctrl+0 | Zoom in, zoom out, or back to 100% (also Ctrl+mouse wheel) |
+| Ctrl+P | Print the page (Windows' print dialog) |
 
 Esc leaves a page's fullscreen. AltGr combinations always go to the page, because they type characters on many keyboard layouts.
 
@@ -120,6 +121,19 @@ Esc leaves a page's fullscreen. AltGr combinations always go to the page, becaus
 - [Technical assessment and architecture proposal](docs/architecture/technical-assessment.md)
 - [Architecture decision records](docs/adr/README.md)
 - [Phase 0 spike reports](docs/spikes/README.md)
+- [MVP gap audit](docs/plans/mvp-gap-audit.md): every §7.2 item against what Veltriva does, and where the rest gets done
+
+## Known limitations
+
+Stated plainly, as the assessment's §6.7 asks:
+
+- **Pages' `alert` and `confirm` boxes block the whole window** until you answer them, even one from a background tab, and they don't name the site that asks. A page's `prompt()` shows nothing and gets no answer. Electron offers no way to make them per tab yet; the box offers "Prevent this app from creating additional dialogs" from a page's second one.
+- **A link inside a page that asks you to stay doesn't ask you**: the page keeps you. Typing an address, reloading, going back or forward, and closing the tab all ask "Leave page?".
+- **No Safe Browsing** protection against phishing or malware, and **no DRM video** (Widevine).
+- **The database isn't encrypted at rest**, like mainstream browsers' history databases; Windows account security and BitLocker protect it.
+- **Unsaved-work detection is a heuristic**: Veltriva keeps a tab it can see you typed in, or one that asks before leaving, but a page that saves work in other ways may lose it when unloaded.
+- **Unsigned builds** until code signing is in place, so Windows SmartScreen warns about them.
+- **Chromium security fixes** reach Veltriva with each Electron release, a little after Chrome.
 
 ## Platform and stack
 
