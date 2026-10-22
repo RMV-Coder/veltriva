@@ -779,3 +779,32 @@ describe('opt-ins: onChange', () => {
     }).not.toThrow();
   });
 });
+
+describe('ClientHintOptIns: managing them (M5.2)', () => {
+  const stored = {
+    v: 1,
+    origins: { 'https://a.example': ['sec-ch-ua-arch'], 'https://b.example': ['sec-ch-ua-model'] },
+  };
+
+  it('lists each origin with what it asked for, oldest first', () => {
+    expect(new ClientHintOptIns({ stored }).entries()).toEqual([
+      { origin: 'https://a.example', hints: ['sec-ch-ua-arch'] },
+      { origin: 'https://b.example', hints: ['sec-ch-ua-model'] },
+    ]);
+  });
+
+  it('forgets an origin, and says the document changed; an unknown origin changes nothing', () => {
+    const onChange = vi.fn();
+    const optIns = new ClientHintOptIns({ stored, onChange });
+
+    expect(optIns.forget('https://a.example')).toBe(true);
+    expect(optIns.forget('https://a.example')).toBe(false);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(optIns.for('https://a.example/page').size).toBe(0);
+    expect(optIns.toDocument()).toEqual({
+      v: 1,
+      origins: { 'https://b.example': ['sec-ch-ua-model'] },
+    });
+  });
+});

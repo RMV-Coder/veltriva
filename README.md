@@ -77,6 +77,12 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
     - **Pause memory:** stop remembering pages without opening a private window.
     - **Site rules:** protect a site from automation, or don't remember it at all: its pages are never recorded, its tabs never archived, and closing one keeps no record. Set them here or from a tab's menu.
     - **A welcome page** on a new profile asks for the search engine, the preset, and whether automation shows its moves first.
+  - Milestone 5.2 lets you take things back:
+    - **Clear data** in Settings: what was recorded in the last hour, day or week, or everything, with the archived and recently closed tabs if you like, and Chromium's cookies, site data and cache. It's deleted for good: the database is rewritten, so the words are gone from the file too. Open and Sleeping tabs stay.
+    - **Forget a site:** its pages, visits and tabs, and if you like its cookies, storage, cached files and permissions.
+    - **Shift+Delete** in the memory palette forgets one result.
+    - **Site permissions:** what you allowed or blocked, the apps a site's links open, and the browser details it asked for. Change any of them, or remove one so the site asks again.
+    - **How long pages are kept:** 365 days unless you choose otherwise.
 
 ## Why
 

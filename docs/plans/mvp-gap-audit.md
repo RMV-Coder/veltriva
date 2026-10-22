@@ -68,7 +68,7 @@ The table names a file or a test as evidence. The last column is the milestone t
 | Lifecycle presets plus advanced thresholds | **done** (M5.1) | `veltriva://settings`: presets with plain descriptions, every advanced value and the pressure thresholds; main checks each change (`tests/e2e/settings.spec.ts`, `settings.test.ts`) | M5.1 |
 | Site rules: protect | **done** (M5.1) | the `site_rules` table (migration 3 moved M3.4's list there); Settings lists, adds and removes rules; the tab menu sets them | M5.1 |
 | Site rules: exclude from the memory | **done** (M5.1) | never recorded (the worker refuses the visit), never auto-archived (the `excluded-site` protection), and closing keeps no record (`keepsNoRecord`); `settings.spec.ts` | M5.1 |
-| Clear memory and site data | missing | — | M5.2 |
+| Clear memory and site data | **done** (M5.2) | Settings: a time range or a site, with Chromium's cookies, storage and cache; Shift+Delete in the palette for one entry. Deletion verified by `src/data/repos/forget.test.ts` and `tests/e2e/privacy.spec.ts` | M5.2 |
 | Default search engine | **done** (M5.1) | chosen on the welcome page at first run (DuckDuckGo preselected), changed in Settings, with a custom template checked by main | M5.1 |
 | Startup behavior | **done** (M5.1) | "Continue where you left off" or "Start with a new tab" (open tabs go to the Archive) | M5.1 |
 
@@ -99,9 +99,9 @@ The table names a file or a test as evidence. The last column is the milestone t
 
 | Item | Status | Closed by |
 |---|---|---|
-| Retention of visits, configurable (default 365 days) | partial: pruned while idle (M2.2b), but the number has no page | M5.2 |
-| Clear data: one entry, forget a site, time ranges; secure delete and file shrink | missing | M5.2 |
-| Managing stored permission decisions | missing (they are stored, M2.2b) | M5.2 |
+| Retention of visits, configurable (default 365 days) | **done** (M5.2): pruned while idle (M2.2b); the number is in Settings | M5.2 |
+| Clear data: one entry, forget a site, time ranges; secure delete and file shrink | **done** (M5.2) | M5.2 |
+| Managing stored permission decisions | **done** (M5.2): Settings lists, changes and revokes decisions, apps' "always open" and client-hint opt-ins | M5.2 |
 | Diagnostic logging opt-in, URLs only when on, 5 × 5 MB rotation | missing | M5.3 |
 
 ## The JS-dialog decision (for review)

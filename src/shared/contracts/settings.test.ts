@@ -539,6 +539,9 @@ describe('settingsChangeSchema: what main accepts from the settings page (M5.1)'
       },
     ],
     ['discarding pinned tabs', { lifecycle: { overrides: { discardPinned: true } } }],
+    ['a retention (M5.2)', { history: { retentionDays: 30 } }],
+    ['the shortest retention', { history: { retentionDays: 1 } }],
+    ['the longest retention', { history: { retentionDays: 36_500 } }],
   ])('accepts %s', (_what, change) => {
     expect(accepts(change)).toBe(true);
   });
@@ -550,7 +553,11 @@ describe('settingsChangeSchema: what main accepts from the settings page (M5.1)'
       ['a lifecycle field it does not know', { lifecycle: { turbo: true } }],
       ['an override it does not know', { lifecycle: { overrides: { tabsPerRow: 3 } } }],
       ['the old protected-site list', { lifecycle: { protectedSites: ['example.com'] } }],
-      ['the history section (M5.2 sets it)', { history: { retentionDays: 30 } }],
+      ['retention of 0 days', { history: { retentionDays: 0 } }],
+      ['retention past 100 years', { history: { retentionDays: 36_501 } }],
+      ['retention as a fraction', { history: { retentionDays: 30.5 } }],
+      ['retention as a string', { history: { retentionDays: '30' } }],
+      ['no retention in the history section', { history: {} }],
       [
         'plain http to another host',
         { search: { template: 'http://search.example/?q={searchTerms}' } },
@@ -605,6 +612,12 @@ describe('settingsChangeSchema: what main accepts from the settings page (M5.1)'
 
 describe('applySettingsChange: the document a change makes (M5.1)', () => {
   const change = (value: unknown) => settingsChangeSchema.parse(value);
+
+  it('sets the retention (M5.2)', () => {
+    expect(
+      applySettingsChange(DEFAULT_SETTINGS, change({ history: { retentionDays: 90 } }))?.history,
+    ).toEqual({ retentionDays: 90 });
+  });
 
   it('changes what the change names and keeps the rest', () => {
     const next = applySettingsChange(

@@ -68,6 +68,38 @@ export class PermissionDecisions {
     byPermission.set(permission, decision);
   }
 
+  /** Every stored decision, by origin, then permission (M5.2: the settings page lists them). */
+  list(): { origin: string; permission: PromptedPermission; decision: Decision }[] {
+    const decisions: { origin: string; permission: PromptedPermission; decision: Decision }[] = [];
+    for (const [origin, byPermission] of [...this.#decisions].sort(([a], [b]) => compare(a, b))) {
+      for (const [permission, decision] of [...byPermission].sort(([a], [b]) => compare(a, b))) {
+        decisions.push({ origin, permission, decision });
+      }
+    }
+    return decisions;
+  }
+
+  /**
+   * Forgets a decision, or every decision for the origin (M5.2): the page asks again. The
+   * dismissal embargo goes with it. True if there was one to forget.
+   */
+  forget(origin: string, permission?: PromptedPermission): boolean {
+    this.#dismissals.delete(origin);
+    const byPermission = this.#decisions.get(origin);
+    if (byPermission === undefined) {
+      return false;
+    }
+    if (permission === undefined) {
+      this.#decisions.delete(origin);
+      return true;
+    }
+    const had = byPermission.delete(permission);
+    if (byPermission.size === 0) {
+      this.#decisions.delete(origin);
+    }
+    return had;
+  }
+
   /** The prompt was closed without an answer. */
   dismissed(origin: string, permissions: readonly PromptedPermission[]): void {
     let byPermission = this.#dismissals.get(origin);
@@ -79,4 +111,8 @@ export class PermissionDecisions {
       byPermission.set(permission, (byPermission.get(permission) ?? 0) + 1);
     }
   }
+}
+
+function compare(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }

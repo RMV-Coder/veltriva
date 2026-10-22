@@ -104,6 +104,13 @@ The tab lifecycle mixes asynchronous Chromium events, user commands, a scheduler
    - **The shell never writes the document.** It sends a change and shows the view main answers with.
    - **`invalid_input` has a second meaning.** Besides input that fails its schema, it now answers a change that is valid alone but would make an invalid document, such as critical pressure at or above moderate. `CommandError` can carry it. Nothing of a rejected change is kept.
    - **Two internal pages:** `settings` and `welcome`, the first-run onboarding. Both can be typed (`veltriva://settings`, `veltriva://welcome`).
+15. **As built in M5.2 (clearing data and stored answers):**
+   - **New commands:**
+     - **`privacy.clear`:** a range (hour, day, week, all) and what to clear: the memory, archived and closed tabs, cookies and site data, the cache. `invalid_input` when nothing is chosen.
+     - **`privacy.forgetSite`:** what the user typed, read as a site by main (`invalid_input` when it names none), plus whether to clear its data and its permissions.
+     - **`memory.remove`:** one entry, from the palette's Shift+Delete: a page id, and the archived tab showing it when that is the entry. Main passes the tab on, and the worker removes only an archived or closed tab.
+     - **`permissions.list` / `permissions.change`:** the stored answers, and one change or revocation (`not_found` when there was nothing to revoke).
+   - **Every one answers with what it did:** counts for a clear, the list for a permission change. The shell shows that, never its own idea of the result.
 
 ## Consequences
 

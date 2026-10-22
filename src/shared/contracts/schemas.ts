@@ -104,6 +104,44 @@ export const settingsViewSchema = z.strictObject({
 });
 export type SettingsView = z.infer<typeof settingsViewSchema>;
 
+/** Clearing data's time ranges (M5.2, §5.7): the last hour, day or week, or everything. */
+export const CLEAR_RANGES = ['hour', 'day', 'week', 'all'] as const;
+export type ClearRange = (typeof CLEAR_RANGES)[number];
+/** What a clear removed from the memory: the settings page and the palette say it. */
+const clearResult = z.strictObject({
+  pages: z.number().int().nonnegative(),
+  visits: z.number().int().nonnegative(),
+  tabs: z.number().int().nonnegative(),
+});
+/** An origin as the stores key it: scheme://host[:port]. */
+const permissionOrigin = z.string().min(1).max(2048);
+/** At most this many stored answers are listed (the stores keep fewer). */
+export const MAX_LISTED_PERMISSIONS = 10_000;
+/** The user's stored answers to sites (M5.2), for the settings page. */
+export const permissionsViewSchema = z.strictObject({
+  decisions: z
+    .array(
+      z.strictObject({
+        origin: permissionOrigin,
+        permission: z.enum(PROMPTED_PERMISSIONS),
+        decision: z.enum(['allow', 'block']),
+      }),
+    )
+    .max(MAX_LISTED_PERMISSIONS),
+  protocols: z
+    .array(z.strictObject({ origin: permissionOrigin, scheme: z.string().min(1).max(64) }))
+    .max(MAX_LISTED_PERMISSIONS),
+  clientHints: z
+    .array(
+      z.strictObject({
+        origin: permissionOrigin,
+        hints: z.array(z.string().min(1).max(64)).max(32),
+      }),
+    )
+    .max(MAX_LISTED_PERMISSIONS),
+});
+export type PermissionsView = z.infer<typeof permissionsViewSchema>;
+
 /** The palette's filters (M4.2, §7.3): Tab steps through them. */
 export const MEMORY_SCOPES = ['all', 'open', 'sleeping', 'archived', 'today', 'week'] as const;
 export type MemoryScope = (typeof MEMORY_SCOPES)[number];
@@ -640,6 +678,66 @@ export const commandSchemas = {
   },
   /** Shows Settings: selects its tab if one is open, else opens one. */
   'settings.open': { input: nothing, output: nothing },
+  // M5.2: clearing data and managing stored answers.
+  /**
+   * Clears what was recorded in a time range: the visits (`memory`), the tabs archived or closed
+   * then (`tabs`); and Chromium's cookies and site data, and its cache, which Electron can only
+   * clear for all time. `invalid_input` when nothing is chosen.
+   */
+  'privacy.clear': {
+    input: z.strictObject({
+      range: z.enum(CLEAR_RANGES),
+      memory: z.boolean(),
+      tabs: z.boolean(),
+      siteData: z.boolean(),
+      cache: z.boolean(),
+    }),
+    output: clearResult,
+  },
+  /**
+   * Forgets a site: every page and visit of it, its archived and closed tabs; with `siteData` its
+   * cookies, storage and cached files; with `permissions` its stored answers. `site` is what the
+   * user typed; main reads the site from it (`invalid_input` when it names none).
+   */
+  'privacy.forgetSite': {
+    input: z.strictObject({
+      site: z.string().min(1).max(2048),
+      siteData: z.boolean(),
+      permissions: z.boolean(),
+    }),
+    output: clearResult.extend({ site: z.string().min(1).max(253) }),
+  },
+  /**
+   * One entry of the memory (the palette's Shift+Delete): the page and its visits, and the
+   * archived tab showing it when that is the entry. An open or Sleeping tab is never removed.
+   */
+  'memory.remove': {
+    input: z.strictObject({ pageId: memoryPageId, tabId: tabId.optional() }),
+    output: clearResult,
+  },
+  'permissions.list': { input: nothing, output: permissionsViewSchema },
+  /**
+   * Changes or revokes a stored answer: a permission decision (Allow, Block, or null to revoke),
+   * an app's "always open", or the browser details a site asked for. `not_found` when there was
+   * nothing to revoke.
+   */
+  'permissions.change': {
+    input: z.discriminatedUnion('kind', [
+      z.strictObject({
+        kind: z.literal('decision'),
+        origin: permissionOrigin,
+        permission: z.enum(PROMPTED_PERMISSIONS),
+        decision: z.enum(['allow', 'block']).nullable(),
+      }),
+      z.strictObject({
+        kind: z.literal('protocol'),
+        origin: permissionOrigin,
+        scheme: z.string().min(1).max(64),
+      }),
+      z.strictObject({ kind: z.literal('clientHints'), origin: permissionOrigin }),
+    ]),
+    output: permissionsViewSchema,
+  },
   'archive.list': {
     input: z.strictObject({
       offset: z.number().int().min(0).max(10_000_000),

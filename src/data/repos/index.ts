@@ -7,6 +7,7 @@ import { appRunHandlers } from './app-runs';
 import { appStateHandlers } from './app-state';
 import { downloadHandlers } from './downloads';
 import { faviconHandlers } from './favicons';
+import { forgetHandlers } from './forget';
 import { historyHandlers } from './history';
 import { permissionHandlers } from './permissions';
 import { searchHandlers } from './search';
@@ -29,5 +30,6 @@ export function createRepositoryHandlers(db: DatabaseConnection): RepositoryHand
     ...historyHandlers(db),
     ...faviconHandlers(db),
     ...searchHandlers(db),
+    ...forgetHandlers(db),
   };
 }

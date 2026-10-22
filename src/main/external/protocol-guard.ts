@@ -63,6 +63,23 @@ export class ExternalProtocolGuard {
     this.#logger = options.logger;
   }
 
+  /** Every "always allow", by site origin, then scheme (M5.2: the settings page lists them). */
+  alwaysAllowed(): { readonly site: string; readonly scheme: string }[] {
+    return [...this.#alwaysAllowed]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .flatMap(([site, schemes]) => [...schemes].sort().map((scheme) => ({ site, scheme })));
+  }
+
+  /** Forgets an "always allow" (M5.2): the next link to that app asks again. */
+  revoke(site: string, scheme: string): boolean {
+    const schemes = this.#alwaysAllowed.get(site);
+    const had = schemes?.delete(scheme) ?? false;
+    if (schemes?.size === 0) {
+      this.#alwaysAllowed.delete(site);
+    }
+    return had;
+  }
+
   #allow(site: string, scheme: string): void {
     const schemes = this.#alwaysAllowed.get(site) ?? new Set<string>();
     schemes.add(scheme);

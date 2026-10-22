@@ -618,6 +618,56 @@ export class TabManager {
     return this.#archivedElsewhere + this.#archived.length;
   }
 
+  /**
+   * Forgets the archived and recently closed tabs `matches` picks, as clearing data does (M5.2).
+   * They leave memory first, so the session store never writes them again; their rows, and those
+   * of the archived tabs only the database holds, are the data worker's to delete. Open and
+   * Sleeping tabs are the user's, never records: they stay. Returns what it forgot.
+   */
+  forgetRecords(
+    matches: (record: {
+      readonly id: TabId;
+      readonly url: string;
+      readonly archivedAt: number | null;
+      readonly closedAt: number | null;
+    }) => boolean,
+  ): TabId[] {
+    const forgotten: TabId[] = [];
+    for (let index = this.#archived.length - 1; index >= 0; index -= 1) {
+      const tab = this.#archived[index];
+      if (
+        tab !== undefined &&
+        matches({ id: tab.id, url: tab.url, archivedAt: tab.archivedAt, closedAt: null })
+      ) {
+        this.#archived.splice(index, 1);
+        forgotten.push(tab.id);
+      }
+    }
+    for (let index = this.#closed.length - 1; index >= 0; index -= 1) {
+      const tab = this.#closed[index];
+      if (
+        tab !== undefined &&
+        matches({ id: tab.id, url: tab.url, archivedAt: null, closedAt: tab.closedAt })
+      ) {
+        this.#closed.splice(index, 1);
+        forgotten.push(tab.id);
+      }
+    }
+    if (forgotten.length > 0) {
+      this.#changed();
+    }
+    return forgotten;
+  }
+
+  /** How many tabs the database says are archived in all, after it deleted some (M5.2). */
+  setArchivedTotal(total: number): void {
+    const elsewhere = Math.max(0, total - this.#archived.length);
+    if (elsewhere !== this.#archivedElsewhere) {
+      this.#archivedElsewhere = elsewhere;
+      this.#changed();
+    }
+  }
+
   /** Sleeping as the session stores it (I6: never an ephemeral tab). */
   shelfSessionTabs(): readonly SessionTab[] {
     return this.#shelf

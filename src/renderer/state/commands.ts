@@ -459,7 +459,66 @@ export async function setSiteRule(
     : { ok: false, invalid: result.code === 'invalid_input' };
 }
 
+/**
+ * Removes one entry from the memory (M5.2): the page, and the archived tab showing it when that is
+ * the entry. Resolves to what went, or undefined if main refused.
+ */
+export async function removeMemoryEntry(
+  pageId: number,
+  archivedTabId: string | undefined,
+): Promise<CommandOutput<'memory.remove'> | undefined> {
+  const result = await run('memory.remove', () =>
+    window.veltriva.memory.remove(
+      archivedTabId === undefined ? { pageId } : { pageId, tabId: archivedTabId },
+    ),
+  );
+  return result.ok ? result.value : undefined;
+}
+
 /** Shows Settings: its tab if one is open, else a new one. */
 export async function openSettings(): Promise<boolean> {
   return (await run('settings.open', () => window.veltriva.settings.open())).ok;
+}
+
+// ── Clearing data and stored answers (M5.2) ──────────────────────────────────────────────────────
+
+export type ClearRequest = CommandInput<'privacy.clear'>;
+export type ClearResult = CommandOutput<'privacy.clear'>;
+export type PermissionsView = CommandOutput<'permissions.list'>;
+export type PermissionChange = CommandInput<'permissions.change'>;
+
+/** Clears what the request names; undefined if main refused or failed. */
+export async function clearData(request: ClearRequest): Promise<ClearResult | undefined> {
+  const result = await run('privacy.clear', () => window.veltriva.privacy.clear(request));
+  return result.ok ? result.value : undefined;
+}
+
+/** Forgets a site: `invalid` when what was typed names no site. */
+export async function forgetSite(
+  site: string,
+  options: { readonly siteData: boolean; readonly permissions: boolean },
+): Promise<
+  | { readonly ok: true; readonly value: CommandOutput<'privacy.forgetSite'> }
+  | { readonly ok: false; readonly invalid: boolean }
+> {
+  const result = await run('privacy.forgetSite', () =>
+    window.veltriva.privacy.forgetSite({ site, ...options }),
+  );
+  return result.ok
+    ? { ok: true, value: result.value }
+    : { ok: false, invalid: result.code === 'invalid_input' };
+}
+
+/** The stored answers to sites, or undefined if main could not answer. */
+export async function fetchPermissions(): Promise<PermissionsView | undefined> {
+  const result = await run('permissions.list', () => window.veltriva.permissions.list());
+  return result.ok ? result.value : undefined;
+}
+
+/** Changes or revokes one; resolves to the list main keeps now, or undefined. */
+export async function changePermission(
+  change: PermissionChange,
+): Promise<PermissionsView | undefined> {
+  const result = await run('permissions.change', () => window.veltriva.permissions.change(change));
+  return result.ok ? result.value : undefined;
 }

@@ -57,7 +57,7 @@ import { installPageMenu } from './input/page-menu';
 import { createShortcutHandler } from './input/shortcuts';
 import { createCommandHandlers } from './ipc/commands';
 import { createMemoryCommands } from './memory/memory-commands';
-import type { LifecycleCommands, SettingsCommands } from './ipc/commands';
+import type { LifecycleCommands, PrivacyCommands, SettingsCommands } from './ipc/commands';
 import { createShellEvents } from './ipc/events';
 import { installIpcRouter } from './ipc/install';
 import { createContextMenus } from './menus/context-menu';
@@ -78,6 +78,8 @@ import { consoleLogger } from './platform/logger';
 import { BlockedPopups } from './popups/blocked-popups';
 import { createWindowOpenHandler } from './popups/popup-policy';
 import type { WindowOpenHandler, WindowOpenSource } from './popups/popup-policy';
+import { ClearData } from './privacy/clear-data';
+import { SitePermissions } from './privacy/site-permissions';
 import { SiteRules } from './privacy/site-rules';
 import { PromptManager } from './prompts/prompt-manager';
 import { SHELL_ORIGIN, SHELL_URL } from './shell/assets';
@@ -834,6 +836,61 @@ async function start(): Promise<void> {
       }
     },
   });
+  // M5.2: the stored answers to sites, and clearing data.
+  const sitePermissions = new SitePermissions({
+    decisions,
+    protocols: external,
+    clientHints: optIns,
+    data,
+    logger: consoleLogger,
+  });
+  const clearData = new ClearData({
+    data,
+    tabs,
+    // The browsing session's own data (cookies, storage, cache); the shell's session has none.
+    storage: {
+      clearData: (options) =>
+        browsing.clearData({
+          dataTypes: [...options.dataTypes] as NonNullable<
+            NonNullable<Parameters<typeof browsing.clearData>[0]>['dataTypes']
+          >,
+          ...(options.origins === undefined ? {} : { origins: [...options.origins] }),
+        }),
+      cookies: {
+        get: () => browsing.cookies.get({}),
+        remove: (url, name) => browsing.cookies.remove(url, name),
+      },
+    },
+    workspaceId: () => workspaceId,
+    now: Date.now,
+    logger: consoleLogger,
+    forgetSitePermissions: (site) => {
+      sitePermissions.forgetSite(site);
+    },
+  });
+  const privacyCommands: PrivacyCommands = {
+    clear: (request) => clearData.clearRange(request),
+    forgetSite: async (text, options) => {
+      const site = siteFromInput(text);
+      if (site === null) {
+        return null;
+      }
+      return { ...(await clearData.forgetSite({ site, ...options })), site };
+    },
+    // The worker removes an archived or closed tab only: an open one is never a record.
+    removeEntry: (pageId, tabId) =>
+      clearData.forgetEntries({ pageIds: [pageId], tabIds: tabId === undefined ? [] : [tabId] }),
+    permissions: () => sitePermissions.view(),
+    changePermission: (change) => {
+      const changed =
+        change.kind === 'decision'
+          ? sitePermissions.setDecision(change.origin, change.permission, change.decision)
+          : change.kind === 'protocol'
+            ? sitePermissions.revokeProtocol(change.origin, change.scheme)
+            : sitePermissions.revokeClientHints(change.origin);
+      return changed ? sitePermissions.view() : null;
+    },
+  };
   /** What the settings page shows (M5.1). */
   const settingsView = (): SettingsView => ({
     settings: settingsService.current(),
@@ -1035,6 +1092,7 @@ async function start(): Promise<void> {
         flushSession: () => sessionStore?.flush() ?? Promise.resolve(),
       }),
       settings: settingsCommands,
+      privacy: privacyCommands,
     }),
     allowedOrigins: new Set(
       devServer === undefined ? [SHELL_ORIGIN] : [SHELL_ORIGIN, devServer.origin],

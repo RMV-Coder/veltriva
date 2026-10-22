@@ -177,6 +177,20 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
       - `memory.paused` ("Pause memory": while on, the history recorder sends nothing for a commit, and the title and icon of a page committed then aren't written either);
       - two overrides, `moderatePressurePercent` and `criticalPressurePercent`, kept in order.
 
+14. **As built in M5.2** (clearing data, §5.7; no migration):
+    - **`memory.forget`** is one data method with three scopes: `pages` (one entry: pages, and the archived or closed tabs named), `site` (every page of the site and its archived and closed tabs), and `since` (the visits since then; with `tabs`, the tabs archived or closed since then; `since` 0 is everything).
+    - **Each request is one transaction.**
+      - The pages go with their visits (`ON DELETE CASCADE`). The FTS triggers remove their index entries, and `secure_delete` plus FTS5's `secure-delete` overwrite the freed content.
+      - Icons nothing shows any more go in the same transaction.
+      - An open or Sleeping tab is never deleted: the statement only matches `archive` and `closed` rows.
+    - **A time range keeps what is older.** Only pages that had visits in the range are touched: one left with none goes, and one with older visits gets its counts, times and frecency recomputed from what is left, by replaying its visits. A page with no visits at all is left alone; retention keeps those for archived tabs (item 12).
+    - **Then, after the commit, `incremental_vacuum` and `wal_checkpoint(TRUNCATE)`, in that order.** The vacuum writes to the WAL too, so checkpointing first left 600 KB in it (found by the test). Both files shrink, and what was deleted is in neither.
+    - **What the tests verify** (`src/data/repos/forget.test.ts`, a real file):
+      - the rows are gone and the FTS index has no hit, with the integrity check passing;
+      - the database shrinks to under half and the WAL to 0 bytes, with no free pages left;
+      - a deleted page's unique word is in neither file's raw bytes once the deletion has checkpointed.
+    - **For a site, the worker also returns the origins of what it deleted**, so main can clear their storage in Chromium (ADR-0002 item 13).
+
 ## Consequences
 
 - **Positive:** the UI thread stays responsive regardless of query cost, persistence is crash-safe, and the data layer is testable on plain Node. S5 measured it: while the worker ran a 1.09 s query, main-thread timers drifted by at most 15 ms. The same query run on the main thread stalled it for 1,489 ms.

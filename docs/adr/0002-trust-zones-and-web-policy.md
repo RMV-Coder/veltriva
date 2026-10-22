@@ -218,6 +218,12 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - **Didn't work:** Ctrl+P did nothing.
      - **M5.0's fix:** Ctrl+P is a page-first accelerator, like Ctrl+F (`src/main/input/page-menu.ts`), and the page's context menu gains "Print…". Both call `webContents.print({ silent: false })`, so the user picks the printer and nothing prints by itself.
 
+13. **Clearing site data and managing stored answers** (Phase 5, M5.2).
+   - **Chromium's data for the browsing session** is cleared through `session.clearData` and the cookie store, never the shell's session.
+     - **No time range:** Electron's API can't clear cookies, site storage or the cache by time. A time range clears them for all time, and the settings page says so next to each box.
+     - **Forgetting a site:** its cookies are matched by their domain on any host of the site. Its storage and cached files are cleared for the site's origins Veltriva knows: those of its deleted pages and tabs, plus the site and `www.`, over http and https. A file it loaded from another server stays cached, and the page says that too.
+   - **Stored answers** can be listed, changed and revoked per site: permission decisions (Allow or Block, or removed so the site asks again), an app's "always open", and the client-hint opt-ins. A revoked decision is deleted from `permission_decisions`, along with its dismissal embargo. "Forget this site" can revoke all of the site's own.
+
 ## Consequences
 
 - **Positive:** web pages can't reach any Veltriva API by construction, and privileged UI never lives inside the tab system.

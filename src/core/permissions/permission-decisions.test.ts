@@ -314,3 +314,52 @@ describe('PermissionDecisions: the embargo', () => {
     expect(onDecided.mock.calls).toEqual([[SITE, 'camera', 'block']]);
   });
 });
+
+describe('managing the stored decisions (M5.2)', () => {
+  it('lists every decision, by origin, then permission', () => {
+    const decisions = new PermissionDecisions({
+      stored: [
+        { origin: OTHER, permission: 'notifications', decision: 'block' },
+        { origin: SITE, permission: 'microphone', decision: 'allow' },
+        { origin: SITE, permission: 'camera', decision: 'allow' },
+      ],
+    });
+
+    expect(decisions.list()).toEqual([
+      { origin: SITE, permission: 'camera', decision: 'allow' },
+      { origin: SITE, permission: 'microphone', decision: 'allow' },
+      { origin: OTHER, permission: 'notifications', decision: 'block' },
+    ]);
+  });
+
+  it('forgets one decision: the page asks again, and the others stay', () => {
+    const decisions = new PermissionDecisions({
+      stored: [
+        { origin: SITE, permission: 'camera', decision: 'allow' },
+        { origin: SITE, permission: 'microphone', decision: 'allow' },
+      ],
+    });
+
+    expect(decisions.forget(SITE, 'camera')).toBe(true);
+    expect(decisions.forget(SITE, 'camera')).toBe(false);
+
+    expect(decisions.get(SITE, 'camera')).toBeUndefined();
+    expect(decisions.get(SITE, 'microphone')).toBe('allow');
+  });
+
+  it("forgets an origin's every decision, and its dismissal embargo", () => {
+    const decisions = new PermissionDecisions({
+      stored: [{ origin: SITE, permission: 'camera', decision: 'allow' }],
+    });
+    for (let n = 0; n < DISMISSALS_BEFORE_EMBARGO; n += 1) {
+      decisions.dismissed(SITE, ['geolocation']);
+    }
+    expect(decisions.get(SITE, 'geolocation')).toBe('block');
+
+    expect(decisions.forget(SITE)).toBe(true);
+
+    expect(decisions.list()).toEqual([]);
+    expect(decisions.get(SITE, 'geolocation')).toBeUndefined();
+    expect(decisions.forget(SITE)).toBe(false);
+  });
+});

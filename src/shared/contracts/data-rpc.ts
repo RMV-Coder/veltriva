@@ -243,6 +243,16 @@ const limit = (max: number) => z.number().int().min(1).max(max);
 const nothing = z.strictObject({});
 const changed = z.strictObject({ count });
 
+/** What clearing data removed (M5.2); for a site, also the origins of what went (data/repos/forget.ts). */
+export const forgetCountsSchema = z.strictObject({
+  pages: count,
+  visits: count,
+  tabs: count,
+  favicons: count,
+  origins: z.array(z.string().min(1).max(2048)).max(100),
+});
+export type ForgetCounts = z.infer<typeof forgetCountsSchema>;
+
 export const DATA_METHODS = {
   /** What the worker opened: versions and the pragmas as read back. */
   'db.info': {
@@ -407,6 +417,31 @@ export const DATA_METHODS = {
       at: timestamp,
     }),
     output: nothing,
+  },
+
+  /**
+   * Clears data (§5.7, M5.2), as one transaction, then checkpoints the WAL (TRUNCATE) and vacuums:
+   *   - `pages`: these pages and their visits, and these archived or closed tabs (never an open one);
+   *   - `site`: every page of the site, and its archived and closed tabs;
+   *   - `since`: the visits since then (a page left with none goes; one with older visits is counted
+   *     again), and with `tabs` the tabs archived or closed since then. `since` 0 is everything.
+   */
+  'memory.forget': {
+    input: z.discriminatedUnion('scope', [
+      z.strictObject({
+        scope: z.literal('pages'),
+        pageIds: z.array(rowId).max(MAX_BATCH),
+        tabIds: z.array(uuid).max(MAX_BATCH),
+      }),
+      z.strictObject({ scope: z.literal('site'), site: hostName }),
+      z.strictObject({
+        scope: z.literal('since'),
+        since: timestamp,
+        memory: z.boolean(),
+        tabs: z.boolean(),
+      }),
+    ]),
+    output: forgetCountsSchema,
   },
 
   /** Newest first. */

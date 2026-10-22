@@ -67,6 +67,11 @@ export const COMMAND_NAMES = [
   'settings.update',
   'settings.setSiteRule',
   'settings.open',
+  'privacy.clear',
+  'privacy.forgetSite',
+  'memory.remove',
+  'permissions.list',
+  'permissions.change',
 ] as const;
 export type CommandName = (typeof COMMAND_NAMES)[number];
 

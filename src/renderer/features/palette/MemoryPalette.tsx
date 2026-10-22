@@ -6,7 +6,7 @@ import { FOCUS_FIELD_RING, FOCUS_RING } from '@/lib/focus';
 import { cn } from '@/lib/utils';
 import { useNow } from '@/lib/use-now';
 
-import { openMemoryResult, showOverlay } from '../../state/commands';
+import { openMemoryResult, removeMemoryEntry, showOverlay } from '../../state/commands';
 import type { MemoryScope } from '../../state/commands';
 import { useUiStore } from '../../state/ui-store';
 import { useSelectedTabId } from '../../state/workspace-store';
@@ -17,6 +17,7 @@ import { ScoreBreakdown } from './ScoreBreakdown';
 import {
   MAX_QUERY_CHARS,
   PALETTE_SCOPES,
+  displayTitle,
   emptyMessage,
   removeSiteWords,
   resultsAnnouncement,
@@ -33,7 +34,7 @@ const RESULT_LIMIT = 30;
 const CLOCK_TICK_MS = 60_000;
 
 /** What the palette says it does, and how: the footer of the mock-up (assessment §7.3). */
-const FOOTER_HINT = '↵ switch or restore · Ctrl+↵ new tab · Tab filters';
+const FOOTER_HINT = '↵ switch or restore · Ctrl+↵ new tab · Tab filters · Shift+Del forget';
 
 /**
  * The memory palette (Ctrl+Shift+K, assessment §5.4 and §7.3): a modal over the content area to
@@ -56,6 +57,8 @@ export function MemoryPalette() {
   const [scope, setScope] = useState<MemoryScope>('all');
   const [debug, setDebug] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  /** What Shift+Delete just removed (M5.2), said until the next search. */
+  const [removed, setRemoved] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const opening = useRef(false);
   const listId = useId();
@@ -167,6 +170,7 @@ export function MemoryPalette() {
   const changeScope = (next: MemoryScope): void => {
     setScope(next);
     setPick(null);
+    setRemoved(null);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
@@ -202,6 +206,21 @@ export function MemoryPalette() {
       case 'toggleDebug':
         setDebug((shown) => !shown);
         return;
+      case 'remove': {
+        if (activeResult === undefined) {
+          return;
+        }
+        const title = displayTitle(activeResult).text;
+        const archived =
+          activeResult.tab?.placement === 'archive' ? activeResult.tab.tabId : undefined;
+        void removeMemoryEntry(activeResult.pageId, archived).then((outcome) => {
+          if (outcome !== undefined) {
+            setRemoved(`Removed “${title}” from the memory`);
+            setRefresh((count) => count + 1);
+          }
+        });
+        return;
+      }
     }
   };
 
@@ -248,6 +267,7 @@ export function MemoryPalette() {
             value={query}
             onChange={(event) => {
               setQuery(event.target.value);
+              setRemoved(null);
               setPick(null);
             }}
             className="h-10 min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-foreground/60"
@@ -316,7 +336,7 @@ export function MemoryPalette() {
 
         {/* Always in the page, so assistive technology hears how many results each search found. */}
         <p role="status" className="sr-only" data-palette-status="">
-          {answer === null ? '' : resultsAnnouncement(results.length, mode)}
+          {removed ?? (answer === null ? '' : resultsAnnouncement(results.length, mode))}
         </p>
 
         <div className="min-h-0 flex-1 overflow-y-auto border-t px-2 py-1">
@@ -355,7 +375,7 @@ export function MemoryPalette() {
 
         <div className="flex items-center gap-2 border-t px-3 py-1.5 text-xs text-popover-foreground/70">
           <span data-palette-hint="" className="min-w-0 flex-1 truncate">
-            {FOOTER_HINT}
+            {removed ?? FOOTER_HINT}
           </span>
           <button
             type="button"

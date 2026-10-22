@@ -4,7 +4,12 @@ import { app } from 'electron';
 
 import { PRODUCT_NAME } from '../../shared/constants/app-identity';
 import type { ActivityEntry } from '../../shared/contracts/activity';
-import type { CommandOutput, SettingsView } from '../../shared/contracts/schemas';
+import type {
+  CommandInput,
+  CommandOutput,
+  PermissionsView,
+  SettingsView,
+} from '../../shared/contracts/schemas';
 import type { SettingsChange } from '../../shared/contracts/settings';
 import type { DownloadManager } from '../downloads/download-manager';
 import type { ExternalProtocolGuard } from '../external/protocol-guard';
@@ -46,6 +51,23 @@ export interface CommandContext {
   readonly memory: MemoryCommands;
   /** The settings page (M5.1). */
   readonly settings: SettingsCommands;
+  /** Clearing data and the stored answers to sites (M5.2). */
+  readonly privacy: PrivacyCommands;
+}
+
+type ClearResult = CommandOutput<'privacy.clear'>;
+
+export interface PrivacyCommands {
+  clear(request: CommandInput<'privacy.clear'>): Promise<ClearResult>;
+  /** Null when `text` names no site. */
+  forgetSite(
+    text: string,
+    options: { readonly siteData: boolean; readonly permissions: boolean },
+  ): Promise<CommandOutput<'privacy.forgetSite'> | null>;
+  removeEntry(pageId: number, tabId: TabId | undefined): Promise<ClearResult>;
+  permissions(): PermissionsView;
+  /** Null when there was nothing to change or revoke. */
+  changePermission(change: CommandInput<'permissions.change'>): PermissionsView | null;
 }
 
 export interface SettingsCommands {
@@ -97,6 +119,7 @@ export function createCommandHandlers({
   lifecycle,
   memory,
   settings,
+  privacy,
 }: CommandContext): CommandHandlers {
   /** Runs `action` on an existing tab, or answers `not_found`. */
   const onTab = <T>(tabId: TabId, action: () => T): T => {
@@ -384,6 +407,30 @@ export function createCommandHandlers({
     'settings.open': () => {
       settings.open();
       return done;
+    },
+
+    // M5.2: clearing data and the stored answers to sites.
+    'privacy.clear': (request) => {
+      if (!request.memory && !request.tabs && !request.siteData && !request.cache) {
+        throw new CommandError('invalid_input');
+      }
+      return privacy.clear(request);
+    },
+    'privacy.forgetSite': async ({ site, ...options }) => {
+      const result = await privacy.forgetSite(site, options);
+      if (result === null) {
+        throw new CommandError('invalid_input');
+      }
+      return result;
+    },
+    'memory.remove': ({ pageId, tabId }) => privacy.removeEntry(pageId, tabId),
+    'permissions.list': () => privacy.permissions(),
+    'permissions.change': (change) => {
+      const view = privacy.changePermission(change);
+      if (view === null) {
+        throw new CommandError('not_found');
+      }
+      return view;
     },
 
     'layout.setInsets': (insets) => {

@@ -218,6 +218,8 @@ const overrideChange = <T extends z.ZodType>(schema: T) => schema.nullable().opt
  */
 export const settingsChangeSchema = z.strictObject({
   search: z.strictObject({ template: searchTemplate }).optional(),
+  /** M5.2: how long visits are kept, in days (the memory's retention, §5.7). */
+  history: z.strictObject({ retentionDays }).optional(),
   startup: z.enum(STARTUP_BEHAVIORS).optional(),
   memory: z.strictObject({ paused: z.boolean() }).optional(),
   lifecycle: z
@@ -263,7 +265,7 @@ export function applySettingsChange(current: Settings, change: SettingsChange): 
   const switches = given(change.lifecycle ?? {}).filter(([key]) => key !== 'overrides');
   const next = {
     search: change.search ?? current.search,
-    history: current.history,
+    history: change.history ?? current.history,
     startup: change.startup ?? current.startup,
     memory: change.memory ?? current.memory,
     lifecycle: { ...current.lifecycle, ...Object.fromEntries(switches), overrides },

@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { fetchSettings, setSiteRule, updateSettings } from '../../state/commands';
 import type { SettingsAnswer, SettingsChange, SettingsView } from '../../state/commands';
 import { useAutomation } from '../../state/workspace-store';
+import { ClearDataSection, SitePermissionsSection } from './PrivacySections';
 import {
   defaultValue,
   effectiveValue,
@@ -121,6 +122,8 @@ export function SettingsPage() {
           <AutomationSection view={view} apply={apply} />
           <MemorySection view={view} apply={apply} />
           <SiteRulesSection view={view} onView={setView} />
+          <ClearDataSection />
+          <SitePermissionsSection />
         </>
       )}
     </div>
@@ -652,6 +655,11 @@ function MemorySection({ view, apply }: { readonly view: SettingsView; readonly 
         checked={view.settings.memory.paused}
         onChange={(paused) => apply({ memory: { paused } })}
       />
+      <RetentionSetting
+        key={view.settings.history.retentionDays}
+        days={view.settings.history.retentionDays}
+        apply={apply}
+      />
     </Section>
   );
 }
@@ -870,5 +878,81 @@ function RuleBox({
       }}
       className={CHECKBOX}
     />
+  );
+}
+
+/** At most this many days: a hundred years, as the settings document allows. */
+const MAX_RETENTION_DAYS = 36_500;
+
+/**
+ * How long visits are kept (§5.7, M5.2): older ones are deleted while you are away. Applied on
+ * Enter or when the field is left; keyed by what main keeps, so its answer starts it over.
+ */
+function RetentionSetting({ days, apply }: { readonly days: number; readonly apply: Apply }) {
+  const [text, setText] = useState(String(days));
+  const [problem, setProblem] = useState<string | null>(null);
+  const inputId = useId();
+  const helpId = useId();
+  const problemId = useId();
+
+  const commit = async (): Promise<void> => {
+    const trimmed = text.trim();
+    if (trimmed === String(days)) {
+      setProblem(null);
+      return;
+    }
+    const typed = /^\d{1,6}$/.test(trimmed) ? Number(trimmed) : Number.NaN;
+    if (!(typed >= 1 && typed <= MAX_RETENTION_DAYS)) {
+      setProblem(
+        `Enter a whole number of days from 1 to ${MAX_RETENTION_DAYS.toLocaleString('en-US')}.`,
+      );
+      return;
+    }
+    const answer = await apply({ history: { retentionDays: typed } });
+    setProblem(answer.ok ? null : 'The change could not be saved.');
+  };
+
+  return (
+    <div data-setting-field="retentionDays" className="flex max-w-xl flex-col gap-1">
+      <label htmlFor={inputId} className="text-sm font-medium">
+        Keep pages you visited for
+      </label>
+      <div className="flex items-center gap-2">
+        <input
+          id={inputId}
+          type="text"
+          inputMode="numeric"
+          data-setting="retentionDays"
+          value={text}
+          aria-invalid={problem !== null}
+          aria-describedby={`${helpId} ${problemId}`}
+          onChange={(event) => {
+            setText(event.target.value);
+          }}
+          onBlur={() => {
+            void commit();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              void commit();
+            }
+          }}
+          className={cn(TEXT_FIELD, 'w-24 tabular-nums')}
+        />
+        <span className="text-sm text-foreground/70">days</span>
+      </div>
+      <p id={helpId} className="text-sm text-foreground/70">
+        Older visits are deleted while you're away, and pages left with none go too. Default: 365.
+      </p>
+      <p
+        id={problemId}
+        data-settings-error="retentionDays"
+        aria-live="polite"
+        className={ERROR_TEXT}
+      >
+        {problem}
+      </p>
+    </div>
   );
 }

@@ -1096,3 +1096,89 @@ describe('the commands of M5.1: settings', () => {
     expect(commandSchemas['settings.open'].output.safeParse({}).success).toBe(true);
   });
 });
+
+describe('the commands of M5.2: clearing data and stored answers', () => {
+  const TAB_ID = uuidv7(1_700_000_000_000, new Uint8Array(10).fill(9));
+  const NEW_COMMANDS = [
+    'privacy.clear',
+    'privacy.forgetSite',
+    'memory.remove',
+    'permissions.list',
+    'permissions.change',
+  ] as const;
+
+  it.each(NEW_COMMANDS)('%s is a command, with a schema', (name) => {
+    expect(COMMAND_NAMES).toContain(name);
+    expect(commandSchemas[name].input).toBeDefined();
+  });
+
+  it('privacy.clear takes a range and four choices, and nothing else', () => {
+    const { input } = commandSchemas['privacy.clear'];
+    const good = { range: 'hour', memory: true, tabs: false, siteData: false, cache: false };
+    expect(input.safeParse(good).success).toBe(true);
+    for (const range of ['hour', 'day', 'week', 'all']) {
+      expect(input.safeParse({ ...good, range }).success).toBe(true);
+    }
+    for (const bad of [
+      { ...good, range: 'month' },
+      { ...good, range: 0 },
+      { ...good, since: 0 },
+      { ...good, memory: 'yes' },
+      { range: 'hour' },
+      null,
+    ]) {
+      expect(input.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it('memory.remove takes a page and, optionally, the tab showing it', () => {
+    const { input } = commandSchemas['memory.remove'];
+    expect(input.safeParse({ pageId: 4 }).success).toBe(true);
+    expect(input.safeParse({ pageId: 4, tabId: TAB_ID }).success).toBe(true);
+    for (const bad of [{}, { pageId: 0 }, { pageId: 1.5 }, { pageId: 4, tabId: 'tab' }]) {
+      expect(input.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it('permissions.change is one of three changes, each strict', () => {
+    const { input } = commandSchemas['permissions.change'];
+    for (const good of [
+      { kind: 'decision', origin: 'https://a.example', permission: 'camera', decision: 'block' },
+      {
+        kind: 'decision',
+        origin: 'https://a.example',
+        permission: 'notifications',
+        decision: null,
+      },
+      { kind: 'protocol', origin: 'https://a.example', scheme: 'zoommtg' },
+      { kind: 'clientHints', origin: 'https://a.example' },
+    ]) {
+      expect(input.safeParse(good).success, JSON.stringify(good)).toBe(true);
+    }
+    for (const bad of [
+      { kind: 'decision', origin: 'https://a.example', permission: 'usb', decision: 'allow' },
+      { kind: 'decision', origin: 'https://a.example', permission: 'camera', decision: 'ask' },
+      { kind: 'protocol', origin: 'https://a.example' },
+      { kind: 'everything' },
+      { kind: 'clientHints', origin: '' },
+    ]) {
+      expect(input.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it('the permissions list is what main sends, and refuses an unknown permission', () => {
+    const { output } = commandSchemas['permissions.list'];
+    const view = {
+      decisions: [{ origin: 'https://a.example', permission: 'camera', decision: 'allow' }],
+      protocols: [{ origin: 'https://a.example', scheme: 'mailto' }],
+      clientHints: [{ origin: 'https://b.example', hints: ['sec-ch-ua-arch'] }],
+    };
+    expect(output.parse(view)).toEqual(view);
+    expect(
+      output.safeParse({
+        ...view,
+        decisions: [{ origin: 'https://a.example', permission: 'usb', decision: 'allow' }],
+      }).success,
+    ).toBe(false);
+  });
+});

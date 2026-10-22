@@ -211,6 +211,20 @@ export class ClientHintOptIns {
     }
   }
 
+  /** Every origin's opt-ins, oldest first (M5.2: the settings page lists them). */
+  entries(): { readonly origin: string; readonly hints: readonly OptInHint[] }[] {
+    return [...this.#byOrigin].map(([origin, hints]) => ({ origin, hints: [...hints] }));
+  }
+
+  /** Forgets what an origin asked for (M5.2); its next page load may ask again. */
+  forget(origin: string): boolean {
+    const had = this.#byOrigin.delete(origin);
+    if (had) {
+      this.#onChange?.();
+    }
+    return had;
+  }
+
   /** The opt-in hints a request to `url` gets. */
   for(url: string): ReadonlySet<OptInHint> {
     const origin = originOf(url);

@@ -459,3 +459,27 @@ describe('ExternalProtocolGuard: onAlwaysAllowed', () => {
     expect(prompts.current('tab-1')).toBeNull();
   });
 });
+
+describe('managing "always open" (M5.2)', () => {
+  it('lists each always-allowed app by site origin and scheme, and revokes one', async () => {
+    const { guard, request, answer } = setup({
+      alwaysAllowed: [
+        { site: 'https://zoom.example', scheme: 'zoommtg' },
+        { site: 'https://mail.example', scheme: 'mailto' },
+      ],
+    });
+
+    expect(guard.alwaysAllowed()).toEqual([
+      { site: 'https://mail.example', scheme: 'mailto' },
+      { site: 'https://zoom.example', scheme: 'zoommtg' },
+    ]);
+    expect(guard.revoke('https://zoom.example', 'zoommtg')).toBe(true);
+    expect(guard.revoke('https://zoom.example', 'zoommtg')).toBe(false);
+    expect(guard.alwaysAllowed()).toEqual([{ site: 'https://mail.example', scheme: 'mailto' }]);
+
+    // The next link asks again.
+    const outcome = guard.request(request());
+    await answer({ decision: 'block', remember: false });
+    expect(await outcome).toBe('declined');
+  });
+});

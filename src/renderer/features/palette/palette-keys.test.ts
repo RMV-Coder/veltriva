@@ -131,3 +131,16 @@ describe('pageActive', () => {
     expect(pageActive(0, -1, 1)).toBe(-1);
   });
 });
+
+describe('paletteKeyAction: Shift+Delete forgets the active result (M5.2)', () => {
+  it('is Shift+Delete, as in Chrome', () => {
+    expect(press('Delete', { shiftKey: true })).toEqual({ kind: 'remove' });
+  });
+
+  it('leaves Delete alone to the text field, and any other modifier with it', () => {
+    expect(press('Delete')).toBeNull();
+    expect(press('Delete', { shiftKey: true, ctrlKey: true })).toBeNull();
+    expect(press('Delete', { shiftKey: true, altKey: true })).toBeNull();
+    expect(press('Delete', { shiftKey: true, isComposing: true })).toBeNull();
+  });
+});

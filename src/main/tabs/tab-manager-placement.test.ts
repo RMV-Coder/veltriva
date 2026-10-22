@@ -2748,3 +2748,84 @@ describe('TabManager: printing (M5.0)', () => {
     expect(env.manager.print(env.home)).toBe(false);
   });
 });
+
+describe('TabManager placement: forgetting records when data is cleared (M5.2)', () => {
+  const closedTab = (id: string, closedAt: number) => ({
+    ...savedTab(id),
+    closedAt,
+    index: 0,
+  });
+
+  it('forgets the archived and recently closed tabs picked, and never an open or Sleeping one', () => {
+    const env = setupEmpty();
+    env.manager.restoreSession(
+      session({
+        tabs: [savedTab('open')],
+        selectedTabId: 'open',
+        shelf: [savedTab('asleep')],
+        archived: [
+          archivedTab('old', { archivedAt: 1000 }),
+          archivedTab('new', { archivedAt: 9000 }),
+        ],
+        archivedCount: 2,
+        closed: [closedTab('closed-new', 9500), closedTab('closed-old', 1500)],
+      }),
+    );
+
+    const forgotten = env.manager.forgetRecords(
+      (record) => (record.archivedAt ?? record.closedAt ?? 0) >= 5000,
+    );
+
+    expect(forgotten.sort()).toEqual(['closed-new', 'new']);
+    expect(env.archived()).toEqual(['old']);
+    expect(env.manager.closedTabs().map((tab) => tab.id)).toEqual(['closed-old']);
+    expect(env.strip()).toEqual(['open']);
+    expect(env.manager.sleepingTabs().map((tab) => tab.id)).toEqual(['asleep']);
+    // Nothing matches an open tab, whatever the predicate says.
+    expect(env.manager.forgetRecords(() => true).sort()).toEqual(['closed-old', 'old']);
+    expect(env.strip()).toEqual(['open']);
+  });
+
+  it('gives the record its id, address and times', () => {
+    const env = setupEmpty();
+    env.manager.restoreSession(
+      session({
+        tabs: [savedTab('a')],
+        selectedTabId: 'a',
+        archived: [archivedTab('x', { archivedAt: 7000 })],
+        closed: [closedTab('y', 8000)],
+      }),
+    );
+    const seen: unknown[] = [];
+
+    env.manager.forgetRecords((record) => {
+      seen.push(record);
+      return false;
+    });
+
+    expect(seen).toEqual(
+      expect.arrayContaining([
+        { id: 'x', url: 'https://x.example/', archivedAt: 7000, closedAt: null },
+        { id: 'y', url: 'https://y.example/', archivedAt: null, closedAt: 8000 },
+      ]),
+    );
+  });
+
+  it('takes the archive count from the database after it deleted some', () => {
+    const env = setupEmpty();
+    env.manager.restoreSession(
+      session({
+        tabs: [savedTab('a')],
+        selectedTabId: 'a',
+        archived: [archivedTab('x')],
+        archivedCount: 500,
+      }),
+    );
+
+    env.manager.setArchivedTotal(120);
+    expect(env.manager.archivedCount()).toBe(120);
+    // Never fewer than memory holds.
+    env.manager.setArchivedTotal(0);
+    expect(env.manager.archivedCount()).toBe(1);
+  });
+});

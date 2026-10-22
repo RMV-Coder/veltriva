@@ -29,7 +29,9 @@ export type PaletteKeyAction =
   /** Tab (1) and Shift+Tab (-1): the next filter, wrapping around. */
   | { readonly kind: 'scope'; readonly direction: 1 | -1 }
   /** Alt+S: the score-breakdown debug view (Alt+D is main's: it focuses the address bar). */
-  | { readonly kind: 'toggleDebug' };
+  | { readonly kind: 'toggleDebug' }
+  /** Shift+Delete: removes the active result from the memory (M5.2), as Chrome's address bar does. */
+  | { readonly kind: 'remove' };
 
 /** The palette's action for a key, or null to leave the key to the text field. */
 export function paletteKeyAction(press: PaletteKeyPress): PaletteKeyAction | null {
@@ -66,6 +68,9 @@ export function paletteKeyAction(press: PaletteKeyPress): PaletteKeyAction | nul
       return { kind: 'page', delta: -1 };
     case 'Tab':
       return { kind: 'scope', direction: press.shiftKey ? -1 : 1 };
+    case 'Delete':
+      // Delete alone stays with the text field.
+      return press.shiftKey ? { kind: 'remove' } : null;
     default:
       return null;
   }
