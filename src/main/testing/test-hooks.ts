@@ -13,7 +13,10 @@ import type {
   LifecycleSettingsInput,
   MemoryPressure,
 } from '../../core/lifecycle/policy';
+import type { ActivityEntry } from '../../shared/contracts/activity';
+import type { ActivityLog } from '../lifecycle/activity-log';
 import type { ActionRecord, LifecycleScheduler } from '../lifecycle/scheduler';
+import type { UndoManager, UndoOffer } from '../lifecycle/undo';
 import { advanceTestClock, setTestCaptured, setTestMemoryPressure } from './test-clock';
 import type { TestClockAdjustment } from './test-clock';
 import { isDataMethod } from '../../shared/contracts/data-rpc';
@@ -175,6 +178,23 @@ export interface VeltrivaTestHooks {
    * read `isBeingCaptured()`: Playwright makes it true for every page.
    */
   setCaptured(webContentsId: number, captured: boolean): void;
+  /** Sleeping (M3.3), most recently moved there first, as `tabStates` describes strip tabs. */
+  sleepingTabStates(): TabStateEntry[];
+  /** The archived tabs in memory, newest first, and how many there are in all. */
+  archivedTabEntries(): ArchivedTabEntry[];
+  archivedTabCount(): number;
+  /** What the sidebar offers to undo, if anything. */
+  undoOffer(): UndoOffer | null;
+  /** The activity log, newest first. */
+  activityEntries(): ActivityEntry[];
+}
+
+export interface ArchivedTabEntry {
+  readonly id: TabId;
+  readonly url: string;
+  readonly title: string;
+  readonly archivedAt: number;
+  readonly reason: 'auto' | 'manual';
 }
 
 declare global {
@@ -198,6 +218,8 @@ export interface TestHookContext {
     readonly scheduler: LifecycleScheduler;
     readonly clock: () => LifecycleClock;
     readonly setSettings: (settings: Partial<LifecycleSettingsInput>) => void;
+    readonly undo: UndoManager;
+    readonly activity: ActivityLog;
   };
 }
 
@@ -238,6 +260,17 @@ export function installTestHooks({
   lifecycle,
 }: TestHookContext): void {
   const testTabs = new Set<WebContentsView>();
+  /** A tab as `tabStates` reports it: its state and its view's. */
+  const stateEntry = (tab: TabState): TabStateEntry => {
+    const view = views.get(tab.id);
+    return {
+      ...tab,
+      webContentsId: view?.webContents.id ?? null,
+      devToolsTargetId: view?.webContents.getOrCreateDevToolsTargetId() ?? null,
+      attached: view !== undefined && main.window.contentView.children.includes(view),
+      bounds: view?.getBounds() ?? null,
+    };
+  };
   const paramsFrom = (params: Partial<MenuParams> = {}): MenuParams => ({
     ...PLAIN_CLICK,
     ...params,
@@ -276,17 +309,7 @@ export function installTestHooks({
     },
 
     tabStates() {
-      const attached = new Set(main.window.contentView.children);
-      return tabs.tabs().map((tab) => {
-        const view = views.get(tab.id);
-        return {
-          ...tab,
-          webContentsId: view?.webContents.id ?? null,
-          devToolsTargetId: view?.webContents.getOrCreateDevToolsTargetId() ?? null,
-          attached: view !== undefined && attached.has(view),
-          bounds: view?.getBounds() ?? null,
-        };
-      });
+      return tabs.tabs().map(stateEntry);
     },
 
     selectedTabId() {
@@ -443,6 +466,32 @@ export function installTestHooks({
 
     setCaptured(webContentsId, captured) {
       setTestCaptured(webContentsId, captured);
+    },
+
+    sleepingTabStates() {
+      return tabs.sleepingTabs().map(stateEntry);
+    },
+
+    archivedTabEntries() {
+      return tabs.archivedTabs().map((tab) => ({
+        id: tab.id,
+        url: tab.url,
+        title: tab.title,
+        archivedAt: tab.archivedAt,
+        reason: tab.reason,
+      }));
+    },
+
+    archivedTabCount() {
+      return tabs.archivedCount();
+    },
+
+    undoOffer() {
+      return lifecycle.undo.current();
+    },
+
+    activityEntries() {
+      return lifecycle.activity.entries();
     },
   };
 

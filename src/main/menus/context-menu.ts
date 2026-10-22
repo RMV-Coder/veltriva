@@ -10,6 +10,7 @@ import { clipboard, Menu } from 'electron';
 import type { BaseWindow, ContextMenuParams, WebContents, WebContentsView } from 'electron';
 
 import { buildSearchUrl } from '../../core/url/omnibox';
+import type { PlacementActions } from '../lifecycle/placement-actions';
 import type { TabId, TabManager } from '../tabs/tab-manager';
 import { isNavigationAllowed } from '../web/navigation-policy';
 import { buildContextMenu, canSave } from './context-menu-model';
@@ -25,6 +26,8 @@ export interface ContextMenuDependencies {
   readonly searchTemplate: () => string;
   /** The search engine's name for the "Search … for" item. */
   readonly searchEngine: () => string;
+  /** The user's moves to Sleeping and the Archive, with Undo (M3.3). */
+  readonly placement: () => PlacementActions;
 }
 
 export interface ContextMenus {
@@ -256,7 +259,10 @@ export function createContextMenus(deps: ContextMenuDependencies): ContextMenus 
     const tabs = deps.tabs();
     const tab = tabs.get(tabId);
     return buildTabMenu({
+      placement: tab.placement,
       pinned: tab.pinned,
+      userProtected: tab.userProtected,
+      canArchive: tab.url !== '' && !tab.ephemeral,
       hasPage: tab.url !== '',
       otherUnpinnedTabs: tabs.tabs().filter((other) => other.id !== tabId && !other.pinned).length,
       canReopenClosed: tabs.canReopenClosed(),
@@ -303,6 +309,19 @@ export function createContextMenus(deps: ContextMenuDependencies): ContextMenus 
         return;
       case 'reopen-closed':
         tabs.reopenClosed();
+        return;
+      case 'shelve':
+        deps.placement().shelve(tabId);
+        return;
+      case 'archive':
+        void deps.placement().archive(tabId);
+        return;
+      case 'restore':
+        deps.placement().restore(tabId, { focus: false });
+        return;
+      case 'protect':
+      case 'unprotect':
+        deps.placement().setProtected(tabId, id === 'protect');
         return;
     }
   }

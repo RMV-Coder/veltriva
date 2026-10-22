@@ -19,6 +19,7 @@ const base: TabState = {
   pinned: false,
   placement: 'strip',
   userProtected: false,
+  unloadedBy: null,
   ephemeral: false,
   runtime: 'live',
   page: { kind: 'web' },
@@ -87,6 +88,10 @@ describe('projectTab', () => {
       ],
       fullscreen: { tabId: ID, origin: 'example.com', notice: true },
       downloads: [],
+      sleeping: [projectTab({ ...base, placement: 'shelf', runtime: 'unloaded' })],
+      archived: [],
+      counts: { sleeping: 1, archived: 0, archivedToday: 0 },
+      undo: { batchId: 'batch-1', automated: true, shelved: 1, archived: 0 },
       notices: [
         {
           id: 'notice-1',
@@ -162,6 +167,10 @@ describe('noticeFileName', () => {
         fullscreen: null,
         downloads: [],
         notices: [{ id: 'notice-1', kind: 'database-reset', corruptFile: noticeFileName(name) }],
+        sleeping: [],
+        archived: [],
+        counts: { sleeping: 0, archived: 0, archivedToday: 0 },
+        undo: null,
       }).success;
     for (const name of [
       '',

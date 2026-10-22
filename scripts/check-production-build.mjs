@@ -44,6 +44,12 @@ const MARKERS = [
   'lifecycleLog',
   'setMemoryPressure',
   'setLifecycleSettings',
+  // M3.3: Sleeping, the Archive, Undo and the activity log
+  'sleepingTabStates',
+  'archivedTabEntries',
+  'archivedTabCount',
+  'undoOffer',
+  'activityEntries',
   // src/main/testing/test-clock.ts: the accelerated lifecycle clock (M3.2)
   'testClockAdjustment',
   'advanceTestClock',

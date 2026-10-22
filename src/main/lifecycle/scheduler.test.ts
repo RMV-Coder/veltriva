@@ -1,7 +1,8 @@
 // The lifecycle scheduler (assessment §4.8): when it evaluates, how many actions it starts and how
-// fast, and what it logs. The policy is the real one (core/lifecycle/policy.ts); everything the
-// scheduler touches is a fake: tabs whose facts a test sets and whose `discard` and `freeze` hand
-// out promises the test settles, a clock whose timers a test moves, settings and pressure.
+// fast, what it logs, and which tabs it moved (the batch Undo offers, M3.3). The policy is the real
+// one (core/lifecycle/policy.ts); everything the scheduler touches is a fake: tabs whose facts a
+// test sets and whose `discard`, `freeze` and `archive` hand out promises the test settles (`shelve`
+// answers at once, as TabManager's does), a clock whose timers a test moves, settings and pressure.
 //
 // Time is a manual clock in milliseconds from the start of the test; the wall clock the policy sees
 // is WALL0 plus it, so "hidden for 2 hours" is a fact written relative to WALL0 and stays true as
@@ -11,8 +12,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { DiscardOutcome, DiscardRequest, Timers } from '../../core/lifecycle/discard';
+import type { MoveOutcome, MoveRequest, PlacementMove } from '../../core/lifecycle/placement';
 import { DEFAULT_LIFECYCLE_SETTINGS } from '../../core/lifecycle/policy';
 import type { LifecycleSettings, MemoryPressure, TabFacts } from '../../core/lifecycle/policy';
+import type { RuntimeState } from '../../core/lifecycle/runtime-machine';
 import type { Logger } from '../platform/logger';
 import type { FreezeOutcome, TabId } from '../tabs/tab-manager';
 import {
@@ -25,7 +28,7 @@ import {
   TICK_MS,
   TRIGGER_DELAY_MS,
 } from './scheduler';
-import type { ActionRecord, SchedulerTabs } from './scheduler';
+import type { ActionRecord, MoveBatch, SchedulerTabs } from './scheduler';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -48,6 +51,12 @@ function pick<T>(list: readonly T[], index: number, what: string): T {
   }
   return item;
 }
+
+/** Whether facts are the tab's. */
+const isTab =
+  (id: TabId) =>
+  (facts: TabFacts): boolean =>
+    facts.id === id;
 
 /** A promise's state, once it settles. */
 class Tracked<T> {
@@ -135,6 +144,19 @@ interface FreezeCall {
   readonly settle: PromiseWithResolvers<FreezeOutcome>;
 }
 
+/** A shelve: it answers at once, so there is nothing to settle. */
+interface ShelveCall {
+  readonly tabId: TabId;
+  readonly request: MoveRequest;
+  readonly at: number;
+}
+
+interface ArchiveCall extends ShelveCall {
+  /** What `settleAll` settles it with: the outcome this call was given when it was made. */
+  readonly outcome: MoveOutcome;
+  readonly settle: PromiseWithResolvers<MoveOutcome>;
+}
+
 /** TabManager as the scheduler sees it. */
 class FakeTabs implements SchedulerTabs {
   facts: TabFacts[] = [];
@@ -143,14 +165,28 @@ class FakeTabs implements SchedulerTabs {
   readError: Error | null = null;
   readonly discards: DiscardCall[] = [];
   readonly freezes: FreezeCall[] = [];
-  /** True leaves each operation for the test to settle; false settles it at once with an outcome. */
+  readonly shelves: ShelveCall[] = [];
+  readonly archives: ArchiveCall[] = [];
+  /** True leaves each async operation for the test to settle; false settles it at once. */
   hold = false;
   discardOutcome: DiscardOutcome = DISCARDED;
   freezeOutcome: FreezeOutcome = FROZEN;
-  /** How `discard` and `freeze` fail: not at all, by rejecting, or by throwing at once. */
+  /** What a shelve and an archive answer; null is a move from where the tab is, as TabManager does. */
+  shelveOutcome: MoveOutcome | null = null;
+  archiveOutcome: MoveOutcome | null = null;
+  /**
+   * How the operations fail: not at all, by rejecting, or by throwing at once. `shelve` answers
+   * synchronously, so it can only throw: it ignores 'reject'.
+   */
   failure: 'none' | 'reject' | 'throw' = 'none';
 
   constructor(private readonly time: ManualClock) {}
+
+  /** A successful move of this tab, at its position among the tabs of `from`. */
+  moved(tabId: TabId, from: PlacementMove['from'], to: PlacementMove['to']): MoveOutcome {
+    const index = this.facts.filter((facts) => facts.placement === from).findIndex(isTab(tabId));
+    return { outcome: 'moved', move: { tabId, from, to, index: Math.max(0, index) } };
+  }
 
   lifecycleTabs(): TabFacts[] {
     this.reads += 1;
@@ -190,6 +226,31 @@ class FakeTabs implements SchedulerTabs {
     return settle.promise;
   }
 
+  shelve(tabId: TabId, request: MoveRequest): MoveOutcome {
+    this.shelves.push({ tabId, request, at: this.time.now });
+    if (this.failure === 'throw') {
+      throw new Error('shelve threw at once');
+    }
+    return this.shelveOutcome ?? this.moved(tabId, 'strip', 'shelf');
+  }
+
+  archive(tabId: TabId, request: MoveRequest): Promise<MoveOutcome> {
+    const settle = Promise.withResolvers<MoveOutcome>();
+    const from = this.facts.find(isTab(tabId))?.placement ?? 'shelf';
+    const outcome = this.archiveOutcome ?? this.moved(tabId, from, 'archive');
+    this.archives.push({ tabId, request, at: this.time.now, outcome, settle });
+    if (this.failure === 'throw') {
+      throw new Error('archive threw at once');
+    }
+    if (this.failure === 'reject') {
+      return Promise.reject(new Error('archive rejected'));
+    }
+    if (!this.hold) {
+      settle.resolve(outcome);
+    }
+    return settle.promise;
+  }
+
   /** Settles every operation still held, with the default outcomes. */
   settleAll(): void {
     for (const call of this.discards) {
@@ -197,6 +258,9 @@ class FakeTabs implements SchedulerTabs {
     }
     for (const call of this.freezes) {
       call.settle.resolve(this.freezeOutcome);
+    }
+    for (const call of this.archives) {
+      call.settle.resolve(call.outcome);
     }
   }
 }
@@ -247,6 +311,30 @@ const longHidden = (count: number): TabFacts[] =>
     .split('')
     .map((id, index) => hiddenFor(id, (10 - index) * HOUR));
 
+/**
+ * A Sleeping tab (not loaded) unused for 5 hours, since active day 1: with the active day at 10, or
+ * anything three or more days on, archive-dormant applies to it. Pass a `runtime` for a loaded one.
+ */
+const dormant = (id: TabId, overrides: Partial<TabFacts> = {}): TabFacts =>
+  tab(id, {
+    placement: 'shelf',
+    runtime: 'unloaded',
+    lastUsedActiveDay: 1,
+    lastUsedAt: WALL0 - 5 * HOUR,
+    ...overrides,
+  });
+
+/**
+ * A live strip tab unused for 3 engaged hours: with a cap of 1 and `keep` the tab within it (see
+ * `shelving`), shelve-beyond-cap applies to it. The larger `age` (ms), the longer unused, so the
+ * sooner it is shelved.
+ */
+const stale = (id: TabId, age = 0, overrides: Partial<TabFacts> = {}): TabFacts =>
+  tab(id, { lastUsedAt: WALL0 - HOUR - age, lastUsedEngaged: 0, ...overrides });
+
+/** The one tab inside a strip cap of 1: used just now, so nothing is planned for it. */
+const keep = (): TabFacts => tab('keep', { lastUsedAt: WALL0, lastUsedEngaged: 3 * HOUR });
+
 const outline = (records: readonly ActionRecord[]): string[] =>
   records.map((record) => `${record.kind}:${record.tabId}:${record.result.outcome}`);
 
@@ -255,6 +343,7 @@ interface BuildOptions {
   readonly settings?: Partial<LifecycleSettings>;
   readonly pressure?: MemoryPressure;
   readonly onAction?: (record: ActionRecord) => void;
+  readonly onBatch?: (batch: MoveBatch) => void;
 }
 
 function build(options: BuildOptions = {}) {
@@ -268,6 +357,7 @@ function build(options: BuildOptions = {}) {
     activeDay: 1,
   };
   const actions: ActionRecord[] = [];
+  const batches: MoveBatch[] = [];
   const { logger, events } = recordingLogger();
   const scheduler = new LifecycleScheduler({
     tabs,
@@ -284,6 +374,10 @@ function build(options: BuildOptions = {}) {
       actions.push(record);
       options.onAction?.(record);
     },
+    onBatch: (batch) => {
+      batches.push(batch);
+      options.onBatch?.(batch);
+    },
   });
   return {
     scheduler,
@@ -291,6 +385,7 @@ function build(options: BuildOptions = {}) {
     tabs,
     state,
     actions,
+    batches,
     events,
     setSettings: (patch: Partial<LifecycleSettings>): void => {
       state.settings = { ...state.settings, ...patch };
@@ -313,6 +408,21 @@ function build(options: BuildOptions = {}) {
 }
 
 type Harness = ReturnType<typeof build>;
+
+/**
+ * A harness where shelving and archiving apply to `stale` and `dormant` tabs: a strip cap of 1
+ * (held by `keep`), 3 engaged hours in, on the 10th active day.
+ */
+function shelving(tabs: readonly TabFacts[], options: BuildOptions = {}): Harness {
+  const h = build({
+    ...options,
+    tabs: [keep(), ...tabs],
+    settings: { stripCap: 1, ...options.settings },
+  });
+  h.state.engagedNow = 3 * HOUR;
+  h.state.activeDay = 10;
+  return h;
+}
 
 describe('LifecycleScheduler: the quiet start and the tick', () => {
   it('does nothing until QUIET_START_MS, then evaluates', async () => {
@@ -638,6 +748,8 @@ describe('LifecycleScheduler: what a request carries and what is logged', () => 
         epoch: 7,
         overrideSoft,
         at: WALL0,
+        batchId: 'batch-1',
+        pressure, // the "why" of a pressure discard names it (M3.4)
         result: DISCARDED,
       },
     ]);
@@ -678,6 +790,8 @@ describe('LifecycleScheduler: what a request carries and what is logged', () => 
         epoch: 4,
         overrideSoft: false,
         at: WALL0,
+        batchId: 'batch-1',
+        pressure: 'none',
         result: outcome,
       },
     ]);
@@ -702,48 +816,96 @@ describe('LifecycleScheduler: what a request carries and what is logged', () => 
     }
   });
 
-  it('sends TabManager only discards and freezes, even when a shelve is planned beside them', async () => {
-    const h = build({
-      tabs: [...longHidden(1), tab('keep'), tab('old', { lastUsedAt: WALL0 - HOUR })],
+  it('gives every record the batch of its evaluation: batch-1, batch-2…, one per evaluation', async () => {
+    const h = build({ tabs: longHidden(5) });
+    await h.evaluateFully(); // a, b, c discarded; d and e left over the limit
+    for (const id of ['a', 'b', 'c']) {
+      h.update(id, { runtime: 'unloaded' });
+    }
+    await h.evaluateFully(); // d and e
+    for (const id of ['d', 'e']) {
+      h.update(id, { runtime: 'unloaded' });
+    }
+    await h.evaluateFully(); // nothing to do, but an evaluation all the same
+    h.update('a', { runtime: 'live' });
+    await h.evaluateFully();
+
+    expect(
+      h.scheduler
+        .log()
+        .map((record) => `${record.batchId}:${record.tabId}:${record.result.outcome}`)
+        .sort(),
+    ).toEqual([
+      'batch-1:a:discarded',
+      'batch-1:b:discarded',
+      'batch-1:c:discarded',
+      'batch-1:d:rate-limited',
+      'batch-1:e:rate-limited',
+      'batch-2:d:discarded',
+      'batch-2:e:discarded',
+      'batch-4:a:discarded',
+    ]);
+  });
+
+  it('stamps every record with the pressure as it was when its evaluation began', async () => {
+    const h = build({ tabs: longHidden(3), pressure: 'moderate' });
+    const done = new Tracked(h.scheduler.evaluate());
+    await h.time.advance(STAGGER_MS / 2);
+    h.state.pressure = 'critical'; // b and c are still waiting their turn
+    await h.time.advance(5 * STAGGER_MS);
+    expect(done.settled).toBe(true);
+    expect(h.scheduler.log().map((record) => record.pressure)).toEqual([
+      'moderate',
+      'moderate',
+      'moderate',
+    ]);
+
+    for (const id of ['a', 'b', 'c']) {
+      h.update(id, { runtime: 'unloaded' });
+    }
+    h.tabs.facts = [...h.tabs.facts, hiddenFor('d', 9 * HOUR)];
+    await h.evaluateFully();
+    expect(pick(h.scheduler.log(), 3, 'record')).toMatchObject({
+      tabId: 'd',
+      rule: 'pressure-discard',
+      pressure: 'critical',
     });
-    h.setSettings({ stripCap: 1 });
-    h.state.engagedNow = 3 * HOUR;
-    h.update('keep', { lastUsedEngaged: 3 * HOUR, lastUsedAt: WALL0 });
+  });
+
+  it('sends each action to its own TabManager operation: a discard beside a shelve', async () => {
+    const h = shelving([...longHidden(1), stale('old')]);
     await h.evaluateFully();
 
     expect(h.tabs.discards.map((call) => call.tabId)).toEqual(['a']);
-    expect(outline(h.scheduler.log()).sort()).toEqual([
-      'discard:a:discarded',
-      'shelve:old:planned',
-    ]);
+    expect(h.tabs.shelves.map((call) => call.tabId)).toEqual(['old']);
+    expect(h.tabs.freezes).toEqual([]);
+    expect(h.tabs.archives).toEqual([]);
+    expect(outline(h.scheduler.log()).sort()).toEqual(['discard:a:discarded', 'shelve:old:moved']);
   });
 });
 
-describe('LifecycleScheduler: shelves and archives are only planned', () => {
-  /** A strip tab beyond the cap and stale (shelve), and a Sleeping tab unused for days (archive). */
-  function shelveAndArchive(): Harness {
-    const h = build({
-      tabs: [
-        tab('keep', { lastUsedAt: WALL0, lastUsedEngaged: 3 * HOUR }),
-        tab('old', { lastUsedAt: WALL0 - HOUR, lastUsedEngaged: 0, epoch: 5 }),
-        tab('dormant', {
-          placement: 'shelf',
-          runtime: 'unloaded',
-          lastUsedActiveDay: 1,
-          lastUsedAt: WALL0 - 5 * HOUR,
-        }),
-      ],
-      settings: { stripCap: 1 },
-    });
-    h.state.engagedNow = 3 * HOUR;
-    h.state.activeDay = 10;
-    return h;
-  }
+/** What a shelve or an archive was asked, without the means to settle it. */
+const asked = (calls: readonly ShelveCall[]) =>
+  calls.map(({ tabId, request, at }) => ({ tabId, request, at }));
 
-  it('logs each once as planned, and never sends it to TabManager', async () => {
+describe('LifecycleScheduler: shelves and archives', () => {
+  /** A strip tab beyond the cap and stale (shelve), and a Sleeping tab unused for days (archive). */
+  const shelveAndArchive = (): Harness =>
+    shelving([stale('old', 0, { epoch: 5 }), dormant('dormant')]);
+
+  it('carries each out as an automation move with the epoch the decision saw, and logs where it went', async () => {
     const h = shelveAndArchive();
     await h.evaluateFully();
 
+    // toStrictEqual: a move request carries nothing else (only a discard has overrideSoft).
+    expect(asked(h.tabs.shelves)).toStrictEqual([
+      { tabId: 'old', request: { origin: 'automation', epoch: 5 }, at: 0 },
+    ]);
+    expect(asked(h.tabs.archives)).toStrictEqual([
+      { tabId: 'dormant', request: { origin: 'automation', epoch: 1 }, at: 0 },
+    ]);
+    expect(h.tabs.discards).toEqual([]);
+    expect(h.tabs.freezes).toEqual([]);
     expect(h.scheduler.log()).toEqual([
       {
         tabId: 'old',
@@ -752,7 +914,9 @@ describe('LifecycleScheduler: shelves and archives are only planned', () => {
         epoch: 5,
         overrideSoft: false,
         at: WALL0,
-        result: { outcome: 'planned' },
+        batchId: 'batch-1',
+        pressure: 'none',
+        result: { outcome: 'moved', move: { tabId: 'old', from: 'strip', to: 'shelf', index: 1 } },
       },
       {
         tabId: 'dormant',
@@ -761,71 +925,452 @@ describe('LifecycleScheduler: shelves and archives are only planned', () => {
         epoch: 1,
         overrideSoft: false,
         at: WALL0,
-        result: { outcome: 'planned' },
+        batchId: 'batch-1',
+        pressure: 'none',
+        result: {
+          outcome: 'moved',
+          move: { tabId: 'dormant', from: 'shelf', to: 'archive', index: 0 },
+        },
       },
     ]);
-    expect(h.tabs.discards).toEqual([]);
-    expect(h.tabs.freezes).toEqual([]);
-    expect(h.time.pending).toEqual([]); // nothing was started, so nothing waited
+    expect(h.time.pending).toEqual([]); // nothing waited
   });
 
-  it('does not log them again while they stay planned', async () => {
+  it('archives a tab from the strip as from the strip', async () => {
+    // Not reachable through the policy (it archives Sleeping tabs only), but the move reports
+    // where the tab was, which is what TabManager's answer says: the scheduler passes it on.
     const h = shelveAndArchive();
-    for (let i = 0; i < 4; i += 1) {
-      await h.evaluateFully();
-    }
-    expect(outline(h.scheduler.log())).toEqual(['shelve:old:planned', 'archive:dormant:planned']);
-    expect(h.actions).toHaveLength(2);
+    h.tabs.archiveOutcome = {
+      outcome: 'moved',
+      move: { tabId: 'dormant', from: 'strip', to: 'archive', index: 4 },
+    };
+    await h.evaluateFully();
+    expect(pick(h.scheduler.log(), 1, 'record').result).toBe(h.tabs.archiveOutcome);
   });
 
-  it('logs them again after they drop out of the plan and come back', async () => {
+  it.each<[string, MoveOutcome]>([
+    ['moved', { outcome: 'moved', move: { tabId: 'x', from: 'strip', to: 'shelf', index: 3 } }],
+    ['skipped as stale', { outcome: 'skipped', why: 'stale' }],
+    ['skipped as pinned', { outcome: 'skipped', why: 'pinned' }],
+    ['skipped as in the wrong placement', { outcome: 'skipped', why: 'wrong-placement' }],
+    ['blocked by capture', { outcome: 'blocked', reason: 'capture' }],
+    ['blocked by an unanswered probe', { outcome: 'blocked', reason: 'probe-unanswered' }],
+  ])(
+    'logs the outcome TabManager gave for a shelve and for an archive: %s',
+    async (_name, outcome) => {
+      const h = shelveAndArchive();
+      h.tabs.shelveOutcome = outcome;
+      h.tabs.archiveOutcome = outcome;
+      await h.evaluateFully();
+
+      expect(h.scheduler.log().map((record) => record.kind)).toEqual(['shelve', 'archive']);
+      for (const record of h.scheduler.log()) {
+        expect(record.result).toBe(outcome);
+      }
+    },
+  );
+
+  it('stamps them with the pressure too, though pressure itself never moves a tab', async () => {
+    const h = shelving([stale('old'), dormant('dormant')], { pressure: 'moderate' });
+    await h.evaluateFully();
+    expect(h.scheduler.log().map((record) => [record.kind, record.pressure])).toEqual([
+      ['shelve', 'moderate'],
+      ['archive', 'moderate'],
+    ]);
+  });
+
+  it('does not log a move as planned: it is carried out, or it is not planned', async () => {
     const h = shelveAndArchive();
     await h.evaluateFully();
-    expect(h.scheduler.log()).toHaveLength(2);
-
-    // The user used the old tab and the Sleeping one was woken: nothing is planned.
-    h.update('old', { lastUsedEngaged: 3 * HOUR });
+    h.update('old', { lastUsedEngaged: 3 * HOUR }); // used meanwhile: out of the plan
     h.update('dormant', { lastUsedActiveDay: 10 });
     await h.evaluateFully();
-    expect(h.scheduler.log()).toHaveLength(2);
+    expect(outline(h.scheduler.log())).toEqual(['shelve:old:moved', 'archive:dormant:moved']);
+  });
+});
 
-    h.update('old', { lastUsedEngaged: 0 });
-    h.update('dormant', { lastUsedActiveDay: 1 });
+describe('LifecycleScheduler: what a shelve or an archive costs', () => {
+  /** Three discards that spend the budget, then a live and an unloaded Sleeping tab due for the Archive. */
+  const budgetSpent = (): Harness =>
+    shelving([
+      ...longHidden(3),
+      dormant('liveSleeper', { runtime: 'live' }), // unused longest: archived first
+      dormant('sleeper', { lastUsedAt: WALL0 - 4 * HOUR }),
+    ]);
+
+  it('limits and staggers nothing for shelves, nor for archives of tabs that are not loaded', async () => {
+    // More of each than MAX_DISCARDS_PER_EVALUATION, which would have limited them as discards.
+    const shelved = [1, 2, 3, 4, 5].map((n) => stale(`s${String(n)}`, 10 - n)); // s1 is stalest
+    const archived = [1, 2, 3, 4].map((n) =>
+      dormant(`d${String(n)}`, { lastUsedAt: WALL0 - 5 * HOUR + n }),
+    );
+    const h = shelving([...shelved, ...archived]);
     await h.evaluateFully();
-    expect(outline(h.scheduler.log())).toEqual([
-      'shelve:old:planned',
-      'archive:dormant:planned',
-      'shelve:old:planned',
-      'archive:dormant:planned',
+
+    expect(h.tabs.shelves.map((call) => [call.tabId, call.at])).toEqual(
+      ['s1', 's2', 's3', 's4', 's5'].map((id) => [id, 0]),
+    );
+    expect(h.tabs.archives.map((call) => [call.tabId, call.at])).toEqual(
+      ['d1', 'd2', 'd3', 'd4'].map((id) => [id, 0]),
+    );
+    expect(h.scheduler.log()).toHaveLength(9);
+    expect(h.scheduler.log().every((record) => record.result.outcome === 'moved')).toBe(true);
+    expect(h.time.pending).toEqual([]); // nothing waited
+  });
+
+  it('does not count them against the discard limit or add to the stagger', async () => {
+    const h = shelving([...longHidden(5), stale('old'), dormant('dormant')]);
+    await h.evaluateFully();
+
+    expect(h.tabs.discards.map((call) => [call.tabId, call.at])).toEqual([
+      ['a', 0],
+      ['b', STAGGER_MS],
+      ['c', 2 * STAGGER_MS],
+    ]);
+    // They follow the discards in the plan, so they start once the last discard has: with no
+    // stagger of their own (that would be 3 s) and not held back by the two left over the limit.
+    expect(h.tabs.shelves.map((call) => [call.tabId, call.at])).toEqual([['old', 2 * STAGGER_MS]]);
+    expect(h.tabs.archives.map((call) => [call.tabId, call.at])).toEqual([
+      ['dormant', 2 * STAGGER_MS],
+    ]);
+    expect(outline(h.scheduler.log()).sort()).toEqual([
+      'archive:dormant:moved',
+      'discard:a:discarded',
+      'discard:b:discarded',
+      'discard:c:discarded',
+      'discard:d:rate-limited',
+      'discard:e:rate-limited',
+      'shelve:old:moved',
     ]);
   });
 
-  it('keeps one planned and logs the other again when only that one dropped out', async () => {
-    const h = shelveAndArchive();
+  it.each<RuntimeState>(['live', 'frozen'])(
+    'staggers archives of %s tabs like discards, and limits them to MAX_DISCARDS_PER_EVALUATION',
+    async (runtime) => {
+      const sleepers = [1, 2, 3, 4].map((n) =>
+        dormant(`d${String(n)}`, { runtime, lastUsedAt: WALL0 - 5 * HOUR + n }),
+      );
+      const h = shelving(sleepers);
+      await h.evaluateFully();
+
+      expect(h.tabs.archives.map((call) => [call.tabId, call.at])).toEqual([
+        ['d1', 0],
+        ['d2', STAGGER_MS],
+        ['d3', 2 * STAGGER_MS],
+      ]);
+      expect(outline(h.scheduler.log()).sort()).toEqual([
+        'archive:d1:moved',
+        'archive:d2:moved',
+        'archive:d3:moved',
+        'archive:d4:rate-limited',
+      ]);
+      expect(pick(h.batches, 0, 'batch').moves.map((move) => move.tabId)).toEqual([
+        'd1',
+        'd2',
+        'd3',
+      ]);
+    },
+  );
+
+  it.each<RuntimeState>(['unloaded', 'crashed', 'creating'])(
+    'treats an archive of a %s tab as free even when the discards have spent the budget',
+    async (runtime) => {
+      const h = shelving([...longHidden(3), dormant('sleeper', { runtime })]);
+      await h.evaluateFully();
+      expect(h.tabs.archives.map((call) => call.tabId)).toEqual(['sleeper']);
+      expect(pick(h.scheduler.log().slice(-1), 0, 'record').result.outcome).toBe('moved');
+    },
+  );
+
+  it('rate-limits an archive of a live tab once three discards have spent the budget, and still archives an unloaded one', async () => {
+    const h = budgetSpent();
     await h.evaluateFully();
-    h.update('old', { lastUsedEngaged: 3 * HOUR });
-    await h.evaluateFully(); // the shelve dropped out; the archive is planned still
-    h.update('old', { lastUsedEngaged: 0 });
-    await h.evaluateFully();
-    expect(outline(h.scheduler.log())).toEqual([
-      'shelve:old:planned',
-      'archive:dormant:planned',
-      'shelve:old:planned',
+
+    expect(h.tabs.discards.map((call) => [call.tabId, call.at])).toEqual([
+      ['a', 0],
+      ['b', STAGGER_MS],
+      ['c', 2 * STAGGER_MS],
     ]);
+    expect(h.tabs.archives.map((call) => [call.tabId, call.at])).toEqual([
+      ['sleeper', 2 * STAGGER_MS],
+    ]);
+    expect(outline(h.scheduler.log()).sort()).toEqual([
+      'archive:liveSleeper:rate-limited',
+      'archive:sleeper:moved',
+      'discard:a:discarded',
+      'discard:b:discarded',
+      'discard:c:discarded',
+    ]);
+    expect(
+      h.scheduler.log().find((record) => record.result.outcome === 'rate-limited'),
+    ).toMatchObject({ kind: 'archive', rule: 'archive-dormant', batchId: 'batch-1' });
+    // Only what moved is in the batch; the live Sleeping tab waits for a later evaluation.
+    expect(pick(h.batches, 0, 'batch').moves.map((move) => move.tabId)).toEqual(['sleeper']);
   });
 
-  it('plans them alongside discards without delaying the discards or counting against their limit', async () => {
-    const h = shelveAndArchive();
-    for (const tabFacts of longHidden(3)) {
-      h.tabs.facts = [...h.tabs.facts, tabFacts];
+  it('logs the rate-limited archive once while it stays limited, and carries it out when the budget is free again', async () => {
+    const h = budgetSpent();
+    await h.evaluateFully();
+    await h.evaluateFully(); // a, b and c still look live to the policy: the budget is spent again
+
+    const limited = (): string[] =>
+      outline(h.scheduler.log()).filter((line) => line === 'archive:liveSleeper:rate-limited');
+    expect(limited()).toHaveLength(1);
+    expect(h.tabs.archives.map((call) => call.tabId)).not.toContain('liveSleeper');
+
+    for (const id of ['a', 'b', 'c']) {
+      h.update(id, { runtime: 'unloaded' }); // what TabManager did
     }
     await h.evaluateFully();
-    expect(h.tabs.discards.map((call) => call.at)).toEqual([0, STAGGER_MS, 2 * STAGGER_MS]);
+    expect(limited()).toHaveLength(1);
     expect(
-      outline(h.scheduler.log())
-        .filter((line) => line.endsWith(':planned'))
-        .sort(),
-    ).toEqual(['archive:dormant:planned', 'shelve:old:planned']);
+      h.tabs.archives.filter((call) => call.tabId === 'liveSleeper').map((call) => call.at),
+    ).toEqual([2 * 60_000]); // the third evaluation, with the budget unspent: at once
+  });
+
+  it('staggers only the archives that cost: an unloaded one between two live ones adds no wait', async () => {
+    const h = shelving([
+      dormant('live1', { runtime: 'live', lastUsedAt: WALL0 - 6 * HOUR }),
+      dormant('asleep', { lastUsedAt: WALL0 - 5 * HOUR }),
+      dormant('live2', { runtime: 'live', lastUsedAt: WALL0 - 4 * HOUR }),
+    ]);
+    await h.evaluateFully();
+    expect(h.tabs.archives.map((call) => [call.tabId, call.at])).toEqual([
+      ['live1', 0],
+      ['asleep', 0],
+      ['live2', STAGGER_MS],
+    ]);
+  });
+
+  it('staggers an archive of a live tab after the discard before it', async () => {
+    const h = shelving([hiddenFor('a', 10 * HOUR), dormant('sleeper', { runtime: 'live' })]);
+    await h.evaluateFully();
+    expect(h.tabs.discards.map((call) => [call.tabId, call.at])).toEqual([['a', 0]]);
+    expect(h.tabs.archives.map((call) => [call.tabId, call.at])).toEqual([['sleeper', STAGGER_MS]]);
+  });
+
+  it('staggers it after freezes too, but freezes do not use up its budget', async () => {
+    const frozen = [50, 49, 48].map((minutes, index) =>
+      hiddenFor(`f${String(index)}`, minutes * MINUTE),
+    );
+    const h = shelving([...frozen, dormant('sleeper', { runtime: 'live' })], {
+      settings: { freeze: true },
+    });
+    await h.evaluateFully();
+
+    expect(h.tabs.freezes.map((call) => [call.tabId, call.at])).toEqual([
+      ['f0', 0],
+      ['f1', STAGGER_MS],
+      ['f2', 2 * STAGGER_MS],
+    ]);
+    expect(h.tabs.archives.map((call) => [call.tabId, call.at])).toEqual([
+      ['sleeper', 3 * STAGGER_MS],
+    ]);
+    expect(pick(h.scheduler.log().slice(-1), 0, 'record').result.outcome).toBe('moved');
+  });
+});
+
+describe('LifecycleScheduler: the batch of moves', () => {
+  /** The moves of `shelving([stale('old'), dormant('d1', older), dormant('d2')])`, in plan order. */
+  const OLD = { tabId: 'old', from: 'strip', to: 'shelf', index: 1 } as const;
+  const D1 = { tabId: 'd1', from: 'shelf', to: 'archive', index: 0 } as const;
+  const D2 = { tabId: 'd2', from: 'shelf', to: 'archive', index: 1 } as const;
+  const threeMoves = (): Harness =>
+    shelving([stale('old'), dormant('d1', { lastUsedAt: WALL0 - 6 * HOUR }), dormant('d2')]);
+
+  it('is delivered once, when every action has settled, with the moves in the order their results arrived', async () => {
+    const h = threeMoves();
+    h.tabs.hold = true;
+    const done = new Tracked(h.scheduler.evaluate());
+    await flush();
+    expect(h.tabs.archives.map((call) => call.tabId)).toEqual(['d1', 'd2']);
+    expect(h.actions.map((record) => record.tabId)).toEqual(['old']); // a shelve answers at once
+
+    const [first, second] = [
+      pick(h.tabs.archives, 0, 'archive'),
+      pick(h.tabs.archives, 1, 'archive'),
+    ];
+    second.settle.resolve(second.outcome); // d2 before d1
+    await flush();
+    expect(h.batches).toEqual([]); // d1 is still out
+    expect(done.settled).toBe(false);
+
+    first.settle.resolve(first.outcome);
+    await flush();
+    expect(done.settled).toBe(true);
+    expect(h.actions.map((record) => record.tabId)).toEqual(['old', 'd2', 'd1']);
+    expect(h.batches).toEqual([{ id: 'batch-1', at: WALL0, moves: [OLD, D2, D1] }]);
+  });
+
+  it('is not delivered when the scheduler stopped while an archive was settling (shutdown)', async () => {
+    const h = threeMoves();
+    h.tabs.hold = true;
+    const done = new Tracked(h.scheduler.evaluate());
+    await flush();
+    h.scheduler.stop();
+    h.tabs.settleAll();
+    await flush();
+    expect(done.settled).toBe(true);
+    expect(h.actions.map((record) => record.tabId)).toEqual(['old', 'd1', 'd2']);
+    expect(h.batches).toEqual([]);
+  });
+
+  it('has been delivered by the time evaluate() resolves', async () => {
+    const h = threeMoves();
+    await h.scheduler.evaluate();
+    expect(h.batches.map((batch) => batch.id)).toEqual(['batch-1']);
+  });
+
+  it('waits for a discard still out, though the moves are done', async () => {
+    const h = shelving([...longHidden(1), stale('old')]);
+    h.tabs.hold = true;
+    const done = new Tracked(h.scheduler.evaluate());
+    await flush();
+    expect(h.actions.map((record) => record.tabId)).toEqual(['old']);
+    expect(h.batches).toEqual([]);
+
+    pick(h.tabs.discards, 0, 'discard').settle.resolve(DISCARDED);
+    await flush();
+    expect(done.settled).toBe(true);
+    // old is the third strip tab here: keep, a, old.
+    expect(h.batches).toEqual([{ id: 'batch-1', at: WALL0, moves: [{ ...OLD, index: 2 }] }]);
+  });
+
+  it('holds only the moves that happened', async () => {
+    const skipped = threeMoves();
+    skipped.tabs.shelveOutcome = { outcome: 'skipped', why: 'stale' };
+    await skipped.evaluateFully();
+    expect(skipped.batches).toEqual([{ id: 'batch-1', at: WALL0, moves: [D1, D2] }]);
+
+    const blocked = threeMoves();
+    blocked.tabs.archiveOutcome = { outcome: 'blocked', reason: 'capture' };
+    await blocked.evaluateFully();
+    expect(blocked.batches).toEqual([{ id: 'batch-1', at: WALL0, moves: [OLD] }]);
+  });
+
+  it('leaves out the move of an action that failed, and goes on with the others', async () => {
+    const h = threeMoves();
+    h.tabs.failure = 'reject'; // the archives reject; the shelve answers
+    await h.evaluateFully();
+    expect(h.batches).toEqual([{ id: 'batch-1', at: WALL0, moves: [OLD] }]);
+  });
+
+  it.each<[string, MoveOutcome]>([
+    ['skipped', { outcome: 'skipped', why: 'stale' }],
+    ['blocked', { outcome: 'blocked', reason: 'capture' }],
+  ])('is not delivered when every move was %s', async (_name, outcome) => {
+    const h = threeMoves();
+    h.tabs.shelveOutcome = outcome;
+    h.tabs.archiveOutcome = outcome;
+    await h.evaluateFully();
+    expect(h.scheduler.log()).toHaveLength(3);
+    expect(h.batches).toEqual([]);
+  });
+
+  it('is not delivered when every action failed', async () => {
+    const h = threeMoves();
+    h.tabs.failure = 'throw';
+    await h.evaluateFully();
+    expect(h.scheduler.log()).toEqual([]);
+    expect(h.batches).toEqual([]);
+  });
+
+  it('is not delivered for an evaluation that only discarded (some left over the limit) or planned nothing', async () => {
+    const h = build({ tabs: longHidden(5) });
+    await h.evaluateFully();
+    expect(h.scheduler.log()).toHaveLength(5);
+    expect(h.batches).toEqual([]);
+
+    const idle = build({ tabs: [tab('a')] });
+    await idle.evaluateFully();
+    expect(idle.batches).toEqual([]);
+  });
+
+  it('is not delivered for moves that were paused before their turn', async () => {
+    const h = shelving([...longHidden(2), stale('old'), dormant('sleeper')]);
+    const done = new Tracked(h.scheduler.evaluate());
+    await h.time.advance(STAGGER_MS / 2); // a is discarded; b waits its stagger, the moves behind it
+    h.setSettings({ paused: true });
+    await h.time.advance(5 * STAGGER_MS);
+    expect(done.settled).toBe(true);
+    expect(outline(h.scheduler.log())).toEqual([
+      'discard:a:discarded',
+      'discard:b:paused',
+      'shelve:old:paused',
+      'archive:sleeper:paused',
+    ]);
+    expect(h.batches).toEqual([]);
+  });
+
+  it('is one per evaluation, numbered with the evaluation even when an earlier one moved nothing', async () => {
+    const h = shelving([stale('old')]);
+    await h.evaluateFully();
+    h.update('old', { lastUsedEngaged: 3 * HOUR }); // used meanwhile: nothing to shelve
+    await h.evaluateFully();
+    h.update('old', { lastUsedEngaged: 0 });
+    await h.evaluateFully();
+
+    expect(h.batches.map((batch) => [batch.id, batch.at, batch.moves.length])).toEqual([
+      ['batch-1', WALL0, 1],
+      ['batch-3', WALL0 + 2 * 60_000, 1],
+    ]);
+  });
+
+  it('carries the wall time at which the evaluation began, as every record does, and the id of its records', async () => {
+    const h = shelving([...longHidden(2), stale('old'), dormant('sleeper')]);
+    await h.time.advance(7_000);
+    await h.evaluateFully();
+
+    // The shelve ran a stagger after the evaluation began (it follows the second discard).
+    expect(pick(h.tabs.shelves, 0, 'shelve').at).toBe(8_000);
+    const batch = pick(h.batches, 0, 'batch');
+    expect(batch.at).toBe(WALL0 + 7_000);
+    expect(batch.moves.map((move) => move.tabId)).toEqual(['old', 'sleeper']);
+    for (const record of h.scheduler.log()) {
+      expect(record.batchId).toBe(batch.id);
+      expect(record.at).toBe(batch.at);
+    }
+  });
+
+  it('comes after the last onAction of its evaluation', async () => {
+    const order: string[] = [];
+    const h = shelving([stale('old'), dormant('sleeper')], {
+      onAction: (record) => order.push(`action:${record.tabId}`),
+      onBatch: (batch) => order.push(`batch:${batch.id}`),
+    });
+    await h.evaluateFully();
+    expect(order).toEqual(['action:old', 'action:sleeper', 'batch:batch-1']);
+  });
+
+  it('is logged and swallowed when onBatch throws: evaluate() resolves and the tick goes on', async () => {
+    const h = shelving([stale('old')], {
+      onBatch: () => {
+        throw new Error('the undo offer is broken');
+      },
+    });
+    h.scheduler.start();
+    await h.time.advance(QUIET_START_MS);
+
+    expect(h.events).toEqual([{ level: 'error', event: 'lifecycle.onBatchFailed' }]);
+    expect(outline(h.scheduler.log())).toEqual(['shelve:old:moved']); // the move itself stands
+    expect(h.time.pending).toEqual([TICK_MS]);
+    await expect(h.scheduler.evaluate()).resolves.toBeUndefined();
+  });
+
+  it('gives each evaluation its own batch, also for the one queued behind the one under way', async () => {
+    const h = shelving([stale('old'), hiddenFor('a', 10 * HOUR)]);
+    h.tabs.hold = true; // the discard of a is held, so the evaluation is under way; the shelve is not
+    const first = new Tracked(h.scheduler.evaluate());
+    await flush();
+    const second = new Tracked(h.scheduler.evaluate());
+    await flush();
+    expect(h.batches).toEqual([]);
+
+    h.update('a', { runtime: 'unloaded' });
+    h.tabs.settleAll();
+    await flush();
+    expect(first.settled && second.settled).toBe(true);
+    expect(h.batches.map((batch) => batch.id)).toEqual(['batch-1', 'batch-2']);
   });
 });
 
@@ -862,6 +1407,31 @@ describe('LifecycleScheduler: pausing', () => {
 
     expect(done.settled).toBe(true);
     expect(h.tabs.discards.map((call) => call.tabId)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('logs paused for the shelves and archives still to come, and carries out none of them', async () => {
+    const h = shelving([...longHidden(2), stale('old'), dormant('sleeper')]);
+    const done = new Tracked(h.scheduler.evaluate());
+    await h.time.advance(STAGGER_MS / 2);
+    expect(h.tabs.discards.map((call) => call.tabId)).toEqual(['a']);
+
+    // b waits its stagger and the free moves are behind it in the plan: all reach their turn paused.
+    h.setSettings({ paused: true });
+    await h.time.advance(5 * STAGGER_MS);
+    expect(done.settled).toBe(true);
+    expect(outline(h.scheduler.log())).toEqual([
+      'discard:a:discarded',
+      'discard:b:paused',
+      'shelve:old:paused',
+      'archive:sleeper:paused',
+    ]);
+    expect(pick(h.scheduler.log(), 2, 'record')).toMatchObject({
+      rule: 'shelve-beyond-cap',
+      batchId: 'batch-1',
+      pressure: 'none',
+    });
+    expect(h.tabs.shelves).toEqual([]);
+    expect(h.tabs.archives).toEqual([]);
   });
 
   it('plans nothing at all while paused', async () => {
@@ -930,6 +1500,8 @@ describe('LifecycleScheduler: one evaluation at a time', () => {
     expect(first.settled).toBe(true);
     expect(second.settled).toBe(true);
     expect(outline(h.scheduler.log())).toEqual(['discard:a:discarded', 'discard:b:discarded']);
+    // Each evaluation is a batch of its own.
+    expect(h.scheduler.log().map((record) => record.batchId)).toEqual(['batch-1', 'batch-2']);
   });
 
   it('does not resolve evaluate() until the operations it started have settled', async () => {
@@ -1013,6 +1585,31 @@ describe('LifecycleScheduler: failures', () => {
       ]);
     },
   );
+
+  it('logs a shelve that throws at once, with its kind, and goes on to the archive', async () => {
+    const h = shelving([stale('old'), dormant('sleeper')]);
+    h.tabs.failure = 'throw';
+    await expect(h.evaluateFully()).resolves.toBeUndefined();
+
+    expect(h.tabs.shelves.map((call) => call.tabId)).toEqual(['old']);
+    expect(h.tabs.archives.map((call) => call.tabId)).toEqual(['sleeper']); // tried all the same
+    expect(h.events).toEqual([
+      { level: 'error', event: 'lifecycle.actionFailed', fields: { kind: 'shelve' } },
+      { level: 'error', event: 'lifecycle.actionFailed', fields: { kind: 'archive' } },
+    ]);
+    expect(h.scheduler.log()).toEqual([]); // no result to record
+  });
+
+  it('logs an archive that rejects, with its kind, and keeps what the shelve before it got', async () => {
+    const h = shelving([stale('old'), dormant('sleeper')]);
+    h.tabs.failure = 'reject'; // a shelve answers synchronously: it cannot reject
+    await expect(h.evaluateFully()).resolves.toBeUndefined();
+
+    expect(h.events).toEqual([
+      { level: 'error', event: 'lifecycle.actionFailed', fields: { kind: 'archive' } },
+    ]);
+    expect(outline(h.scheduler.log())).toEqual(['shelve:old:moved']);
+  });
 
   it('records what the others got when one action fails', async () => {
     const h = build({ tabs: longHidden(3) });
@@ -1142,6 +1739,20 @@ describe('LifecycleScheduler: stop()', () => {
     expect(done.settled).toBe(true);
     expect(h.tabs.discards.map((call) => call.tabId)).not.toContain('c');
     expect(h.tabs.discards.map((call) => call.tabId)).not.toContain('d');
+  });
+
+  it('carries out no shelve or archive that was waiting behind a staggered discard when stop() was called', async () => {
+    const h = shelving([...longHidden(2), stale('old'), dormant('sleeper')]);
+    const done = new Tracked(h.scheduler.evaluate());
+    await h.time.advance(STAGGER_MS / 2);
+    h.scheduler.stop();
+    await h.time.advance(5 * STAGGER_MS);
+
+    expect(done.settled).toBe(true);
+    expect(h.tabs.discards.map((call) => call.tabId)).toEqual(['a']);
+    expect(h.tabs.shelves).toEqual([]);
+    expect(h.tabs.archives).toEqual([]);
+    expect(h.batches).toEqual([]);
   });
 
   // Found by this test and fixed: stop() while the second discard waited out its STAGGER_MS did

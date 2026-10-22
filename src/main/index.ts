@@ -6,7 +6,7 @@ import { performance } from 'node:perf_hooks';
 import type { WebContents } from 'electron';
 
 import { uuidv7 } from '../core/id/uuidv7';
-import { originLabel } from '../core/url/display';
+import { displayUrl, originLabel } from '../core/url/display';
 import { resolveLifecycleSettings } from '../core/lifecycle/policy';
 import type {
   LifecycleClock,
@@ -34,13 +34,18 @@ import {
   engagementWriter,
   readStoredEngagement,
 } from './lifecycle/engagement-sampler';
+import { ActivityLog, activityWriter, readStoredActivity } from './lifecycle/activity-log';
 import { MemoryPressureMonitor } from './lifecycle/memory-pressure';
+import { createPlacementActions } from './lifecycle/placement-actions';
 import { ProtectionSignals } from './lifecycle/protection-signals';
 import { LifecycleScheduler } from './lifecycle/scheduler';
+import type { ActionRecord } from './lifecycle/scheduler';
+import { UndoManager } from './lifecycle/undo';
 import { SYSTEM_TIMERS } from './platform/timers';
 import { installPageMenu } from './input/page-menu';
 import { createShortcutHandler } from './input/shortcuts';
 import { createCommandHandlers } from './ipc/commands';
+import type { LifecycleCommands } from './ipc/commands';
 import { createShellEvents } from './ipc/events';
 import { installIpcRouter } from './ipc/install';
 import { createContextMenus } from './menus/context-menu';
@@ -197,6 +202,8 @@ async function start(): Promise<void> {
   // The engagement clock (assessment §4.6), from where it stopped. A new profile starts at zero.
   const storedEngagement =
     startup === null ? null : await readStoredEngagement(data, consoleLogger);
+  // What automation did, and why (M3.3): the local activity log.
+  const storedActivity = startup === null ? [] : await readStoredActivity(data, consoleLogger);
   setSearchTemplate(settings.search.template);
   const writeDecision = decisionWriters(data, consoleLogger);
 
@@ -380,6 +387,19 @@ async function start(): Promise<void> {
       prompt: prompts.current(tabId),
       blockedPopups: blockedPopups.get(tabId),
     }),
+    // M3.3: Sleeping, the Archive, the sidebar's counts and Undo.
+    sleeping: () => tabs.sleepingTabs(),
+    archived: () => tabs.archivedTabs(),
+    counts: () => {
+      const startOfDay = new Date(lifecycleClock().wallNow).setHours(0, 0, 0, 0);
+      return {
+        sleeping: tabs.sleepingTabs().length,
+        archived: tabs.archivedCount(),
+        // The archived tabs in memory: the newest MAX_ARCHIVED_IN_MEMORY.
+        archivedToday: tabs.archivedTabs().filter((tab) => tab.archivedAt >= startOfDay).length,
+      };
+    },
+    undo: () => undo.current(),
     publish: (snapshot) => {
       events.emit('workspace.changed', snapshot);
     },
@@ -499,6 +519,99 @@ async function start(): Promise<void> {
     // Test builds record the runtime transitions for the specs (M3.1).
     ...(import.meta.env.MODE === 'test' ? { onTransition: recordRuntimeTransition } : {}),
   });
+  // M3.3: Undo for moves, the user's own moves, and the activity log of what automation did.
+  const undo = new UndoManager({
+    timers: SYSTEM_TIMERS,
+    undoMoves: (moves) => tabs.undoMoves(moves),
+    onChange: () => {
+      projector.markDirty();
+    },
+  });
+  const placement = createPlacementActions({ tabs, undo, now: () => lifecycleClock().wallNow });
+  const activity = new ActivityLog({
+    stored: storedActivity,
+    persist: activityWriter(data),
+    timers: SYSTEM_TIMERS,
+    logger: consoleLogger,
+  });
+  dataLifecycle.addFlush(() => activity.flush());
+  /** A tab as the activity log names it: live, Sleeping or archived. Null if it is gone. */
+  const describeTab = (
+    tabId: string,
+  ): { title: string; address: string; ephemeral: boolean } | null => {
+    if (tabs.has(tabId)) {
+      const tab = tabs.get(tabId);
+      return {
+        title: tab.title,
+        address: tab.url === '' ? '' : displayUrl(tab.url).text,
+        ephemeral: tab.ephemeral,
+      };
+    }
+    const archived = tabs.archivedTabs().find((tab) => tab.id === tabId);
+    return archived === undefined
+      ? null
+      : { title: archived.title, address: displayUrl(archived.url).text, ephemeral: false };
+  };
+  /** Logs what an automated action changed (§4.12): skips, blocks and limits change nothing. */
+  const logAction = (record: ActionRecord): void => {
+    const { outcome } = record.result;
+    if (outcome !== 'discarded' && outcome !== 'frozen' && outcome !== 'moved') {
+      return;
+    }
+    const tab = describeTab(record.tabId);
+    if (tab === null) {
+      return;
+    }
+    activity.add(
+      {
+        at: lifecycleClock().wallNow,
+        action: record.kind,
+        rule: record.rule,
+        pressure:
+          record.rule === 'pressure-discard' && record.pressure !== 'none' ? record.pressure : null,
+        tabId: record.tabId,
+        title: tab.title,
+        address: tab.address,
+        batchId: record.batchId,
+      },
+      { ephemeral: tab.ephemeral },
+    );
+  };
+  const lifecycleCommands: LifecycleCommands = {
+    undo: (batchId) => {
+      const offer = undo.current();
+      const undone = undo.undo(batchId);
+      if (undone === null) {
+        return 0;
+      }
+      // Undoing automation is part of its story; the user's own moves aren't logged.
+      if (offer?.automated === true) {
+        for (const move of undone) {
+          const tab = describeTab(move.tabId);
+          if (tab !== null) {
+            activity.add(
+              {
+                at: lifecycleClock().wallNow,
+                action: 'undo',
+                rule: null,
+                pressure: null,
+                tabId: move.tabId,
+                title: tab.title,
+                address: tab.address,
+                batchId,
+              },
+              { ephemeral: tab.ephemeral },
+            );
+          }
+        }
+      }
+      return undone.length;
+    },
+    dismissUndo: (batchId) => {
+      undo.dismiss(batchId);
+    },
+    activity: () => activity.entries(),
+  };
   const focus = new FocusManager({ shell: main.shell, tabs: () => tabs, events });
   const fullscreen = new FullscreenController({
     layout,
@@ -525,6 +638,7 @@ async function start(): Promise<void> {
     views: runtimes.views,
     searchTemplate,
     searchEngine: searchEngineName,
+    placement: () => placement,
   });
 
   // Reserved shortcuts, before the shell or any page sees the key (assessment §3.9).
@@ -621,6 +735,10 @@ async function start(): Promise<void> {
       (import.meta.env.MODE === 'test' ? testMemoryPressure() : null) ?? pressure.level(),
     timers: SYSTEM_TIMERS,
     logger: consoleLogger,
+    onAction: logAction,
+    onBatch: (batch) => {
+      undo.offer(batch, { automated: true });
+    },
   });
   automation.scheduler = lifecycle;
   engagement.start();
@@ -641,6 +759,8 @@ async function start(): Promise<void> {
       downloads,
       notices,
       searchTemplate,
+      placement,
+      lifecycle: lifecycleCommands,
     }),
     allowedOrigins: new Set(
       devServer === undefined ? [SHELL_ORIGIN] : [SHELL_ORIGIN, devServer.origin],
@@ -665,6 +785,8 @@ async function start(): Promise<void> {
     // Before the tabs go: closing them all here is shutdown, not the user closing tabs.
     // Automation stops first (§4.11 item 5): nothing new starts while the tabs go.
     lifecycle.stop();
+    undo.stop();
+    activity.stop();
     pressure.stop();
     engagement.stop();
     sessionStore?.freeze();
@@ -694,6 +816,8 @@ async function start(): Promise<void> {
           lifecycleSettings = resolveLifecycleSettings(lifecycleDocument);
           lifecycle.trigger();
         },
+        undo,
+        activity,
       },
     });
     const scenario = process.env[LIFECYCLE_SCENARIO_ENV];

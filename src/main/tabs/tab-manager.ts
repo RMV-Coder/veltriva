@@ -45,6 +45,7 @@ import {
 } from '../../core/lifecycle/discard';
 import type {
   DiscardBlock,
+  DiscardOrigin,
   DiscardOutcome,
   DiscardRequest,
   DiscardSkip,
@@ -103,6 +104,11 @@ export interface TabState {
   readonly placement: 'strip' | 'shelf';
   /** The user protected the tab: automation leaves it alone (a hard protection, §4.10). */
   readonly userProtected: boolean;
+  /**
+   * Who unloaded its page, while it is unloaded after a discard: automation, memory pressure or
+   * the user (§4.13: the tooltip says why). Null otherwise, as for a tab not loaded since start.
+   */
+  readonly unloadedBy: DiscardOrigin | null;
   /**
    * Never persisted or recorded in the memory (invariant I6). Nothing opens one yet: the option
    * exists so private windows can slot in later (ADR-0009 item 4).
@@ -422,6 +428,8 @@ export function sanitizeTitle(title: string): string {
 
 /** A discard under way (§4.9). */
 interface DiscardProgress {
+  /** Who asked: the tab says so while it stays unloaded. */
+  readonly origin: DiscardOrigin;
   /** The close was sent: from here, the page decides (it closes, or objects). */
   closing: boolean;
   /** The tab was selected while closing: it comes back as soon as the close settles. */
@@ -1422,25 +1430,27 @@ export class TabManager {
    * Puts back what an automated batch moved (§4.13: every move has an Undo), newest first. A tab
    * that moved again since, or closed, is left as it is. Returns how many came back.
    */
-  undoMoves(moves: readonly PlacementMove[]): number {
-    let undone = 0;
+  undoMoves(moves: readonly PlacementMove[]): PlacementMove[] {
+    const undone: PlacementMove[] = [];
     for (const move of [...moves].reverse()) {
       if (move.to === 'archive') {
-        if (
-          this.restoreArchived(move.tabId, { select: false, to: move.from, index: move.index }) !==
-          null
-        ) {
-          undone += 1;
+        const id = this.restoreArchived(move.tabId, {
+          select: false,
+          to: move.from,
+          index: move.index,
+        });
+        if (id !== null) {
+          undone.push({ ...move, tabId: id });
         }
         continue;
       }
       const record = this.#records.get(move.tabId);
       if (record?.state.placement === 'shelf') {
         this.restoreToStrip(move.tabId, { select: false, index: move.index });
-        undone += 1;
+        undone.push(move);
       }
     }
-    return undone;
+    return undone.reverse();
   }
 
   /**
@@ -1492,7 +1502,13 @@ export class TabManager {
     if (runtime === undefined) {
       return skipped('not-live');
     }
-    const progress: DiscardProgress = { closing: false, revive: false, deferred: [], result: null };
+    const progress: DiscardProgress = {
+      origin: request.origin,
+      closing: false,
+      revive: false,
+      deferred: [],
+      result: null,
+    };
     record.discard = progress;
     if (record.state.runtime === 'frozen') {
       runtime.thaw(); // Unload handlers need a running page.
@@ -1891,6 +1907,7 @@ export class TabManager {
       this.#startRestore(record, 'load');
     } else {
       this.#transition(record, 'discarded');
+      record.state = { ...record.state, unloadedBy: progress.origin };
     }
     this.#syncVisibility();
     this.#changed();
@@ -1978,7 +1995,8 @@ export class TabManager {
     const to = nextRuntime(from, event);
     record.epoch += 1;
     if (to !== from) {
-      record.state = { ...record.state, runtime: to };
+      // Loaded again (or gone another way): the reason it was unloaded no longer applies.
+      record.state = { ...record.state, runtime: to, unloadedBy: null };
     }
     this.#options.onTransition?.({ tabId: record.state.id, from, to, event, epoch: record.epoch });
   }
@@ -2011,6 +2029,7 @@ export class TabManager {
         pinned: tab.pinned,
         placement: tab.placement ?? 'strip',
         userProtected: tab.userProtected ?? false,
+        unloadedBy: null,
         ephemeral: tab.ephemeral,
         runtime: 'unloaded',
         page: web ? { kind: 'web' } : NEW_TAB_PAGE,

@@ -4,6 +4,7 @@
 import { z } from 'zod';
 
 import { UUID_V7_PATTERN } from '../../core/id/uuidv7';
+import { activityEntrySchema, MAX_ACTIVITY_ENTRIES } from './activity';
 import { PROMPTED_PERMISSIONS } from '../../core/permissions/permission-policy';
 import { INTERNAL_PAGES } from '../../core/url/internal-pages';
 import type { CommandName, EventName } from './ipc';
@@ -33,6 +34,22 @@ const inset = z.number().min(0).max(10_000);
 const downloadId = z.string().regex(UUID_V7_PATTERN);
 const downloadRef = z.strictObject({ downloadId });
 
+/**
+ * A batch of moves the user can undo (src/main/lifecycle/undo.ts): an evaluation's (`batch-`) or
+ * one the user made (`manual-`).
+ */
+const batchId = z.string().regex(/^(?:batch|manual)-[0-9]{1,15}$/);
+
+/** The archived tabs main keeps in memory and the shell lists ("Recently archived"). */
+export const MAX_LISTED_ARCHIVED = 200;
+
+/** What a tab's address shows: rebuilt by main from the parsed URL (src/core/url/display.ts). */
+const addressSnapshot = z.strictObject({
+  text: z.string().max(4096),
+  security: z.enum(['secure', 'not-secure', 'local', 'internal', 'neutral']),
+  hadCredentials: z.boolean(),
+});
+
 /** A toolbar question's id (src/main/prompts/prompt-manager.ts). */
 const promptId = z.string().regex(/^prompt-[0-9]{1,15}$/);
 
@@ -59,11 +76,7 @@ const tabSnapshot = z.strictObject({
   /** Page-controlled. Shown in the sidebar, never in the address bar. */
   title: z.string().max(1024),
   /** What the address bar shows, rebuilt by main from the parsed URL (src/core/url/display.ts). */
-  address: z.strictObject({
-    text: z.string().max(4096),
-    security: z.enum(['secure', 'not-secure', 'local', 'internal', 'neutral']),
-    hadCredentials: z.boolean(),
-  }),
+  address: addressSnapshot,
   favicon: faviconDataUrl.nullable(),
   loading: z.boolean(),
   canGoBack: z.boolean(),
@@ -73,6 +86,10 @@ const tabSnapshot = z.strictObject({
    * off by default; `discarding` lasts while a discard probes and closes the page (M3.1).
    */
   runtime: z.enum(['unloaded', 'creating', 'live', 'frozen', 'discarding', 'crashed']),
+  /** Who unloaded the page, while it stays unloaded after a discard (§4.13); null otherwise. */
+  unloadedBy: z.enum(['automation', 'pressure', 'user']).nullable(),
+  /** The user protected the tab from automation (M3.3). */
+  userProtected: z.boolean(),
   page: z.discriminatedUnion('kind', [
     z.strictObject({ kind: z.literal('web') }),
     z.strictObject({
@@ -136,12 +153,46 @@ const tabSnapshot = z.strictObject({
     .nullable(),
 });
 
+/** An archived tab: data only, never a page (I3). Restoring it brings it back next to the current tab. */
+const archivedTabSnapshot = z.strictObject({
+  id: tabId,
+  title: z.string().max(1024),
+  address: addressSnapshot,
+  favicon: faviconDataUrl.nullable(),
+  /** When it was archived: Unix milliseconds. */
+  archivedAt: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  /** Automation archived it, or the user did. */
+  reason: z.enum(['auto', 'manual']),
+});
+
 const workspaceSnapshot = z.strictObject({
   /** Increases with every snapshot; the shell ignores anything older than what it has. */
   version: z.number().int().nonnegative(),
   selectedTabId: tabId.nullable(),
   /** Strip order: pinned tabs first. */
   tabs: z.array(tabSnapshot).max(10_000),
+  /** Sleeping (§4.4), most recently moved there first. Never pinned, never selected. */
+  sleeping: z.array(tabSnapshot).max(10_000),
+  /** The newest archived tabs, newest first ("Recently archived"). */
+  archived: z.array(archivedTabSnapshot).max(MAX_LISTED_ARCHIVED),
+  /** The sidebar's counts (§4.13): "Sleeping 12 · Archived today 3". `archived` is all of them. */
+  counts: z.strictObject({
+    sleeping: z.number().int().nonnegative(),
+    archived: z.number().int().nonnegative(),
+    archivedToday: z.number().int().nonnegative(),
+  }),
+  /**
+   * The moves the user can undo for now (§4.12): the latest automated batch, or the user's own
+   * last move. Null when there is nothing to undo.
+   */
+  undo: z
+    .strictObject({
+      batchId,
+      automated: z.boolean(),
+      shelved: z.number().int().nonnegative(),
+      archived: z.number().int().nonnegative(),
+    })
+    .nullable(),
   /**
    * A tab in HTML fullscreen (threat T6). While `notice` is true the shell draws only the notice,
    * naming `origin`, because main raises it above the page (ADR-0006 A′).
@@ -307,6 +358,33 @@ export const commandSchemas = {
   'downloads.clear': { input: downloadRef, output: nothing },
   /** Removes a notice from the strip. An id main no longer shows (already dismissed) is `not_found`. */
   'notices.dismiss': { input: z.strictObject({ noticeId }), output: nothing },
+  /** Moves a strip tab to Sleeping (M3.3). A pinned tab stays. Offers Undo. */
+  'tabs.shelve': { input: tabRef, output: z.strictObject({ moved: z.boolean() }) },
+  /**
+   * Archives a tab from the strip or Sleeping (M3.3): a loaded page is unloaded first, and a page
+   * that objects (unsaved changes) keeps the tab where it is: `moved` is false. Offers Undo.
+   */
+  'tabs.archive': { input: tabRef, output: z.strictObject({ moved: z.boolean() }) },
+  /**
+   * Brings a tab back from Sleeping or the Archive to the strip, next to the current tab, and
+   * selects it (§4.4). An archived tab may come back under a new id.
+   */
+  'tabs.restore': { input: tabFocusRef, output: tabRef },
+  'tabs.setProtected': {
+    input: z.strictObject({ tabId, protected: z.boolean() }),
+    output: nothing,
+  },
+  /** Undoes a batch of moves, if it is still the one offered. */
+  'lifecycle.undo': {
+    input: z.strictObject({ batchId }),
+    output: z.strictObject({ undone: z.number().int().nonnegative() }),
+  },
+  'lifecycle.dismissUndo': { input: z.strictObject({ batchId }), output: nothing },
+  /** The activity log (§4.12): what automation did and why, newest first. */
+  'lifecycle.activity': {
+    input: nothing,
+    output: z.strictObject({ entries: z.array(activityEntrySchema).max(MAX_ACTIVITY_ENTRIES) }),
+  },
 } as const satisfies Record<CommandName, CommandSchema>;
 
 export const eventSchemas = {

@@ -3,9 +3,11 @@
 import { app } from 'electron';
 
 import { PRODUCT_NAME } from '../../shared/constants/app-identity';
+import type { ActivityEntry } from '../../shared/contracts/activity';
 import type { DownloadManager } from '../downloads/download-manager';
 import type { ExternalProtocolGuard } from '../external/protocol-guard';
 import type { FocusManager } from '../focus/focus-manager';
+import type { PlacementActions } from '../lifecycle/placement-actions';
 import type { ContextMenus } from '../menus/context-menu';
 import { submitAddress } from '../navigation/submit';
 import type { AppNotices } from '../notices/app-notices';
@@ -32,6 +34,18 @@ export interface CommandContext {
   readonly downloads: DownloadManager;
   readonly notices: AppNotices;
   readonly searchTemplate: () => string;
+  /** The user's moves to Sleeping and the Archive, with Undo (M3.3). */
+  readonly placement: PlacementActions;
+  /** Undo and the activity log (M3.3). */
+  readonly lifecycle: LifecycleCommands;
+}
+
+export interface LifecycleCommands {
+  /** Undoes the offered batch; how many tabs went back (0 when it is no longer offered). */
+  undo(batchId: string): number;
+  dismissUndo(batchId: string): void;
+  /** The activity log, newest first. */
+  activity(): ActivityEntry[];
 }
 
 export function createCommandHandlers({
@@ -47,6 +61,8 @@ export function createCommandHandlers({
   downloads,
   notices,
   searchTemplate,
+  placement,
+  lifecycle,
 }: CommandContext): CommandHandlers {
   /** Runs `action` on an existing tab, or answers `not_found`. */
   const onTab = <T>(tabId: TabId, action: () => T): T => {
@@ -246,6 +262,34 @@ export function createCommandHandlers({
       }
       return done;
     },
+
+    // M3.3: Sleeping, the Archive, protection, Undo and the activity log.
+    'tabs.shelve': ({ tabId }) => onTab(tabId, () => ({ moved: placement.shelve(tabId) })),
+    'tabs.archive': async ({ tabId }) => {
+      if (!tabs.has(tabId)) {
+        throw new CommandError('not_found');
+      }
+      return { moved: await placement.archive(tabId) };
+    },
+    'tabs.restore': ({ tabId, keepFocus }) => {
+      // A tab in the strip or Sleeping, or one in the Archive (not a live tab: `has` is false).
+      const restored = placement.restore(tabId, { focus: keepFocus !== true });
+      if (restored === null) {
+        throw new CommandError('not_found');
+      }
+      return { tabId: restored };
+    },
+    'tabs.setProtected': ({ tabId, protected: on }) =>
+      onTab(tabId, () => {
+        placement.setProtected(tabId, on);
+        return done;
+      }),
+    'lifecycle.undo': ({ batchId }) => ({ undone: lifecycle.undo(batchId) }),
+    'lifecycle.dismissUndo': ({ batchId }) => {
+      lifecycle.dismissUndo(batchId);
+      return done;
+    },
+    'lifecycle.activity': () => ({ entries: lifecycle.activity() }),
 
     'layout.setInsets': (insets) => {
       layout.setInsets(insets);

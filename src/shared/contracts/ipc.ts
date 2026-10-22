@@ -47,6 +47,13 @@ export const COMMAND_NAMES = [
   'downloads.discard',
   'downloads.clear',
   'notices.dismiss',
+  'tabs.shelve',
+  'tabs.archive',
+  'tabs.restore',
+  'tabs.setProtected',
+  'lifecycle.undo',
+  'lifecycle.dismissUndo',
+  'lifecycle.activity',
 ] as const;
 export type CommandName = (typeof COMMAND_NAMES)[number];
 

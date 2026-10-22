@@ -170,8 +170,14 @@ export interface LifecycleClock {
   readonly activeDay: number;
 }
 
-export type LifecycleRule =
-  'discard-hidden' | 'shelve-beyond-cap' | 'archive-dormant' | 'pressure-discard' | 'freeze-hidden';
+export const LIFECYCLE_RULES = [
+  'discard-hidden',
+  'shelve-beyond-cap',
+  'archive-dormant',
+  'pressure-discard',
+  'freeze-hidden',
+] as const;
+export type LifecycleRule = (typeof LIFECYCLE_RULES)[number];
 
 export interface LifecycleAction {
   readonly tabId: string;

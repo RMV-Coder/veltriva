@@ -1,6 +1,7 @@
 // WorkspaceProjector (ADR-0005 §2): turns TabManager state into the versioned snapshot the shell
 // renders. Changes are coalesced: however many arrive, at most one snapshot goes out per frame.
 import { displayUrl } from '../../core/url/display';
+import { MAX_LISTED_ARCHIVED } from '../../shared/contracts/schemas';
 import type {
   NoticeSnapshot,
   TabSnapshot,
@@ -9,7 +10,7 @@ import type {
 import type { AppNotice } from '../notices/app-notices';
 import type { BlockedPopupsState } from '../popups/blocked-popups';
 import type { Prompt } from '../prompts/prompt-manager';
-import type { TabId, TabState } from './tab-manager';
+import type { ArchivedTab, TabId, TabState } from './tab-manager';
 
 /** About one animation frame. */
 export const SNAPSHOT_INTERVAL_MS = 16;
@@ -43,6 +44,8 @@ export function projectTab(tab: TabState, extras: TabExtras = {}): TabSnapshot {
     canGoBack: tab.canGoBack,
     canGoForward: tab.canGoForward,
     runtime: tab.runtime,
+    unloadedBy: tab.runtime === 'unloaded' ? tab.unloadedBy : null,
+    userProtected: tab.userProtected,
     page,
     zoomPercent: Math.min(Math.max(tab.zoomPercent, 25), 500),
     find: tab.find,
@@ -54,6 +57,17 @@ export function projectTab(tab: TabState, extras: TabExtras = {}): TabSnapshot {
             count: extras.blockedPopups.count,
             latest: displayUrl(extras.blockedPopups.latestUrl).text,
           },
+  };
+}
+
+export function projectArchived(tab: ArchivedTab): WorkspaceSnapshot['archived'][number] {
+  return {
+    id: tab.id,
+    title: tab.title,
+    address: tab.url === '' ? NO_ADDRESS : displayUrl(tab.url),
+    favicon: tab.favicon ?? null,
+    archivedAt: timestamp(tab.archivedAt),
+    reason: tab.reason,
   };
 }
 
@@ -161,6 +175,11 @@ export function createWorkspaceProjector(options: {
   readonly downloads?: () => WorkspaceSnapshot['downloads'];
   /** Veltriva's own notices. A change to them schedules a snapshot, like any other change. */
   readonly notices?: NoticeSource;
+  /** Sleeping, the newest archived tabs, the sidebar's counts and the Undo offer (M3.3). */
+  readonly sleeping?: () => readonly TabState[];
+  readonly archived?: () => readonly ArchivedTab[];
+  readonly counts?: () => WorkspaceSnapshot['counts'];
+  readonly undo?: () => WorkspaceSnapshot['undo'];
   readonly publish: (snapshot: WorkspaceSnapshot) => void;
   readonly schedule?: (callback: () => void, ms: number) => unknown;
   readonly cancel?: (handle: unknown) => void;
@@ -183,6 +202,10 @@ export function createWorkspaceProjector(options: {
       fullscreen: options.fullscreen?.() ?? null,
       downloads: options.downloads?.() ?? [],
       notices: (options.notices?.list() ?? []).map(projectNotice),
+      sleeping: (options.sleeping?.() ?? []).map((tab) => projectTab(tab)),
+      archived: (options.archived?.() ?? []).slice(0, MAX_LISTED_ARCHIVED).map(projectArchived),
+      counts: options.counts?.() ?? { sleeping: 0, archived: 0, archivedToday: 0 },
+      undo: options.undo?.() ?? null,
     };
   };
 

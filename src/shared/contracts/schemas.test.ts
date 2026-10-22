@@ -2,13 +2,29 @@ import { describe, expect, it } from 'vitest';
 
 import { uuidv7 } from '../../core/id/uuidv7';
 import { COMMAND_NAMES } from './ipc';
-import { commandSchemas } from './schemas';
+import { commandSchemas, MAX_LISTED_ARCHIVED } from './schemas';
 
 const snapshot = commandSchemas['workspace.getSnapshot'].output;
 const dismiss = commandSchemas['notices.dismiss'];
 
+/** What every snapshot has besides its tabs, downloads and notices (M3.3: Sleeping, the Archive). */
+const PLACEMENT_FIELDS = {
+  sleeping: [],
+  archived: [],
+  counts: { sleeping: 0, archived: 0, archivedToday: 0 },
+  undo: null,
+} as const;
+
 function withNotices(notices: unknown): unknown {
-  return { version: 1, selectedTabId: null, tabs: [], fullscreen: null, downloads: [], notices };
+  return {
+    version: 1,
+    selectedTabId: null,
+    tabs: [],
+    fullscreen: null,
+    downloads: [],
+    notices,
+    ...PLACEMENT_FIELDS,
+  };
 }
 
 const restored = {
@@ -33,6 +49,7 @@ describe('notices in the workspace snapshot', () => {
         tabs: [],
         fullscreen: null,
         downloads: [],
+        ...PLACEMENT_FIELDS,
       }).success,
     ).toBe(false);
   });
@@ -199,6 +216,7 @@ describe('download ids', () => {
     fullscreen: null,
     downloads,
     notices: [],
+    ...PLACEMENT_FIELDS,
   });
   const snapshotAccepts = (id: unknown): boolean =>
     snapshot.safeParse(withDownloads([download(id)])).success;
@@ -304,5 +322,102 @@ describe('download ids', () => {
     expect(
       commandSchemas['downloads.clear'].input.safeParse({ downloadId: 'notice-1' }).success,
     ).toBe(false);
+  });
+});
+
+describe('Sleeping, the Archive and Undo in the snapshot (M3.3)', () => {
+  const TAB_ID = uuidv7(1_700_000_000_000, new Uint8Array(10).fill(3));
+  const archivedTab = (overrides: Record<string, unknown> = {}) => ({
+    id: TAB_ID,
+    title: 'A page',
+    address: { text: 'example.com/a', security: 'secure', hadCredentials: false },
+    favicon: null,
+    archivedAt: Date.UTC(2026, 9, 22, 9),
+    reason: 'auto',
+    ...overrides,
+  });
+  const withPlacement = (fields: Record<string, unknown>) => ({
+    version: 1,
+    selectedTabId: null,
+    tabs: [],
+    fullscreen: null,
+    downloads: [],
+    notices: [],
+    ...PLACEMENT_FIELDS,
+    ...fields,
+  });
+
+  it('accepts archived tabs and an Undo offer', () => {
+    expect(
+      snapshot.safeParse(
+        withPlacement({
+          archived: [archivedTab(), archivedTab({ reason: 'manual' })],
+          counts: { sleeping: 4, archived: 250, archivedToday: 2 },
+          undo: { batchId: 'batch-12', automated: true, shelved: 3, archived: 1 },
+        }),
+      ).success,
+    ).toBe(true);
+    expect(
+      snapshot.safeParse(
+        withPlacement({ undo: { batchId: 'manual-1', automated: false, shelved: 1, archived: 0 } }),
+      ).success,
+    ).toBe(true);
+  });
+
+  it('requires the new fields', () => {
+    for (const field of ['sleeping', 'archived', 'counts', 'undo']) {
+      const value = Object.fromEntries(
+        Object.entries(withPlacement({})).filter(([key]) => key !== field),
+      );
+      expect(snapshot.safeParse(value).success, field).toBe(false);
+    }
+  });
+
+  it('refuses an archived tab without a reason it knows, or with a page favicon URL', () => {
+    expect(
+      snapshot.safeParse(withPlacement({ archived: [archivedTab({ reason: 'x' })] })).success,
+    ).toBe(false);
+    expect(
+      snapshot.safeParse(
+        withPlacement({ archived: [archivedTab({ favicon: 'https://example.com/favicon.ico' })] }),
+      ).success,
+    ).toBe(false);
+  });
+
+  it('lists at most MAX_LISTED_ARCHIVED archived tabs', () => {
+    const many = (count: number) => Array.from({ length: count }, () => archivedTab());
+    expect(snapshot.safeParse(withPlacement({ archived: many(MAX_LISTED_ARCHIVED) })).success).toBe(
+      true,
+    );
+    expect(
+      snapshot.safeParse(withPlacement({ archived: many(MAX_LISTED_ARCHIVED + 1) })).success,
+    ).toBe(false);
+  });
+
+  it('accepts only batch ids of the form batch-N or manual-N', () => {
+    const undo = commandSchemas['lifecycle.undo'].input;
+    for (const batchId of ['batch-1', 'manual-7', 'batch-123456789012345']) {
+      expect(undo.safeParse({ batchId }).success, batchId).toBe(true);
+    }
+    for (const batchId of [
+      '',
+      'batch-',
+      'auto-1',
+      'batch-x',
+      'batch-1 ',
+      'batch-1234567890123456',
+    ]) {
+      expect(undo.safeParse({ batchId }).success, batchId).toBe(false);
+    }
+  });
+
+  it('takes a tab id for the placement commands, and nothing more', () => {
+    for (const name of ['tabs.shelve', 'tabs.archive'] as const) {
+      expect(commandSchemas[name].input.safeParse({ tabId: TAB_ID }).success).toBe(true);
+      expect(commandSchemas[name].input.safeParse({ tabId: TAB_ID, extra: 1 }).success).toBe(false);
+    }
+    const protect = commandSchemas['tabs.setProtected'].input;
+    expect(protect.safeParse({ tabId: TAB_ID, protected: true }).success).toBe(true);
+    expect(protect.safeParse({ tabId: TAB_ID }).success).toBe(false);
   });
 });

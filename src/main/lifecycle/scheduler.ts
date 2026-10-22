@@ -6,10 +6,13 @@
 //   - At most 3 discards (and 3 freezes) per evaluation, started about 1 s apart, so automation
 //     never causes jank.
 //   - One evaluation at a time; one asked for meanwhile runs right after.
+//   - Archiving a live tab discards it, so it counts against the same limit and the same stagger.
+//     Shelving, and archiving a tab that isn't loaded, cost nothing and aren't limited.
 //   - Every planned action is logged with the rule that produced it and what came of it.
-// M3.2 carries out discards and freezes. Shelving and archiving are planned and logged, and are
-// carried out from M3.3 on, together with the Sleeping and Archive sections that show them.
+//   - The tabs one evaluation moved (to Sleeping or the Archive) are one batch, which the user
+//     can undo (M3.3).
 import type { DiscardOutcome, DiscardRequest, Timers } from '../../core/lifecycle/discard';
+import type { MoveOutcome, MoveRequest, PlacementMove } from '../../core/lifecycle/placement';
 import { planLifecycle } from '../../core/lifecycle/policy';
 import type {
   LifecycleAction,
@@ -18,6 +21,7 @@ import type {
   MemoryPressure,
   TabFacts,
 } from '../../core/lifecycle/policy';
+import type { RuntimeState } from '../../core/lifecycle/runtime-machine';
 import type { Logger } from '../platform/logger';
 import type { FreezeOutcome, TabId } from '../tabs/tab-manager';
 
@@ -35,9 +39,10 @@ export const LOG_SIZE = 500;
 export type ActionResult =
   | DiscardOutcome
   | FreezeOutcome
+  | MoveOutcome
   /** Over the evaluation's limit: the next evaluation plans it again if it still applies. */
   | { readonly outcome: 'rate-limited' }
-  /** Planned only: shelving and archiving are carried out from M3.3 on. */
+  /** Planned only, not carried out (M3.4's preview mode). */
   | { readonly outcome: 'planned' }
   /** Automation was paused before its turn came. */
   | { readonly outcome: 'paused' };
@@ -45,13 +50,26 @@ export type ActionResult =
 export interface ActionRecord extends LifecycleAction {
   /** Wall-clock time of the evaluation that planned it. */
   readonly at: number;
+  /** The evaluation's batch: the moves it made are undone together. */
+  readonly batchId: string;
+  /** The memory pressure when it was planned: the "why" names it (M3.4). */
+  readonly pressure: MemoryPressure;
   readonly result: ActionResult;
+}
+
+/** The tabs one evaluation moved, in the order it moved them. */
+export interface MoveBatch {
+  readonly id: string;
+  readonly at: number;
+  readonly moves: readonly PlacementMove[];
 }
 
 export interface SchedulerTabs {
   lifecycleTabs(): TabFacts[];
   discard(tabId: TabId, request: DiscardRequest): Promise<DiscardOutcome>;
   freeze(tabId: TabId): Promise<FreezeOutcome>;
+  shelve(tabId: TabId, request: MoveRequest): MoveOutcome;
+  archive(tabId: TabId, request: MoveRequest): Promise<MoveOutcome>;
 }
 
 export interface LifecycleSchedulerOptions {
@@ -63,6 +81,25 @@ export interface LifecycleSchedulerOptions {
   readonly logger: Logger;
   /** Each action once it has a result (the activity log, M3.3). */
   readonly onAction?: (record: ActionRecord) => void;
+  /** The tabs an evaluation moved, once all its actions have settled (Undo, M3.3). */
+  readonly onBatch?: (batch: MoveBatch) => void;
+}
+
+/** One evaluation, as its actions are carried out. */
+interface Batch {
+  readonly id: string;
+  readonly at: number;
+  readonly pressure: MemoryPressure;
+  readonly moves: PlacementMove[];
+}
+
+function recordOf(action: LifecycleAction, batch: Batch, result: ActionResult): ActionRecord {
+  return { ...action, at: batch.at, batchId: batch.id, pressure: batch.pressure, result };
+}
+
+/** Archiving a tab in one of these discards its page first: that costs what a discard does. */
+function archiveDiscards(runtime: RuntimeState | undefined): boolean {
+  return runtime === 'live' || runtime === 'frozen';
 }
 
 export class LifecycleScheduler {
@@ -73,9 +110,10 @@ export class LifecycleScheduler {
   #quiet = true;
   #running: Promise<void> | null = null;
   #again = false;
-  /** The shelves and archives the last evaluation planned, so each is logged once. */
+  /** The actions the last evaluation left over its limits, so each is logged once. */
   #plannedBefore = new Set<string>();
   #stopped = false;
+  #evaluations = 0;
 
   constructor(options: LifecycleSchedulerOptions) {
     this.#options = options;
@@ -117,8 +155,12 @@ export class LifecycleScheduler {
 
   /** The actions the policy calls for now, without carrying any out. */
   plan(): LifecycleAction[] {
+    return this.#planFor(this.#options.tabs.lifecycleTabs());
+  }
+
+  #planFor(tabs: TabFacts[]): LifecycleAction[] {
     return planLifecycle({
-      tabs: this.#options.tabs.lifecycleTabs(),
+      tabs,
       settings: this.#options.settings(),
       clock: this.#options.clock(),
       pressure: this.#options.pressure(),
@@ -184,38 +226,52 @@ export class LifecycleScheduler {
 
   async #run(): Promise<void> {
     let actions: LifecycleAction[];
+    let runtimes: Map<string, RuntimeState>;
     try {
-      actions = this.plan();
+      const tabs = this.#options.tabs.lifecycleTabs();
+      runtimes = new Map(tabs.map((tab) => [tab.id, tab.runtime]));
+      actions = this.#planFor(tabs);
     } catch {
       this.#options.logger.error('lifecycle.planFailed');
       return;
     }
     const at = this.#options.clock().wallNow;
+    this.#evaluations += 1;
+    const batch: Batch = {
+      id: `batch-${String(this.#evaluations)}`,
+      at,
+      pressure: this.#options.pressure(),
+      moves: [],
+    };
     const started: Promise<void>[] = [];
     let discards = 0;
     let freezes = 0;
-    // What this evaluation planned without carrying out: logged only when new (no log spam).
+    // What this evaluation left over its limits: logged only when new (no log spam).
     const planned = new Set<string>();
     for (const action of actions) {
       if (this.#stopped) {
         break;
       }
-      if (action.kind === 'shelve' || action.kind === 'archive') {
-        const key = `${action.kind}:${action.tabId}`;
-        planned.add(key);
-        if (!this.#plannedBefore.has(key)) {
-          this.#record({ ...action, at, result: { outcome: 'planned' } });
+      // Shelving, and archiving a tab that isn't loaded, free nothing and cost nothing.
+      const free =
+        action.kind === 'shelve' ||
+        (action.kind === 'archive' && !archiveDiscards(runtimes.get(action.tabId)));
+      if (free) {
+        if (this.#options.settings().paused) {
+          this.#record(recordOf(action, batch, { outcome: 'paused' }));
+          continue;
         }
+        started.push(this.#carryOut(action, batch));
         continue;
       }
-      const isDiscard = action.kind === 'discard';
+      const isDiscard = action.kind !== 'freeze';
       const count = isDiscard ? discards : freezes;
       const limit = isDiscard ? MAX_DISCARDS_PER_EVALUATION : MAX_FREEZES_PER_EVALUATION;
       if (count >= limit) {
         const key = `limited:${action.kind}:${action.tabId}`;
         planned.add(key);
         if (!this.#plannedBefore.has(key)) {
-          this.#record({ ...action, at, result: { outcome: 'rate-limited' } });
+          this.#record(recordOf(action, batch, { outcome: 'rate-limited' }));
         }
         continue;
       }
@@ -227,7 +283,7 @@ export class LifecycleScheduler {
         }
       }
       if (this.#options.settings().paused) {
-        this.#record({ ...action, at, result: { outcome: 'paused' } });
+        this.#record(recordOf(action, batch, { outcome: 'paused' }));
         continue;
       }
       if (isDiscard) {
@@ -235,29 +291,53 @@ export class LifecycleScheduler {
       } else {
         freezes += 1;
       }
-      started.push(this.#carryOut(action, at));
+      started.push(this.#carryOut(action, batch));
     }
     this.#plannedBefore = planned;
     await Promise.all(started);
+    // After stop() (shutdown) nobody can undo anything: the batch isn't offered.
+    if (batch.moves.length > 0 && !this.#isStopped()) {
+      try {
+        this.#options.onBatch?.({ id: batch.id, at: batch.at, moves: [...batch.moves] });
+      } catch {
+        // A listener's bug must not make an evaluation reject.
+        this.#options.logger.error('lifecycle.onBatchFailed');
+      }
+    }
   }
 
-  async #carryOut(action: LifecycleAction, at: number): Promise<void> {
+  async #carryOut(action: LifecycleAction, batch: Batch): Promise<void> {
+    const tabs = this.#options.tabs;
+    const move: MoveRequest = { origin: 'automation', epoch: action.epoch };
     let result: ActionResult;
     try {
-      result =
-        action.kind === 'discard'
-          ? await this.#options.tabs.discard(action.tabId, {
-              origin: action.rule === 'pressure-discard' ? 'pressure' : 'automation',
-              epoch: action.epoch,
-              overrideSoft: action.overrideSoft,
-            })
-          : await this.#options.tabs.freeze(action.tabId);
+      switch (action.kind) {
+        case 'discard':
+          result = await tabs.discard(action.tabId, {
+            origin: action.rule === 'pressure-discard' ? 'pressure' : 'automation',
+            epoch: action.epoch,
+            overrideSoft: action.overrideSoft,
+          });
+          break;
+        case 'freeze':
+          result = await tabs.freeze(action.tabId);
+          break;
+        case 'shelve':
+          result = tabs.shelve(action.tabId, move);
+          break;
+        case 'archive':
+          result = await tabs.archive(action.tabId, move);
+          break;
+      }
     } catch {
       // TabManager never rejects; a bug here must not stop the scheduler.
       this.#options.logger.error('lifecycle.actionFailed', { kind: action.kind });
       return;
     }
-    this.#record({ ...action, at, result });
+    if (result.outcome === 'moved') {
+      batch.moves.push(result.move);
+    }
+    this.#record(recordOf(action, batch, result));
   }
 
   #record(record: ActionRecord): void {

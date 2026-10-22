@@ -17,7 +17,10 @@ import type {
 } from '../../src/core/lifecycle/policy';
 import type { ActionRecord } from '../../src/main/lifecycle/scheduler';
 import type { TabId } from '../../src/main/tabs/tab-manager';
+import type { ActivityEntry } from '../../src/shared/contracts/activity';
+import type { UndoOffer } from '../../src/main/lifecycle/undo';
 import type {
+  ArchivedTabEntry,
   TabStateEntry,
   VeltrivaTestHooks,
   WebContentsRoleEntry,
@@ -26,7 +29,14 @@ import type { TestClockAdjustment } from '../../src/main/testing/test-clock';
 import { expect } from './expect';
 import { isShellUrl } from './launch';
 
-export type { TabId, TabStateEntry, WebContentsRoleEntry };
+export type {
+  ActivityEntry,
+  ArchivedTabEntry,
+  TabId,
+  TabStateEntry,
+  UndoOffer,
+  WebContentsRoleEntry,
+};
 
 type OpenTestTabOptions = Parameters<VeltrivaTestHooks['openTestTab']>[0];
 
@@ -1217,4 +1227,52 @@ export function lifecyclePlanWith(
     }
     return plan;
   }, probe);
+}
+
+// ── M3.3: Sleeping, the Archive, Undo and the activity log ──────────────────────────────────────
+
+/** Sleeping, most recently moved there first, as `tabStates` describes strip tabs. */
+export function sleepingTabStates(app: ElectronApplication): Promise<TabStateEntry[]> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.sleepingTabStates();
+  });
+}
+
+/** The archived tabs in memory, newest first, and how many are archived in all. */
+export function archivedTabs(
+  app: ElectronApplication,
+): Promise<{ readonly entries: ArchivedTabEntry[]; readonly count: number }> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return { entries: hooks.archivedTabEntries(), count: hooks.archivedTabCount() };
+  });
+}
+
+/** What the sidebar offers to undo, if anything. */
+export function undoOffer(app: ElectronApplication): Promise<UndoOffer | null> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.undoOffer();
+  });
+}
+
+/** The activity log, newest first. */
+export function activityEntries(app: ElectronApplication): Promise<ActivityEntry[]> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.activityEntries();
+  });
 }

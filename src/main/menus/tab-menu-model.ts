@@ -1,6 +1,7 @@
 // The context menu of a tab in the sidebar: right-click, the Menu key or Shift+F10 on the tab. It
-// is also how a keyboard user pins or duplicates a tab. Pure, so the entries are unit-tested and a
-// test hook can show them (Playwright can't click native menus).
+// is also how a keyboard user pins or duplicates a tab, and moves it to Sleeping or the Archive or
+// protects it from automation (M3.3). A Sleeping tab has a shorter menu. Pure, so the entries are
+// unit-tested and a test hook can show them (Playwright can't click native menus).
 
 export type TabMenuItemId =
   | 'new-tab-below'
@@ -10,7 +11,12 @@ export type TabMenuItemId =
   | 'unpin'
   | 'close'
   | 'close-others'
-  | 'reopen-closed';
+  | 'reopen-closed'
+  | 'shelve'
+  | 'archive'
+  | 'restore'
+  | 'protect'
+  | 'unprotect';
 
 export type TabMenuEntry =
   | {
@@ -22,7 +28,12 @@ export type TabMenuEntry =
   | { readonly type: 'separator' };
 
 export interface TabMenuContext {
+  /** In the strip, or Sleeping. */
+  readonly placement: 'strip' | 'shelf';
   readonly pinned: boolean;
+  readonly userProtected: boolean;
+  /** It has a page worth keeping in the Archive (an address, and not a private tab). */
+  readonly canArchive: boolean;
   /** The tab shows a web page (or an error or crash page with a URL to load again). */
   readonly hasPage: boolean;
   /** How many tabs "Close other tabs" would close: the others that aren't pinned, as in Chrome. */
@@ -39,12 +50,31 @@ const item = (id: TabMenuItemId, label: string, enabled = true): TabMenuEntry =>
 const SEPARATOR: TabMenuEntry = { type: 'separator' };
 
 export function buildTabMenu(context: TabMenuContext): TabMenuEntry[] {
+  const protect = context.userProtected
+    ? item('unprotect', 'Stop protecting')
+    : item('protect', 'Protect from automation');
+  if (context.placement === 'shelf') {
+    return [
+      item('restore', 'Move to Tabs'),
+      item('archive', 'Archive tab', context.canArchive),
+      protect,
+      SEPARATOR,
+      item('close', 'Close tab'),
+      SEPARATOR,
+      item('reopen-closed', 'Reopen closed tab', context.canReopenClosed),
+    ];
+  }
   return [
     item('new-tab-below', 'New tab below'),
     SEPARATOR,
     item('reload', 'Reload', context.hasPage),
     item('duplicate', 'Duplicate'),
     context.pinned ? item('unpin', 'Unpin tab') : item('pin', 'Pin tab'),
+    SEPARATOR,
+    // A pinned tab stays in the strip (I8): unpin it first.
+    item('shelve', 'Move to Sleeping', !context.pinned),
+    item('archive', 'Archive tab', context.canArchive),
+    protect,
     SEPARATOR,
     item('close', 'Close tab'),
     item('close-others', 'Close other tabs', context.otherUnpinnedTabs > 0),
