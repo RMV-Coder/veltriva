@@ -506,6 +506,8 @@ export class TabManager {
   readonly #shelf: TabId[] = [];
   /** Archived tabs in memory, oldest first (MAX_ARCHIVED_IN_MEMORY). */
   readonly #archived: ArchivedTab[] = [];
+  /** Archived tabs only the database holds (beyond those in memory). */
+  #archivedElsewhere = 0;
   #selected: TabId | null = null;
   /** The tab in HTML fullscreen, if any. Only the selected tab can be. */
   #fullscreen: TabId | null = null;
@@ -528,6 +530,19 @@ export class TabManager {
   /** Archived tabs in memory, newest first. */
   archivedTabs(): readonly ArchivedTab[] {
     return [...this.#archived].reverse();
+  }
+
+  /** How many tabs are archived in all: those in memory and those only in the database. */
+  archivedCount(): number {
+    return this.#archivedElsewhere + this.#archived.length;
+  }
+
+  /** Sleeping as the session stores it (I6: never an ephemeral tab). */
+  shelfSessionTabs(): readonly SessionTab[] {
+    return this.#shelf
+      .map((id) => this.#record(id))
+      .filter((record) => !record.state.ephemeral)
+      .map((record) => this.#sessionTab(record));
   }
 
   selectedTabId(): TabId | null {
@@ -807,6 +822,8 @@ export class TabManager {
     readonly shelf?: readonly SessionTab[];
     /** Archived tabs, newest first, as many as are kept in memory (M3.3). */
     readonly archived?: readonly ArchivedTab[];
+    /** How many tabs are archived in all (M3.3). */
+    readonly archivedCount?: number;
   }): void {
     if (this.#records.size > 0) {
       throw new Error('restoreSession needs an empty TabManager.');
@@ -845,6 +862,7 @@ export class TabManager {
         this.#archived.push({ ...archived, ...checked, pinned: false });
       }
     }
+    this.#archivedElsewhere = Math.max(0, (session.archivedCount ?? 0) - this.#archived.length);
     this.#closed.length = 0;
     for (const closed of [...session.closed].reverse().slice(-MAX_CLOSED_TABS)) {
       const checked = checkedSessionTab(closed);
@@ -1575,6 +1593,7 @@ export class TabManager {
     });
     if (this.#archived.length > MAX_ARCHIVED_IN_MEMORY) {
       this.#archived.shift();
+      this.#archivedElsewhere += 1; // Still archived, in the database only.
     }
     this.#options.onPageGone?.(tabId);
     this.#options.history?.closed(tabId);

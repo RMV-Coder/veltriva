@@ -576,6 +576,9 @@ async function start(): Promise<void> {
       selectedTabId: loaded.selectedTabId,
       closed: loaded.closed,
       loadSelected: !safeMode,
+      shelf: loaded.shelf,
+      archived: loaded.archived,
+      archivedCount: loaded.archivedCount,
     });
     if (safeMode) {
       notices.show({ kind: 'safe-mode' });

@@ -107,7 +107,11 @@ class FakeClient {
       case 'tabs.purgeClosed':
         return { count: 0 };
       case 'tabs.list':
-        return { tabs: this.strip };
+        return { tabs: (input as { placement?: string }).placement === 'shelf' ? [] : this.strip };
+      case 'tabs.listArchived':
+        return { tabs: [] };
+      case 'tabs.countArchived':
+        return { count: 0 };
       case 'tabs.listClosed':
         return { tabs: [] };
       case 'appState.get':

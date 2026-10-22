@@ -257,6 +257,16 @@ export const DATA_METHODS = {
     input: z.strictObject({ workspaceId: uuid, limit: limit(1000) }),
     output: z.strictObject({ tabs: z.array(tabRowSchema).max(1000) }),
   },
+  /** Archived tabs (placement 'archive'), newest first (M3.3); tabs_archived_idx serves it. */
+  'tabs.listArchived': {
+    input: z.strictObject({ workspaceId: uuid, limit: limit(1000) }),
+    output: z.strictObject({ tabs: z.array(tabRowSchema).max(1000) }),
+  },
+  /** How many tabs a workspace has archived (M3.3: the Archive section's count). */
+  'tabs.countArchived': {
+    input: z.strictObject({ workspaceId: uuid }),
+    output: z.strictObject({ count: z.number().int().nonnegative() }),
+  },
   /** Deletes closed tabs closed before `before`, at most `limit` of them (kept 7 days, §5.7). */
   'tabs.purgeClosed': {
     input: z.strictObject({ before: timestamp, limit: limit(MAX_BATCH) }),

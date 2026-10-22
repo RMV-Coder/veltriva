@@ -452,7 +452,9 @@ describe('DATA_WRITES', () => {
       'history.visits',
       'permissions.list',
       'settings.get',
+      'tabs.countArchived',
       'tabs.list',
+      'tabs.listArchived',
       'tabs.listClosed',
     ]);
   });

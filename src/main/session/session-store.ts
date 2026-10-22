@@ -13,7 +13,7 @@ import { MAX_BATCH } from '../../shared/contracts/data-rpc';
 import type { DataClient } from '../persistence/data-client';
 import type { Logger } from '../platform/logger';
 import { SESSION_NEW_TAB_URL } from '../tabs/tab-manager';
-import type { ClosedTab, SessionTab, TabId } from '../tabs/tab-manager';
+import type { ArchivedTab, ClosedTab, SessionTab, TabId } from '../tabs/tab-manager';
 
 export const FLUSH_DELAY_MS = 1000;
 export const STRUCTURAL_FLUSH_DELAY_MS = 250;
@@ -27,6 +27,13 @@ export interface SessionSource {
   sessionTabs(): readonly SessionTab[];
   closedTabs(): readonly ClosedTab[];
   selectedTabId(): TabId | null;
+  /** Sleeping, most recently moved there first (M3.3). */
+  shelfSessionTabs?(): readonly SessionTab[];
+  /**
+   * The archived tabs in memory, newest first (M3.3). An archived tab that leaves this list is
+   * still archived: its row stays.
+   */
+  archivedTabs?(): readonly ArchivedTab[];
 }
 
 /** The session document in app_state. */
@@ -52,6 +59,8 @@ export class SessionStore {
   readonly #logger: Logger;
   /** Each row as last written, by id, as JSON. */
   readonly #written = new Map<string, string>();
+  /** The placement each row was last written with: an archived row is never deleted for leaving. */
+  readonly #writtenPlacement = new Map<string, TabRow['placement']>();
   readonly #writtenDocuments = new Map<string, string>();
   #structure = '';
   #window: SavedWindow | null = null;
@@ -69,6 +78,7 @@ export class SessionStore {
     this.#logger = options.logger;
     for (const row of options.loaded ?? []) {
       this.#written.set(row.id, JSON.stringify(row));
+      this.#writtenPlacement.set(row.id, row.placement);
     }
     this.#structure = this.#structureOf();
   }
@@ -165,6 +175,14 @@ export class SessionStore {
     }
     const json = new Map(rows.map((row) => [row.id, JSON.stringify(row)]));
     const changed = rows.filter((row) => this.#written.get(row.id) !== json.get(row.id));
+    // An archived tab that left the in-memory list (MAX_ARCHIVED_IN_MEMORY) is still archived:
+    // its row is forgotten here, not deleted.
+    for (const id of [...this.#written.keys()]) {
+      if (!json.has(id) && this.#writtenPlacement.get(id) === 'archive') {
+        this.#written.delete(id);
+        this.#writtenPlacement.delete(id);
+      }
+    }
     const gone = [...this.#written.keys()].filter((id) => !json.has(id));
     const newDocuments = documents.filter(
       ({ key, value }) => this.#writtenDocuments.get(key) !== JSON.stringify(value),
@@ -186,9 +204,11 @@ export class SessionStore {
         });
         for (const row of tabs) {
           this.#written.set(row.id, json.get(row.id) ?? '');
+          this.#writtenPlacement.set(row.id, row.placement);
         }
         for (const id of deleteIds) {
           this.#written.delete(id);
+          this.#writtenPlacement.delete(id);
         }
         if (last) {
           for (const { key, value } of newDocuments) {
@@ -221,27 +241,40 @@ export class SessionStore {
     // Ids and pins only: this runs on every change, and reading stacks would cost a URL parse
     // per history entry of every tab.
     const tabs = this.#source.tabs().map((tab) => `${tab.id}${tab.pinned ? '*' : ''}`);
-    return `${tabs.join(',')}|${String(this.#source.selectedTabId())}|${String(this.#source.closedTabs().length)}`;
+    // Sleeping and Archive moves are structural too (M3.3): their counts tell them apart.
+    const shelf = this.#source.shelfSessionTabs?.().length ?? 0;
+    const archived = this.#source.archivedTabs?.()[0]?.id ?? '';
+    return `${tabs.join(',')}|${String(this.#source.selectedTabId())}|${String(this.#source.closedTabs().length)}|${String(shelf)}|${archived}`;
   }
 
   #rows(): TabRow[] {
     const rows: TabRow[] = [];
     this.#source.sessionTabs().forEach((tab, position) => {
-      const row = this.#row(tab, { placement: 'strip', position, closedAt: null });
-      if (row !== null) {
-        rows.push(row);
-      }
+      rows.push(this.#row(tab, { placement: 'strip', position, closedAt: null }));
     });
+    this.#source.shelfSessionTabs?.().forEach((tab, position) => {
+      rows.push(this.#row(tab, { placement: 'shelf', position, closedAt: null }));
+    });
+    for (const tab of this.#source.archivedTabs?.() ?? []) {
+      rows.push(
+        this.#row(tab, {
+          placement: 'archive',
+          position: 0,
+          closedAt: null,
+          archivedAt: tab.archivedAt,
+          archiveReason: tab.reason,
+        }),
+      );
+    }
     for (const tab of this.#source.closedTabs()) {
       // For a closed tab, `position` is where it was in the strip: Ctrl+Shift+T puts it back there.
-      const row = this.#row(tab, {
-        placement: 'closed',
-        position: Math.min(Math.max(tab.index, 0), 1_000_000),
-        closedAt: tab.closedAt,
-      });
-      if (row !== null) {
-        rows.push(row);
-      }
+      rows.push(
+        this.#row(tab, {
+          placement: 'closed',
+          position: Math.min(Math.max(tab.index, 0), 1_000_000),
+          closedAt: tab.closedAt,
+        }),
+      );
     }
     return rows;
   }
@@ -249,11 +282,13 @@ export class SessionStore {
   #row(
     tab: SessionTab,
     where: {
-      readonly placement: 'strip' | 'closed';
+      readonly placement: TabRow['placement'];
       readonly position: number;
       readonly closedAt: number | null;
+      readonly archivedAt?: number;
+      readonly archiveReason?: 'auto' | 'manual';
     },
-  ): TabRow | null {
+  ): TabRow {
     // The exact address, minus credentials and token-bearing fragments (§5.7). A tab whose
     // address can't be restored keeps it as is; restoring it then opens a new-tab page.
     // An address a tab may not restore (about:blank, a chrome: page) is saved as a new-tab
@@ -267,7 +302,7 @@ export class SessionStore {
       position: where.position,
       // The schema allows a pin only in the strip; a closed tab reopens unpinned after a restart.
       pinned: where.placement === 'strip' && tab.pinned,
-      userProtected: false,
+      userProtected: tab.userProtected ?? false,
       pageId: null,
       url: url ?? SESSION_NEW_TAB_URL,
       title: restorable ? tab.title : '',
@@ -281,9 +316,10 @@ export class SessionStore {
       lastUsedAt: tab.lastUsedAt,
       lastUsedEngaged: tab.lastUsedEngaged ?? 0,
       lastUsedActiveDay: tab.lastUsedActiveDay ?? 0,
-      placementChangedAt: where.closedAt ?? tab.createdAt,
-      archivedAt: null,
-      archiveReason: null,
+      placementChangedAt:
+        where.closedAt ?? where.archivedAt ?? tab.placementChangedAt ?? tab.createdAt,
+      archivedAt: where.archivedAt ?? null,
+      archiveReason: where.archiveReason ?? null,
       closedAt: where.closedAt,
     };
   }

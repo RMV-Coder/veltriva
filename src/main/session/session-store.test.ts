@@ -159,7 +159,17 @@ function databaseWith(
       case 'tabs.purgeClosed':
         return { count: 0 };
       case 'tabs.list':
-        return { tabs: rows.filter((row) => row.placement === 'strip') };
+        return {
+          tabs: rows.filter((row) => row.placement === (input as { placement: string }).placement),
+        };
+      case 'tabs.listArchived':
+        return {
+          tabs: rows
+            .filter((row) => row.placement === 'archive')
+            .sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0)),
+        };
+      case 'tabs.countArchived':
+        return { count: rows.filter((row) => row.placement === 'archive').length };
       case 'tabs.listClosed':
         return { tabs: rows.filter((row) => row.placement === 'closed') };
       case 'appState.get':

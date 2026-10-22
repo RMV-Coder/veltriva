@@ -104,7 +104,12 @@ class FakeData {
       case 'tabs.purgeClosed':
         return { count: 0 };
       case 'tabs.list':
-        return { tabs: this.strip };
+        // M3.3: the strip and Sleeping are listed apart.
+        return { tabs: input.placement === 'shelf' ? [] : this.strip };
+      case 'tabs.listArchived':
+        return { tabs: [] };
+      case 'tabs.countArchived':
+        return { count: 0 };
       case 'tabs.listClosed':
         return { tabs: this.closedRows };
       case 'appState.get':
@@ -167,7 +172,10 @@ describe('loadSession', () => {
         'appRuns.recent',
         'appState.get',
         'appState.get',
+        'tabs.countArchived',
         'tabs.list',
+        'tabs.list',
+        'tabs.listArchived',
         'tabs.listClosed',
       ]);
     });
@@ -228,6 +236,9 @@ describe('loadSession', () => {
           history: null,
           createdAt: 11,
           lastUsedAt: 22,
+          // M3.3: the user's protection and when the tab last changed placement.
+          userProtected: false,
+          placementChangedAt: T0 + 1,
         },
         {
           id: id(2),
@@ -237,6 +248,8 @@ describe('loadSession', () => {
           history: null,
           createdAt: T0 + 2,
           lastUsedAt: T0 + 12,
+          userProtected: false,
+          placementChangedAt: T0 + 2,
         },
       ]);
     });
@@ -405,6 +418,8 @@ describe('loadSession', () => {
           history: null,
           createdAt: T0 + 3,
           lastUsedAt: T0 + 13,
+          userProtected: false,
+          placementChangedAt: T0 + 3,
           closedAt: T0 + 300,
           // A closed row keeps its strip index in `position`.
           index: 3,
@@ -623,6 +638,8 @@ describe('loadSession', () => {
       'workspaces.ensureDefault',
       'tabs.purgeClosed',
       'tabs.list',
+      'tabs.listArchived',
+      'tabs.countArchived',
       'tabs.listClosed',
       'appState.get',
       'appRuns.recent',
