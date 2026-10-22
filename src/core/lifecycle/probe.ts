@@ -7,6 +7,16 @@ import type { ProtectionReason } from './protections';
 /** The caller's budget for the probe (S3: a busy page delayed it by about 680 ms). */
 export const PROBE_TIMEOUT_MS = 100;
 
+/**
+ * How long the discard waits for the page to wake up before it probes: a dry run of the probe.
+ * Measured on the reference laptop under load (M3.1), the first script call into a just-hidden
+ * tab took up to 1.8 s, and the first probe after a no-op still up to 166 ms (compiling, our
+ * world's view of the page), the second at most 32 ms. Without the wake-up, the 100 ms budget
+ * measured the renderer's scheduling, not the page. No answer still means "keep the tab"; a page
+ * busy in its own script answers only once its task is done.
+ */
+export const PING_TIMEOUT_MS = 5000;
+
 export interface ProbeReading {
   /**
    * Form fields whose value differs from their default (input, textarea, select, checkbox, a

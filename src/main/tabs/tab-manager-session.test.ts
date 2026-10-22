@@ -91,6 +91,9 @@ class FakeRuntime implements TabRuntime {
   showHidden(): void {
     this.calls.push('showHidden');
   }
+  ping(): Promise<unknown> {
+    return Promise.reject(new Error('not used in these tests'));
+  }
   probe(): Promise<unknown> {
     return Promise.reject(new Error('not used in these tests'));
   }

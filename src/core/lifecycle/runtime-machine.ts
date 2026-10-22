@@ -12,7 +12,8 @@
 //                                         revive (the tab was selected while closing) ──▶ creating
 //
 //   creating | live | frozen ──rendererGone──▶ crashed ──load / ensureLive──▶ creating
-//   anything but discarding ──internalPage / gone──▶ unloaded (the web contents is closed or lost)
+//   anything but discarding ──internalPage──▶ unloaded (the tab shows a new-tab page now)
+//   creating | live | frozen | crashed ──gone──▶ unloaded (its web contents was lost)
 //
 // Pure: no Electron, no timers. Unit tests walk every (state, event) pair.
 

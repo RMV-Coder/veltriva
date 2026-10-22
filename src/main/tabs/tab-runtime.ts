@@ -13,6 +13,7 @@
 //
 // M3.1, the discard and restore of assessment §4.9 (spikes S2 and S3):
 //   dom-ready (main frame)       → install the trusted-input tracker in our isolated world
+//   ping()                       → the probe's dry run in that world: the renderer is awake
 //   probe()                      → the probe and page-state flush, in the same world; the
 //                                  same-document commit the flush causes is dropped
 //   closeForDiscard('beforeunload') → close({ waitForBeforeUnload: true }); `will-prevent-unload`
@@ -31,7 +32,13 @@ import type { WindowOpenHandler, WindowOpenSource } from '../popups/popup-policy
 import { createViewWithRole } from '../web/roles';
 import { TAB_WEB_PREFERENCES } from '../web/web-preferences';
 import type { FaviconService } from './favicons';
-import { BROWSER_WORLD_ID, EXIT_FULLSCREEN, INSTALL_INPUT_TRACKER, PROBE } from './page-scripts';
+import {
+  BROWSER_WORLD_ID,
+  EXIT_FULLSCREEN,
+  INSTALL_INPUT_TRACKER,
+  PROBE,
+  PROBE_DRY_RUN,
+} from './page-scripts';
 import type { CloseResult, TabId, TabRuntime, TabRuntimeFactory } from './tab-manager';
 
 /** Where a tab's view is shown: the LayoutManager's content area. */
@@ -407,6 +414,16 @@ export function createTabRuntimes(options: {
           index: contents.navigationHistory.getActiveIndex(),
           entries: entries.map(({ url, title }) => ({ url, title })),
         };
+      },
+      ping() {
+        if (destroyed) {
+          return Promise.reject(new Error('The tab is gone.'));
+        }
+        return contents.executeJavaScriptInIsolatedWorld(
+          BROWSER_WORLD_ID,
+          [{ code: PROBE_DRY_RUN }],
+          false,
+        );
       },
       probe() {
         if (destroyed) {

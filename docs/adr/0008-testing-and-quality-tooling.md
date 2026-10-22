@@ -15,6 +15,10 @@
    - Random command sequences run against TabManager with fake tab runtimes.
    - Async completions are reordered with `fc.scheduler()` and `scheduledModelRun`.
    - Invariants I1–I8 are checked after every step.
+   - **As built in M3.1:** fast-check **4.10.2** (MIT, a dev dependency only; its one dependency is pure-rand). `src/main/tabs/tab-manager-model.test.ts`:
+     - Fake runtimes follow the Electron runtime's contract, and their probes, closes, restores, loads and freezes, and TabManager's own deadline timers, are tasks of `fc.scheduler()`. `fc.scheduledModelRun` interleaves them with the commands in random order.
+     - The scheduler's `act` wraps every released task: it lets the continuations run (`setImmediate`), then checks I1–I8. Each command checks them too. I5 is also checked inside the fake at the moment a discard closes a page.
+     - Three properties: 250 sequences on a fixed seed, which must reach every discard outcome and every runtime transition, so the coverage is stable; 250 on a new seed each run; and three runs of exactly 10,000 commands. The strip stops growing at 40 tabs, so long runs stay realistic and the checks cheap.
 3. **Integration tests** cover the data worker and migrations on Node, using the same N-API SQLite binary as the app:
    - every historical schema version is upgraded;
    - FTS integrity;
@@ -84,6 +88,8 @@
    - `beforeunload` handling.
 
    It runs in CI on `windows-latest`, with the test window kept always on top so native occlusion tracking can't skew results.
+
+   **As built in M3.1:** `tests/lifecycle/discard.test.ts` starts the E2E fixture server and passes its origin to the app in `VELTRIVA_FIXTURE_ORIGIN`; the scenarios are in `src/main/testing/discard-scenarios.ts`. They cover what only real hidden tabs show: the page-state flush of a just-hidden tab, renderer release, `beforeunload` with real input, background restore at 125% scaling, and freezing.
 
    **As built in M1.3a:**
    - **How it runs.** `npm run test:lifecycle` builds the test variant, then Vitest (`vitest.lifecycle.config.mts`, specs in `tests/lifecycle`) starts the app once per check with `VELTRIVA_LIFECYCLE_SCENARIO` set. The app runs that scenario (`src/main/testing/lifecycle-scenarios.ts`), prints one result line and exits. CI runs it after the E2E tests.

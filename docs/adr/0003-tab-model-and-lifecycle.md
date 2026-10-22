@@ -133,6 +133,54 @@ Wall-clock timers would also archive a user's workspace after a weekend away.
       - The restored strip, Recently closed and selection must equal the state after the last acknowledged save, or the one in flight, rebuilt from the saves the churn printed.
       - Only the selected tab may be loaded.
 
+12. **As built in M3.1** (the runtime dimension; assessment §4.3, §4.5, §4.9, §4.11):
+    - **The state machine** is `src/core/lifecycle/runtime-machine.ts`, pure. TabManager asks it before every change, so an illegal transition throws. Every transition bumps the tab's **epoch**. The events, beyond §4.3's table:
+      - `revive`: the tab is selected while its web contents is closing for a discard. It is `creating` at once (I2), and comes back as soon as the close settles: restored from the snapshot if the page closed, live again on the old web contents if it objected.
+      - `internalPage`: a new-tab page replaces the web page, so the web contents is closed.
+      - `gone`: the web contents was destroyed without TabManager asking. That is a discard's close that finished after TabManager stopped waiting, or anything else. The tab keeps what is known of its stack and is unloaded, like a discarded tab; a selected one restores at once.
+      - `rendererGone` is also legal from `creating`: a renderer can die while a page loads.
+    - **One serial queue per tab** (`src/core/lifecycle/serial-queue.ts`) runs `discard()` and `freeze()`. Each re-validates when its turn comes and again before its irreversible step (§4.11). A request may carry the epoch its decision saw; a later transition makes it `stale` (I5).
+    - **The discard** (`TabManager.discard`, never rejects) answers `discarded`, `skipped` with why (`selected`, `loading`, `not-live`, `not-web`, `stale`, `cancelled`, `closed`, `no-history`) or `blocked` with the protection that kept the tab. Its steps:
+      1. **Refuse** the selected tab, a loading one, one that isn't live or frozen, one on an error page (`not-web`: error pages aren't discarded in M3.1), and a stale decision. Then check the protections: the monitor's (M3.4) and, for automation, what an earlier attempt learned.
+      2. **Thaw** a frozen page.
+      3. **Wake, then probe.** The probe has the hard 100 ms budget of item 5, but it is preceded by a wake-up with a 5 s budget: the probe's dry run, without the flush. Measured on the reference laptop under load:
+         - the first script call into a just-hidden tab took 0.9–2.5 s, and up to 3.1 s, even for a no-op;
+         - after a no-op, the first probe still took 5–166 ms (compiling, and our world's view of the page's elements), against at most 32 ms for the second;
+         - after the dry run, the probe took 3–59 ms (10 samples), and 4–14 ms in the discards that followed.
+
+         Without the wake-up, most discards of a just-hidden tab ended "probe-unanswered" on this machine. No answer to either call still keeps the tab, for that attempt only.
+      4. **The probe's verdict** (`src/core/lifecycle/probe.ts`):
+         - Hard *unsaved input*: a field the trusted-input tracker saw the user type into that still holds text, or a changed field on a page the user activated. A changed field on an untouched page counts for nothing: typing activates a page, so the value came from the page's own script, or from a restore of its page state, which the next snapshot keeps again.
+         - Soft *editing*: a focused `contenteditable`.
+         - Soft *sensitive page*: password or payment fields.
+         - Otherwise close with `beforeunload` if `hasBeenActive`, plainly if not.
+      5. **The tracker** (`src/main/tabs/page-scripts.ts`) is installed on every `dom-ready` in world 1001, the same world as the probe. It keeps the 64 most recent fields with trusted `input` or `change` events, and a `contenteditable` host's text before its first `beforeinput`. So a search box the user typed into stays protected until the page navigates, as in Chrome. A field removed from the page no longer counts.
+      6. **Snapshot**, then check again: not selected, not loading, unprotected, and the epoch is still the discard's own.
+      7. **Close.** `will-prevent-unload` is never `preventDefault()`ed. An objection, or no close within 5 s, gives `page-unsaved-changes`.
+    - **What a blocked attempt teaches.** `unsaved-input`, `page-unsaved-changes`, `editing` and `sensitive-page` are remembered for 30 minutes, or until the next cross-document commit. Automation doesn't ask the page again meanwhile; an explicit request always does.
+    - **The flush's same-document commit** is dropped by the runtime (same URL, within 2 s), so it is neither a visit nor engagement.
+    - **The snapshot** (`src/core/lifecycle/snapshot.ts`) passes the persisted stack's checks. An entry keeps Chromium's page state only if its URL came through them unchanged; above 256 KiB of page state per tab, only the active entry keeps its own. It lives in memory, is used once by the next restore if the tab's stack is still the same, and the session persists the stack without it.
+    - **A renderer that dies mid-discard**, or a web contents that vanishes mid-probe, ends as a discard, with the entries Chromium still has, else the last stack reported.
+    - **While a close is in flight,** what the user does to the tab (reload, navigate, back, a new-tab page) waits until the close settles. Closing the tab doesn't wait.
+    - **Restore** (item 6) now also restores a discarded tab, with its page state.
+      - A tab restored while not selected (Reload on an unloaded tab) is attached invisibly, under every view and sized like the content area, until its page stops loading. That avoids S2's scale-factor error. LayoutManager calls this `attachHidden`.
+    - **Leaving fullscreen no longer passes `userGesture`.** It needs none, and the activation it granted would have told the discard that the user had been on the page (S3).
+    - **Freezing** (experimental, off: nothing triggers it but a test hook) sends `Page.setWebLifecycleState` through `webContents.debugger`. A detach, such as DevTools taking the debugger, counts as thawed. A frozen tab that crashes is thawed first, so the next page isn't frozen. The model-based tests found that.
+    - **Invariants as built.**
+      - I2 allows `unloaded` for a selected tab that shows an internal page, and in safe mode until the user picks the tab (`lifecycleFacts().heldUnloaded`).
+      - I1, I3 and I8 hold trivially until M3.3 adds the other placements.
+      - I6: `create({ ephemeral: true })` exists, though no UI opens one. Such a tab, and a tab opened next to it (`afterTabId`), never reaches `sessionTabs()`, Recently closed or the history recorder, and the session's `#sessionTab` throws if one ever does.
+    - **Tests.** `tab-manager-model.test.ts` runs random command sequences against fake runtimes. fast-check's scheduler releases their probes, closes, restores, loads and timers in random order, and I1–I8 are checked after every command and every released task. It runs:
+      - 250 sequences on a fixed seed, which must reach every discard outcome and every transition;
+      - 250 on a new seed each run;
+      - three runs of exactly 10,000 commands, about 38,000 checks each.
+      - Unit tests in `src/core/lifecycle` and `tab-manager-lifecycle.test.ts`.
+      - E2E in `tests/e2e/lifecycle.spec.ts`, and harness checks in `tests/lifecycle/discard.test.ts` (ADR-0008 4a).
+    - **Known limits.**
+      - Closing a tab doesn't yet ask "Leave page?" for a page that objects (§4.9 *Close*); it closes at once, as in Phase 1.
+      - The probe sees the top frame only (S3).
+      - The tracker is blind to a page that stops `input` at the window in the capture phase before it is installed.
+
 ## Consequences
 
 - **Positive:** both product-critical states are first-class, the policy is unit-testable without Electron, and every automatic action can be explained.

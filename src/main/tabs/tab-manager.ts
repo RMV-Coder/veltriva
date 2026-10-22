@@ -45,7 +45,12 @@ import type {
   DiscardSkip,
   Timers,
 } from '../../core/lifecycle/discard';
-import { judgeProbe, parseProbeReading, PROBE_TIMEOUT_MS } from '../../core/lifecycle/probe';
+import {
+  judgeProbe,
+  parseProbeReading,
+  PING_TIMEOUT_MS,
+  PROBE_TIMEOUT_MS,
+} from '../../core/lifecycle/probe';
 import type { CloseMode } from '../../core/lifecycle/probe';
 import { blockingProtection, protectionFor } from '../../core/lifecycle/protections';
 import type { Protection, ProtectionReason } from '../../core/lifecycle/protections';
@@ -166,6 +171,12 @@ export interface TabRuntime {
   restore(history: NavigationSnapshot): void;
   /** The current back/forward stack (URLs and titles), unsanitized; null before any load. */
   history(): TabHistory | null;
+  /**
+   * Wakes the page for the probe: the probe's dry run in our isolated world, without the flush.
+   * It may take long on a busy or just-hidden page; TabManager enforces the deadline, and ignores
+   * the answer.
+   */
+  ping(): Promise<unknown>;
   /**
    * Runs the discard probe in our isolated world: unsaved input, `hasBeenActive`, and the page
    * state flush (§4.9 step 3). Its answer comes from a renderer and is untrusted; a busy page may
@@ -1001,8 +1012,8 @@ export class TabManager {
    * selecting it restores the page. Runs on the tab's serial queue and never rejects:
    *   1. re-validate (not selected, not loading, unprotected, the decision's epoch);
    *   2. thaw a frozen page, since unload handlers need it running;
-   *   3. probe for unsaved input and flush the page state, within PROBE_TIMEOUT_MS, where no
-   *      answer means "keep the tab";
+   *   3. wake the renderer (a no-op, within PING_TIMEOUT_MS), then probe for unsaved input and
+   *      flush the page state, within PROBE_TIMEOUT_MS; no answer to either means "keep the tab";
    *   4. snapshot the navigation entries, then re-validate once more;
    *   5. close: with `beforeunload` only for a page the user activated, where an objection keeps
    *      the tab and teaches it a protection; a plain close otherwise (S3);
@@ -1053,7 +1064,21 @@ export class TabManager {
     const epoch = record.epoch;
     this.#changed();
 
-    // 3. Probe and flush. A probe that throws at once counts as one that never answered.
+    // 3. Wake the renderer: a just-hidden tab's first script call can take seconds to be
+    // scheduled on a loaded machine, and the probe's budget is for the page, not for that.
+    const awake = await withDeadline(
+      Promise.resolve().then(() => runtime.ping()),
+      PING_TIMEOUT_MS,
+      this.#timers,
+    );
+    const asleep = this.#interrupted(record, progress, epoch);
+    if (asleep !== null) {
+      return asleep;
+    }
+    if (awake.kind !== 'value') {
+      return this.#discardKept(record, progress, blocked('probe-unanswered'));
+    }
+    // Probe and flush. A probe that throws at once counts as one that never answered.
     const answer = await withDeadline(
       Promise.resolve().then(() => runtime.probe()),
       PROBE_TIMEOUT_MS,
@@ -1538,7 +1563,12 @@ export class TabManager {
     this.#wake(record);
     this.#syncVisibility();
     if (focus && record.state.page.kind === 'web') {
-      record.runtime?.focus();
+      if (record.discard?.closing === true) {
+        // Its web contents is closing: the one that replaces it gets focus when it commits.
+        record.focusOnCommit = true;
+      } else {
+        record.runtime?.focus();
+      }
     }
   }
 

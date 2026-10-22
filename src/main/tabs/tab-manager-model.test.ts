@@ -27,7 +27,8 @@ import type {
 
 /** What a page does when probed and closed. */
 interface PageProfile {
-  readonly probe: 'clean' | 'changed' | 'edited' | 'focused' | 'sensitive' | 'busy' | 'garbage';
+  readonly probe:
+    'clean' | 'changed' | 'edited' | 'focused' | 'sensitive' | 'busy' | 'garbage' | 'unresponsive';
   readonly activated: boolean;
   /** On a `beforeunload` close: closes, objects, or never answers. */
   readonly unload: 'closes' | 'objects' | 'stuck';
@@ -194,6 +195,14 @@ class FakeRuntime implements TabRuntime {
   }
   history(): TabHistory | null {
     return this.url === '' ? null : { index: 0, entries: [{ url: this.url, title: 'T' }] };
+  }
+  ping(): Promise<unknown> {
+    this.#assertAlive('ping');
+    const profile = this.world.profiles.get(this.tabId) ?? CLEAN;
+    if (profile.probe === 'unresponsive') {
+      return new Promise(() => undefined); // The renderer never gets to it.
+    }
+    return this.world.scheduler.schedule(Promise.resolve(0), `ping ${this.tabId}`);
   }
   probe(): Promise<unknown> {
     this.#assertAlive('probe');
@@ -565,6 +574,7 @@ const profileArbitrary: fc.Arbitrary<PageProfile> = fc.record({
     'sensitive',
     'busy',
     'garbage',
+    'unresponsive',
   ),
   activated: fc.boolean(),
   unload: fc.constantFrom<PageProfile['unload']>('closes', 'closes', 'objects', 'stuck'),

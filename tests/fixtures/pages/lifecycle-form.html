@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Lifecycle form</title>
+    <style>
+      #ce {
+        border: 1px solid #999;
+        padding: 4px;
+        min-height: 2em;
+      }
+      #tall {
+        height: 4000px;
+        background: linear-gradient(#fff, #ccd);
+      }
+    </style>
+  </head>
+  <body>
+    <h1 id="heading">Lifecycle form</h1>
+    <p>Form fields for the discard probe and in-run page-state restore (M3.1, spikes S2 and S3).</p>
+    <form id="form" onsubmit="return false">
+      <p><label>Text <input id="text" name="text" value="initial" /></label></p>
+      <p><label>Area <textarea id="area" name="area">initial area</textarea></label></p>
+      <p>
+        <label
+          >Select
+          <select id="sel" name="sel">
+            <option value="a" selected>A</option>
+            <option value="b">B</option>
+          </select>
+        </label>
+      </p>
+      <p><label>Check <input id="chk" name="chk" type="checkbox" /></label></p>
+      <p><label>React-style input <input id="reactish" name="reactish" value="" /></label></p>
+    </form>
+    <div id="ce" contenteditable="true">editable region</div>
+    <div id="tall">Tall content for scroll restoration.</div>
+    <p id="bottom">bottom</p>
+    <script>
+      // React's controlled inputs keep the value attribute in step with the value, so
+      // defaultValue tracks value and a value/defaultValue check sees no change (spike S2, S3).
+      document.getElementById('reactish').addEventListener('input', (event) => {
+        event.target.setAttribute('value', event.target.value);
+      });
+    </script>
+  </body>
+</html>

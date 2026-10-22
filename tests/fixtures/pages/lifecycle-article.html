@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Lifecycle article</title>
+    <style>
+      p {
+        margin: 0 0 1em;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>A long article</h1>
+    <div id="paragraphs"></div>
+    <script>
+      // 200 numbered paragraphs, so the page scrolls far (scroll restoration, spike S2).
+      const container = document.getElementById('paragraphs');
+      for (let index = 0; index < 200; index += 1) {
+        const paragraph = document.createElement('p');
+        paragraph.id = 'p' + index;
+        paragraph.textContent =
+          'Paragraph ' + index + '. Lorem ipsum dolor sit amet, consectetur adipiscing elit, ' +
+          'sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.';
+        container.append(paragraph);
+      }
+    </script>
+  </body>
+</html>

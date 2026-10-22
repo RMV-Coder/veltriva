@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Lifecycle unload</title>
+  </head>
+  <body>
+    <h1>beforeunload</h1>
+    <p>
+      <code>?mode=always</code> objects to every unload, <code>dirty</code> only after typing,
+      <code>never</code> registers a handler that never objects (M3.1, spike S3).
+    </p>
+    <input id="text" placeholder="type here to make the page dirty" />
+    <button id="button" type="button">A button to click</button>
+    <script>
+      const mode = new URLSearchParams(location.search).get('mode') ?? 'always';
+      let dirty = false;
+      document.getElementById('text').addEventListener('input', () => {
+        dirty = true;
+      });
+      window.__veltrivaUnload = { beforeunload: 0, objected: 0 };
+      window.addEventListener('beforeunload', (event) => {
+        window.__veltrivaUnload.beforeunload += 1;
+        if (mode === 'always' || (mode === 'dirty' && dirty)) {
+          window.__veltrivaUnload.objected += 1;
+          event.preventDefault();
+          event.returnValue = '';
+        }
+      });
+    </script>
+  </body>
+</html>

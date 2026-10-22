@@ -28,6 +28,7 @@ function setup() {
     restore: () => undefined,
     history: () => null,
     showHidden: () => undefined,
+    ping: () => Promise.reject(new Error('not used in these tests')),
     probe: () => Promise.reject(new Error('not used in these tests')),
     snapshot: () => null,
     closeForDiscard: () => Promise.reject(new Error('not used in these tests')),

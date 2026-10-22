@@ -93,7 +93,9 @@ export const INSTALL_INPUT_TRACKER = `(() => {
  * that follows has fresh scroll and form values (S2). That causes one same-document commit, which
  * the runtime drops: it is neither a navigation nor engagement.
  */
-export const PROBE = `(() => {
+function probeSource(flush: boolean): string {
+  return `(() => {
+  const flush = ${String(flush)};
   const ignoredTypes = new Set(['hidden', 'submit', 'button', 'reset', 'image']);
   const selectChanged = (select) => {
     if (select.multiple) {
@@ -174,11 +176,26 @@ export const PROBE = `(() => {
   const activation = navigator.userActivation;
   const hasBeenActive = activation === undefined ? true : activation.hasBeenActive;
   let flushed = false;
-  try {
-    history.replaceState(history.state, '');
-    flushed = true;
-  } catch {
-    flushed = false;
+  if (flush) {
+    try {
+      history.replaceState(history.state, '');
+      flushed = true;
+    } catch {
+      flushed = false;
+    }
   }
   return { changedFields, editedFields, focusedEditable, sensitive, hasBeenActive, flushed };
 })()`;
+}
+
+export const PROBE = probeSource(true);
+
+/**
+ * The probe without its flush: the discard's wake-up call (core/lifecycle/probe.ts,
+ * PING_TIMEOUT_MS). Measured on the reference laptop under load (M3.1), the first probe in a
+ * just-hidden tab took up to 166 ms even after a no-op had woken the renderer, the second at most
+ * 32 ms: the first run pays for compiling the script and for our world's view of the page's
+ * elements. A dry run pays that, so the real probe's 100 ms measures the page. Its answer is
+ * ignored, and it changes nothing the page can observe.
+ */
+export const PROBE_DRY_RUN = probeSource(false);

@@ -6,10 +6,12 @@ import {
   MAX_HISTORY_TITLE,
   MAX_HISTORY_URL,
   restorableUrl,
+  sanitizeEntries,
   sanitizeHistory,
   singleEntryHistory,
   stripTokenFragment,
 } from './history';
+import type { HistoryEntry } from './history';
 
 const entry = (n: number, title = `Page ${String(n)}`) => ({
   url: `https://site.example/${String(n)}`,
@@ -573,5 +575,249 @@ describe('singleEntryHistory', () => {
     expect(
       singleEntryHistory('https://site.example/', 'x'.repeat(2000))?.entries[0]?.title,
     ).toHaveLength(MAX_HISTORY_TITLE);
+  });
+});
+
+describe('sanitizeEntries', () => {
+  interface Call {
+    readonly entry: HistoryEntry;
+    readonly raw: Readonly<Record<string, unknown>>;
+    readonly unchanged: boolean;
+  }
+
+  /** `sanitizeEntries` with a hook that writes down what it is given and keeps the clean entry. */
+  const recording = (input: Parameters<typeof sanitizeEntries>[0]) => {
+    const calls: Call[] = [];
+    const result = sanitizeEntries(input, (clean, raw, unchanged) => {
+      calls.push({ entry: clean, raw, unchanged });
+      return clean;
+    });
+    return { result, calls };
+  };
+
+  describe('the build hook', () => {
+    it('gets the clean entry, the raw record and an unchanged flag for each kept entry', () => {
+      const raw = { url: 'https://site.example/a', title: 'A', pageState: 'AAAA' };
+
+      const { calls } = recording({ index: 0, entries: [raw] });
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.entry).toStrictEqual({ url: 'https://site.example/a', title: 'A' });
+      expect(calls[0]?.unchanged).toBe(true);
+    });
+
+    it('gets the very record it was given, with every field the clean entry leaves out', () => {
+      const raw = { url: 'https://site.example/a', title: 'A', pageState: 'AAAA', extra: [1] };
+
+      const { calls } = recording({ index: 0, entries: [raw] });
+
+      expect(calls[0]?.raw).toBe(raw);
+      expect(calls[0]?.raw.pageState).toBe('AAAA');
+    });
+
+    it('gets the clean address and leaves the original in the raw record', () => {
+      const raw = { url: 'https://user:pw@site.example/a#access_token=x', title: 'A' };
+
+      const { calls } = recording({ index: 0, entries: [raw] });
+
+      expect(calls[0]?.entry.url).toBe('https://site.example/a');
+      expect(calls[0]?.raw.url).toBe('https://user:pw@site.example/a#access_token=x');
+    });
+
+    it.each([
+      ['a plain address', 'https://site.example/a', true],
+      ['a path with a query', 'https://site.example/a?q=1&r=2', true],
+      ['a harmless fragment', 'https://site.example/a#section', true],
+      ['an empty fragment', 'https://site.example/#', true],
+      ['a hash route without a token', 'https://site.example/#/inbox/thread?folder=work', true],
+      [
+        'a token-like name in the query, not the fragment',
+        'https://site.example/a?token=abc',
+        true,
+      ],
+      ['a scheme and host in capitals', 'HTTPS://Site.Example/Path', true],
+      ['a port', 'https://site.example:8443/a', true],
+      ['a local file', 'file:///C:/Users/me/notes.html', true],
+      ['credentials', 'https://user:pass@site.example/a', false],
+      ['a user name alone', 'https://user@site.example/a', false],
+      ['a password alone', 'http://:secret@site.example/a', false],
+      ['an access token in the fragment', 'https://site.example/a#access_token=abc', false],
+      ['an authorization code in a hash route', 'https://site.example/#/cb?code=abc', false],
+      ['a token with an encoded name', 'https://site.example/#%61ccess_token=abc', false],
+      ['credentials and a token fragment', 'https://u:p@site.example/a#id_token=abc', false],
+    ])('is told the URL is unchanged only if cleaning left %s alone', (_name, url, unchanged) => {
+      const { calls } = recording({ index: 0, entries: [{ url, title: 'T' }] });
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.unchanged).toBe(unchanged);
+      expect(calls[0]?.entry.url === url).toBe(unchanged);
+    });
+
+    it('is told the URL is unchanged although the title was cut: only the address counts', () => {
+      const raw = { url: 'https://site.example/a', title: 'x'.repeat(5000) };
+
+      const { calls } = recording({ index: 0, entries: [raw] });
+
+      expect(calls[0]?.unchanged).toBe(true);
+      expect(calls[0]?.entry.title).toHaveLength(MAX_HISTORY_TITLE);
+      expect(calls[0]?.raw.title).toHaveLength(5000);
+    });
+
+    it('is told the URL is unchanged although the title is not a string', () => {
+      const raw = { url: 'https://site.example/a', title: 7 };
+
+      const { calls } = recording({ index: 0, entries: [raw] });
+
+      expect(calls[0]?.unchanged).toBe(true);
+      expect(calls[0]?.entry.title).toBe('');
+      expect(calls[0]?.raw.title).toBe(7);
+    });
+
+    it('is called once for each kept entry, in order, and never for a dropped one', () => {
+      const { calls } = recording({
+        index: 3,
+        entries: [
+          null,
+          'https://site.example/string',
+          42,
+          entry(1),
+          { url: 5, title: 'number' },
+          { title: 'no url' },
+          { url: 'javascript:alert(1)', title: 'bad' },
+          { url: 'veltriva://newtab', title: 'internal' },
+          { url: '', title: 'empty' },
+          entry(2),
+          undefined,
+          entry(3),
+        ],
+      });
+
+      expect(calls.map((call) => call.entry.url)).toEqual([
+        'https://site.example/1',
+        'https://site.example/2',
+        'https://site.example/3',
+      ]);
+    });
+
+    it('is not called when the index is not a whole number, and the result is null', () => {
+      for (const index of [Number.NaN, 0.5, Number.POSITIVE_INFINITY]) {
+        const { result, calls } = recording({ index, entries: entries(3) });
+
+        expect(result).toBeNull();
+        expect(calls).toHaveLength(0);
+      }
+    });
+
+    it('is not called for a null history or one with no entries, and the result is null', () => {
+      for (const input of [null, { index: 0, entries: [] }]) {
+        const { result, calls } = recording(input);
+
+        expect(result).toBeNull();
+        expect(calls).toHaveLength(0);
+      }
+    });
+
+    it('is not called when nothing in the history can be kept, and the result is null', () => {
+      const { result, calls } = recording({
+        index: 0,
+        entries: [{ url: 'about:blank', title: '' }, null, { url: 'data:text/html,x' }],
+      });
+
+      expect(result).toBeNull();
+      expect(calls).toHaveLength(0);
+    });
+  });
+
+  describe('the entries it returns', () => {
+    interface Tagged extends HistoryEntry {
+      readonly tag: string;
+      readonly unchanged: boolean;
+    }
+
+    it('are what the hook built, not the clean entries', () => {
+      const result = sanitizeEntries<Tagged>(
+        {
+          index: 1,
+          entries: [
+            { url: 'https://site.example/a', title: 'A', tag: 'first' },
+            { url: 'https://user:pw@site.example/b', title: 'B', tag: 'second' },
+          ],
+        },
+        (clean, raw, unchanged) => ({
+          ...clean,
+          tag: typeof raw.tag === 'string' ? raw.tag : '',
+          unchanged,
+        }),
+      );
+
+      expect(result).toStrictEqual({
+        index: 1,
+        entries: [
+          { url: 'https://site.example/a', title: 'A', tag: 'first', unchanged: true },
+          { url: 'https://site.example/b', title: 'B', tag: 'second', unchanged: false },
+        ],
+      });
+    });
+
+    it('are the 50 around the active one, built by the hook, when there are more', () => {
+      const raw = Array.from({ length: 120 }, (_, n) => ({ ...entry(n), n }));
+
+      const result = sanitizeEntries<HistoryEntry & { readonly n: number }>(
+        { index: 100, entries: raw },
+        (clean, record) => ({ ...clean, n: typeof record.n === 'number' ? record.n : -1 }),
+      );
+
+      expect(result?.index).toBe(40);
+      expect(result?.entries.map((e) => e.n)).toEqual(
+        Array.from({ length: MAX_HISTORY_ENTRIES }, (_, n) => 60 + n),
+      );
+      expect(result?.entries[result.index]?.url).toBe('https://site.example/100');
+    });
+
+    it('have the active index of sanitizeHistory, whatever the hook builds', () => {
+      const bad = { url: 'javascript:alert(1)', title: 'bad' };
+      const inputs: Parameters<typeof sanitizeHistory>[0][] = [
+        { index: 2, entries: [entry(0), entry(1), bad, entry(3)] },
+        { index: 3, entries: [entry(0), bad, bad, bad, entry(4)] },
+        { index: 0, entries: [bad, bad, entry(2), entry(3)] },
+        { index: 3, entries: [bad, entry(1), bad, entry(3), entry(4)] },
+        { index: 99, entries: entries(3) },
+        { index: -4, entries: entries(3) },
+        { index: 100, entries: entries(120) },
+      ];
+
+      for (const input of inputs) {
+        const built = sanitizeEntries(input, (clean) => ({ ...clean, extra: true }));
+
+        expect(built?.index).toBe(sanitizeHistory(input)?.index);
+        expect(built?.entries.map(({ url, title }) => ({ url, title }))).toEqual(
+          sanitizeHistory(input)?.entries,
+        );
+      }
+    });
+  });
+
+  describe('sanitizeHistory, which is built on it', () => {
+    it('is sanitizeEntries with a hook that keeps the clean entry', () => {
+      const inputs: Parameters<typeof sanitizeHistory>[0][] = [
+        null,
+        { index: 0, entries: [] },
+        { index: 1, entries: [entry(1, 'One'), entry(2, 'Two'), entry(3, 'Three')] },
+        {
+          index: 1,
+          entries: [
+            { url: 'https://user:pass@site.example/a', title: 'A' },
+            { url: 'https://site.example/b#access_token=abc', title: 'B' },
+            { url: 'https://site.example/c#section', title: 'C'.repeat(2000), pageState: 'AAAA' },
+          ],
+        },
+        { index: 70, entries: entries(100) },
+        { index: Number.NaN, entries: entries(2) },
+      ];
+
+      for (const input of inputs) {
+        expect(sanitizeHistory(input)).toStrictEqual(sanitizeEntries(input, (clean) => clean));
+      }
+    });
   });
 });
