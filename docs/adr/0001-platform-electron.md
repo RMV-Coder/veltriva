@@ -45,7 +45,14 @@ Build on **Electron**, tracking the newest stable major. 45.0.0 was still in bet
   - **Unchanged by 45:**
     - **Both popup gaps of ADR-0002 item 9 remain.** A click in a cross-site frame still reaches no `input-event`, and a popup's refused `requestFullscreen()` still never settles. Their `test.fail` specs still fail as expected.
   - **Build tools:** electron-vite 6.0.0 has no table entry for 45, so it targets `chrome152` and `node24.18`. Both are older than 45's engines, so the output stays compatible. electron-builder 26.17.0 packages it.
-  - **Checks:** typecheck, lint and format; unit 7,352/7,352; full E2E 427/428. The one failure was a test-harness artifact, now fixed (ADR-0008 item 4: attaching Playwright clears a page's selection). Lifecycle, `package:dir` and a packaged launch on an existing database are recorded in the Phase 4 plan.
+  - **Checks:**
+    - typecheck, lint and format: clean;
+    - unit tests: 7,352/7,352;
+    - full E2E: 427/428 in 36 min. The one failure was a test-harness artifact, now fixed (ADR-0008 item 4: attaching Playwright clears a page's selection); its spec then passed 15/15;
+    - lifecycle harness: 12/12.
+  - **Packaging.** Packaging with electron-builder 26.17.0 passed the production-build, data-isolation and packaged-app checks. `release/` was held open by another process, so the build went to another folder (`check-packaged-app.mjs` now takes the folder).
+  - **A packaged launch on an existing database.** The database was the frozen v1 fixture, migrated to schema 2 beforehand. The window appeared in 13.8 s on a machine with 256 MB free, and the app exited with code 0, leaving no process behind. Afterwards the database was still at schema 2, `quick_check` was ok, and the run was recorded as clean.
+  - **The WER helper.** Electron 45 ships a Windows Error Reporting helper, `electron_wer.dll`, which `crashReporter` expects renamed to `<app>_wer.dll`. electron-builder 26.17.0 doesn't rename it. Veltriva doesn't start `crashReporter`, so the helper isn't used.
 
 Every web page is a `WebContentsView` inside a single `BaseWindow`. We don't use `BrowserView` (deprecated since Electron 30), `<webview>`, or iframes for browsing.
 
