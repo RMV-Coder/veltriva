@@ -239,6 +239,7 @@ class FakeRuntime implements TabRuntime {
             editedFields: profile.probe === 'edited' ? 1 : 0,
             focusedEditable: profile.probe === 'focused',
             sensitive: profile.probe === 'sensitive',
+            playingMedia: false,
             hasBeenActive: profile.activated,
             flushed: true,
           };

@@ -88,6 +88,7 @@ export const INSTALL_INPUT_TRACKER = `(() => {
  *   - editedFields: fields the tracker saw the user type into that still hold text;
  *   - focusedEditable: a focused contenteditable (soft: a plain click sets it, S3);
  *   - sensitive: password or payment fields on the page;
+ *   - playingMedia: a video or audio element of the page is playing (M3.4);
  *   - hasBeenActive: whether the user activated the page since it loaded (S3);
  * then flushes the page state with `history.replaceState(history.state, '')`, so the snapshot
  * that follows has fresh scroll and form values (S2). That causes one same-document commit, which
@@ -173,6 +174,13 @@ function probeSource(flush: boolean): string {
   const focusedEditable = active instanceof HTMLElement && active.isContentEditable;
   const sensitive =
     document.querySelector('input[type=password], input[autocomplete^="cc-"]') !== null;
+  let playingMedia = false;
+  for (const media of document.querySelectorAll('video, audio')) {
+    if (media instanceof HTMLMediaElement && !media.paused && !media.ended && media.readyState > 2) {
+      playingMedia = true;
+      break;
+    }
+  }
   const activation = navigator.userActivation;
   const hasBeenActive = activation === undefined ? true : activation.hasBeenActive;
   let flushed = false;
@@ -184,7 +192,15 @@ function probeSource(flush: boolean): string {
       flushed = false;
     }
   }
-  return { changedFields, editedFields, focusedEditable, sensitive, hasBeenActive, flushed };
+  return {
+    changedFields,
+    editedFields,
+    focusedEditable,
+    sensitive,
+    playingMedia,
+    hasBeenActive,
+    flushed,
+  };
 })()`;
 }
 

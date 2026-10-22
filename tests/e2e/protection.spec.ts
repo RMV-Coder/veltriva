@@ -111,7 +111,7 @@ function restoreTab(shell: Page, tabId: TabId): Promise<unknown> {
 // ── 1. Playing media ────────────────────────────────────────────────────────────────────────────
 
 test.describe('media', () => {
-  test('a playing media element keeps its tab, muted or not; paused, the tab can go', async ({
+  test('a playing media element keeps its tab, muted or not: the discard asks the page, and learns it; paused, the tab can go', async ({
     launcher,
     fixtureServer,
   }) => {
@@ -124,21 +124,44 @@ test.describe('media', () => {
     );
     await selectTab(rig, rig.blank);
 
-    await expect.poll(() => keptAwake(shell, tab), { timeout: 20_000 }).toContain('video');
-    // A muted element is never audible: this is the media protection, not the audio one.
+    // An hour later the policy plans the discard: playing media is something only the page can
+    // say (Chromium's media events never end for a Web Audio context a page keeps open), so the
+    // discard's probe asks it.
+    const hourLater = await lifecyclePlanWith(app, { clock: { wallMs: 61 * MINUTE } });
+    expect(discards(hourLater)).toContain(tab);
+    await lifecycleEvaluate(app);
+    await expect
+      .poll(
+        async () =>
+          (await lifecycleLog(app))
+            .filter((record) => record.tabId === tab && record.kind === 'discard')
+            .map((record) => record.result)
+            .find((result) => result.outcome !== 'rate-limited'),
+        { timeout: 60_000 },
+      )
+      .toEqual({ outcome: 'blocked', reason: 'video' });
+    expect(await tabState(app, tab)).toMatchObject({ runtime: 'live', webContentsId: contents });
+
+    // Learned: the sidebar says what it observed (§4.10: never that the tab is "safe"), and a
+    // muted element is never audible, so this is the media protection, not the audio one.
+    await expect.poll(() => keptAwake(shell, tab)).toContain('video');
     expect(await keptAwake(shell, tab)).not.toContain('audio');
-    // The sidebar says what it observed (§4.10: never that the tab is "safe").
     await expect(tabElement(shell, tab)).toHaveAttribute('data-kept-awake', 'video');
     await expect(tabElement(shell, tab)).toHaveAttribute('title', /\nKept awake: playing media$/);
-    const hourLater = await lifecyclePlanWith(app, { clock: { wallMs: 61 * MINUTE } });
-    expect(discards(hourLater), 'hard: not even critical pressure takes it').not.toContain(tab);
+    // Hard: not asked again for half an hour, not even under critical pressure.
+    expect(discards(await lifecyclePlan(app))).not.toContain(tab);
     expect(
       discards(await lifecyclePlanWith(app, { pressure: 'critical', then: { pressure: 'none' } })),
     ).not.toContain(tab);
 
+    // Paused, and after the half hour, the page is asked again, and the tab goes.
     expect(await evaluateInTab(app, contents, 'lifecycleMedia.pause()')).toBe('paused');
-    await expect.poll(() => keptAwake(shell, tab)).not.toContain('video');
-    expect(discards(await lifecyclePlan(app))).toContain(tab);
+    const recheck = await lifecyclePlanWith(app, { clock: { wallMs: 31 * MINUTE } });
+    expect(discards(recheck)).toContain(tab);
+    await lifecycleEvaluate(app);
+    await expect
+      .poll(async () => (await tabState(app, tab))?.runtime, { timeout: 60_000 })
+      .toBe('unloaded');
   });
 });
 

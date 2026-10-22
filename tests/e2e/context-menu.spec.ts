@@ -928,6 +928,8 @@ test.describe('sidebar tab menu', () => {
       'shelve: Move to Sleeping',
       'archive: Archive tab',
       'protect: Protect from automation',
+      // M3.4: a page's site can be protected; a new-tab page has none.
+      `protect-site: Always protect ${new URL(fixtureServer.url('/')).hostname}`,
       '---',
       'close: Close tab',
       'close-others: Close other tabs',

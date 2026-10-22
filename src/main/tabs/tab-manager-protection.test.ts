@@ -347,6 +347,7 @@ function reading(overrides: Partial<ProbeReading> = {}): ProbeReading {
     editedFields: 0,
     focusedEditable: false,
     sensitive: false,
+    playingMedia: false,
     hasBeenActive: false,
     flushed: true,
     ...overrides,
@@ -1352,6 +1353,423 @@ describe('TabManager protection: keptAwake', () => {
     env.kept(id).length = 0;
 
     expect(env.kept(id)).toEqual(['user-protected']);
+  });
+});
+
+/** A discard whose probe finds a video or audio element playing: the tab stays, and it is learned. */
+async function learnPlayingMedia(
+  env: Base,
+  tabId: TabId,
+  request: DiscardRequest = AUTOMATION,
+): Promise<void> {
+  const discard = env.discard(tabId, request);
+  await flush();
+  env.runtimeOf(tabId).answerProbe(reading({ playingMedia: true }));
+  await flush();
+  expect(discard.value).toEqual(blockedBy('video'));
+}
+
+describe('TabManager protection: playing media, learned from the discard probe (M3.4)', () => {
+  /** How many times TabManager woke this runtime's renderer: one per discard that gets that far. */
+  const pings = (runtime: FakeRuntime): number =>
+    runtime.calls.filter((call) => call === 'ping').length;
+
+  describe('what a probe that finds media playing does to the discard', () => {
+    it('blocks it with video, and the tab stays live with its page', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      const runtime = env.runtimeOf(id);
+
+      const discard = env.discard(id, AUTOMATION);
+      await flush();
+      expect(env.manager.get(id).runtime).toBe('discarding');
+      runtime.answerProbe(reading({ playingMedia: true }));
+      await flush();
+
+      expect(discard.value).toEqual(blockedBy('video'));
+      expect(env.manager.get(id).runtime).toBe('live');
+      expect(runtime.alive).toBe(true);
+      expect(runtime.closes).toHaveLength(0);
+      expect(env.runtimesOf(id)).toHaveLength(1);
+    });
+
+    it.each([
+      ['automation', AUTOMATION],
+      ['the user', USER],
+      ['moderate pressure', MODERATE],
+      // origin 'pressure' with overrideSoft: true, which releases every soft protection
+      ['critical pressure', CRITICAL],
+    ])('does so for %s: hard, so no origin gets past it', async (_name, request) => {
+      const env = setup();
+      const id = env.webTab(A);
+      const runtime = env.runtimeOf(id);
+
+      await learnPlayingMedia(env, id, request);
+
+      expect(runtime.closes).toHaveLength(0);
+      expect(env.manager.get(id)).toMatchObject({
+        runtime: 'live',
+        unloadedBy: null,
+        unloadPressure: null,
+      });
+    });
+
+    it('lets critical pressure past a soft finding but not past playing media', async () => {
+      const env = setup();
+      const soft = env.webTab(A);
+      const playing = env.webTab(B);
+
+      const softDiscard = env.discard(soft, CRITICAL);
+      await flush();
+      env.runtimeOf(soft).answerProbe(reading({ sensitive: true, focusedEditable: true }));
+      await flush();
+      env.runtimeOf(soft).contentsDestroyed();
+      await flush();
+      expect(softDiscard.value).toEqual(DISCARDED);
+
+      const playingDiscard = env.discard(playing, CRITICAL);
+      await flush();
+      env
+        .runtimeOf(playing)
+        .answerProbe(reading({ playingMedia: true, sensitive: true, focusedEditable: true }));
+      await flush();
+      expect(playingDiscard.value).toEqual(blockedBy('video'));
+      expect(env.manager.get(playing).runtime).toBe('live');
+    });
+
+    it('blocks a tab the user activated as well: playing media does not depend on the activation', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+
+      const discard = env.discard(id, AUTOMATION);
+      await flush();
+      env.runtimeOf(id).answerProbe(reading({ playingMedia: true, hasBeenActive: true }));
+      await flush();
+
+      expect(discard.value).toEqual(blockedBy('video'));
+      expect(env.runtimeOf(id).closes).toHaveLength(0);
+    });
+
+    it('gives way to unsaved input, which the probe judges first, and learns that one only', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+
+      const discard = env.discard(id, AUTOMATION);
+      await flush();
+      env.runtimeOf(id).answerProbe(reading({ playingMedia: true, editedFields: 1 }));
+      await flush();
+
+      expect(discard.value).toEqual(blockedBy('unsaved-input'));
+      expect(env.kept(id)).toEqual(['unsaved-input']);
+    });
+
+    it('learns nothing from an answer the probe format does not allow (no playingMedia, or not a boolean)', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      const withoutIt = Object.fromEntries(
+        Object.entries(reading()).filter(([field]) => field !== 'playingMedia'),
+      );
+
+      for (const answer of [withoutIt, { ...reading(), playingMedia: 'yes' }]) {
+        const discard = env.discard(id, AUTOMATION);
+        await flush();
+        env.runtimeOf(id).answerProbe(answer);
+        await flush();
+        expect(discard.value).toEqual(blockedBy('probe-unanswered'));
+      }
+
+      expect(env.kept(id)).toEqual([]);
+      expect(env.manager.get(id).runtime).toBe('live');
+    });
+
+    it('learns nothing when no media is playing: the discard goes through', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+
+      await discardCompletely(env, id);
+
+      expect(env.kept(id)).toEqual([]);
+    });
+  });
+
+  describe('what the tab then shows', () => {
+    it('names video in keptAwake after the attempt and not before', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      expect(env.kept(id)).toEqual([]);
+
+      await learnPlayingMedia(env, id);
+
+      expect(env.kept(id)).toEqual(['video']);
+      expect(env.manager.lifecycleFacts(id).learned).toEqual(['video']);
+    });
+
+    it('tells the policy: a hard protection that blocks a freeze and a discard, and nothing else', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      expect(env.factsOf(id).protections).toEqual([]);
+
+      await learnPlayingMedia(env, id);
+
+      const { protections } = env.factsOf(id);
+      expect(protections).toEqual([protectionFor('video')]);
+      for (const action of ['freeze', 'discard'] as const) {
+        expect(blockingProtection(protections, action, { overrideSoft: true })?.reason).toBe(
+          'video',
+        );
+      }
+      expect(blockingProtection(protections, 'shelve', { overrideSoft: true })).toBeNull();
+      expect(blockingProtection(protections, 'archive', { overrideSoft: true })).toBeNull();
+    });
+
+    it('keeps the monitor beside it, each reason once, in the order the sidebar lists them', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      await learnPlayingMedia(env, id);
+      env.protections.set(id, [protectionFor('audio'), protectionFor('capture')]);
+      env.manager.setProtected(id, true);
+
+      expect(env.kept(id)).toEqual(['user-protected', 'capture', 'audio', 'video']);
+      expect(
+        env
+          .factsOf(id)
+          .protections.map((protection) => protection.reason)
+          .sort(),
+      ).toEqual(['audio', 'capture', 'user-protected', 'video']);
+    });
+
+    it('names it once when the monitor reports video as well', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      await learnPlayingMedia(env, id);
+      env.protections.set(id, [protectionFor('video')]);
+
+      expect(env.kept(id)).toEqual(['video']);
+    });
+
+    it('keeps it beside what a later attempt finds: newest first for the policy, sidebar order for the why', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      await learnPlayingMedia(env, id);
+      env.advance(1);
+
+      const user = env.discard(id, USER); // asks again: the video is paused, the field has text
+      await flush();
+      env.runtimeOf(id).answerProbe(reading({ editedFields: 1 }));
+      await flush();
+
+      expect(user.value).toEqual(blockedBy('unsaved-input'));
+      expect(env.manager.lifecycleFacts(id).learned).toEqual(['unsaved-input', 'video']);
+      expect(env.kept(id)).toEqual(['video', 'unsaved-input']);
+    });
+
+    it('belongs to the tab whose page played, and to no other', async () => {
+      const env = setup();
+      const playing = env.webTab(A);
+      const quiet = env.webTab(B);
+
+      await learnPlayingMedia(env, playing);
+
+      expect(env.kept(playing)).toEqual(['video']);
+      expect(env.kept(quiet)).toEqual([]);
+      expect(env.kept(env.home)).toEqual([]);
+      expect(env.factsOf(quiet).protections).toEqual([]);
+      await discardCompletely(env, quiet); // the other tab is unloaded as usual
+    });
+  });
+
+  describe('automation and pressure after the attempt', () => {
+    it.each([
+      ['automation', AUTOMATION],
+      ['moderate pressure', MODERATE],
+      ['critical pressure', CRITICAL],
+    ])('are refused for %s without asking the page again', async (_name, request) => {
+      const env = setup();
+      const id = env.webTab(A);
+      const runtime = env.runtimeOf(id);
+      await learnPlayingMedia(env, id);
+      expect(runtime.probes).toHaveLength(1);
+      expect(pings(runtime)).toBe(1);
+
+      const again = env.discard(id, request);
+      await flush();
+
+      expect(again.value).toEqual(blockedBy('video'));
+      expect(runtime.probes).toHaveLength(1);
+      expect(pings(runtime)).toBe(1);
+      expect(runtime.closes).toHaveLength(0);
+      expect(env.manager.get(id).runtime).toBe('live');
+    });
+
+    it('refuses a freeze as well, with the same reason', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      const runtime = env.runtimeOf(id);
+      await learnPlayingMedia(env, id);
+
+      const freeze = env.freeze(id);
+      await flush();
+
+      expect(freeze.value).toEqual({ outcome: 'blocked', reason: 'video' });
+      expect(runtime.calls).not.toContain('freeze');
+      expect(env.manager.get(id).runtime).toBe('live');
+    });
+
+    it('asks again once LEARNED_RECHECK_MS has passed, to the millisecond', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      const runtime = env.runtimeOf(id);
+      await learnPlayingMedia(env, id);
+
+      env.advance(LEARNED_RECHECK_MS - 1);
+      const early = env.discard(id, AUTOMATION);
+      await flush();
+      expect(early.value).toEqual(blockedBy('video'));
+      expect(runtime.probes).toHaveLength(1);
+      expect(env.kept(id)).toEqual(['video']);
+
+      env.advance(1);
+      expect(env.kept(id)).toEqual([]);
+      await discardCompletely(env, id); // the page is asked, and the video has stopped
+      expect(runtime.probes).toHaveLength(2);
+      expect(pings(runtime)).toBe(2);
+    });
+
+    it('asks again and is refused again if the video still plays: the wait starts over', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      const runtime = env.runtimeOf(id);
+      await learnPlayingMedia(env, id);
+
+      env.advance(LEARNED_RECHECK_MS);
+      await learnPlayingMedia(env, id); // asked again, found playing again
+      expect(runtime.probes).toHaveLength(2);
+
+      env.advance(LEARNED_RECHECK_MS - 1);
+      const early = env.discard(id, AUTOMATION);
+      await flush();
+      expect(early.value).toEqual(blockedBy('video'));
+      expect(runtime.probes).toHaveLength(2); // not asked: the second finding is still fresh
+      expect(env.kept(id)).toEqual(['video']);
+
+      env.advance(1);
+      expect(env.kept(id)).toEqual([]);
+    });
+
+    it('measures the wait on the lifecycle clock: the plain clock moving changes nothing', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      await learnPlayingMedia(env, id);
+
+      env.clock.now += 10 * LEARNED_RECHECK_MS; // only the plain face of the clock
+      expect(env.kept(id)).toEqual(['video']);
+
+      env.clock.wall += LEARNED_RECHECK_MS - 1; // the lifecycle clock
+      expect(env.kept(id)).toEqual(['video']);
+      env.clock.wall += 1;
+      expect(env.kept(id)).toEqual([]);
+    });
+
+    it('does not hold the tab on a lifecycle clock that went backwards', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      await learnPlayingMedia(env, id);
+
+      env.clock.wall -= 1;
+
+      expect(env.kept(id)).toEqual([]);
+    });
+  });
+
+  describe('an explicit request', () => {
+    it('asks the page again, and discards the tab once the video has stopped', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      const runtime = env.runtimeOf(id);
+      await learnPlayingMedia(env, id);
+      expect(runtime.probes).toHaveLength(1);
+
+      const explicit = env.discard(id, USER);
+      await flush();
+      expect(runtime.probes).toHaveLength(2);
+      runtime.answerProbe(reading());
+      await flush();
+      runtime.contentsDestroyed();
+      await flush();
+
+      expect(explicit.value).toEqual(DISCARDED);
+      expect(env.manager.get(id)).toMatchObject({ runtime: 'unloaded', unloadedBy: 'user' });
+    });
+
+    // Found by these tests: an unloaded tab kept naming what an earlier attempt learned, and a
+    // learned hard reason would have held it out of the Archive.
+    it('forgets what a discard learned once the tab is unloaded by a discard that found the page clean', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      const runtime = env.runtimeOf(id);
+      await learnPlayingMedia(env, id);
+      expect(env.kept(id)).toEqual(['video']);
+
+      const explicit = env.discard(id, USER);
+      await flush();
+      runtime.answerProbe(reading());
+      await flush();
+      runtime.contentsDestroyed();
+      await flush();
+
+      expect(explicit.value).toEqual(DISCARDED);
+      expect(env.kept(id)).toEqual([]);
+      expect(env.factsOf(id).protections).toEqual([]);
+    });
+
+    it('is refused when the video still plays, and the wait for automation starts over', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      const runtime = env.runtimeOf(id);
+      await learnPlayingMedia(env, id);
+
+      env.advance(LEARNED_RECHECK_MS - 1);
+      await learnPlayingMedia(env, id, USER);
+      expect(runtime.probes).toHaveLength(2);
+
+      env.advance(LEARNED_RECHECK_MS - 1); // 1 ms short of the second finding's end
+      const automation = env.discard(id, AUTOMATION);
+      await flush();
+      expect(automation.value).toEqual(blockedBy('video'));
+      expect(runtime.probes).toHaveLength(2);
+    });
+  });
+
+  describe('a new document', () => {
+    it('forgets it, so the tab shows nothing and automation asks the new page', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      const runtime = env.runtimeOf(id);
+      await learnPlayingMedia(env, id);
+      expect(env.kept(id)).toEqual(['video']);
+
+      finishLoad(runtime, B);
+
+      expect(env.kept(id)).toEqual([]);
+      expect(env.factsOf(id).protections).toEqual([]);
+      expect(env.manager.lifecycleFacts(id).learned).toEqual([]);
+      await discardCompletely(env, id);
+      expect(runtime.probes).toHaveLength(2);
+    });
+
+    it('is not what a same-document navigation brings: the page is the one that played', async () => {
+      const env = setup();
+      const id = env.webTab(A);
+      await learnPlayingMedia(env, id);
+
+      commit(env.runtimeOf(id), `${A}#chapter-2`, { sameDocument: true });
+
+      expect(env.kept(id)).toEqual(['video']);
+      const again = env.discard(id, AUTOMATION);
+      await flush();
+      expect(again.value).toEqual(blockedBy('video'));
+      expect(env.runtimeOf(id).probes).toHaveLength(1);
+    });
   });
 });
 

@@ -162,6 +162,7 @@ function reading(overrides: Partial<ProbeReading> = {}): ProbeReading {
     editedFields: 0,
     focusedEditable: false,
     sensitive: false,
+    playingMedia: false,
     hasBeenActive: false,
     flushed: true,
     ...overrides,

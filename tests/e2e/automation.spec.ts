@@ -67,6 +67,7 @@ import {
 } from './hooks';
 import type { ActionRecord, LifecycleAction, LifecycleSettingsChange, TabId } from './hooks';
 import type { PageGlobal } from './page-globals';
+import { workspaceSnapshot } from './prompt-ui';
 import { dataValue, expectSaved, readSavedSession, test } from './session-ui';
 import type { Launcher, RunningApp } from './session-ui';
 import {
@@ -1013,7 +1014,7 @@ test.describe('protections', () => {
   }) => {
     test.setTimeout(480_000);
     const rig = await launchRig(launcher);
-    const { app } = rig;
+    const { app, shell } = rig;
 
     // The tabs, one protection each, and a plain one as the control. Each is set up while it is
     // shown, then left.
@@ -1142,10 +1143,15 @@ test.describe('protections', () => {
       })
       .toBe(false);
     expect(await lifecyclePlan(app), 'within 2 minutes of the tone, the tab is kept').toEqual([]);
-    expect(
-      discardIds(await lifecyclePlanWith(app, { clock: { wallMs: 2 * MINUTE + 5_000 } })),
-      'after the 2 minutes it is planned',
-    ).toEqual([audio.tabId]);
+    const afterGrace = discardIds(
+      await lifecyclePlanWith(app, { clock: { wallMs: 2 * MINUTE + 5_000 } }),
+    );
+    const awake = (await workspaceSnapshot(shell)).tabs.find(
+      (tab) => tab.id === audio.tabId,
+    )?.keptAwake;
+    expect(afterGrace, `after the 2 minutes it is planned (kept awake: ${String(awake)})`).toEqual([
+      audio.tabId,
+    ]);
     await drain(app);
     expect(attemptsAt(await lifecycleLog(app), audio.tabId)).toMatchObject({
       results: ['discarded'],

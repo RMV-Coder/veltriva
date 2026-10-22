@@ -32,6 +32,12 @@ export interface ProbeReading {
   readonly focusedEditable: boolean;
   /** Password or payment fields are on the page. */
   readonly sensitive: boolean;
+  /**
+   * A `<video>` or `<audio>` element of the page is playing (M3.4, §4.10 "Video playing"): not
+   * paused, not ended, with data to play. Asked at decision time because Chromium's
+   * `media-started-playing` has no end for a Web Audio context that stays open, even silent.
+   */
+  readonly playingMedia: boolean;
   /** `navigator.userActivation.hasBeenActive`, read in the isolated world (S3). */
   readonly hasBeenActive: boolean;
   /** `history.replaceState(history.state, '')` ran, so the page state is fresh (S2). */
@@ -54,18 +60,27 @@ export function parseProbeReading(raw: unknown): ProbeReading | null {
   const value = raw as Record<string, unknown>;
   const changedFields = count(value.changedFields);
   const editedFields = count(value.editedFields);
-  const { focusedEditable, sensitive, hasBeenActive, flushed } = value;
+  const { focusedEditable, sensitive, playingMedia, hasBeenActive, flushed } = value;
   if (
     changedFields === null ||
     editedFields === null ||
     typeof focusedEditable !== 'boolean' ||
     typeof sensitive !== 'boolean' ||
+    typeof playingMedia !== 'boolean' ||
     typeof hasBeenActive !== 'boolean' ||
     typeof flushed !== 'boolean'
   ) {
     return null;
   }
-  return { changedFields, editedFields, focusedEditable, sensitive, hasBeenActive, flushed };
+  return {
+    changedFields,
+    editedFields,
+    focusedEditable,
+    sensitive,
+    playingMedia,
+    hasBeenActive,
+    flushed,
+  };
 }
 
 /** How the page is closed once nothing keeps it (§4.9 step 5). */
@@ -97,6 +112,10 @@ export function judgeProbe(
   // the user's by definition.
   if (reading.editedFields > 0 || (reading.hasBeenActive && reading.changedFields > 0)) {
     return { kind: 'keep', reason: 'unsaved-input' };
+  }
+  // A video or audio element playing, muted or not: hard (§4.10).
+  if (reading.playingMedia) {
+    return { kind: 'keep', reason: 'video' };
   }
   if (options.overrideSoft !== true) {
     if (reading.focusedEditable) {

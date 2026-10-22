@@ -3,8 +3,6 @@
 // it knows (fullscreen, background activity, the user's protection, what discards learned).
 //   audio:          `isCurrentlyAudible()`, and for 2 minutes after it stops (`audio-state-changed`);
 //                   a muted tab that plays still reports audible (S1);
-//   video:          a per-tab count of `media-started-playing` less `media-paused` (they carry no
-//                   payload, S1), reset by a new document;
 //   capture:        `isBeingCaptured()`, or the camera or microphone granted to the page by the
 //                   permission broker. Chromium says when capture starts, not exactly when it
 //                   stops, so a grant protects until the next document or the close (§4.10);
@@ -14,8 +12,11 @@
 //   protected-site: the user protected the page's site.
 // The last two read the tab's address from TabManager (`urlOf`), so they hold for an unloaded
 // tab too: a protected site's tab is never shelved or archived, loaded or not.
-// Each tab's web contents is watched from its creation (`attach`), so a video that starts before
-// the first evaluation is counted. A change that alters what the sidebar shows calls `onChange`.
+// Each tab's web contents is watched from its creation (`attach`), so a grant or a sound before
+// the first evaluation is seen. A change that alters what the sidebar shows calls `onChange`.
+// Playing media isn't read here: Chromium's `media-started-playing` has no end for a Web Audio
+// context a page keeps open, even silent (found by E2E), so the discard's probe asks the page at
+// decision time instead (core/lifecycle/probe.ts), and what it finds is learned.
 import type { WebContents } from 'electron';
 
 import type { Timers } from '../../core/lifecycle/discard';
@@ -43,7 +44,7 @@ export interface ProtectionSignalsOptions {
   readonly notificationsAllowed?: (url: string) => boolean;
   /** Whether the user protected this page's site (M3.4). */
   readonly siteProtected?: (url: string) => boolean;
-  /** Something the "why" shows changed: audio, video, capture. */
+  /** Something the "why" shows changed: audio, capture. */
   readonly onChange?: () => void;
   /** For the audio grace's end (the "why" changes then, with no event). */
   readonly timers?: Timers;
@@ -52,8 +53,6 @@ export interface ProtectionSignalsOptions {
 interface Watch {
   /** When the page was last heard. */
   lastAudible: number | undefined;
-  /** Media elements playing: started less paused, never below 0. */
-  playing: number;
   /** The camera or microphone was granted to this document. */
   captureGranted: boolean;
   /** The timer that announces the end of the audio grace. */
@@ -102,9 +101,6 @@ export class ProtectionSignals {
       if (heard !== undefined && now - heard < AUDIO_GRACE_MS && now >= heard) {
         protections.push(protectionFor('audio'));
       }
-      if (watch.playing > 0) {
-        protections.push(protectionFor('video'));
-      }
       if (
         watch.captureGranted ||
         (this.#options.isCaptured?.(contents) ?? contents.isBeingCaptured())
@@ -135,7 +131,6 @@ export class ProtectionSignals {
     }
     const watch: Watch = {
       lastAudible: undefined,
-      playing: 0,
       captureGranted: false,
       graceTimer: undefined,
     };
@@ -150,20 +145,10 @@ export class ProtectionSignals {
       this.#armGrace(watch);
       this.#changed();
     });
-    contents.on('media-started-playing', () => {
-      watch.playing += 1;
-      this.#changed();
-    });
-    contents.on('media-paused', () => {
-      watch.playing = Math.max(0, watch.playing - 1);
-      this.#changed();
-    });
-    // A new document: its media and its grants are its own (§4.10: capture lasts until navigation).
+    // A new document: its grants are its own (§4.10: capture lasts until navigation).
     contents.on('did-navigate', () => {
-      const changed = watch.playing > 0 || watch.captureGranted;
-      watch.playing = 0;
-      watch.captureGranted = false;
-      if (changed) {
+      if (watch.captureGranted) {
+        watch.captureGranted = false;
         this.#changed();
       }
     });

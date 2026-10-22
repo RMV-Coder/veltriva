@@ -2023,7 +2023,10 @@ export class TabManager {
       this.#startRestore(record, 'load');
     } else {
       this.#transition(record, 'discarded');
+      // The page is gone: what kept it, and what earlier attempts learned about it, no longer
+      // apply (found by tests). Its next load is a new document anyway.
       record.backgroundActivityAt = null;
+      record.learned.clear();
       record.state = {
         ...record.state,
         unloadedBy: progress.origin,

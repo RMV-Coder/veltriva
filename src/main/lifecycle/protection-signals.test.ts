@@ -1,10 +1,12 @@
 // The protections automation reads from each tab's web contents (assessment §4.10): audio (and the
-// 2 minutes after it), video, capture (and the camera or microphone granted to the page), DevTools
-// and an open popup. Notifications and a protected site come from the tab's address as TabManager
-// has it (`urlOf`), so they hold for a tab with no web contents too. The web contents are fakes
-// that implement the members the module uses, emit the events it listens to, and throw when
-// touched after being destroyed, as Electron's do. They have no `getURL`: the monitor must not
-// read the page's address from them.
+// 2 minutes after it), capture (and the camera or microphone granted to the page), DevTools and an
+// open popup. Notifications and a protected site come from the tab's address as TabManager has it
+// (`urlOf`), so they hold for a tab with no web contents too. Playing media is not read here: the
+// discard's probe asks the page, so the monitor never reports 'video' and does not listen to
+// Chromium's `media-started-playing` and `media-paused` (they have no end for a Web Audio context
+// a page keeps open). The web contents are fakes that implement the members the module uses, emit
+// the events it listens to, and throw when touched after being destroyed, as Electron's do. They
+// have no `getURL`: the monitor must not read the page's address from them.
 import type { WebContents } from 'electron';
 import { describe, expect, it } from 'vitest';
 
@@ -199,12 +201,12 @@ describe('ProtectionSignals: nothing to protect', () => {
     expect(h.signals.protectionsOf('a')).toEqual([]);
   });
 
-  it('has none for a destroyed contents that was playing video and granted the camera', () => {
+  it('has none for a destroyed contents that was granted the camera and heard', () => {
     const h = build();
     const tab = h.openWatched('a');
-    tab.emit('media-started-playing');
+    tab.audible = true;
     h.signals.mediaGranted(asContents(tab));
-    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['video', 'capture']);
+    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['audio', 'capture']);
     tab.destroyed = true;
     expect(h.signals.protectionsOf('a')).toEqual([]);
   });
@@ -319,116 +321,110 @@ describe('ProtectionSignals: audio', () => {
   });
 });
 
-describe('ProtectionSignals: video', () => {
-  it('protects a tab while a media element plays', () => {
-    const h = build();
-    const tab = h.openWatched('a');
-    expect(h.signals.protectionsOf('a')).toEqual([]);
+describe('ProtectionSignals: video is not read here (the discard probe asks the page)', () => {
+  const MEDIA_EVENTS = ['media-started-playing', 'media-paused'] as const;
 
-    tab.emit('media-started-playing');
-    expect(h.signals.protectionsOf('a')).toEqual([protectionFor('video')]);
-
-    tab.emit('media-paused');
-    expect(h.signals.protectionsOf('a')).toEqual([]);
-  });
-
-  it('returns the shared protection: hard, and blocking freeze and discard only', () => {
-    const h = build();
-    h.openWatched('a').emit('media-started-playing');
-    const [video] = h.signals.protectionsOf('a');
-    expect(video).toBe(protectionFor('video'));
-    expect(video).toMatchObject({ hard: true, blocks: ['freeze', 'discard'] });
-  });
-
-  it('counts the elements: each start needs its own pause', () => {
+  it('never reports video for a quiet tab, whatever media events Chromium sends', () => {
     const h = build();
     const tab = h.openWatched('a');
     tab.emit('media-started-playing');
     tab.emit('media-started-playing');
-    tab.emit('media-started-playing');
-
-    tab.emit('media-paused');
-    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['video']);
-    tab.emit('media-paused');
-    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['video']);
+    expect(h.signals.protectionsOf('a')).toEqual([]);
     tab.emit('media-paused');
     expect(h.signals.protectionsOf('a')).toEqual([]);
   });
 
-  it('never counts below zero: a pause nobody started does not hide the next play', () => {
+  it('never reports video for a tab that never gets a media-paused (a Web Audio context left open)', () => {
     const h = build();
     const tab = h.openWatched('a');
-    tab.emit('media-paused');
-    tab.emit('media-paused');
-    tab.emit('media-paused');
-    expect(h.signals.protectionsOf('a')).toEqual([]);
-
-    tab.emit('media-started-playing');
-    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['video']);
-    tab.emit('media-paused');
-    expect(h.signals.protectionsOf('a')).toEqual([]);
-  });
-
-  it('stops counting when a new document commits (did-navigate)', () => {
-    const h = build();
-    const tab = h.openWatched('a');
-    tab.emit('media-started-playing');
-    tab.emit('media-started-playing');
-    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['video']);
-
-    tab.emit('did-navigate');
-    expect(h.signals.protectionsOf('a')).toEqual([]);
-  });
-
-  it('starts from zero on the new document: its own play counts, and an old pause does not hide it', () => {
-    const h = build();
-    const tab = h.openWatched('a');
-    tab.emit('media-started-playing');
-    tab.emit('did-navigate');
-    tab.emit('media-paused'); // the old page's element pausing late must not push below zero
-    tab.emit('media-started-playing');
-    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['video']);
-  });
-
-  it('counts a video that started before the first evaluation, because the tab is watched from creation', () => {
-    const h = build();
-    const tab = h.openWatched('a');
-    tab.emit('media-started-playing'); // nobody has asked yet
-    h.clock.now += 5 * AUDIO_GRACE_MS;
-    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['video']);
-  });
-
-  it('counts a video that started once the first evaluation has read the tab', () => {
-    const h = build();
-    const tab = h.open('a');
-    h.signals.protectionsOf('a'); // reading a tab watches it
-    tab.emit('media-started-playing');
-    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['video']);
-  });
-
-  it('keeps the count per web contents: a tab that got new contents starts clean', () => {
-    const h = build();
-    h.openWatched('a').emit('media-started-playing');
-    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['video']);
-
-    h.open('a'); // discarded and restored
-    expect(h.signals.protectionsOf('a')).toEqual([]);
-  });
-
-  it('keeps the count per tab: another tab is unaffected', () => {
-    const h = build();
-    h.openWatched('a').emit('media-started-playing');
-    h.openWatched('b');
-    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['video']);
-    expect(h.signals.protectionsOf('b')).toEqual([]);
-  });
-
-  it('keeps protecting a muted tab that plays: the audio grace is a separate thing', () => {
-    const h = build();
-    const tab = h.openWatched('a');
-    tab.emit('media-started-playing');
+    tab.emit('media-started-playing'); // and the page never pauses: this is what stuck the old counter
     h.clock.now += 10 * AUDIO_GRACE_MS;
-    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['video']); // not audible, still playing
+    expect(h.signals.protectionsOf('a')).toEqual([]);
+    expect(reasons(h.signals.protectionsOf('a'))).not.toContain('video');
+  });
+
+  it('never reports video, as the sole protection or beside the others', () => {
+    const h = build({ notificationsAllowed: () => true, siteProtected: () => true });
+    const tab = h.openWatched('a');
+    h.urls.set('a', 'https://chat.example/room');
+    tab.audible = true;
+    tab.captured = true;
+    tab.devTools = true;
+    h.popups.add('a');
+    for (const event of MEDIA_EVENTS) {
+      tab.emit(event);
+    }
+    expect(reasons(h.signals.protectionsOf('a'))).toEqual([
+      'audio',
+      'capture',
+      'devtools',
+      'open-popup',
+      'notifications',
+      'protected-site',
+    ]);
+  });
+
+  it('does not listen to media-started-playing or media-paused: no listener, however the tab is reached', () => {
+    const h = build();
+    const attached = h.open('a');
+    h.signals.attach(asContents(attached));
+    const read = h.open('b');
+    h.signals.protectionsOf('b'); // reading a tab watches it
+    const granted = h.open('c');
+    h.signals.mediaGranted(asContents(granted)); // so does a grant
+    for (const tab of [attached, read, granted]) {
+      for (const event of MEDIA_EVENTS) {
+        expect(tab.listenerCount(event), event).toBe(0);
+        expect(tab.registered, event).not.toContain(event);
+      }
+    }
+  });
+
+  it('is not told by a media event: nothing the sidebar shows changed', () => {
+    const h = build();
+    const tab = h.openWatched('a');
+    for (const event of MEDIA_EVENTS) {
+      tab.emit(event);
+    }
+    tab.emit('media-started-playing');
+    expect(h.state.changes).toBe(0);
+    expect(h.timers.pending).toEqual([]);
+  });
+
+  it('does not take a media event for sound: it neither starts the audio grace nor refreshes it', () => {
+    const h = build();
+    const tab = h.openWatched('a');
+    tab.emit('media-started-playing');
+    expect(h.signals.protectionsOf('a')).toEqual([]);
+
+    tab.audible = true;
+    h.signals.protectionsOf('a'); // heard now
+    tab.audible = false;
+    h.clock.now += AUDIO_GRACE_MS - 1;
+    tab.emit('media-paused'); // would extend the grace if it counted as audio
+    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['audio']);
+    h.clock.now += 1;
+    expect(h.signals.protectionsOf('a')).toEqual([]);
+  });
+
+  it('does not take a media event for a capture or a new document', () => {
+    const h = build();
+    const tab = h.openWatched('a');
+    h.signals.mediaGranted(asContents(tab));
+    h.state.changes = 0;
+    for (const event of MEDIA_EVENTS) {
+      tab.emit(event);
+    }
+    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['capture']); // the grant stays
+    expect(h.state.changes).toBe(0);
+  });
+
+  it('reports a muted tab that plays only through audio, which Chromium still calls audible', () => {
+    const h = build();
+    const tab = h.openWatched('a');
+    tab.emit('media-started-playing');
+    tab.audible = true; // a muted tab that plays still reports audible (S1)
+    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['audio']);
   });
 });
 
@@ -500,13 +496,7 @@ describe('ProtectionSignals: capture', () => {
     const h = build();
     const tab = h.open('a');
     h.signals.mediaGranted(asContents(tab));
-    expect(tab.registered).toEqual([
-      'audio-state-changed',
-      'media-started-playing',
-      'media-paused',
-      'did-navigate',
-      'destroyed',
-    ]);
+    expect(tab.registered).toEqual(['audio-state-changed', 'did-navigate', 'destroyed']);
   });
 
   it('ignores a grant to web contents that is destroyed: nothing is watched, nothing announced', () => {
@@ -616,11 +606,9 @@ describe('ProtectionSignals: DevTools and popups', () => {
     tab.audible = true;
     tab.captured = true;
     tab.devTools = true;
-    tab.emit('media-started-playing');
     h.popups.add('a');
     expect(reasons(h.signals.protectionsOf('a'))).toEqual([
       'audio',
-      'video',
       'capture',
       'devtools',
       'open-popup',
@@ -802,7 +790,7 @@ describe('ProtectionSignals: notifications and a protected site (the tab address
       gone.audible = true;
       gone.destroyed = true;
       h.urls.set('gone', CHAT);
-      // Only the address is read: audio, video, capture and DevTools are not, so none throws.
+      // Only the address is read: audio, capture and DevTools are not, so none throws.
       expect(reasons(h.signals.protectionsOf('gone'))).toEqual(['protected-site']);
     });
 
@@ -907,36 +895,30 @@ describe('ProtectionSignals: onChange', () => {
     expect(h.timers.pending).toEqual([]);
   });
 
-  it('is told when a media element starts and when it pauses', () => {
+  it('is not told by a media element starting or pausing: the monitor does not read them', () => {
     const h = build();
     const tab = h.openWatched('a');
     tab.emit('media-started-playing');
-    expect(h.state.changes).toBe(1);
     tab.emit('media-paused');
-    expect(h.state.changes).toBe(2);
+    expect(h.state.changes).toBe(0);
   });
 
-  it('is told of a pause that changes nothing (nothing was playing): it cannot tell without counting', () => {
+  it('is not told of a navigation that dropped nothing: the page was quiet', () => {
     const h = build();
     const tab = h.openWatched('a');
-    tab.emit('media-paused');
-    expect(h.state.changes).toBe(1);
-    expect(h.signals.protectionsOf('a')).toEqual([]);
-  });
-
-  it('is told of a navigation only when it dropped a playing video', () => {
-    const h = build();
-    const tab = h.openWatched('a');
+    tab.emit('did-navigate');
     tab.emit('did-navigate');
     expect(h.state.changes).toBe(0);
+  });
 
+  it('is not told of a navigation after media events or audio: only a dropped capture grant is news', () => {
+    const h = build();
+    const tab = h.openWatched('a');
     tab.emit('media-started-playing');
+    tab.emit('audio-state-changed');
     h.state.changes = 0;
     tab.emit('did-navigate');
-    expect(h.state.changes).toBe(1);
-
-    tab.emit('did-navigate'); // nothing left to drop
-    expect(h.state.changes).toBe(1);
+    expect(h.state.changes).toBe(0);
   });
 
   it('is told of a navigation only when it dropped a capture grant', () => {
@@ -950,15 +932,23 @@ describe('ProtectionSignals: onChange', () => {
     expect(h.state.changes).toBe(1);
   });
 
-  it('is told once, not twice, of a navigation that drops both a video and a grant', () => {
+  it('is told once of a navigation that drops a grant while the page also made a sound', () => {
     const h = build();
     const tab = h.openWatched('a');
-    tab.emit('media-started-playing');
+    tab.emit('audio-state-changed');
     h.signals.mediaGranted(asContents(tab));
     h.state.changes = 0;
     tab.emit('did-navigate');
     expect(h.state.changes).toBe(1);
-    expect(h.signals.protectionsOf('a')).toEqual([]);
+    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['audio']); // the grant is gone, the sound is not
+  });
+
+  it('does not forget the audio heard when a new document commits: only the grant is dropped', () => {
+    const h = build();
+    const tab = h.openWatched('a');
+    tab.emit('audio-state-changed');
+    tab.emit('did-navigate');
+    expect(reasons(h.signals.protectionsOf('a'))).toEqual(['audio']);
   });
 
   it('is told of a grant the first time only', () => {
@@ -1001,10 +991,10 @@ describe('ProtectionSignals: onChange', () => {
     signals.attach(asContents(tab));
     expect(() => {
       tab.emit('audio-state-changed');
-      tab.emit('media-started-playing');
-      tab.emit('media-paused');
       tab.emit('did-navigate');
       signals.mediaGranted(asContents(tab));
+      tab.emit('did-navigate'); // drops the grant
+      tab.emit('destroyed');
     }).not.toThrow();
   });
 
@@ -1137,28 +1127,26 @@ describe('ProtectionSignals: onChange', () => {
       expect(h.timers.pending).toEqual([AUDIO_GRACE_MS + 1000]);
     });
 
-    it('does not break the media events, and still counts the video', () => {
+    it('is never called by the media events, so it cannot break them', () => {
       const { h, calls } = throwing();
       const tab = h.openWatched('a');
       expect(() => {
         tab.emit('media-started-playing');
-      }).not.toThrow();
-      expect(reasons(h.signals.protectionsOf('a'))).toEqual(['video']);
-      expect(() => {
         tab.emit('media-paused');
       }).not.toThrow();
       expect(h.signals.protectionsOf('a')).toEqual([]);
-      expect(calls()).toBe(2);
+      expect(calls()).toBe(0);
     });
 
-    it('does not break a navigation, and still forgets the video and the grant', () => {
-      const { h } = throwing();
+    it('does not break a navigation, and still forgets the grant', () => {
+      const { h, calls } = throwing();
       const tab = h.openWatched('a');
-      tab.emit('media-started-playing');
       h.signals.mediaGranted(asContents(tab));
+      expect(calls()).toBe(1);
       expect(() => {
         tab.emit('did-navigate');
       }).not.toThrow();
+      expect(calls()).toBe(2);
       expect(h.signals.protectionsOf('a')).toEqual([]);
     });
 
@@ -1183,19 +1171,23 @@ describe('ProtectionSignals: onChange', () => {
 });
 
 describe('ProtectionSignals: the listeners', () => {
-  const EVENTS = [
-    'audio-state-changed',
-    'media-started-playing',
-    'media-paused',
-    'did-navigate',
-    'destroyed',
-  ] as const;
+  const EVENTS = ['audio-state-changed', 'did-navigate', 'destroyed'] as const;
 
-  it('watches the audio, the media, the navigations and the end of the web contents', () => {
+  it('watches the audio, the navigations and the end of the web contents', () => {
     const h = build();
     const tab = h.open('a');
     h.signals.attach(asContents(tab));
     expect(tab.registered).toEqual([...EVENTS]);
+  });
+
+  it('registers on no event but those: not the media events, and nothing else', () => {
+    const h = build();
+    const tab = h.open('a');
+    h.signals.attach(asContents(tab));
+    h.signals.mediaGranted(asContents(tab));
+    h.signals.protectionsOf('a');
+    expect(new Set(tab.registered)).toEqual(new Set(EVENTS));
+    expect(tab.registered).toHaveLength(EVENTS.length);
   });
 
   it('registers each event once per web contents, however often it is read', () => {
@@ -1232,7 +1224,7 @@ describe('ProtectionSignals: the listeners', () => {
       }
     });
 
-    it('counts a video once, not once per attach', () => {
+    it('keeps ignoring the media events however often it is attached', () => {
       const h = build();
       const tab = h.open('a');
       h.signals.attach(asContents(tab));
@@ -1240,7 +1232,18 @@ describe('ProtectionSignals: the listeners', () => {
       tab.emit('media-started-playing');
       tab.emit('media-paused');
       expect(h.signals.protectionsOf('a')).toEqual([]);
-      expect(h.state.changes).toBe(2);
+      expect(h.state.changes).toBe(0);
+    });
+
+    it('drops a grant once, not once per attach', () => {
+      const h = build();
+      const tab = h.open('a');
+      h.signals.attach(asContents(tab));
+      h.signals.attach(asContents(tab));
+      h.signals.mediaGranted(asContents(tab));
+      h.state.changes = 0;
+      tab.emit('did-navigate');
+      expect(h.state.changes).toBe(1);
     });
 
     it('is told of each event once, not once per attach', () => {

@@ -11,6 +11,7 @@ const reading = (overrides: Partial<ProbeReading> = {}): ProbeReading => ({
   editedFields: 0,
   focusedEditable: false,
   sensitive: false,
+  playingMedia: false,
   hasBeenActive: false,
   flushed: true,
   ...overrides,
@@ -21,11 +22,18 @@ const FIELDS = [
   'editedFields',
   'focusedEditable',
   'sensitive',
+  'playingMedia',
   'hasBeenActive',
   'flushed',
 ] as const;
 const COUNT_FIELDS = ['changedFields', 'editedFields'] as const;
-const FLAG_FIELDS = ['focusedEditable', 'sensitive', 'hasBeenActive', 'flushed'] as const;
+const FLAG_FIELDS = [
+  'focusedEditable',
+  'sensitive',
+  'playingMedia',
+  'hasBeenActive',
+  'flushed',
+] as const;
 
 /** `reading()` with `field` left out. */
 const without = (field: string): Record<string, unknown> =>
@@ -39,17 +47,19 @@ describe('PROBE_TIMEOUT_MS', () => {
 
 describe('parseProbeReading', () => {
   describe('accepts a well-formed reading', () => {
-    it('and returns the same six fields', () => {
+    it('and returns the same seven fields', () => {
       const raw = {
         changedFields: 3,
         editedFields: 2,
         focusedEditable: true,
         sensitive: true,
+        playingMedia: true,
         hasBeenActive: true,
         flushed: false,
       };
 
       expect(parseProbeReading(raw)).toStrictEqual(raw);
+      expect(Object.keys(parseProbeReading(raw) ?? {})).toHaveLength(7);
     });
 
     it('for a quiet page', () => {
@@ -71,11 +81,19 @@ describe('parseProbeReading', () => {
     it('with every boolean combination', () => {
       for (const focusedEditable of [false, true]) {
         for (const sensitive of [false, true]) {
-          for (const hasBeenActive of [false, true]) {
-            for (const flushed of [false, true]) {
-              const raw = reading({ focusedEditable, sensitive, hasBeenActive, flushed });
+          for (const playingMedia of [false, true]) {
+            for (const hasBeenActive of [false, true]) {
+              for (const flushed of [false, true]) {
+                const raw = reading({
+                  focusedEditable,
+                  sensitive,
+                  playingMedia,
+                  hasBeenActive,
+                  flushed,
+                });
 
-              expect(parseProbeReading(raw)).toStrictEqual(raw);
+                expect(parseProbeReading(raw)).toStrictEqual(raw);
+              }
             }
           }
         }
@@ -130,12 +148,12 @@ describe('parseProbeReading', () => {
     it.each([
       ['an empty array', []],
       ['an array of readings', [reading()]],
-      ['an array of the six values', [0, 0, false, false, false, true]],
+      ['an array of the seven values', [0, 0, false, false, false, false, true]],
     ])('%s', (_name, raw) => {
       expect(parseProbeReading(raw)).toBeNull();
     });
 
-    it('an array even when it carries all six fields as properties', () => {
+    it('an array even when it carries all seven fields as properties', () => {
       const raw = Object.assign([], reading());
 
       expect(Array.isArray(raw)).toBe(true);
@@ -462,10 +480,100 @@ describe('judgeProbe', () => {
       expect(judgeProbe(all, { overrideSoft: true })).toEqual(keep('unsaved-input'));
     });
 
+    it('lets playing media win over every soft reason, with or without overrideSoft', () => {
+      const all = reading({ playingMedia: true, focusedEditable: true, sensitive: true });
+
+      expect(judgeProbe(all)).toEqual(keep('video'));
+      expect(judgeProbe(all, { overrideSoft: true })).toEqual(keep('video'));
+    });
+
+    it('puts typed input and an activated changed field before playing media', () => {
+      const typed = reading({ playingMedia: true, editedFields: 1, hasBeenActive: true });
+      const changed = reading({ playingMedia: true, changedFields: 1, hasBeenActive: true });
+
+      expect(judgeProbe(typed)).toEqual(keep('unsaved-input'));
+      expect(judgeProbe(changed)).toEqual(keep('unsaved-input'));
+    });
+
     it('closes once overrideSoft has removed both soft reasons together', () => {
       expect(
         judgeProbe(reading({ focusedEditable: true, sensitive: true }), { overrideSoft: true }),
       ).toEqual(close('plain'));
+    });
+  });
+
+  describe('playing media (playingMedia, M3.4)', () => {
+    it('keeps the tab, hard: critical pressure does not get past it', () => {
+      expect(judgeProbe(reading({ playingMedia: true }))).toEqual(keep('video'));
+      expect(judgeProbe(reading({ playingMedia: true }), { overrideSoft: true })).toEqual(
+        keep('video'),
+      );
+      expect(protectionFor('video').hard).toBe(true);
+    });
+
+    it('comes after unsaved input, and before the soft reasons', () => {
+      expect(judgeProbe(reading({ playingMedia: true, editedFields: 1 }))).toEqual(
+        keep('unsaved-input'),
+      );
+      expect(
+        judgeProbe(reading({ playingMedia: true, focusedEditable: true, sensitive: true })),
+      ).toEqual(keep('video'));
+    });
+
+    it('counts whether or not the user activated the page', () => {
+      expect(judgeProbe(reading({ playingMedia: true, hasBeenActive: true }))).toEqual(
+        keep('video'),
+      );
+      expect(
+        judgeProbe(reading({ playingMedia: true, hasBeenActive: true }), { overrideSoft: true }),
+      ).toEqual(keep('video'));
+    });
+
+    it('still blocks when overrideSoft is explicitly false', () => {
+      expect(judgeProbe(reading({ playingMedia: true }), { overrideSoft: false })).toEqual(
+        keep('video'),
+      );
+    });
+
+    it('does not mind that the flush failed: the page still plays', () => {
+      expect(judgeProbe(reading({ playingMedia: true, flushed: false }))).toEqual(keep('video'));
+    });
+
+    it('gives way to unsaved input in changed fields of an activated page, and to typed input', () => {
+      expect(
+        judgeProbe(reading({ playingMedia: true, changedFields: 2, hasBeenActive: true })),
+      ).toEqual(keep('unsaved-input'));
+      expect(
+        judgeProbe(reading({ playingMedia: true, editedFields: 1 }), { overrideSoft: true }),
+      ).toEqual(keep('unsaved-input'));
+    });
+
+    it('is not unsaved input on an untouched page: changed fields there leave the video to say why', () => {
+      expect(
+        judgeProbe(reading({ playingMedia: true, changedFields: 4, hasBeenActive: false })),
+      ).toEqual(keep('video'));
+    });
+
+    it('returns a verdict with only the fields of a keep', () => {
+      expect(Object.keys(judgeProbe(reading({ playingMedia: true }))).sort()).toEqual([
+        'kind',
+        'reason',
+      ]);
+    });
+
+    it('is the hard protection that blocks freeze and discard only, and not a shelve or an archive', () => {
+      expect(protectionFor('video')).toMatchObject({
+        reason: 'video',
+        hard: true,
+        blocks: ['freeze', 'discard'],
+      });
+    });
+
+    it('lets a page whose media is not playing close as before', () => {
+      expect(judgeProbe(reading({ playingMedia: false }))).toEqual(close('plain'));
+      expect(judgeProbe(reading({ playingMedia: false, hasBeenActive: true }))).toEqual(
+        close('beforeunload'),
+      );
     });
   });
 
@@ -477,16 +585,19 @@ describe('judgeProbe', () => {
       for (const editedFields of counts) {
         for (const focusedEditable of booleans) {
           for (const sensitive of booleans) {
-            for (const hasBeenActive of booleans) {
-              for (const flushed of booleans) {
-                readings.push({
-                  changedFields,
-                  editedFields,
-                  focusedEditable,
-                  sensitive,
-                  hasBeenActive,
-                  flushed,
-                });
+            for (const playingMedia of booleans) {
+              for (const hasBeenActive of booleans) {
+                for (const flushed of booleans) {
+                  readings.push({
+                    changedFields,
+                    editedFields,
+                    focusedEditable,
+                    sensitive,
+                    playingMedia,
+                    hasBeenActive,
+                    flushed,
+                  });
+                }
               }
             }
           }
@@ -495,14 +606,15 @@ describe('judgeProbe', () => {
     }
 
     it('covers every combination', () => {
-      expect(readings).toHaveLength(3 * 3 * 2 * 2 * 2 * 2);
+      expect(readings).toHaveLength(3 * 3 * 2 * 2 * 2 * 2 * 2);
     });
 
     it('closes only when nothing hard is found, and by the activation of the page', () => {
       for (const r of readings) {
         for (const overrideSoft of booleans) {
           const verdict = judgeProbe(r, { overrideSoft });
-          const hard = r.editedFields > 0 || (r.hasBeenActive && r.changedFields > 0);
+          const hard =
+            r.editedFields > 0 || (r.hasBeenActive && r.changedFields > 0) || r.playingMedia;
 
           if (verdict.kind === 'close') {
             expect(hard).toBe(false);
@@ -516,7 +628,8 @@ describe('judgeProbe', () => {
 
     it('keeps for a soft reason without overrideSoft, and only for a hard one with it', () => {
       for (const r of readings) {
-        const hard = r.editedFields > 0 || (r.hasBeenActive && r.changedFields > 0);
+        const unsaved = r.editedFields > 0 || (r.hasBeenActive && r.changedFields > 0);
+        const hard = unsaved || r.playingMedia;
         const soft = r.focusedEditable || r.sensitive;
 
         const normal = judgeProbe(r);
@@ -525,7 +638,7 @@ describe('judgeProbe', () => {
         expect(normal.kind).toBe(hard || soft ? 'keep' : 'close');
         expect(pressured.kind).toBe(hard ? 'keep' : 'close');
         if (pressured.kind === 'keep') {
-          expect(pressured.reason).toBe('unsaved-input');
+          expect(pressured.reason).toBe(unsaved ? 'unsaved-input' : 'video');
         }
       }
     });

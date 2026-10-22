@@ -43,7 +43,7 @@ export type ProtectionReason =
   | 'user-protected'
   /** The user protected the tab's site (M3.4): every tab on it is left alone. */
   | 'protected-site'
-  /** A video or audio element is playing (`media-started-playing`, M3.4). */
+  /** A video or audio element is playing, muted or not: the discard's probe sees it (M3.4). */
   | 'video'
   /** The page is in HTML fullscreen. */
   | 'fullscreen'
