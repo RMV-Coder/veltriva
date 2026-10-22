@@ -4,7 +4,7 @@
 
 Veltriva is a local-first, Chromium-powered desktop browser that intelligently manages inactive tabs, preserves browsing context, and makes previously visited pages instantly searchable.
 
-**Status: Phase 3 done; Phase 4 (search and the memory) next.** Veltriva manages your tabs for you: it unloads the ones you left to free memory, moves the ones you stopped using to Sleeping and then the Archive, and leaves alone anything that might hold your work. It reached Milestone 0.1, daily dogfooding, in Phase 2: it keeps your tabs, history and choices across restarts and crashes. Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 (the browser foundation) is done:
+**Status: Phase 3 done; Phase 4 (search and the memory) in progress, on Electron 45.** Veltriva manages your tabs for you: it unloads the ones you left to free memory, moves the ones you stopped using to Sleeping and then the Archive, and leaves alone anything that might hold your work. It reached Milestone 0.1, daily dogfooding, in Phase 2: it keeps your tabs, history and choices across restarts and crashes. Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 (the browser foundation) is done:
 - Milestone 1.1 built the project scaffold and CI.
 - Milestone 1.2 built the secure shell. The UI is served from `app://shell` with a strict Content Security Policy. It talks to the main process through a typed, validated IPC contract, and every web page gets a role and a locked-down policy.
 - Milestone 1.3a made it a browser, with tabs in a vertical sidebar (pinned first; reorder by dragging or with Alt+Shift+arrow keys). Its pieces:
@@ -114,7 +114,7 @@ Esc leaves a page's fullscreen. AltGr combinations always go to the page, becaus
 
 ## Platform and stack
 
-Windows 10/11 x64. Electron 44 (`BaseWindow` + `WebContentsView`), TypeScript 6 (strict), React 19, Tailwind CSS 4 with shadcn/ui, built with electron-vite and packaged with electron-builder. Tested with Vitest and Playwright. SQLite with FTS5 through better-sqlite3 13, in a worker thread (Phase 2).
+Windows 10/11 x64. Electron 45 (`BaseWindow` + `WebContentsView`), TypeScript 6 (strict), React 19, Tailwind CSS 4 with shadcn/ui, built with electron-vite and packaged with electron-builder. Tested with Vitest and Playwright. SQLite with FTS5 through better-sqlite3 13, in a worker thread (Phase 2).
 
 ## Development
 

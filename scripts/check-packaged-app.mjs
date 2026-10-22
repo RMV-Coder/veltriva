@@ -3,6 +3,10 @@
 //   - app.asar holds the data worker and better-sqlite3's JavaScript and license;
 //   - none of better-sqlite3's build inputs, other platforms' binaries or node-addon-api shipped.
 // It reads the asar header directly (a Chromium Pickle, then JSON), so it needs no dependency.
+//
+//   node scripts/check-packaged-app.mjs [output folder]    release by default, as package:dir
+//   writes it; another folder when electron-builder was pointed elsewhere
+//   (--config.directories.output=<folder>), for instance while Windows holds release/ open.
 import console from 'node:console';
 import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
@@ -11,7 +15,8 @@ import process from 'node:process';
 
 import { SQLITE_BINARY, SQLITE_BINARY_SHA256 } from './sqlite-pin.mjs';
 
-const RESOURCES = join('release', 'win-unpacked', 'resources');
+const OUTPUT = process.argv[2] ?? 'release';
+const RESOURCES = join(OUTPUT, 'win-unpacked', 'resources');
 const MODULE = 'node_modules/better-sqlite3';
 
 const problems = [];
@@ -98,6 +103,6 @@ if (problems.length > 0) {
   process.exit(1);
 }
 console.log(
-  `release/win-unpacked: only ${binary} is unpacked, and it matches the pin; better-sqlite3's ` +
+  `${OUTPUT}/win-unpacked: only ${binary} is unpacked, and it matches the pin; better-sqlite3's ` +
     `JavaScript in app.asar is ${String(Math.round(moduleBytes / 1024))} KiB.`,
 );

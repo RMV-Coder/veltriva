@@ -12,6 +12,7 @@ import { startFixtureServer } from '../fixtures/server';
 import { expect } from './expect';
 import { test } from './fixtures';
 import {
+  evaluateInTab,
   focusedWebContents,
   pageForTab,
   sendKey,
@@ -21,7 +22,6 @@ import {
 } from './hooks';
 import type { TabId } from './hooks';
 import { observeFor } from './launch';
-import type { PageGlobal } from './page-globals';
 import {
   findBar,
   findCloseButton,
@@ -187,17 +187,11 @@ test.describe('find in page', () => {
     await expect
       .poll(async () => (await focusedWebContents(electronApp))?.webContentsId)
       .toBe(tab.webContentsId);
-    // As in Chrome, closing leaves the active match selected in the page.
-    const page = await pageForTab(electronApp, tab.tabId);
+    // As in Chrome, closing leaves the active match selected in the page. Read from main: on
+    // Electron 45, attaching Playwright to the page at this point clears its selection (measured
+    // in Phase 4 Step 0: "Zebra" read from main for 2 s, "" right after the attach).
     await expect
-      .poll(() =>
-        page.evaluate(() => {
-          const selection = (
-            globalThis as PageGlobal & { getSelection(): { toString(): string } }
-          ).getSelection();
-          return selection.toString();
-        }),
-      )
+      .poll(() => evaluateInTab(electronApp, tab.webContentsId, 'getSelection().toString()'))
       .toBe('Zebra');
   });
 

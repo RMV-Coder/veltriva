@@ -82,6 +82,7 @@
        - Chromium never raises `login` for a cross-origin image.
        - `--ignore-certificate-errors-spki-list` (an `appSwitches` fixture) trusts exactly one throwaway key, which makes the client-certificate page reachable. Its server's refusal sometimes loses a race with the socket closing, so the spec retries.
        - The self-signed certificate is built in memory with Node's `crypto` and never touches disk.
+     - **Read a page's selection from main, not through a Playwright page attached late** (Electron 45, Phase 4 Step 0). Attaching Playwright to a page clears its selection: after the find bar closed, `getSelection()` read from main gave the active match for 2 s, then `""` right after `pageForTab` attached. Read the selection with `executeJavaScript` (`evaluateInTab`), or attach before the selection is made.
      - **Ask main which web contents has the keyboard** (`webContents.getFocusedWebContents()`, `focusedWebContents` in the hooks). The shell keeps its `document.activeElement` while a page has the keyboard, and Playwright's focus emulation reports any element it focused as focused. Playwright's clicks and keys also move no OS-level focus, so a spec gives the shell the keyboard as a real click would (`focusWebContents`).
 4a. **Lifecycle behavior tests (no Playwright).** A small Electron-script harness, like the Phase 0 spikes, asserts the behavior Playwright masks:
    - visibility and throttling of detached tabs;

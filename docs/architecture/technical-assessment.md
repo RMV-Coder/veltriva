@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| **Status** | **Approved 2026-10-16**: decisions D1–D8 accepted as recommended, recorded as [ADRs 0001–0009](../adr/README.md). Phase 0 spikes done; Phase 1 done (2026-10-17); Phase 2 done (2026-10-22, Milestone 0.1 reached, see §8.2); Phase 3 done (2026-10-22, see §8.2; the memory measurement still to run on a quiet machine); Phase 4 next |
+| **Status** | **Approved 2026-10-16**: decisions D1–D8 accepted as recommended, recorded as [ADRs 0001–0009](../adr/README.md). Phase 0 spikes done; Phase 1 done (2026-10-17); Phase 2 done (2026-10-22, Milestone 0.1 reached, see §8.2); Phase 3 done (2026-10-22, see §8.2; the memory measurement still to run on a quiet machine); Phase 4 in progress (Step 0, Electron 45.0.0, done) |
 | **Date** | 2026-10-16 |
 | **Scope** | MVP for Windows 10/11 x64 |
 | **Identity** | Project *Veltriva* · repo `veltriva` · app *Veltriva Browser* · MIT license (after dependency license review) |
@@ -168,7 +168,7 @@ On top of that it adds timing that ignores time away (the engagement clock).
 
 | Area | Brief proposed | Verdict | Notes |
 |---|---|---|---|
-| Desktop framework | Electron | **Keep** | Phase 1 started on 44.7.2 (Chromium 152, Node 24.21), the newest stable then, and moved to 44.9.0 (Chromium 152.0.7977.167, Node 24.22) in its wrap-up; Phase 2 began with the 44.9.1 patch (same Chromium and Node). **45.0.0 is scheduled for 2026-10-20**; see ADR-0001's pin history. A new major ships every 8 weeks and only the latest 3 get fixes; the oldest of those gets security fixes only. Everything we rely on is present: `WebContentsView` (30+), `createWindow` (31+), `navigationHistory.restore` (34.2+), `before-mouse-event` (36.5+) |
+| Desktop framework | Electron | **Keep** | Phase 1 started on 44.7.2 (Chromium 152, Node 24.21), the newest stable then, and moved to 44.9.0 (Chromium 152.0.7977.167, Node 24.22) in its wrap-up; Phase 2 began with the 44.9.1 patch (same Chromium and Node). **Phase 4 Step 0 moved to 45.0.0** (Chromium 156, Node 24.22, stable since 2026-10-21); see ADR-0001's pin history. A new major ships every 8 weeks and only the latest 3 get fixes; the oldest of those gets security fixes only. Everything we rely on is present: `WebContentsView` (30+), `createWindow` (31+), `navigationHistory.restore` (34.2+), `before-mouse-event` (36.5+) |
 | Window and page API | — | **`BaseWindow` + `WebContentsView`** | `BrowserView` has been deprecated since Electron 30; it's now a thin wrapper, not yet removed. No `<webview>`, no iframes |
 | Language | TypeScript | **Keep** | `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`. Use **TypeScript 6.0** for now. TypeScript 7 (the native compiler, GA July 2026) comes in once typescript-eslint supports it; today its peer range stops below 6.1 |
 | Linting and formatting | — | **Add ESLint 10 (flat config) + typescript-eslint + Prettier** | Type-aware rules such as `no-floating-promises` matter for async lifecycle code. oxlint is the faster alternative to revisit with TypeScript 7 |
@@ -211,7 +211,7 @@ Spike S5 runs both drivers, in development and in a packaged build. Because ever
 
 ### 2.4 Build and packaging: electron-vite + electron-builder (vs Electron Forge)
 
-- **electron-vite 6** (October 2026) supports Vite 6–8 and Electron 42–44. It gives one Vite configuration for main, preload and renderer, renderer HMR, main and preload hot restart, multiple renderer entries, and TypeScript out of the box. One caution: its release cadence stalled for about five months during the 6.0 betas, which is a maintenance-health signal we watch.
+- **electron-vite 6** (October 2026) supports Vite 6–8 and Electron 42–44. It gives one Vite configuration for main, preload and renderer, renderer HMR, main and preload hot restart, multiple renderer entries, and TypeScript out of the box. One caution: its release cadence stalled for about five months during the 6.0 betas, which is a maintenance-health signal we watch. On Electron 45 (Phase 4 Step 0), 6.0.0 has no entry for 45 and builds for the newest it knows, `chrome152` and `node24.18`: older targets than 45's engines, so the output still runs, only with less modern syntax.
 - **electron-builder 26** provides:
   - an **NSIS installer** (its default Windows target; per-user, no admin rights);
   - `electron-updater` with **differential (blockmap) updates**;
