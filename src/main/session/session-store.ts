@@ -313,9 +313,11 @@ export class SessionStore {
           : { v: 1, ...tab.history, entries: [...tab.history.entries] },
       openerTabId: null,
       createdAt: tab.createdAt,
-      lastUsedAt: tab.lastUsedAt,
-      lastUsedEngaged: tab.lastUsedEngaged ?? 0,
-      lastUsedActiveDay: tab.lastUsedActiveDay ?? 0,
+      // Whole, non-negative numbers, as the row's schema wants them: one fraction would make the
+      // whole save fail (found by E2E in M3.4).
+      lastUsedAt: wholeMs(tab.lastUsedAt),
+      lastUsedEngaged: wholeMs(tab.lastUsedEngaged ?? 0),
+      lastUsedActiveDay: Math.max(0, Math.floor(tab.lastUsedActiveDay ?? 0)),
       placementChangedAt:
         where.closedAt ?? where.archivedAt ?? tab.placementChangedAt ?? tab.createdAt,
       archivedAt: where.archivedAt ?? null,
@@ -323,4 +325,9 @@ export class SessionStore {
       closedAt: where.closedAt,
     };
   }
+}
+
+/** A time as the tab rows store it: a whole, non-negative number of milliseconds. */
+function wholeMs(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
 }

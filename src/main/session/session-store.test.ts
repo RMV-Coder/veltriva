@@ -624,6 +624,22 @@ describe('SessionStore', () => {
       checkContract(harness.data);
     });
 
+    it('saves whole milliseconds when the engaged clock stamped a fraction (found by E2E, M3.4)', async () => {
+      const harness = setup({
+        tabs: [tab(1, { lastUsedAt: T0 + 0.75, lastUsedEngaged: 1234.567 })],
+        selected: id(1),
+      });
+
+      await harness.store.flush();
+
+      expect(harness.data.saves[0]?.tabs[0]).toMatchObject({
+        lastUsedAt: T0,
+        lastUsedEngaged: 1234,
+      });
+      // The row passes the data contract: one fraction used to make the whole save fail.
+      checkContract(harness.data);
+    });
+
     it('gives positions in strip order, which is the order the source lists', async () => {
       const harness = setup({ tabs: [tab(3), tab(1), tab(2)], selected: id(3) });
 
