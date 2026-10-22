@@ -12,9 +12,9 @@ import type { Rect } from '../../src/core/layout/rect';
 import type {
   LifecycleAction,
   LifecycleClock,
-  LifecycleSettingsInput,
   MemoryPressure,
 } from '../../src/core/lifecycle/policy';
+import type { LifecycleSettingsDocument } from '../../src/shared/contracts/settings';
 import type { ActionRecord } from '../../src/main/lifecycle/scheduler';
 import type { TabId } from '../../src/main/tabs/tab-manager';
 import type { ActivityEntry } from '../../src/shared/contracts/activity';
@@ -1090,7 +1090,7 @@ export async function holdClickInPage(
 // ── M3.2: lifecycle automation ──────────────────────────────────────────────────────────────────
 
 export type { ActionRecord, LifecycleAction, LifecycleClock, MemoryPressure, TestClockAdjustment };
-export type LifecycleSettingsChange = Partial<LifecycleSettingsInput>;
+export type LifecycleSettingsChange = Partial<LifecycleSettingsDocument>;
 
 /**
  * Fast-forwards the clock the policy, TabManager's activity and the protections see: wall-clock

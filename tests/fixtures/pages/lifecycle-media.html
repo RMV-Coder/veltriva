@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Lifecycle media</title>
+  </head>
+  <body>
+    <h1>media</h1>
+    <p>
+      A muted <code>&lt;audio&gt;</code> element looping one second of silence made on the page
+      (M3.4): playing, it is the "media playing" protection without a sound, and without the audio
+      protection either (it is never audible). <code>lifecycleMedia.play()</code> starts it,
+      <code>lifecycleMedia.pause()</code> stops it.
+    </p>
+    <audio id="player" loop muted></audio>
+    <script>
+      // A WAV file of silence: 8 kHz, 8-bit mono, so nothing comes from the network.
+      function silence(seconds) {
+        const rate = 8000;
+        const length = rate * seconds;
+        const buffer = new ArrayBuffer(44 + length);
+        const view = new DataView(buffer);
+        const text = (offset, value) => {
+          for (let index = 0; index < value.length; index += 1) {
+            view.setUint8(offset + index, value.charCodeAt(index));
+          }
+        };
+        text(0, 'RIFF');
+        view.setUint32(4, 36 + length, true);
+        text(8, 'WAVE');
+        text(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, 1, true);
+        view.setUint32(24, rate, true);
+        view.setUint32(28, rate, true);
+        view.setUint16(32, 1, true);
+        view.setUint16(34, 8, true);
+        text(36, 'data');
+        view.setUint32(40, length, true);
+        for (let index = 0; index < length; index += 1) {
+          view.setUint8(44 + index, 128);
+        }
+        return new Blob([buffer], { type: 'audio/wav' });
+      }
+      const player = document.getElementById('player');
+      player.src = URL.createObjectURL(silence(1));
+      window.lifecycleMedia = {
+        play: async () => {
+          await player.play();
+          return player.paused ? 'paused' : 'playing';
+        },
+        pause: () => {
+          player.pause();
+          return player.paused ? 'paused' : 'playing';
+        },
+      };
+    </script>
+  </body>
+</html>

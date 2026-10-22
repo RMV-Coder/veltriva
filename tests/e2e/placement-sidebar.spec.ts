@@ -100,6 +100,8 @@ test.describe('the Sleeping section', () => {
       'Move to Tabs',
       'Archive tab',
       'Protect from automation',
+      // M3.4: the page's site can be protected too.
+      `Always protect ${new URL(fixtureServer.url('/')).hostname}`,
       'Close tab',
       'Reopen closed tab (disabled)',
     ]);
@@ -198,7 +200,7 @@ test.describe('tab status', () => {
     await expect(row(b)).toHaveAttribute('data-unloaded-by', 'pressure');
     await expect(row(b)).toHaveAttribute(
       'title',
-      'Lifecycle plain\nUnloaded because memory was low — click to reload',
+      'Lifecycle plain\nUnloaded because memory was very low — click to reload',
     );
     expect(await tabState(app, a)).toMatchObject({ runtime: 'live', userProtected: true });
 

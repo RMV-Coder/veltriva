@@ -17,6 +17,7 @@ import {
   discardRestoresPageState,
   freezeExperiment,
 } from './discard-scenarios';
+import { memoryBenchmark } from './benchmark-scenarios';
 import { reportSession, sessionChurn } from './session-scenarios';
 import type { TabId, TabManager } from '../tabs/tab-manager';
 import type { FullscreenController } from '../windows/fullscreen';
@@ -37,6 +38,8 @@ export interface ScenarioContext {
   readonly dataWorker: Worker;
   readonly notices: AppNotices;
   readonly startup: StartupSession | null;
+  /** Pauses automation for this run (not saved): a measurement makes every move itself. */
+  readonly pauseAutomation?: () => void;
 }
 
 const wait = (ms: number): Promise<void> =>
@@ -211,6 +214,8 @@ const SCENARIOS: ReadonlyMap<string, Scenario> = new Map([
   ['discard-real-input-kept', { run: discardRealInputKept }],
   ['background-restore-scroll', { run: backgroundRestoreScroll }],
   ['freeze-experiment', { run: freezeExperiment }],
+  // Phase 3: the §9.3 memory benchmark (./benchmark-scenarios.ts, tests/benchmarks).
+  ['memory-benchmark', { run: memoryBenchmark }],
 ]);
 
 export function runLifecycleScenario(name: string, context: ScenarioContext): void {

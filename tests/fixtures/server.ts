@@ -19,6 +19,7 @@
 //   /auth/…            pages and an image behind HTTP Basic authentication (M1.4b; ./auth-routes.ts)
 //   /memory/…          pages, redirects and favicons made from the query, for the history and
 //                      favicon specs (M2.2b; ./memory-routes.ts)
+//   /cost/page         a page of controlled memory cost, for the §9.3 benchmark (./cost-routes.ts)
 // `hits(path)` counts the requests that reached the server for exactly that path and query;
 // `pathHits(pathname)` counts them whatever the query. Nothing is cached, and the same request
 // always gives the same response.
@@ -29,6 +30,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 
 import { handleAuthRoute } from './auth-routes';
+import { handleCostRoute } from './cost-routes';
 import { createGates, handleDownloadRoute } from './download-routes';
 import type { Gates } from './download-routes';
 import { buildPng, buildOversizedPng } from './images';
@@ -172,7 +174,8 @@ async function route(
   if (
     (pathname.startsWith('/dl/') && handleDownloadRoute(pathname, searchParams, response, gates)) ||
     (pathname.startsWith('/auth/') && handleAuthRoute(pathname, searchParams, request, response)) ||
-    (pathname.startsWith('/memory/') && handleMemoryRoute(pathname, searchParams, response))
+    (pathname.startsWith('/memory/') && handleMemoryRoute(pathname, searchParams, response)) ||
+    (pathname.startsWith('/cost/') && handleCostRoute(pathname, searchParams, response))
   ) {
     return;
   }

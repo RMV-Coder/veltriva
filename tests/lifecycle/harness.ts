@@ -45,6 +45,10 @@ export interface ScenarioOptions {
   readonly exitCode?: number;
   /** More environment for the app, such as a scenario's settings. */
   readonly env?: Readonly<Record<string, string>>;
+  /** Chromium or Electron switches, put before the app's path (the benchmark maps its sites). */
+  readonly switches?: readonly string[];
+  /** How long the scenario may take; 90 s by default (the benchmark takes minutes). */
+  readonly timeoutMs?: number;
 }
 
 export function makeProfile(): string {
@@ -64,12 +68,16 @@ export async function runScenario<T>(
   const userDataDir = options.userDataDir ?? makeProfile();
   const expectedCode = options.exitCode ?? 0;
   try {
-    const { code, stdout, stderr, reportedAt, exitedAt } = await runApp(binary, {
-      ...envWithoutRunAsNode(),
-      [SCENARIO_ENV]: name,
-      [USER_DATA_DIR_ENV]: userDataDir,
-      ...options.env,
-    });
+    const { code, stdout, stderr, reportedAt, exitedAt } = await runApp(
+      binary,
+      {
+        ...envWithoutRunAsNode(),
+        [SCENARIO_ENV]: name,
+        [USER_DATA_DIR_ENV]: userDataDir,
+        ...options.env,
+      },
+      { switches: options.switches ?? [], timeoutMs: options.timeoutMs ?? SCENARIO_TIMEOUT_MS },
+    );
     const output = `stdout:\n${stdout}\nstderr:\n${stderr}`;
     const line = stdout.split(/\r?\n/).find((candidate) => candidate.startsWith(RESULT_PREFIX));
     if (line === undefined || reportedAt === undefined) {
@@ -111,9 +119,13 @@ interface AppRun {
   readonly exitedAt: number;
 }
 
-function runApp(binary: string, env: Record<string, string>): Promise<AppRun> {
+function runApp(
+  binary: string,
+  env: Record<string, string>,
+  options: { readonly switches: readonly string[]; readonly timeoutMs: number },
+): Promise<AppRun> {
   return new Promise((resolve, reject) => {
-    const child = spawn(binary, [REPO_ROOT], {
+    const child = spawn(binary, [...options.switches, REPO_ROOT], {
       cwd: REPO_ROOT,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -132,11 +144,11 @@ function runApp(binary: string, env: Record<string, string>): Promise<AppRun> {
       killProcessTree(child.pid);
       reject(
         new Error(
-          `The app did not exit within ${String(SCENARIO_TIMEOUT_MS)} ms; killed it.\n` +
+          `The app did not exit within ${String(options.timeoutMs)} ms; killed it.\n` +
             `stdout:\n${stdout}\nstderr:\n${stderr}`,
         ),
       );
-    }, SCENARIO_TIMEOUT_MS);
+    }, options.timeoutMs);
     child.on('error', (error) => {
       clearTimeout(timer);
       reject(error);

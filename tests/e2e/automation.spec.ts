@@ -113,6 +113,9 @@ async function launchRig(launcher: Launcher): Promise<Rig> {
  */
 async function prepareApp(app: ElectronApplication): Promise<void> {
   await setMemoryPressure(app, 'none');
+  // A fresh profile is on its first active day, when automation only previews its moves (M3.4,
+  // §4.13). These specs check moves carried out; preview has its own spec (protection.spec.ts).
+  await setLifecycleSettings(app, { preview: 'off' });
 }
 
 /**
