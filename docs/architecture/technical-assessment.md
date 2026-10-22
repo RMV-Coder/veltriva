@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| **Status** | **Approved 2026-10-16**: decisions D1–D8 accepted as recommended, recorded as [ADRs 0001–0009](../adr/README.md). Phase 0 spikes done; Phase 1 done (2026-10-17); Phase 2 done (2026-10-22, Milestone 0.1 reached, see §8.2); Phase 3 done (2026-10-22, see §8.2; the memory measurement still to run on a quiet machine); Phase 4 in progress (Step 0, Electron 45.0.0, done) |
+| **Status** | **Approved 2026-10-16**: decisions D1–D8 accepted as recommended, recorded as [ADRs 0001–0009](../adr/README.md). Phase 0 spikes done; Phase 1 done (2026-10-17); Phase 2 done (2026-10-22, Milestone 0.1 reached, see §8.2); Phase 3 done (2026-10-22, see §8.2; the memory measurement still to run on a quiet machine); Phase 4 done (2026-10-23, Electron 45.0.0, see §8.2) |
 | **Date** | 2026-10-16 |
 | **Scope** | MVP for Windows 10/11 x64 |
 | **Identity** | Project *Veltriva* · repo `veltriva` · app *Veltriva Browser* · MIT license (after dependency license review) |
@@ -1364,6 +1364,8 @@ Effort assumes one developer at 15–20 h/week.
 **Progress, 2026-10-22.** Phases 0, 1 and 2 are done; **Milestone 0.1 (daily dogfooding) is reached**. Each Phase 2 acceptance criterion above, with its evidence and the test that proves it, is in [the Phase 2 plan's as-built record](../plans/phase-2-plan.md#milestone-01-acceptance-assessment-82); the hands-on checks are in `docs/testing/phase-2-manual-checks.md`. Still open from earlier phases: S7's OAuth-popup check (M2), and the manual checklists, which the user runs at the end.
 
 **Progress, 2026-10-22 (Phase 3).** Phase 3 (lifecycle and protection) is done: each acceptance criterion above, with its evidence, is in [the Phase 3 plan's as-built record](../plans/phase-3-plan.md#phase-3-acceptance-assessment-82), and the memory measurement's method and status in [docs/benchmarks/phase-3-memory.md](../benchmarks/phase-3-memory.md): its harness is built, but the reference laptop was too loaded on 2026-10-22 to finish a run, so that criterion is still open. Two parts of later phases came early at the orchestrator's request: the regret metric and its diagnostics page (Phase 5). The hands-on checks are in `docs/testing/phase-3-manual-checks.md`. Phase 4 is next.
+
+**Progress, 2026-10-23 (Phase 4).** Phase 4 (searchable memory) is done, on Electron 45.0.0: each acceptance criterion above, with its evidence, is in [the Phase 4 plan's as-built record](../plans/phase-4-plan.md#phase-4-acceptance-assessment-82). Every §5.4 latency target is met ([docs/benchmarks/search.md](../benchmarks/search.md)); the archive → search → restore E2E and the golden-set tests pass. The hands-on checks are in `docs/testing/phase-4-manual-checks.md`. Phase 5 is next.
 
 At 15–20 h/week that's **about 6–8 months**. Add 15–20% contingency for Electron surprises. Daily dogfooding starts around **week 11–16**. Subagent assistance may shorten the *coding* hours, but review, debugging, dogfooding and decisions don't shrink the same way, so I plan against the full estimate and treat any speed-up as buffer.
 

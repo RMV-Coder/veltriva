@@ -4,7 +4,7 @@
 
 Veltriva is a local-first, Chromium-powered desktop browser that intelligently manages inactive tabs, preserves browsing context, and makes previously visited pages instantly searchable.
 
-**Status: Phase 3 done; Phase 4 (search and the memory) in progress, on Electron 45.** Veltriva manages your tabs for you: it unloads the ones you left to free memory, moves the ones you stopped using to Sleeping and then the Archive, and leaves alone anything that might hold your work. It reached Milestone 0.1, daily dogfooding, in Phase 2: it keeps your tabs, history and choices across restarts and crashes. Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 (the browser foundation) is done:
+**Status: Phase 4 done (search and the memory, on Electron 45); Phase 5 next.** Every page you visited, and every tab wherever it went, is one keystroke away: Ctrl+Shift+K finds it by a few partial words and brings it back. Veltriva manages your tabs for you: it unloads the ones you left to free memory, moves the ones you stopped using to Sleeping and then the Archive, and leaves alone anything that might hold your work. It reached Milestone 0.1, daily dogfooding, in Phase 2: it keeps your tabs, history and choices across restarts and crashes. Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 (the browser foundation) is done:
 - Milestone 1.1 built the project scaffold and CI.
 - Milestone 1.2 built the secure shell. The UI is served from `app://shell` with a strict Content Security Policy. It talks to the main process through a typed, validated IPC contract, and every web page gets a role and a locked-down policy.
 - Milestone 1.3a made it a browser, with tabs in a vertical sidebar (pinned first; reorder by dragging or with Alt+Shift+arrow keys). Its pieces:
@@ -38,7 +38,7 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
     - **Nothing secret is saved:** passwords in addresses, and sign-in tokens after a `#`, are left out.
     - **One Veltriva at a time:** opening it again brings the open window to the front.
   - Milestone 2.2b starts the memory, and keeps your choices:
-    - **Every page you visit is remembered**, with its title and icon, in your profile only. Search over it arrives in Phase 4.
+    - **Every page you visit is remembered**, with its title and icon, in your profile only. Phase 4 makes it searchable.
     - **What's left out:** sign-in callbacks, addresses with a password in them, and parameters that carry a token or a signature. Tracking parameters (`utm_*`, `fbclid`, …) don't make a page count twice.
     - **A year of history** is kept, then removed while you're away; closed tabs go after 7 days.
     - **Your answers are kept:** permissions you allowed or blocked, "always open" for another app's links, and the extra browser details a site asked for. A prompt you dismissed three times still stays quiet only until you restart.
@@ -59,6 +59,15 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
     - **Preview:** for your first 3 days of use, automation only marks the tabs it would move, so you can see what it would do; **Start now** ends it early.
     - **Pause automation** in the sidebar.
     - **A local diagnostics page**, `veltriva://diagnostics`, counts how often you took back a tab automation had just moved (the regret rate used to tune the defaults). It never leaves your machine.
+- Phase 4 (search and the memory) is done, on Electron 45. [Its plan](docs/plans/phase-4-plan.md) records what was built and the evidence for each acceptance criterion; [docs/benchmarks/search.md](docs/benchmarks/search.md) the measured search latency (at 50,000 pages, 10 ms at the 95th percentile on this laptop under load). The checks only a person can run (your own history, a screen reader, a quiet machine for the benchmark) are in [docs/testing/phase-4-manual-checks.md](docs/testing/phase-4-manual-checks.md).
+  - Step 0 moved to **Electron 45** (Chromium 156), checked against its published hashes.
+  - Milestone 4.1 makes the memory searchable, all locally:
+    - **A few partial words** of a title, an address or a site find a page; punctuation and search-engine syntax are just ignored.
+    - **What you use comes first:** a page open in a tab, then Sleeping, then archived, and pages you visit often and recently, over a better word match alone.
+  - Milestone 4.2 puts it under your fingers:
+    - **The memory palette, Ctrl+Shift+K** (or **Search memory…** in the sidebar): type, then Enter switches to the tab, or brings it back from Sleeping or the Archive; Ctrl+Enter opens it in a new tab. Tab steps through All, Open, Sleeping, Archived, Today and This week, and `site:example.com` keeps to one site. The page underneath stays live.
+    - **The address bar suggests** pages from your memory as you type, with **Switch to tab** for one already open. Nothing you type leaves your machine.
+    - **The Archive list** shows every archived tab, thousands of them, smoothly.
 
 ## Why
 
@@ -94,7 +103,7 @@ The browser keeps these keys for itself, so a page can't block them:
 | Alt+Left, Alt+Right | Back or forward |
 | F11 | Fullscreen (it also ends a page's fullscreen) |
 | F12 | The page's DevTools |
-| Ctrl+Shift+K | Reserved for the memory palette (Phase 4) |
+| Ctrl+Shift+K | The memory palette: search your tabs and history |
 
 A page gets these keys first, and the browser acts only if the page doesn't use them. That way a web app with its own find, such as an online editor, keeps it:
 
@@ -145,6 +154,7 @@ npm run dev
 | `npm run test:e2e` | Builds the test variant, then runs the Playwright tests against the built, unpackaged app. They cover the shell, its CSP and protocol, the IPC contract and a hostile page in a tab. They also cover tabs, navigation, the address bar, crashes, PDFs, the clipboard and generated (`data:`, `blob:`) documents. M1.3b adds find, zoom, fullscreen and its notice, DevTools, the keyboard shortcuts (against a page that tries to block them), keyboard focus and the context menus. Every page comes from a local fixture server. |
 | `npm run test:lifecycle` | Builds the test variant, then runs the lifecycle-behavior checks without Playwright (ADR-0008 4a): a background tab is hidden and throttled, closing the window with live tabs quits cleanly, and a page under the fullscreen notice stays visible and live. Phase 2 adds the database across launches (a quit capped at 3 s while a statement runs, recovery from a damaged file) and session restore after 20 hard kills at random moments, which takes a few minutes. Phase 3 adds what a discard does to real hidden tabs: the page state it keeps, the renderer it frees, a page that objects, and the freeze experiment. |
 | `npm run bench:memory` | Builds the test variant, then runs the memory benchmark of assessment §9.3 without Playwright: 10, 25 and 50 tabs of a controlled-cost page, all live, moved to Sleeping, and unloaded, one warm-up and 5 measured runs each. It takes over an hour and writes its raw readings to `docs/benchmarks/data/`. Run it on a quiet machine. |
+| `npm run bench:search` | Builds the test variant, then measures search latency (assessment §5.4) without Playwright: 1,000, 10,000 and 50,000 pages of synthetic memory, 3 runs each, end to end through the app's own data RPC. It takes about 15 minutes and writes its raw data, gzipped, to `docs/benchmarks/data/`; `node tests/benchmarks/summarize-search.mjs <file>` prints the tables. Run it on a quiet machine. |
 | `npm run package:dir` | Checks better-sqlite3's binary, builds, checks that the build contains no test-only code (the test hooks, the lifecycle runner and the test build's crash handler) and that only the data worker loads SQLite, then packages an unpacked app with electron-builder into `release/win-unpacked/` (`Veltriva.exe`), with the production Electron fuses applied. It is unsigned, and no installer is built or installed. Last, it checks that only SQLite's binary was unpacked from `app.asar`. |
 
 ### Project layout
