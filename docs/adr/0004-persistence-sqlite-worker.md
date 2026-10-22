@@ -137,6 +137,9 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
      - At startup the stored rows come back finished, with no DownloadItem. One that was running is `interrupted`. A dangerous file waiting for Keep stays so if its `.unconfirmed` file is still there, else it is `cancelled`.
      - The file is not trusted, and Open and Keep act on the stored path, so a row whose path is not absolute, or does not end in its own file name (plus `.unconfirmed` while it waits for Keep), is dropped and deleted.
    - A failed write is logged by code and dropped; the decision still holds for the run. Without a readable database, everything starts empty, as before Phase 2.
+11. **As built in Phase 3** (no migration; the schema of §5.3 already had the columns):
+    - **M3.1:** a discarded tab's stack reaches `tabs.restore_state` like any other, as URLs and titles. Chromium's page state stays in memory (item 4); an E2E test checks that the string `pageState` is nowhere in the file.
+    - **M3.2:** `tabs.last_used_engaged` and `last_used_active_day` now hold the engagement clock's values at each tab's last use (Phase 2 wrote 0, which is read as "now"). The clock itself is the app_state document `engagement` (`{ engagedMs, activeDay, dayKey, dayEngagedMs }`), written every 5 minutes, on a new day and at quit, and checked like any input when read. The settings document gains its `lifecycle` section (ADR-0003 item 13).
 
 ## Consequences
 

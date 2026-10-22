@@ -181,6 +181,48 @@ Wall-clock timers would also archive a user's workspace after a weekend away.
       - The probe sees the top frame only (S3).
       - The tracker is blind to a page that stops `input` at the window in the capture phase before it is installed.
 
+13. **As built in M3.2** (automation; assessment §4.6–§4.8):
+    - **The engagement clock** (`src/core/lifecycle/engagement-clock.ts`, pure) follows §4.6.
+      - Engaged time is measured on a monotonic clock, so changing the wall clock adds nothing. The wall clock only names the calendar day.
+      - A step counts only if the previous sample found the user active and nothing suspended or locked the system since. One step adds at most 60 s.
+      - Today's active-day index is 1 plus the earlier days that reached 10 minutes.
+      - `src/main/lifecycle/engagement-sampler.ts` samples `powerMonitor.getSystemIdleState(300)` every 30 s, and on `suspend`, `resume`, `lock-screen` and `unlock-screen`. A resume samples first, then lets the scheduler re-evaluate.
+      - It persists the `engagement` document in app_state every 5 minutes, on a new day, and at quit.
+    - **Activity per tab** in TabManager.
+      - A tab's last use is stamped by every clock when it is selected *and* when it is left. Hidden-since starts when it is left. The last input comes from the runtime's `interacted` event, at most once a second.
+      - Last use is persisted in `tabs.last_used_engaged` and `last_used_active_day`. Phase 2 wrote 0 there, which reads as "now", as does any value from the future. Without that, an upgraded profile would look unused since the beginning of time; the first flush rewrites those rows once.
+      - The selected tab's row keeps its stamp rather than "now", so a flush doesn't rewrite it every time.
+    - **The policy** (`planLifecycle()`, `src/core/lifecycle/policy.ts`, pure) has §4.7's presets and rules. Every action names its rule and carries the epoch it saw.
+      - The recent-interaction guard is a soft protection.
+      - The selected tab always counts among the strip's kept tabs.
+      - A tab gets at most one action.
+      - Archiving a live tab whose discard is blocked isn't planned.
+      - Under pressure, a tab must have been hidden 15 min (moderate) or 2 min (critical), and at most 1 or 3 are taken per evaluation, least recently used first. Critical overrides soft protections only.
+      - Pause plans nothing.
+    - **The scheduler** (`src/main/lifecycle/scheduler.ts`) follows §4.8.
+      - It has one 60 s timer, plus triggers (a tab switch, a pressure change, a resume, the settings) that share one evaluation 1 s later.
+      - Nothing runs in the first 2 minutes.
+      - It starts at most 3 discards and 3 freezes per evaluation, 1 s apart, through TabManager's queues. Each request carries the action's epoch, so a stale one is refused (I5).
+      - One evaluation runs at a time. Every action is logged with its rule and result.
+      - **Shelving and archiving are planned and logged, not carried out, until M3.3**, which adds the Sleeping and Archive sections. Otherwise tabs would vanish from the strip with nowhere to see them.
+    - **Protections automation respects from M3.2** (`src/main/lifecycle/protection-signals.ts`):
+      - audio, and for 2 minutes after (`audio-state-changed`, `isCurrentlyAudible()`; muted playback counts);
+      - capture (`isBeingCaptured()`);
+      - DevTools;
+      - an open popup window (PopupWindows now remembers each popup's opener tab).
+
+      Together with what discards learn, these keep automation from obvious harm before M3.4's monitor completes the table.
+    - **Memory pressure** (`src/main/lifecycle/memory-pressure.ts`) polls `process.getSystemMemoryInfo()` every 10 s, and goes critical for 2 minutes when a renderer dies with `oom` or `memory-eviction` (`app`'s `render-process-gone`).
+      - **Measured** on the reference laptop (i3-1215U, 7.9 GB, Windows 11) over 10 minutes while tests ran: Electron's `free` equalled Node's `os.freemem()` in every sample, and tracked the "Available MBytes" counter (`typeperf`), so on Windows it is *available* memory. `swapTotal` and `swapFree` are the commit limit and the commit left.
+        - Available ran from 97 to 955 MB (median 632, 8%).
+        - Commit was 22.8–24.3 GB of 31.7 GB.
+        - Hard faults reached about 9,700 pages a second.
+        - The script is `spikes/m3.2-memory-info/main.js` (from `spikes`: `electron m3.2-memory-info/main.js`, `MEMSAMPLE_SECONDS` sets the length); the readings are in `results.json` beside it.
+      - **Levels**, as fractions of the total so they scale with other machines: *critical* under 4% (316 MB here), *moderate* under 10% (790 MB here). Rising needs 2 polls in a row; falling needs 2 points of margin.
+      - On this laptop that means moderate most of the time: at most one discard per evaluation of a tab hidden 15 minutes or more. Given the measured paging, that is the intent. The thresholds are hypotheses to tune by dogfooding, like the presets.
+    - **Settings.** The settings document has a `lifecycle` section: preset (Balanced), auto-archive (on), the freeze experiment (off), pause (off), and bounded overrides of each preset value. Each field falls back to its default alone. Nothing writes it until Phase 5; a test hook does.
+    - **The accelerated clock** (`src/main/testing/test-clock.ts`) is test-only. It adds offsets to the wall clock, engaged time and active days that the lifecycle sees, and overrides the pressure. The hooks are `advanceLifecycleClock`, `lifecyclePlan`, `lifecycleEvaluate` (now, ignoring the quiet start), `lifecycleLog`, `setMemoryPressure` and `setLifecycleSettings`, all in the production check.
+
 ## Consequences
 
 - **Positive:** both product-critical states are first-class, the policy is unit-testable without Electron, and every automatic action can be explained.

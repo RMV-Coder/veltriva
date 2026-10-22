@@ -10,6 +10,8 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
 import type { DiscardOutcome, DiscardRequest, Timers } from '../../core/lifecycle/discard';
+import { planLifecycle, PRESETS, resolveLifecycleSettings } from '../../core/lifecycle/policy';
+import type { MemoryPressure } from '../../core/lifecycle/policy';
 import type { CloseMode } from '../../core/lifecycle/probe';
 import { blockingProtection, protectionFor } from '../../core/lifecycle/protections';
 import type { Protection } from '../../core/lifecycle/protections';
@@ -517,6 +519,12 @@ function setupModel(scheduler: fc.Scheduler): { model: Model; real: Real } {
     onChange: () => undefined,
     history,
     now: () => world.now,
+    // The engagement clock moves with the wall clock here; active days every 6 hours.
+    activityClock: () => ({
+      wallNow: world.now,
+      engagedNow: world.now,
+      activeDay: 1 + Math.floor(world.now / (6 * 60 * 60 * 1000)),
+    }),
     timers: scheduledTimers(scheduler),
     protections: (tabId) => world.protections.get(tabId) ?? [],
     onTransition: (transition) => {
@@ -633,6 +641,69 @@ const sweeper: fc.Arbitrary<Command> = fc
   );
 
 /**
+ * The scheduler's evaluation: the real policy over TabManager's own facts, its discards carried
+ * out with the epochs it saw (M3.2). I5 is checked where it matters: in the fake's close, and in
+ * the epochs the discards started at.
+ */
+/** Discards the policy planned across the sequences, by rule: the coverage test checks both. */
+const policyDiscards = new Map<string, number>();
+
+const evaluation: fc.Arbitrary<Command> = fc
+  .record({
+    preset: fc.constantFrom(...PRESETS),
+    pressure: fc.constantFrom<MemoryPressure>('none', 'none', 'moderate', 'critical'),
+  })
+  .map(({ preset, pressure }) =>
+    command('evaluate', `${preset}, ${pressure}`, ({ manager, world }, model) => {
+      const actions = planLifecycle({
+        tabs: manager.lifecycleTabs(),
+        settings: resolveLifecycleSettings({
+          preset,
+          autoArchive: true,
+          freeze: false,
+          paused: false,
+          overrides: {},
+        }),
+        clock: {
+          wallNow: world.now,
+          engagedNow: world.now,
+          activeDay: 1 + Math.floor(world.now / (6 * 60 * 60 * 1000)),
+        },
+        pressure,
+      });
+      for (const action of actions) {
+        if (action.kind !== 'discard') {
+          continue;
+        }
+        policyDiscards.set(action.rule, (policyDiscards.get(action.rule) ?? 0) + 1);
+        if (action.tabId === manager.selectedTabId()) {
+          world.failures.push(`I5: the policy planned the selected tab ${action.tabId}`);
+        }
+        const entry = {
+          tabId: action.tabId,
+          request: {
+            origin:
+              action.rule === 'pressure-discard' ? ('pressure' as const) : ('automation' as const),
+            epoch: action.epoch,
+            overrideSoft: action.overrideSoft,
+          },
+          outcome: null as DiscardOutcome | null,
+          rejected: false,
+        };
+        model.discards.push(entry);
+        manager.discard(action.tabId, entry.request).then(
+          (outcome) => {
+            entry.outcome = outcome;
+          },
+          () => {
+            entry.rejected = true;
+          },
+        );
+      }
+    }),
+  );
+
+/**
  * A discard, then the user acts on the same tab at a moment the scheduler picks: before the
  * probe answers, while the page is closing, or after (§4.11's races).
  */
@@ -685,6 +756,8 @@ const race: fc.Arbitrary<Command> = fc
   );
 
 const commands: fc.Arbitrary<Command>[] = [
+  evaluation,
+  evaluation,
   race,
   race,
   pageOpener,
@@ -970,9 +1043,14 @@ describe('TabManager model (I1–I8 after every step)', () => {
   it('reaches every way a discard can end (fixed seed, so the coverage is stable)', async () => {
     outcomes.clear();
     transitionCounts.clear();
+    policyDiscards.clear();
     const steps = await shortRuns(20_261_022);
     console.info('discard outcomes', Object.fromEntries([...outcomes].sort()), 'checks', steps);
     console.info('transitions', Object.fromEntries([...transitionCounts].sort()));
+    console.info('policy discards', Object.fromEntries([...policyDiscards].sort()));
+    // The real policy planned discards under both of its discard rules (M3.2).
+    expect(policyDiscards.get('discard-hidden') ?? 0).toBeGreaterThan(0);
+    expect(policyDiscards.get('pressure-discard') ?? 0).toBeGreaterThan(0);
     // Every runtime transition of the state machine happened.
     for (const event of [
       'load',
