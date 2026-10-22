@@ -24,9 +24,14 @@ export const BENCH_TABS_ENV = 'VELTRIVA_BENCH_TABS';
 export const BENCH_SETTLE_ENV = 'VELTRIVA_BENCH_SETTLE_MS';
 export const BENCH_CPU_ENV = 'VELTRIVA_BENCH_CPU_MS';
 
-const LOAD_TIMEOUT_MS = 60_000;
+/** Under paging on the reference laptop a page can take minutes to load. */
+const LOAD_TIMEOUT_MS = 180_000;
+/** A switch slower than this is recorded as timed out, not measured: the run goes on. */
+const SWITCH_TIMEOUT_MS = 120_000;
 /** Switches measured per phase: the median is reported. */
 const SWITCH_SAMPLES = 3;
+/** A discard whose probe went unanswered is asked again, up to this many times in all. */
+const MAX_DISCARD_ATTEMPTS = 4;
 
 const wait = (ms: number): Promise<void> =>
   new Promise((resolve) => {
@@ -38,8 +43,12 @@ function envNumber(name: string, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
-async function waitFor(what: string, done: () => boolean): Promise<void> {
-  const deadline = Date.now() + LOAD_TIMEOUT_MS;
+async function waitFor(
+  what: string,
+  done: () => boolean,
+  timeoutMs = LOAD_TIMEOUT_MS,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
   while (!done()) {
     if (Date.now() > deadline) {
       throw new Error(`Timed out waiting for ${what}`);
@@ -74,11 +83,21 @@ export interface MemoryBenchmarkResult {
   readonly allLive: PhaseReading;
   readonly collapsed: PhaseReading;
   readonly discarded: PhaseReading;
-  /** Median ms from selecting a tab to two rendered frames: live in A, unloaded (reload) in C. */
-  readonly switchLiveMs: number;
-  readonly switchUnloadedMs: number;
+  /**
+   * Median ms from selecting a tab to two rendered frames: live in A, unloaded (reload) in C;
+   * null when no sample finished within SWITCH_TIMEOUT_MS.
+   */
+  readonly switchLiveMs: number | null;
+  readonly switchUnloadedMs: number | null;
+  /** Switch samples that didn't finish within SWITCH_TIMEOUT_MS (a paging laptop). */
+  readonly switchTimeouts: number;
   readonly loadAllMs: number;
   readonly discardAllMs: number;
+  /**
+   * Discards asked again because the page didn't answer the probe within its 100 ms: automation
+   * plans such a tab again at its next evaluation (M3.1), so the scenario does too.
+   */
+  readonly discardRetries: number;
 }
 
 const mb = (kb: number): number => Math.round((kb / 1024) * 10) / 10;
@@ -160,7 +179,10 @@ async function measure(
   return { ...reading, cpuPercent, liveTabs };
 }
 
-const median = (values: readonly number[]): number => {
+const median = (values: readonly number[]): number | null => {
+  if (values.length === 0) {
+    return null;
+  }
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 1
@@ -168,14 +190,23 @@ const median = (values: readonly number[]): number => {
     : ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
 };
 
-/** Selects a tab and waits until its page is live and has drawn two frames. */
-async function switchTo(context: ScenarioContext, tabId: TabId): Promise<number> {
+/**
+ * Selects a tab and waits until its page is live and has drawn two frames. Null when it took
+ * longer than SWITCH_TIMEOUT_MS: then it waits on (the load) without timing it.
+ */
+async function switchTo(context: ScenarioContext, tabId: TabId): Promise<number | null> {
   const started = performance.now();
   context.tabs.select(tabId, { focus: false });
-  await waitFor(`tab ${tabId} to show its page`, () => {
+  const shown = (): boolean => {
     const tab = context.tabs.get(tabId);
     return tab.runtime === 'live' && !tab.loading && context.views.has(tabId);
-  });
+  };
+  try {
+    await waitFor(`tab ${tabId} to show its page`, shown, SWITCH_TIMEOUT_MS);
+  } catch {
+    await waitFor(`tab ${tabId} to show its page`, shown);
+    return null;
+  }
   const view = context.views.get(tabId);
   await view?.webContents.executeJavaScript(
     'new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))',
@@ -223,10 +254,18 @@ export async function memoryBenchmark(context: ScenarioContext): Promise<MemoryB
   const selected = ids.at(-1);
   const hidden = ids.slice(0, -1);
   const liveSwitches: number[] = [];
-  for (let sample = 0; sample < Math.min(SWITCH_SAMPLES, hidden.length); sample += 1) {
-    const target = hidden[sample];
+  let switchTimeouts = 0;
+  const sample = (ms: number | null, into: number[]): void => {
+    if (ms === null) {
+      switchTimeouts += 1;
+    } else {
+      into.push(ms);
+    }
+  };
+  for (let index = 0; index < Math.min(SWITCH_SAMPLES, hidden.length); index += 1) {
+    const target = hidden[index];
     if (target !== undefined && selected !== undefined) {
-      liveSwitches.push(await switchTo(context, target));
+      sample(await switchTo(context, target), liveSwitches);
       await switchTo(context, selected);
     }
   }
@@ -237,10 +276,22 @@ export async function memoryBenchmark(context: ScenarioContext): Promise<MemoryB
   }
   const collapsed = await measure(context, settleMs, cpuWindowMs);
 
-  // C: the Sleeping tabs discarded, one after the other, as automation would.
+  // C: the Sleeping tabs discarded, one after the other, as automation would; a page that misses
+  // the probe's budget on this loaded laptop is asked again, as the next evaluation would.
   const discardStarted = performance.now();
+  let discardRetries = 0;
   for (const tabId of hidden) {
-    const outcome = await tabs.discard(tabId, { origin: 'user' });
+    let outcome = await tabs.discard(tabId, { origin: 'user' });
+    for (
+      let attempt = 1;
+      attempt < MAX_DISCARD_ATTEMPTS &&
+      outcome.outcome === 'blocked' &&
+      outcome.reason === 'probe-unanswered';
+      attempt += 1
+    ) {
+      discardRetries += 1;
+      outcome = await tabs.discard(tabId, { origin: 'user' });
+    }
     if (outcome.outcome !== 'discarded') {
       throw new Error(`Tab ${tabId} was not discarded: ${JSON.stringify(outcome)}`);
     }
@@ -250,10 +301,10 @@ export async function memoryBenchmark(context: ScenarioContext): Promise<MemoryB
 
   // Bringing an unloaded tab back: it reloads its page.
   const unloadedSwitches: number[] = [];
-  for (let sample = 0; sample < Math.min(SWITCH_SAMPLES, hidden.length); sample += 1) {
-    const target = hidden[hidden.length - 1 - sample];
+  for (let index = 0; index < Math.min(SWITCH_SAMPLES, hidden.length); index += 1) {
+    const target = hidden[hidden.length - 1 - index];
     if (target !== undefined) {
-      unloadedSwitches.push(await switchTo(context, target));
+      sample(await switchTo(context, target), unloadedSwitches);
     }
   }
 
@@ -267,7 +318,9 @@ export async function memoryBenchmark(context: ScenarioContext): Promise<MemoryB
     discarded,
     switchLiveMs: median(liveSwitches),
     switchUnloadedMs: median(unloadedSwitches),
+    switchTimeouts,
     loadAllMs,
     discardAllMs,
+    discardRetries,
   };
 }

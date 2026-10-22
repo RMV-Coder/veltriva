@@ -6,9 +6,11 @@
 // (10 MB of heap, 100 KB of DOM, spike S8's page) on a site of its own, `m<i>.test`, which the
 // host-resolver switch maps to the fixture server.
 //
-// It records the machine (CPU, memory, Windows build, power, Defender) and writes every run's raw
-// reading to docs/benchmarks/data/, as JSON and CSV. The write-up in docs/benchmarks/ reports
-// medians and ranges from that file, and nothing else.
+// It records the machine (CPU, memory, Windows build, power, Defender) and the free memory at each
+// run's start, and writes every run's raw reading to docs/benchmarks/data/, as JSON and CSV, after
+// each run: a run that fails is recorded with its error and the next one starts, so a machine too
+// loaded for some runs still leaves what it measured. The write-up in docs/benchmarks/ reports
+// medians and ranges from those files (tests/benchmarks/summarize-memory.mjs), and nothing else.
 //
 //   npm run bench:memory                     sizes 10, 25 and 50, 5 runs each
 //   BENCH_SIZES=10 BENCH_RUNS=1 npm run bench:memory    a quick check of the harness
@@ -60,19 +62,20 @@ interface Reading {
   readonly allLive: Phase;
   readonly collapsed: Phase;
   readonly discarded: Phase;
-  readonly switchLiveMs: number;
-  readonly switchUnloadedMs: number;
+  readonly switchLiveMs: number | null;
+  readonly switchUnloadedMs: number | null;
+  readonly switchTimeouts: number;
   readonly loadAllMs: number;
   readonly discardAllMs: number;
+  readonly discardRetries: number;
 }
 
-interface Run {
+type Run = {
   readonly size: number;
   readonly run: number;
   readonly warmUp: boolean;
   readonly freeMbAtStart: number;
-  readonly reading: Reading;
-}
+} & ({ readonly reading: Reading } | { readonly error: string });
 
 /** A read-only PowerShell query; '' when it fails (the field is then reported unknown). */
 function powershell(command: string): string {
@@ -122,35 +125,46 @@ afterAll(async () => {
 describe('memory benchmark (§9.3)', () => {
   it(`measures ${SIZES.join(', ')} tabs, one warm-up and ${String(RUNS)} runs each`, async () => {
     const machine = environment();
+    mkdirSync(OUT_DIR, { recursive: true });
+    const name = `phase-3-memory-${new Date().toISOString().slice(0, 10)}-${SIZES.join('-')}`;
+    const save = (): void => {
+      writeFileSync(
+        join(OUT_DIR, `${name}.json`),
+        `${JSON.stringify({ machine, sizes: SIZES, runs: RUNS, settleMs: SETTLE_MS, cpuMs: CPU_MS, results: runs }, null, 2)}\n`,
+      );
+      writeFileSync(join(OUT_DIR, `${name}.csv`), toCsv(runs));
+    };
     for (const size of SIZES) {
       for (let run = 0; run <= RUNS; run += 1) {
         const freeMbAtStart = Math.round(freemem() / 2 ** 20);
-        const { result } = await runScenario<Reading>('memory-benchmark', {
-          env: {
-            VELTRIVA_FIXTURE_ORIGIN: server.origin,
-            VELTRIVA_BENCH_TABS: String(size),
-            VELTRIVA_BENCH_SETTLE_MS: String(SETTLE_MS),
-            VELTRIVA_BENCH_CPU_MS: String(CPU_MS),
-          },
-          switches: ['--host-resolver-rules=MAP *.test 127.0.0.1'],
-          timeoutMs: 6 * 60_000 + size * 10_000 + 3 * CPU_MS,
-        });
-        runs.push({ size, run, warmUp: run === 0, freeMbAtStart, reading: result });
-        console.info(
-          `${String(size)} tabs, ${run === 0 ? 'warm-up' : `run ${String(run)}`}: ` +
-            `A ${String(result.allLive.privateMb)} MB, B ${String(result.collapsed.privateMb)} MB, ` +
-            `C ${String(result.discarded.privateMb)} MB private (free at start ${String(freeMbAtStart)} MB)`,
-        );
+        const base = { size, run, warmUp: run === 0, freeMbAtStart };
+        try {
+          const { result } = await runScenario<Reading>('memory-benchmark', {
+            env: {
+              VELTRIVA_FIXTURE_ORIGIN: server.origin,
+              VELTRIVA_BENCH_TABS: String(size),
+              VELTRIVA_BENCH_SETTLE_MS: String(SETTLE_MS),
+              VELTRIVA_BENCH_CPU_MS: String(CPU_MS),
+            },
+            switches: ['--host-resolver-rules=MAP *.test 127.0.0.1'],
+            timeoutMs: 10 * 60_000 + size * 20_000 + 3 * CPU_MS,
+          });
+          runs.push({ ...base, reading: result });
+        } catch (error) {
+          // Recorded, not hidden: the write-up says how many runs a loaded machine lost.
+          const message = error instanceof Error ? error.message : String(error);
+          runs.push({ ...base, error: message.split('\n')[0] ?? 'unknown' });
+        }
+        save();
       }
     }
-    mkdirSync(OUT_DIR, { recursive: true });
-    const stamp = new Date().toISOString().slice(0, 10);
-    writeFileSync(
-      join(OUT_DIR, `phase-3-memory-${stamp}.json`),
-      `${JSON.stringify({ machine, sizes: SIZES, runs: RUNS, settleMs: SETTLE_MS, cpuMs: CPU_MS, results: runs }, null, 2)}\n`,
-    );
-    writeFileSync(join(OUT_DIR, `phase-3-memory-${stamp}.csv`), toCsv(runs));
-    expect(runs).toHaveLength(SIZES.length * (RUNS + 1));
+    // Each size needs at least one measured run to report anything.
+    for (const size of SIZES) {
+      expect(
+        runs.some((entry) => entry.size === size && !entry.warmUp && 'reading' in entry),
+        `${String(size)} tabs: no measured run finished`,
+      ).toBe(true);
+    }
   });
 });
 
@@ -175,14 +189,27 @@ function toCsv(all: readonly Run[]): string {
     'working_set_mb',
     'cpu_percent',
     ...GROUPS.flatMap((group) => [`${group}_count`, `${group}_private_mb`]),
+    'error',
     'switch_live_ms',
     'switch_unloaded_ms',
+    'switch_timeouts',
     'load_all_ms',
     'discard_all_ms',
+    'discard_retries',
   ];
-  const rows = all.flatMap((entry) =>
-    PHASES.map(([label, key]) => {
-      const phase = entry.reading[key];
+  const rows = all.flatMap((entry) => {
+    if (!('reading' in entry)) {
+      const error = `"${entry.error.replaceAll('"', "'")}"`;
+      return [
+        [entry.size, entry.run, entry.warmUp, entry.freeMbAtStart, '', '', '', '', '', '']
+          .concat(GROUPS.flatMap(() => ['', '']))
+          .concat([error, '', '', '', '', '', ''])
+          .join(','),
+      ];
+    }
+    const { reading } = entry;
+    return PHASES.map(([label, key]) => {
+      const phase = reading[key];
       return [
         entry.size,
         entry.run,
@@ -198,12 +225,15 @@ function toCsv(all: readonly Run[]): string {
           phase.byGroup[group]?.count ?? 0,
           phase.byGroup[group]?.privateMb ?? 0,
         ]),
-        entry.reading.switchLiveMs,
-        entry.reading.switchUnloadedMs,
-        entry.reading.loadAllMs,
-        entry.reading.discardAllMs,
+        '',
+        reading.switchLiveMs ?? '',
+        reading.switchUnloadedMs ?? '',
+        reading.switchTimeouts,
+        reading.loadAllMs,
+        reading.discardAllMs,
+        reading.discardRetries,
       ].join(',');
-    }),
-  );
+    });
+  });
   return `${[header.join(','), ...rows].join('\n')}\n`;
 }
