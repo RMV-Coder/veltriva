@@ -905,6 +905,11 @@ test.describe('sidebar tab menu', () => {
       'duplicate: Duplicate',
       'pin: Pin tab',
       '---',
+      // M3.3: a new-tab page has nothing to keep in the Archive.
+      'shelve: Move to Sleeping',
+      'archive: Archive tab (disabled)',
+      'protect: Protect from automation',
+      '---',
       'close: Close tab',
       'close-others: Close other tabs (disabled)',
       '---',
@@ -920,6 +925,10 @@ test.describe('sidebar tab menu', () => {
       'duplicate: Duplicate',
       'pin: Pin tab',
       '---',
+      'shelve: Move to Sleeping',
+      'archive: Archive tab',
+      'protect: Protect from automation',
+      '---',
       'close: Close tab',
       'close-others: Close other tabs',
       '---',
@@ -932,6 +941,8 @@ test.describe('sidebar tab menu', () => {
     const pinned = lines(await tabMenuItems(electronApp, tabA.tabId));
     expect(pinned).toContain('unpin: Unpin tab');
     expect(pinned).not.toContain('pin: Pin tab');
+    // A pinned tab stays in the strip (I8).
+    expect(pinned).toContain('shelve: Move to Sleeping (disabled)');
 
     // Once a tab with a page has been closed, Reopen closed tab is available on every tab.
     const tabB = await loadTab(electronApp, shell, fixtureServer.url('/page-b.html?case=tab-menu'));
