@@ -108,8 +108,10 @@ The evidence supports tightening the 50,000-page p95 target to 25 ms, as §5.4 f
 
 ```bash
 npm run bench:search
-node tests/benchmarks/summarize-search.mjs docs/benchmarks/data/phase-4-search-<date>-1000-10000-50000-first-after-5000ms.json
+node tests/benchmarks/summarize-search.mjs docs/benchmarks/data/phase-4-search-<date>-1000-10000-50000-first-after-5000ms.json.gz
 ```
+
+New runs write their raw data gzipped (about a tenth of the size); the summarizer reads `.json.gz` and the plain `.json` of the runs above alike.
 
 - **One size at a time:** `BENCH_SIZES=50000`.
 - **Fewer runs:** `BENCH_RUNS=1`.

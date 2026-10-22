@@ -48,7 +48,9 @@ On a quiet machine (close other apps; free memory well above 2 GB for the 50-tab
 
 ```bash
 npm run bench:memory
-node tests/benchmarks/summarize-memory.mjs docs/benchmarks/data/phase-3-memory-<date>-10-25-50.json
+node tests/benchmarks/summarize-memory.mjs docs/benchmarks/data/phase-3-memory-<date>-10-25-50.json.gz
 ```
+
+The raw data is written gzipped (since Phase 4); the summarizer reads it, and the plain `.json` of the attempts above, alike.
 
 Sizes can be run one at a time (`BENCH_SIZES=10`, `BENCH_SIZES=25`, `BENCH_SIZES=50`; the summarizer takes several files). The tables it prints replace the sections above, with the machine and the free memory of each run.

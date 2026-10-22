@@ -13,6 +13,7 @@
 //   npm run bench:search                          1k, 10k and 50k pages, 3 runs each
 //   BENCH_SIZES=1000 BENCH_RUNS=1 npm run bench:search    a quick check of the harness
 import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,8 +77,10 @@ describe('search benchmark (§5.4)', () => {
     const runs: Run[] = [];
     const save = (): void => {
       writeFileSync(
-        join(OUT_DIR, `${name}.json`),
-        `${JSON.stringify({ machine, sizes: SIZES, runs: RUNS, datasetNow: DATASET_NOW, firstDelayMs: FIRST_DELAY_MS, results: runs }, null, 2)}\n`,
+        join(OUT_DIR, `${name}.json.gz`),
+        gzipSync(
+          `${JSON.stringify({ machine, sizes: SIZES, runs: RUNS, datasetNow: DATASET_NOW, firstDelayMs: FIRST_DELAY_MS, results: runs }, null, 2)}\n`,
+        ),
       );
     };
     for (const size of SIZES) {

@@ -15,6 +15,7 @@
 //   npm run bench:memory                     sizes 10, 25 and 50, 5 runs each
 //   BENCH_SIZES=10 BENCH_RUNS=1 npm run bench:memory    a quick check of the harness
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { freemem } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -95,8 +96,10 @@ describe('memory benchmark (§9.3)', () => {
     const name = `phase-3-memory-${new Date().toISOString().slice(0, 10)}-${SIZES.join('-')}`;
     const save = (): void => {
       writeFileSync(
-        join(OUT_DIR, `${name}.json`),
-        `${JSON.stringify({ machine, sizes: SIZES, runs: RUNS, settleMs: SETTLE_MS, cpuMs: CPU_MS, results: runs }, null, 2)}\n`,
+        join(OUT_DIR, `${name}.json.gz`),
+        gzipSync(
+          `${JSON.stringify({ machine, sizes: SIZES, runs: RUNS, settleMs: SETTLE_MS, cpuMs: CPU_MS, results: runs }, null, 2)}\n`,
+        ),
       );
       writeFileSync(join(OUT_DIR, `${name}.csv`), toCsv(runs));
     };

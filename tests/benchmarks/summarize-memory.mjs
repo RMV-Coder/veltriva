@@ -7,13 +7,19 @@
 import console from 'node:console';
 import { readFileSync } from 'node:fs';
 import process from 'node:process';
+import { gunzipSync } from 'node:zlib';
 
 const files = process.argv.slice(2);
 if (files.length === 0) {
   console.error('usage: node tests/benchmarks/summarize-memory.mjs <raw json> [<raw json> ...]');
   process.exit(2);
 }
-const raws = files.map((file) => JSON.parse(readFileSync(file, 'utf8')));
+/** A raw file as the benchmark writes it: gzipped JSON since Phase 4, plain JSON before. */
+const readRaw = (file) => {
+  const bytes = readFileSync(file);
+  return JSON.parse((file.endsWith('.gz') ? gunzipSync(bytes) : bytes).toString('utf8'));
+};
+const raws = files.map(readRaw);
 const all = raws.flatMap((raw) => raw.results);
 const finished = all.filter((run) => !run.warmUp && run.reading !== undefined);
 const sizes = [...new Set(all.map((run) => run.size))].sort((a, b) => a - b);
