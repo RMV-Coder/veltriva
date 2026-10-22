@@ -14,7 +14,7 @@ import type {
   MemoryPressure,
 } from '../../core/lifecycle/policy';
 import type { ActionRecord, LifecycleScheduler } from '../lifecycle/scheduler';
-import { advanceTestClock, setTestMemoryPressure } from './test-clock';
+import { advanceTestClock, setTestCaptured, setTestMemoryPressure } from './test-clock';
 import type { TestClockAdjustment } from './test-clock';
 import { isDataMethod } from '../../shared/contracts/data-rpc';
 import type { ContextMenus } from '../menus/context-menu';
@@ -170,6 +170,11 @@ export interface VeltrivaTestHooks {
   setMemoryPressure(level: MemoryPressure | null): void;
   /** Replaces the lifecycle settings (as the Phase 5 settings page will), merged on the current. */
   setLifecycleSettings(settings: Partial<LifecycleSettingsInput>): void;
+  /**
+   * Marks a web contents as captured (camera, microphone or screen), or not. Test builds don't
+   * read `isBeingCaptured()`: Playwright makes it true for every page.
+   */
+  setCaptured(webContentsId: number, captured: boolean): void;
 }
 
 declare global {
@@ -434,6 +439,10 @@ export function installTestHooks({
 
     setLifecycleSettings(settings) {
       lifecycle.setSettings(settings);
+    },
+
+    setCaptured(webContentsId, captured) {
+      setTestCaptured(webContentsId, captured);
     },
   };
 

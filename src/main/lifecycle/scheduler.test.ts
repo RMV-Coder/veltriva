@@ -907,7 +907,7 @@ describe('LifecycleScheduler: one evaluation at a time', () => {
     expect(h.tabs.reads).toBe(2);
   });
 
-  it('has the extra evaluation read the facts afresh, and the first caller wait for it', async () => {
+  it('has the extra evaluation read the facts afresh, and both callers wait for it', async () => {
     const h = build({ tabs: longHidden(1) });
     h.tabs.hold = true;
     const first = new Tracked(h.scheduler.evaluate());
@@ -920,12 +920,15 @@ describe('LifecycleScheduler: one evaluation at a time', () => {
     await flush();
     expect(h.tabs.reads).toBe(2);
     expect(h.tabs.discards.map((call) => call.tabId)).toEqual(['a', 'b']);
-    expect(second.settled).toBe(true); // it only asked for an evaluation
-    expect(first.settled).toBe(false); // the extra one is still out
+    // The second caller asked for an evaluation that starts after its request: it waits for it,
+    // like the first (found by E2E: a test hook resolved before its evaluation had run).
+    expect(second.settled).toBe(false);
+    expect(first.settled).toBe(false);
 
     pick(h.tabs.discards, 1, 'discard').settle.resolve(DISCARDED);
     await flush();
     expect(first.settled).toBe(true);
+    expect(second.settled).toBe(true);
     expect(outline(h.scheduler.log())).toEqual(['discard:a:discarded', 'discard:b:discarded']);
   });
 

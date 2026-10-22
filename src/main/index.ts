@@ -71,7 +71,7 @@ import { createTabRuntimes } from './tabs/tab-runtime';
 import { createWorkspaceProjector } from './tabs/workspace-projector';
 import { recordExternalLaunch } from './testing/external-launches';
 import { recordRuntimeTransition } from './testing/runtime-transitions';
-import { testClockAdjustment, testMemoryPressure } from './testing/test-clock';
+import { testClockAdjustment, testIsCaptured, testMemoryPressure } from './testing/test-clock';
 import { exitOnUncaughtException } from './testing/fail-fast';
 import { recordingFileActions, testDownloadsFolder } from './testing/test-files';
 import { LIFECYCLE_SCENARIO_ENV, runLifecycleScenario } from './testing/lifecycle-scenarios';
@@ -460,6 +460,7 @@ async function start(): Promise<void> {
     contentsOf: (tabId) => runtimes.views.get(tabId)?.webContents,
     hasOpenPopup: (tabId) => popupWindows.hasOpenPopupFor(tabId),
     now: () => lifecycleClock().wallNow,
+    ...(import.meta.env.MODE === 'test' ? { isCaptured: testIsCaptured } : {}),
   });
   /** The scheduler, created once the session is restored; until then nothing is automated. */
   const automation: { scheduler?: LifecycleScheduler } = {};

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Lifecycle audio</title>
+  </head>
+  <body>
+    <h1>Lifecycle audio</h1>
+    <p>
+      Plays a generated 440 Hz tone with the Web Audio API on request: no file, no network. A spec
+      mutes the tab from main (<code>setAudioMuted</code>) before it calls
+      <code>lifecycleAudio.play()</code>, and a muted tab that plays still counts as audible (spike
+      S1). It is the "audio playing" protection of M3.2 (assessment §4.10).
+    </p>
+    <script>
+      let context = null;
+      let oscillator = null;
+      window.lifecycleAudio = {
+        /** Starts the tone; resolves with the audio context's state ('running' when it plays). */
+        async play() {
+          context ??= new AudioContext();
+          await context.resume();
+          if (oscillator === null) {
+            oscillator = context.createOscillator();
+            const gain = context.createGain();
+            oscillator.frequency.value = 440;
+            gain.gain.value = 0.2;
+            oscillator.connect(gain).connect(context.destination);
+            oscillator.start();
+          }
+          return context.state;
+        },
+        /** Stops the tone; the audio context stays open and silent. */
+        stop() {
+          if (oscillator !== null) {
+            oscillator.stop();
+            oscillator.disconnect();
+            oscillator = null;
+          }
+          return true;
+        },
+        state() {
+          return {
+            context: context === null ? 'none' : context.state,
+            playing: oscillator !== null,
+          };
+        },
+      };
+    </script>
+  </body>
+</html>

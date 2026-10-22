@@ -21,6 +21,11 @@ export interface ProtectionSignalsOptions {
   /** Whether a popup window this tab opened is still open. */
   readonly hasOpenPopup: (tabId: TabId) => boolean;
   readonly now: () => number;
+  /**
+   * Whether the page is being captured: `isBeingCaptured()` by default. Test builds read their own
+   * answer, because Playwright's focus emulation makes every page report captured (found by E2E).
+   */
+  readonly isCaptured?: (contents: WebContents) => boolean;
 }
 
 export class ProtectionSignals {
@@ -47,7 +52,7 @@ export class ProtectionSignals {
       if (heard !== undefined && now - heard < AUDIO_GRACE_MS && now >= heard) {
         protections.push(protectionFor('audio'));
       }
-      if (contents.isBeingCaptured()) {
+      if (this.#options.isCaptured?.(contents) ?? contents.isBeingCaptured()) {
         protections.push(protectionFor('capture'));
       }
       if (contents.isDevToolsOpened()) {

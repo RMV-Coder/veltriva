@@ -1280,7 +1280,8 @@ export class TabManager {
   }
 
   #freshLearned(record: TabRecord): Protection[] {
-    const now = this.#now();
+    // On the lifecycle's clock, like every other time automation compares (found by E2E).
+    const now = this.#clock().wallNow;
     return [...record.learned]
       .filter(([, at]) => now - at < LEARNED_RECHECK_MS && now >= at)
       .sort(([, a], [, b]) => b - a)
@@ -1288,7 +1289,7 @@ export class TabManager {
   }
 
   #learn(record: TabRecord, reason: ProtectionReason): void {
-    record.learned.set(reason, this.#now());
+    record.learned.set(reason, this.#clock().wallNow);
   }
 
   /**

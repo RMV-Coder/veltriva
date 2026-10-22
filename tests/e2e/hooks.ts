@@ -9,12 +9,20 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type { CDPSession, ElectronApplication, Page } from '@playwright/test';
 
 import type { Rect } from '../../src/core/layout/rect';
+import type {
+  LifecycleAction,
+  LifecycleClock,
+  LifecycleSettingsInput,
+  MemoryPressure,
+} from '../../src/core/lifecycle/policy';
+import type { ActionRecord } from '../../src/main/lifecycle/scheduler';
 import type { TabId } from '../../src/main/tabs/tab-manager';
 import type {
   TabStateEntry,
   VeltrivaTestHooks,
   WebContentsRoleEntry,
 } from '../../src/main/testing/test-hooks';
+import type { TestClockAdjustment } from '../../src/main/testing/test-clock';
 import { expect } from './expect';
 import { isShellUrl } from './launch';
 
@@ -1060,4 +1068,153 @@ export async function holdClickInPage(
     },
     { id: webContentsId, px: x, py: y, modifiers: held },
   );
+}
+
+// ── M3.2: lifecycle automation ──────────────────────────────────────────────────────────────────
+
+export type { ActionRecord, LifecycleAction, LifecycleClock, MemoryPressure, TestClockAdjustment };
+export type LifecycleSettingsChange = Partial<LifecycleSettingsInput>;
+
+/**
+ * Fast-forwards the clock the policy, TabManager's activity and the protections see: wall-clock
+ * time, engaged time and active days (`advanceLifecycleClock`). Returns the total so far.
+ */
+export function advanceLifecycleClock(
+  app: ElectronApplication,
+  by: Partial<TestClockAdjustment>,
+): Promise<TestClockAdjustment> {
+  return app.evaluate((_electron, change) => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.advanceLifecycleClock(change);
+  }, by);
+}
+
+/** The lifecycle's clock now, with the fast-forward (`lifecycleClock`). */
+export function lifecycleClock(app: ElectronApplication): Promise<LifecycleClock> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.lifecycleClock();
+  });
+}
+
+/** What the policy plans now, without doing anything (`lifecyclePlan`). */
+export function lifecyclePlan(app: ElectronApplication): Promise<LifecycleAction[]> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.lifecyclePlan();
+  });
+}
+
+/**
+ * Evaluates now, whatever the timer and the quiet start, and resolves once every discard it
+ * started has settled, with the actions it logged (`lifecycleEvaluate`). If the app's own timer is
+ * evaluating at that moment, this one runs right after it and the records may include its.
+ */
+export function lifecycleEvaluate(app: ElectronApplication): Promise<ActionRecord[]> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.lifecycleEvaluate();
+  });
+}
+
+/** Every action the scheduler logged (the newest 500), oldest first (`lifecycleLog`). */
+export function lifecycleLog(app: ElectronApplication): Promise<ActionRecord[]> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.lifecycleLog();
+  });
+}
+
+/** Overrides the memory pressure the scheduler sees; null goes back to the real monitor. */
+export async function setMemoryPressure(
+  app: ElectronApplication,
+  level: MemoryPressure | null,
+): Promise<void> {
+  await app.evaluate((_electron, wanted) => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    hooks.setMemoryPressure(wanted);
+  }, level);
+}
+
+/**
+ * Replaces the given lifecycle settings, merged on the current ones (`setLifecycleSettings`). A
+ * change also asks the scheduler to evaluate a second later, unless its quiet start is not over.
+ */
+export async function setLifecycleSettings(
+  app: ElectronApplication,
+  settings: LifecycleSettingsChange,
+): Promise<void> {
+  await app.evaluate((_electron, change) => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    hooks.setLifecycleSettings(change);
+  }, settings);
+}
+
+/** What `lifecyclePlanWith` changes before it reads the plan, and what it sets right after. */
+export interface PlanProbe {
+  /** Fast-forwards the clock first. */
+  readonly clock?: Partial<TestClockAdjustment>;
+  readonly settings?: LifecycleSettingsChange;
+  readonly pressure?: MemoryPressure | null;
+  /** Set again right after the plan is read, in the same step. */
+  readonly then?: {
+    readonly settings?: LifecycleSettingsChange;
+    readonly pressure?: MemoryPressure | null;
+  };
+}
+
+/**
+ * Reads the policy's plan under other settings or pressure, or after a fast-forward, all in ONE
+ * synchronous step in main. The app's own timer and its one-second trigger run on the same thread,
+ * so they cannot evaluate in between: what is read is exactly what the policy would plan, and `then`
+ * puts the settings back before the scheduler's next evaluation looks at them.
+ */
+export function lifecyclePlanWith(
+  app: ElectronApplication,
+  probe: PlanProbe,
+): Promise<LifecycleAction[]> {
+  return app.evaluate((_electron, wanted) => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    if (wanted.clock !== undefined) {
+      hooks.advanceLifecycleClock(wanted.clock);
+    }
+    if (wanted.pressure !== undefined) {
+      hooks.setMemoryPressure(wanted.pressure);
+    }
+    if (wanted.settings !== undefined) {
+      hooks.setLifecycleSettings(wanted.settings);
+    }
+    const plan = hooks.lifecyclePlan();
+    if (wanted.then?.pressure !== undefined) {
+      hooks.setMemoryPressure(wanted.then.pressure);
+    }
+    if (wanted.then?.settings !== undefined) {
+      hooks.setLifecycleSettings(wanted.then.settings);
+    }
+    return plan;
+  }, probe);
 }

@@ -15,6 +15,8 @@ export interface TestClockAdjustment {
 }
 
 let adjustment: TestClockAdjustment = { wallMs: 0, engagedMs: 0, activeDays: 0 };
+/** Web contents a spec marked as captured (camera, microphone or screen). */
+const captured = new Set<number>();
 let pressure: MemoryPressure | null = null;
 
 export function testClockAdjustment(): TestClockAdjustment {
@@ -37,4 +39,21 @@ export function testMemoryPressure(): MemoryPressure | null {
 
 export function setTestMemoryPressure(level: MemoryPressure | null): void {
   pressure = level;
+}
+
+/**
+ * Whether a web contents counts as captured in a test build. Playwright's focus emulation
+ * (`Emulation.setFocusEmulationEnabled`, sent on every attach) makes `isBeingCaptured()` true for
+ * every page, so test builds answer from the specs' marks instead.
+ */
+export function testIsCaptured(contents: { readonly id: number }): boolean {
+  return captured.has(contents.id);
+}
+
+export function setTestCaptured(webContentsId: number, on: boolean): void {
+  if (on) {
+    captured.add(webContentsId);
+  } else {
+    captured.delete(webContentsId);
+  }
 }

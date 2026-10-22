@@ -49,6 +49,9 @@ const MARKERS = [
   'advanceTestClock',
   'testMemoryPressure',
   'setTestMemoryPressure',
+  'testIsCaptured',
+  'setTestCaptured',
+  'setCaptured',
   // src/main/testing/runtime-transitions.ts
   'recordRuntimeTransition',
   'recordedRuntimeTransitions',

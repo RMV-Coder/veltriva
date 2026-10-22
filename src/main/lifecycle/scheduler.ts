@@ -134,25 +134,35 @@ export class LifecycleScheduler {
    * Evaluates and carries out what the policy plans. Resolves when every operation it started
    * has settled. Never rejects. If one is under way, this one runs right after it.
    */
-  async evaluate(): Promise<void> {
+  evaluate(): Promise<void> {
     if (this.#stopped) {
-      return;
+      return Promise.resolve();
     }
     if (this.#running !== null) {
+      // The evaluation under way runs once more when it ends; this resolves after that, so every
+      // caller waits for an evaluation that started after its request (found by E2E).
       this.#again = true;
-      await this.#running;
-      return;
+      return this.#running;
     }
-    const running = this.#run().finally(() => {
+    const running = this.#loop().finally(() => {
       this.#running = null;
     });
     this.#running = running;
-    await running;
-    // Read again after the await: stop() may have run meanwhile.
-    if (this.#again && !this.#isStopped()) {
+    return running;
+  }
+
+  /** Evaluations back to back while one was asked for during the last. */
+  async #loop(): Promise<void> {
+    do {
       this.#again = false;
-      await this.evaluate();
-    }
+      await this.#run();
+      // Read again after the await: stop() may have run meanwhile.
+    } while (this.#againRequested() && !this.#isStopped());
+  }
+
+  // Read through methods: both change during the awaits above.
+  #againRequested(): boolean {
+    return this.#again;
   }
 
   #isStopped(): boolean {
@@ -184,6 +194,7 @@ export class LifecycleScheduler {
     const started: Promise<void>[] = [];
     let discards = 0;
     let freezes = 0;
+    // What this evaluation planned without carrying out: logged only when new (no log spam).
     const planned = new Set<string>();
     for (const action of actions) {
       if (this.#stopped) {
@@ -201,7 +212,11 @@ export class LifecycleScheduler {
       const count = isDiscard ? discards : freezes;
       const limit = isDiscard ? MAX_DISCARDS_PER_EVALUATION : MAX_FREEZES_PER_EVALUATION;
       if (count >= limit) {
-        this.#record({ ...action, at, result: { outcome: 'rate-limited' } });
+        const key = `limited:${action.kind}:${action.tabId}`;
+        planned.add(key);
+        if (!this.#plannedBefore.has(key)) {
+          this.#record({ ...action, at, result: { outcome: 'rate-limited' } });
+        }
         continue;
       }
       if (discards + freezes > 0) {
