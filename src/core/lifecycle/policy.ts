@@ -12,8 +12,10 @@
 //      first, a few per evaluation. Critical pressure overrides soft protections only. Pressure
 //      never shelves or archives: what the user sees never changes for resource reasons.
 //   5. freeze-hidden (experiment, off): a live tab hidden for 10 min or more.
-// The selected tab, a tab that isn't showing a web page, a loading tab and a tab with a lifecycle
-// operation under way are never planned. A recent interaction is a soft protection (§4.10).
+// The selected tab is never planned, nor a tab with a lifecycle operation under way. A discard or
+// a freeze also needs a web page that isn't loading. A shelve moves the tab only, so a page that
+// loads or isn't a web page may go to Sleeping; an archive waits for a load to end (§4.10).
+// A recent interaction is a soft protection (§4.10).
 
 import { blockingProtection, protectionFor } from './protections';
 import type { LifecycleActionKind, Protection } from './protections';
@@ -304,7 +306,8 @@ export function planLifecycle(input: PlanInput): LifecycleAction[] {
         clock.engagedNow - tab.lastUsedEngaged >= settings.shelveAfterEngagedMs &&
         !blocked(tab, 'shelve'),
     )
-    .reverse()
+    // Least recently used first; ties by id, as in every rule.
+    .sort((a, b) => a.lastUsedAt - b.lastUsedAt || a.id.localeCompare(b.id))
     .forEach((tab) => {
       add(tab, 'shelve', 'shelve-beyond-cap');
     });

@@ -40,6 +40,15 @@ export function initialEngagement(dayKey: string): EngagementState {
 
 const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
 
+/** A `YYYY-MM-DD` that names a real day: not 2026-13-45 or 2026-02-30. */
+function isCalendarDay(dayKey: string): boolean {
+  if (!DAY_KEY.test(dayKey)) {
+    return false;
+  }
+  const date = new Date(`${dayKey}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === dayKey;
+}
+
 /** The local calendar day of a wall-clock time, given the zone's `getTimezoneOffset()` minutes. */
 export function dayKeyOf(wallMs: number, timezoneOffsetMinutes: number): string {
   return new Date(wallMs - timezoneOffsetMinutes * 60_000).toISOString().slice(0, 10);
@@ -94,7 +103,7 @@ export function parseEngagement(raw: unknown): EngagementState | null {
     !Number.isInteger(activeDay) ||
     activeDay < 1 ||
     typeof dayKey !== 'string' ||
-    !DAY_KEY.test(dayKey)
+    !isCalendarDay(dayKey)
   ) {
     return null;
   }

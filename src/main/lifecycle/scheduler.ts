@@ -206,6 +206,10 @@ export class LifecycleScheduler {
       }
       if (discards + freezes > 0) {
         await this.#wait(STAGGER_MS);
+        // stop() may have run during the wait: nothing new starts after it (found by tests).
+        if (this.#isStopped()) {
+          break;
+        }
       }
       if (this.#options.settings().paused) {
         this.#record({ ...action, at, result: { outcome: 'paused' } });
@@ -246,7 +250,12 @@ export class LifecycleScheduler {
     if (this.#log.length > LOG_SIZE) {
       this.#log.shift();
     }
-    this.#options.onAction?.(record);
+    try {
+      this.#options.onAction?.(record);
+    } catch {
+      // A listener's bug must not make an evaluation reject (found by tests).
+      this.#options.logger.error('lifecycle.onActionFailed');
+    }
   }
 
   #wait(ms: number): Promise<void> {
