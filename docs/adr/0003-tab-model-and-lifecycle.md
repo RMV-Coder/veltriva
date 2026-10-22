@@ -203,7 +203,8 @@ Wall-clock timers would also archive a user's workspace after a weekend away.
       - It has one 60 s timer, plus triggers (a tab switch, a pressure change, a resume, the settings) that share one evaluation 1 s later.
       - Nothing runs in the first 2 minutes.
       - It starts at most 3 discards and 3 freezes per evaluation, 1 s apart, through TabManager's queues. Each request carries the action's epoch, so a stale one is refused (I5).
-      - One evaluation runs at a time. Every action is logged with its rule and result.
+      - One evaluation runs at a time. A request made during one makes it run once more, and the caller waits for that re-run.
+      - Every action is logged with its rule and result. An action planned but not carried out (`planned`, `rate-limited`) is logged only when it is new since the previous evaluation, so the log isn't flooded.
       - **Shelving and archiving are planned and logged, not carried out, until M3.3**, which adds the Sleeping and Archive sections. Otherwise tabs would vanish from the strip with nowhere to see them.
     - **Protections automation respects from M3.2** (`src/main/lifecycle/protection-signals.ts`):
       - audio, and for 2 minutes after (`audio-state-changed`, `isCurrentlyAudible()`; muted playback counts);
@@ -212,6 +213,9 @@ Wall-clock timers would also archive a user's workspace after a weekend away.
       - an open popup window (PopupWindows now remembers each popup's opener tab).
 
       Together with what discards learn, these keep automation from obvious harm before M3.4's monitor completes the table.
+      - What a discard learned ages on the lifecycle clock, like everything automation compares.
+      - **Capture is only `isBeingCaptured()` so far**: a page capturing the camera or the microphone with `getUserMedia` isn't seen yet. §4.10's "permission granted to the page" half comes with M3.4. Until then a call in a hidden tab is kept by its audio.
+      - **The recent-interaction guard rarely bites with the shipped presets.** Only the shown tab takes input, and a tab's hidden time starts when it is left, so a tab hidden for 60 minutes was last touched at least 60 minutes ago. It matters for pressure discards under Gentle (a 30-minute guard against a 15-minute minimum) and for overrides with short times. It stays, as §4.10's safety net.
     - **Memory pressure** (`src/main/lifecycle/memory-pressure.ts`) polls `process.getSystemMemoryInfo()` every 10 s, and goes critical for 2 minutes when a renderer dies with `oom` or `memory-eviction` (`app`'s `render-process-gone`).
       - **Measured** on the reference laptop (i3-1215U, 7.9 GB, Windows 11) over 10 minutes while tests ran: Electron's `free` equalled Node's `os.freemem()` in every sample, and tracked the "Available MBytes" counter (`typeperf`), so on Windows it is *available* memory. `swapTotal` and `swapFree` are the commit limit and the commit left.
         - Available ran from 97 to 955 MB (median 632, 8%).
