@@ -701,11 +701,22 @@ export class TabManager {
       if (this.#records.get(tabId) !== record) {
         return;
       }
+      // An operation queued before this one may have unloaded the page: then nothing can object.
+      const current = record.runtime;
+      if (
+        current === undefined ||
+        (record.state.runtime !== 'live' && record.state.runtime !== 'frozen')
+      ) {
+        record.userClosing = false;
+        this.#closeRecord(record, options, null);
+        options.onClosed?.();
+        return;
+      }
       if (record.state.runtime === 'frozen') {
         this.#thaw(record);
       }
       const closed = await withDeadline(
-        Promise.resolve().then(() => runtime.closeForDiscard('beforeunload')),
+        Promise.resolve().then(() => current.closeForDiscard('beforeunload')),
         CLOSE_TIMEOUT_MS,
         this.#timers,
       );
@@ -719,8 +730,11 @@ export class TabManager {
         return;
       }
       // The page objects, or is stuck in its handler: the user decides. The close detached its
-      // view; it is shown again with the tab selected.
-      if (this.#selected === tabId) {
+      // view; it is shown again with the tab selected, back in the strip if it was Sleeping, so
+      // the question is asked where the user can see it (found by tests).
+      if (record.state.placement === 'shelf') {
+        this.restoreToStrip(tabId, { select: true });
+      } else if (this.#selected === tabId) {
         this.#syncVisibility();
       } else {
         this.#setSelected(tabId, true);
@@ -1022,6 +1036,9 @@ export class TabManager {
   /** Moves a tab within its section: pinned tabs stay before the others. */
   move(tabId: TabId, toIndex: number): void {
     const record = this.#record(tabId);
+    if (record.state.placement !== 'strip') {
+      return; // Only strip tabs have a strip position (found by tests: it cut the strip).
+    }
     const from = this.#order.indexOf(tabId);
     this.#order.splice(from, 1);
     const pinnedCount = this.#pinnedCount();
@@ -1427,8 +1444,9 @@ export class TabManager {
   }
 
   /**
-   * Puts back what an automated batch moved (§4.13: every move has an Undo), newest first. A tab
-   * that moved again since, or closed, is left as it is. Returns how many came back.
+   * Puts back what a batch moved (§4.13: every move has an Undo), newest first. A tab that moved
+   * again since, or closed, is left as it is. Returns the moves it undid. An undo says the user
+   * wants these tabs: it counts as using them, so automation doesn't move them straight back.
    */
   undoMoves(moves: readonly PlacementMove[]): PlacementMove[] {
     const undone: PlacementMove[] = [];
@@ -1440,6 +1458,7 @@ export class TabManager {
           index: move.index,
         });
         if (id !== null) {
+          this.#stampUse(this.#record(id));
           undone.push({ ...move, tabId: id });
         }
         continue;
@@ -1447,8 +1466,12 @@ export class TabManager {
       const record = this.#records.get(move.tabId);
       if (record?.state.placement === 'shelf') {
         this.restoreToStrip(move.tabId, { select: false, index: move.index });
+        this.#stampUse(record);
         undone.push(move);
       }
+    }
+    if (undone.length > 0) {
+      this.#changed();
     }
     return undone.reverse();
   }
@@ -1607,6 +1630,7 @@ export class TabManager {
       return skippedMove('loading');
     }
     // The user's own archive of the tab in use: the one next to it is selected first.
+    const wasSelected = this.#selected === tabId;
     this.#leaveSelection(record);
     // I3: no web contents in the Archive. A live page is discarded first; a dead one let go.
     if (record.runtime !== undefined) {
@@ -1615,6 +1639,10 @@ export class TabManager {
           origin: request.origin === 'user' ? 'user' : 'automation',
         });
         if (discarded.outcome !== 'discarded') {
+          // The page stays (it objected, or holds unsaved input): so does the user's view of it.
+          if (wasSelected && this.#records.get(tabId) === record && this.#selected !== tabId) {
+            this.select(tabId, { focus: false });
+          }
           return discarded;
         }
       } else if (record.state.runtime === 'crashed') {
@@ -1807,9 +1835,11 @@ export class TabManager {
     request: DiscardRequest,
     useLearned: boolean,
   ): DiscardOutcome | null {
+    // The user's protection keeps automation away, not the user (found by tests).
+    const userProtected = record.state.userProtected && request.origin !== 'user';
     const protections: Protection[] = [
       ...(this.#options.protections?.(record.state.id) ?? []),
-      ...(record.state.userProtected ? [protectionFor('user-protected')] : []),
+      ...(userProtected ? [protectionFor('user-protected')] : []),
     ];
     if (useLearned) {
       protections.push(...this.#freshLearned(record));

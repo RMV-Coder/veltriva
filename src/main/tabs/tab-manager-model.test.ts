@@ -1,7 +1,11 @@
-// Model-based tests of TabManager's lifecycle (ADR-0008 item 2, assessment §4.5, §9.2): random
-// sequences of user actions, discards, freezes, crashes and outside closes run against fake
-// runtimes whose answers (probes, closes, restores, loads, timers) fast-check's scheduler releases
-// in random order. Invariants I1–I8 are checked after every command and every released task.
+// Model-based tests of TabManager's lifecycle and placement (ADR-0008 item 2, assessment §4.4,
+// §4.5, §9.2): random sequences of user actions, discards, freezes, crashes, outside closes and,
+// since M3.3, shelving, archiving, restoring, Undo, protecting and "Leave page?" closes run against
+// fake runtimes whose answers (probes, closes, restores, loads, timers) fast-check's scheduler
+// releases in random order. Invariants I1–I8 are checked after every command and every released
+// task: each tab is in exactly one placement (the strip, Sleeping, or the Archive in memory), the
+// selected tab is in the strip, the strip is never empty, an archived tab holds no web contents
+// (I3), and a pinned tab is in the strip (I8).
 //
 // The fakes follow the Electron runtime's contract (./tab-runtime.ts): a discard's close settles
 // as `closed` and reports `gone`; `destroy()` settles pending closes without `gone`; `restore()`
@@ -10,14 +14,15 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
 import type { DiscardOutcome, DiscardRequest, Timers } from '../../core/lifecycle/discard';
+import type { MoveOutcome, MoveRequest, PlacementMove } from '../../core/lifecycle/placement';
 import { planLifecycle, PRESETS, resolveLifecycleSettings } from '../../core/lifecycle/policy';
 import type { MemoryPressure } from '../../core/lifecycle/policy';
 import type { CloseMode } from '../../core/lifecycle/probe';
 import { blockingProtection, protectionFor } from '../../core/lifecycle/protections';
-import type { Protection } from '../../core/lifecycle/protections';
+import type { Protection, ProtectionReason } from '../../core/lifecycle/protections';
 import type { NavigationSnapshot } from '../../core/lifecycle/snapshot';
 import type { TabHistory } from '../../core/session/history';
-import { TabManager } from './tab-manager';
+import { MAX_ARCHIVED_IN_MEMORY, TabManager } from './tab-manager';
 import type {
   CloseResult,
   RuntimeTransition,
@@ -39,6 +44,9 @@ interface PageProfile {
 const CLEAN: PageProfile = { probe: 'clean', activated: false, unload: 'closes' };
 
 type RestoreOutcome = 'commits' | 'fails-load' | 'creation-fails';
+
+/** How the user answers "Leave page?" (generated per close): leave, stay, a failing dialog, or never. */
+type LeaveAnswer = 'leave' | 'stay' | 'fail' | 'never';
 
 const URLS = [
   'https://a.example/',
@@ -70,6 +78,14 @@ interface World {
   readonly remembered: Set<TabId>;
   readonly failures: string[];
   steps: number;
+  /** What the user will answer when a tab's page objects to a user close (set per close). */
+  readonly leaveAnswers: Map<TabId, LeaveAnswer>;
+  /** Tabs a user close was requested for: the next ordinary-state `closeForDiscard` is theirs. */
+  readonly userCloses: Set<TabId>;
+  /** "Leave page?" questions asked. */
+  questions: number;
+  /** Tabs archived and not brought back, as the model counts them (`archivedCount()` must agree). */
+  archiveBalance: number;
 }
 
 let runtimeSerial = 0;
@@ -236,7 +252,9 @@ class FakeRuntime implements TabRuntime {
   }
   closeForDiscard(mode: CloseMode): Promise<CloseResult> {
     this.#assertAlive('closeForDiscard');
-    this.#checkI5();
+    if (!this.#isUserClose(mode)) {
+      this.#checkI5();
+    }
     const profile = this.world.profiles.get(this.tabId) ?? CLEAN;
     return new Promise<CloseResult>((resolve) => {
       this.#closeWaiters.add(resolve);
@@ -295,6 +313,36 @@ class FakeRuntime implements TabRuntime {
     if (this.alive) {
       this.events.crashed({ code: 1, name: 'crashed' });
     }
+  }
+
+  /** The user touches the page: Chromium's user activation, as main sees it. */
+  activate(): void {
+    if (this.alive) {
+      this.events.activated?.();
+    }
+  }
+
+  /**
+   * Whether this close is requestClose's question to the page (a user close, §4.9 Close) rather
+   * than a discard's: the tab is live (a frozen one is thawed first), not discarding.
+   */
+  #isUserClose(mode: CloseMode): boolean {
+    const manager = this.world.manager;
+    if (!this.world.userCloses.has(this.tabId) || !manager?.has(this.tabId)) {
+      return false;
+    }
+    const state = manager.get(this.tabId);
+    if (state.runtime === 'discarding') {
+      return false; // A discard's own close.
+    }
+    this.world.userCloses.delete(this.tabId);
+    if (mode !== 'beforeunload') {
+      this.world.failures.push(`a user close of ${this.tabId} without beforeunload`);
+    }
+    if (state.runtime !== 'live' || state.page.kind !== 'web') {
+      this.world.failures.push(`a user close of ${this.tabId} while ${state.runtime}`);
+    }
+    return true;
   }
 
   /** I5: automation acts only on an unselected, unprotected tab whose epoch is its own. */
@@ -371,36 +419,61 @@ function checkInvariants(world: World, final = false): void {
   const fail = (message: string): void => {
     world.failures.push(message);
   };
-  const tabs = manager.tabs();
+  const strip = manager.tabs();
+  const sleeping = manager.sleepingTabs();
+  const archived = manager.archivedTabs();
+  // `tabs` is every tab that is still a live record (strip and Sleeping), as I3 to I7 see them.
+  const tabs = [...strip, ...sleeping];
   const ids = new Set(tabs.map((tab) => tab.id));
+  const stripIds = new Set(strip.map((tab) => tab.id));
+  // I1: every tab is in exactly one placement. A live record is in the strip or in Sleeping, never
+  // both and never twice; an archived tab is data, not a record.
   if (ids.size !== tabs.length) {
-    fail('duplicate tab ids');
+    fail('I1: duplicate tab ids, or a tab in both the strip and Sleeping');
   }
-  const firstUnpinned = tabs.findIndex((tab) => !tab.pinned);
-  if (firstUnpinned !== -1 && tabs.slice(firstUnpinned).some((tab) => tab.pinned)) {
-    fail('a pinned tab after an unpinned one');
-  }
-  // I1
-  const selected = manager.selectedTabId();
-  if (tabs.length > 0 && (selected === null || !ids.has(selected))) {
-    fail(`I1: ${String(selected)} is not one of the tabs`);
-  }
-  if (tabs.length === 0 && selected !== null) {
-    fail('I1: a selection with no tabs');
-  }
-  for (const tab of tabs) {
-    // Placement is always the strip until M3.3; read as a string, so the checks stay real.
-    const placement: string = tab.placement;
-    if (tab.id === selected && placement !== 'strip') {
-      fail(`I1: the selected tab ${tab.id} is not in the strip`);
+  for (const tab of archived) {
+    if (ids.has(tab.id) || manager.has(tab.id)) {
+      fail(`I1: archived ${tab.id} is also a live record`);
     }
     // I8
-    if (tab.pinned && placement !== 'strip') {
-      fail(`I8: pinned ${tab.id} outside the strip`);
+    if (tab.pinned) {
+      fail(`I8: archived ${tab.id} is pinned`);
+    }
+  }
+  if (new Set(archived.map((tab) => tab.id)).size !== archived.length) {
+    fail('I1: a tab is archived twice');
+  }
+  if (archived.length > MAX_ARCHIVED_IN_MEMORY || manager.archivedCount() < archived.length) {
+    fail('the Archive in memory is over its limit, or the count is below it');
+  }
+  const firstUnpinned = strip.findIndex((tab) => !tab.pinned);
+  if (firstUnpinned !== -1 && strip.slice(firstUnpinned).some((tab) => tab.pinned)) {
+    fail('a pinned tab after an unpinned one');
+  }
+  const selected = manager.selectedTabId();
+  // The strip is never empty, and the selected tab is in it.
+  if (strip.length === 0) {
+    fail('I1: the strip is empty');
+  }
+  if (selected === null || !stripIds.has(selected)) {
+    fail(`I1: ${String(selected)} is not one of the strip's tabs`);
+  }
+  for (const tab of strip) {
+    if (tab.placement !== 'strip') {
+      fail(`I1: ${tab.id} is in the strip with placement ${tab.placement}`);
+    }
+  }
+  for (const tab of sleeping) {
+    if (tab.placement !== 'shelf') {
+      fail(`I1: ${tab.id} is Sleeping with placement ${tab.placement}`);
+    }
+    // I8: a pinned tab is in the strip.
+    if (tab.pinned) {
+      fail(`I8: pinned ${tab.id} is Sleeping`);
     }
   }
   // I2
-  if (selected !== null && ids.has(selected)) {
+  if (selected !== null && stripIds.has(selected)) {
     const tab = manager.get(selected);
     const facts = manager.lifecycleFacts(selected);
     const unloadedOk =
@@ -414,8 +487,11 @@ function checkInvariants(world: World, final = false): void {
   for (const runtime of world.alive) {
     alive.set(runtime.tabId, [...(alive.get(runtime.tabId) ?? []), runtime]);
   }
+  const archivedIds = new Set(archived.map((tab) => tab.id));
   for (const [tabId, runtimes] of alive) {
-    if (!ids.has(tabId)) {
+    if (archivedIds.has(tabId)) {
+      fail(`I3: archived ${tabId} holds a web contents`);
+    } else if (!ids.has(tabId)) {
       fail(`I3/I4: a zombie runtime for ${tabId}, which is closed`);
     }
     if (runtimes.length > 1) {
@@ -449,9 +525,19 @@ function checkInvariants(world: World, final = false): void {
   if (world.steps % 25 !== 0 && !final) {
     return;
   }
-  for (const tab of manager.sessionTabs()) {
+  for (const tab of [...manager.sessionTabs(), ...manager.shelfSessionTabs()]) {
     if (world.ephemeral.has(tab.id)) {
       fail(`I6: ephemeral ${tab.id} reached the session`);
+    }
+  }
+  for (const tab of archived) {
+    if (world.ephemeral.has(tab.id)) {
+      fail(`I6: ephemeral ${tab.id} reached the Archive`);
+    }
+  }
+  for (const tabId of [...world.userCloses]) {
+    if (!manager.has(tabId)) {
+      world.userCloses.delete(tabId); // That close needed no question to the page.
     }
   }
   for (const tab of manager.closedTabs()) {
@@ -474,6 +560,16 @@ interface Model {
     outcome: DiscardOutcome | null;
     rejected: boolean;
   }[];
+  /** The archives issued (by a command or by the policy), and how they ended. */
+  readonly archives: {
+    readonly tabId: TabId;
+    outcome: MoveOutcome | null;
+    rejected: boolean;
+  }[];
+  /** Moves that happened, oldest first: what an Undo takes the latest of. */
+  readonly moves: PlacementMove[];
+  /** Every user close requested: how often `onClosed` ran (at most once, and the tab is gone). */
+  readonly closes: { readonly tabId: TabId; closedCalls: number }[];
 }
 
 interface Real {
@@ -498,6 +594,10 @@ function setupModel(scheduler: fc.Scheduler): { model: Model; real: Real } {
     remembered: new Set(),
     failures: [],
     steps: 0,
+    leaveAnswers: new Map(),
+    userCloses: new Set(),
+    questions: 0,
+    archiveBalance: 0,
   };
   const remember = (tabId: TabId): void => {
     world.remembered.add(tabId);
@@ -534,20 +634,265 @@ function setupModel(scheduler: fc.Scheduler): { model: Model; real: Real } {
         world.discardStartEpoch.set(transition.tabId, transition.epoch);
       }
     },
+    // "Leave page?": the user answers as the close command generated, when the scheduler lets
+    // the dialog be answered. A dialog is only ever shown for the tab the user is looking at.
+    confirmLeave: (tabId) => {
+      world.questions += 1;
+      const shown = world.manager;
+      if (shown?.selectedTabId() !== tabId || shown.get(tabId).placement !== 'strip') {
+        world.failures.push(`"Leave page?" for ${tabId}, which the user is not looking at`);
+      }
+      const answer = world.leaveAnswers.get(tabId) ?? 'stay';
+      if (answer === 'never') {
+        return new Promise<boolean>(() => undefined);
+      }
+      return scheduler.schedule(Promise.resolve(answer), `leave? ${tabId}`).then((chosen) => {
+        if (chosen === 'fail') {
+          throw new Error('the dialog failed');
+        }
+        return chosen === 'leave';
+      });
+    },
   });
   world.manager = manager;
   activeWorld = world;
   manager.create();
-  return { model: { discards: [] }, real: { world, manager } };
+  return { model: { discards: [], archives: [], moves: [], closes: [] }, real: { world, manager } };
 }
 
-/** Opening stops here, so long runs keep a strip of realistic size and checks stay cheap. */
+/**
+ * Opening stops here, so long runs keep a workspace of realistic size and checks stay cheap. It
+ * counts the strip and Sleeping together: shelving must not make room for endless new tabs.
+ */
 const MAX_TABS = 40;
 
-/** The tab at `index` (modulo the strip), or undefined for an empty strip. */
+/** How many tabs are open: the strip and Sleeping. */
+const openTabs = (manager: TabManager): number =>
+  manager.tabs().length + manager.sleepingTabs().length;
+
+/**
+ * The tab at `index` (modulo the count) among every live record: the strip first, then Sleeping.
+ * A Sleeping tab may be live, so every command that works on a page can reach it.
+ */
 function tabAt(manager: TabManager, index: number): TabId | undefined {
+  const tabs = [...manager.tabs(), ...manager.sleepingTabs()];
+  return tabs.length === 0 ? undefined : tabs[index % tabs.length]?.id;
+}
+
+/** The tab at `index` (modulo the strip), or undefined for an empty strip. */
+function stripTabAt(manager: TabManager, index: number): TabId | undefined {
   const tabs = manager.tabs();
   return tabs.length === 0 ? undefined : tabs[index % tabs.length]?.id;
+}
+
+/** Everything that protects a tab right now, as TabManager sees it. */
+function protectionsOf(world: World, manager: TabManager, tabId: TabId): Protection[] {
+  return [
+    ...(world.protections.get(tabId) ?? []),
+    ...(manager.get(tabId).userProtected ? [protectionFor('user-protected')] : []),
+    ...manager.lifecycleFacts(tabId).learned.map((reason) => protectionFor(reason)),
+  ];
+}
+
+/** How the moves of every sequence ended, so the coverage test can show they reached each path. */
+const placementOutcomes = new Map<string, number>();
+
+function countPlacement(
+  kind: 'shelve' | 'archive',
+  request: MoveRequest,
+  outcome: MoveOutcome,
+): void {
+  const how =
+    outcome.outcome === 'moved'
+      ? 'moved'
+      : outcome.outcome === 'skipped'
+        ? `skipped:${outcome.why}`
+        : `blocked:${outcome.reason}`;
+  const key = `${kind}:${request.origin}:${how}`;
+  placementOutcomes.set(key, (placementOutcomes.get(key) ?? 0) + 1);
+}
+
+/** A move request as the scheduler would make it (an epoch, fresh or stale) or the user would. */
+function moveRequest(
+  manager: TabManager,
+  tabId: TabId,
+  origin: MoveRequest['origin'],
+  epoch: 'fresh' | 'stale' | 'none',
+): MoveRequest {
+  if (origin === 'user' || epoch === 'none') {
+    return { origin };
+  }
+  const current = manager.lifecycleFacts(tabId).epoch;
+  return { origin, epoch: epoch === 'fresh' ? current : current - 1 };
+}
+
+/**
+ * Shelves a tab and checks the answer against what the model saw just before: where it was, who
+ * asked, and what could stop automation (I5). A refusal changes nothing; the user's own request
+ * for an unpinned strip tab always goes through.
+ */
+function shelveChecked(real: Real, model: Model, tabId: TabId, request: MoveRequest): void {
+  const { manager, world } = real;
+  const fail = (message: string): void => {
+    world.failures.push(`shelve(${tabId}, ${request.origin}): ${message}`);
+  };
+  const before = manager.get(tabId);
+  const selectedBefore = manager.selectedTabId();
+  const stripIndex = manager.tabs().findIndex((tab) => tab.id === tabId);
+  const epochBefore = manager.lifecycleFacts(tabId).epoch;
+  const protections = protectionsOf(world, manager, tabId);
+  const outcome = manager.shelve(tabId, request);
+  countPlacement('shelve', request, outcome);
+  const now = manager.get(tabId);
+  if (outcome.outcome !== 'moved') {
+    if (now.placement !== before.placement) {
+      fail('a refused tab changed placement');
+    }
+    if (outcome.outcome === 'skipped') {
+      if (outcome.why === 'pinned' && !before.pinned) {
+        fail('refused as pinned, but it is not');
+      }
+      if (outcome.why === 'wrong-placement' && before.placement !== 'shelf') {
+        fail('refused as already Sleeping, but it is in the strip');
+      }
+      if (outcome.why === 'closed') {
+        fail('refused as closed, but it is there');
+      }
+    } else if (request.origin !== 'automation') {
+      fail('the user was blocked by a protection');
+    } else if (!protections.some((protection) => protection.reason === outcome.reason)) {
+      fail(`blocked by ${outcome.reason}, which does not protect it`);
+    }
+    if (request.origin === 'user' && before.placement === 'strip' && !before.pinned) {
+      fail(`the user's request for a strip tab was refused: ${JSON.stringify(outcome)}`);
+    }
+    return;
+  }
+  const { move } = outcome;
+  model.moves.push(move);
+  if (before.placement !== 'strip' || before.pinned) {
+    fail('moved a tab that is Sleeping or pinned (I8)');
+  }
+  if (move.tabId !== tabId || move.from !== 'strip' || move.to !== 'shelf') {
+    fail(`the move says ${JSON.stringify(move)}`);
+  }
+  if (move.index !== stripIndex) {
+    fail(`it was at strip index ${String(stripIndex)}, the move says ${String(move.index)}`);
+  }
+  if (now.placement !== 'shelf' || manager.sleepingTabs()[0]?.id !== tabId) {
+    fail('it is not first in Sleeping');
+  }
+  if (request.origin === 'automation') {
+    if (selectedBefore === tabId) {
+      fail('I5: shelved the selected tab');
+    }
+    if (request.epoch !== undefined && request.epoch !== epochBefore) {
+      fail(
+        `I5: shelved on a decision from epoch ${String(request.epoch)}, not ${String(epochBefore)}`,
+      );
+    }
+    const blocking = blockingProtection(protections, 'shelve');
+    if (blocking !== null) {
+      fail(`I5: shelved despite ${blocking.reason}`);
+    }
+  }
+}
+
+/**
+ * Starts archiving a tab; the answer arrives when its discard and queue allow. The model records
+ * the move and checks the tab's entry in the Archive when it does.
+ */
+function archiveIssued(real: Real, model: Model, tabId: TabId, request: MoveRequest): void {
+  const { manager, world } = real;
+  const fail = (message: string): void => {
+    world.failures.push(`archive(${tabId}, ${request.origin}): ${message}`);
+  };
+  const ephemeral = manager.get(tabId).ephemeral;
+  const entry: Model['archives'][number] = { tabId, outcome: null, rejected: false };
+  model.archives.push(entry);
+  manager.archive(tabId, request).then(
+    (outcome) => {
+      entry.outcome = outcome;
+      countPlacement('archive', request, outcome);
+      if (outcome.outcome !== 'moved') {
+        // I6: an ephemeral tab is refused before anything else (unless it closed first).
+        if (
+          ephemeral &&
+          !(outcome.outcome === 'skipped' && ['wrong-placement', 'closed'].includes(outcome.why))
+        ) {
+          fail(`an ephemeral tab was not refused as such: ${JSON.stringify(outcome)}`);
+        }
+        return;
+      }
+      const { move } = outcome;
+      model.moves.push(move);
+      world.archiveBalance += 1;
+      if (ephemeral) {
+        fail('I6: archived an ephemeral tab');
+      }
+      if (
+        move.tabId !== tabId ||
+        move.to !== 'archive' ||
+        !['strip', 'shelf'].includes(move.from)
+      ) {
+        fail(`the move says ${JSON.stringify(move)}`);
+      }
+      if (manager.has(tabId)) {
+        fail('it is archived but still a record');
+      }
+      const archived = manager.archivedTabs().find((tab) => tab.id === tabId);
+      if (archived === undefined) {
+        fail('it is not in the Archive');
+      } else {
+        if (archived.reason !== (request.origin === 'user' ? 'manual' : 'auto')) {
+          fail(`archived as ${archived.reason}`);
+        }
+        if (archived.pinned) {
+          fail('I8: archived pinned');
+        }
+      }
+    },
+    () => {
+      entry.rejected = true;
+    },
+  );
+}
+
+/**
+ * A user close (`requestClose`) with the answer the user will give if the page objects. The
+ * tab's `onClosed` runs once, after the tab is gone; if it is gone before this call returns, it
+ * already ran.
+ */
+function requestCloseIssued(
+  real: Real,
+  model: Model,
+  tabId: TabId,
+  answer: LeaveAnswer,
+  focus: boolean,
+): void {
+  const { manager, world } = real;
+  const fail = (message: string): void => {
+    world.failures.push(`requestClose(${tabId}): ${message}`);
+  };
+  world.leaveAnswers.set(tabId, answer);
+  world.userCloses.add(tabId);
+  const entry = { tabId, closedCalls: 0 };
+  model.closes.push(entry);
+  manager.requestClose(tabId, {
+    focus,
+    onClosed: () => {
+      entry.closedCalls += 1;
+      if (manager.has(tabId)) {
+        fail('onClosed ran, but the tab is still open');
+      }
+      if (entry.closedCalls > 1) {
+        fail('onClosed ran twice');
+      }
+    },
+  });
+  if (!manager.has(tabId) && entry.closedCalls !== 1) {
+    fail(`the tab closed at once, and onClosed ran ${String(entry.closedCalls)} times`);
+  }
 }
 
 type Command = fc.AsyncCommand<Model, Real>;
@@ -617,7 +962,7 @@ const pageOpener: fc.Arbitrary<Command> = fc
   .record({ url: fc.nat({ max: URLS.length - 1 }), select: fc.boolean() })
   .map(({ url, select }) =>
     command('openPage', `${URLS[url] ?? ''}, ${String(select)}`, ({ manager }) => {
-      if (manager.tabs().length >= MAX_TABS) {
+      if (openTabs(manager) >= MAX_TABS) {
         return;
       }
       const id = manager.create({ select });
@@ -632,7 +977,7 @@ const sweeper: fc.Arbitrary<Command> = fc
   })
   .map(({ origin, overrideSoft }) =>
     command('discardBackground', `${origin}, ${String(overrideSoft)}`, ({ manager }, model) => {
-      for (const tab of manager.tabs()) {
+      for (const tab of [...manager.tabs(), ...manager.sleepingTabs()]) {
         if (tab.runtime === 'live' && tab.id !== manager.selectedTabId()) {
           issueDiscard(manager, model, tab.id, { origin, overrideSoft }, 'fresh');
         }
@@ -647,6 +992,8 @@ const sweeper: fc.Arbitrary<Command> = fc
  */
 /** Discards the policy planned across the sequences, by rule: the coverage test checks both. */
 const policyDiscards = new Map<string, number>();
+/** Shelves and archives the policy planned, by `kind:rule`. */
+const policyMoves = new Map<string, number>();
 
 const evaluation: fc.Arbitrary<Command> = fc
   .record({
@@ -654,7 +1001,8 @@ const evaluation: fc.Arbitrary<Command> = fc
     pressure: fc.constantFrom<MemoryPressure>('none', 'none', 'moderate', 'critical'),
   })
   .map(({ preset, pressure }) =>
-    command('evaluate', `${preset}, ${pressure}`, ({ manager, world }, model) => {
+    command('evaluate', `${preset}, ${pressure}`, (real, model) => {
+      const { manager, world } = real;
       const actions = planLifecycle({
         tabs: manager.lifecycleTabs(),
         settings: resolveLifecycleSettings({
@@ -672,6 +1020,21 @@ const evaluation: fc.Arbitrary<Command> = fc
         pressure,
       });
       for (const action of actions) {
+        if (action.kind === 'shelve' || action.kind === 'archive') {
+          // Carried out as the scheduler does (M3.3): automation, with the epoch it saw.
+          const planned = `${action.kind}:${action.rule}`;
+          policyMoves.set(planned, (policyMoves.get(planned) ?? 0) + 1);
+          if (action.tabId === manager.selectedTabId()) {
+            world.failures.push(`I5: the policy planned the selected tab ${action.tabId}`);
+          }
+          const request: MoveRequest = { origin: 'automation', epoch: action.epoch };
+          if (action.kind === 'shelve') {
+            shelveChecked(real, model, action.tabId, request);
+          } else {
+            archiveIssued(real, model, action.tabId, request);
+          }
+          continue;
+        }
         if (action.kind !== 'discard') {
           continue;
         }
@@ -710,7 +1073,18 @@ const evaluation: fc.Arbitrary<Command> = fc
 const race: fc.Arbitrary<Command> = fc
   .record({
     at: index,
-    then: fc.constantFrom('select', 'reload', 'navigate', 'close', 'newTabPage'),
+    then: fc.constantFrom(
+      'select',
+      'select',
+      'select',
+      'reload',
+      'navigate',
+      'close',
+      'newTabPage',
+      'shelve',
+      'archive',
+      'requestClose',
+    ),
     /** How many scheduler hops the user's action waits: later hops land after the probe. */
     hops: fc.integer({ min: 1, max: 4 }),
   })
@@ -718,9 +1092,9 @@ const race: fc.Arbitrary<Command> = fc
     command('discardThen', `${String(at)}, ${then}, ${String(hops)}`, (real, model) => {
       const { manager, world } = real;
       // A live background tab, if there is one: the only kind a discard acts on.
-      const candidates = manager
-        .tabs()
-        .filter((tab) => tab.runtime === 'live' && tab.id !== manager.selectedTabId());
+      const candidates = [...manager.tabs(), ...manager.sleepingTabs()].filter(
+        (tab) => tab.runtime === 'live' && tab.id !== manager.selectedTabId(),
+      );
       const tabId =
         candidates.length === 0 ? tabAt(manager, at) : candidates[at % candidates.length]?.id;
       if (tabId === undefined) {
@@ -748,6 +1122,17 @@ const race: fc.Arbitrary<Command> = fc
           case 'close':
             manager.close(tabId);
             break;
+          case 'shelve':
+            shelveChecked(real, model, tabId, { origin: 'user' });
+            break;
+          case 'archive':
+            archiveIssued(real, model, tabId, { origin: 'user' });
+            break;
+          case 'requestClose':
+            // Strip or Sleeping: a Sleeping tab whose page objects comes back to the strip to ask
+            // (these sequences found it once asked out of sight, breaking I1).
+            requestCloseIssued(real, model, tabId, 'leave', true);
+            break;
           default:
             manager.showInternal(tabId, 'new-tab');
         }
@@ -769,7 +1154,7 @@ const commands: fc.Arbitrary<Command>[] = [
     .record({ select: fc.boolean(), ephemeral: fc.boolean(), after: fc.option(index) })
     .map(({ select, ephemeral, after }) =>
       command('create', `${String(select)}, ${String(ephemeral)}, ${String(after)}`, (real) => {
-        if (real.manager.tabs().length >= MAX_TABS) {
+        if (openTabs(real.manager) >= MAX_TABS) {
           return;
         }
         const afterTabId = after === null ? undefined : tabAt(real.manager, after);
@@ -887,7 +1272,20 @@ const commands: fc.Arbitrary<Command>[] = [
     }),
   ),
   fc
-    .tuple(index, fc.constantFrom('none', 'unsaved-input', 'editing', 'sensitive-page'))
+    .tuple(
+      index,
+      fc.constantFrom<ProtectionReason | 'none'>(
+        'none',
+        'unsaved-input',
+        'editing',
+        'sensitive-page',
+        // M3.3: these block shelving or archiving as well (audio and capture, hard; the
+        // recent-interaction guard, soft).
+        'audio',
+        'capture',
+        'recent-interaction',
+      ),
+    )
     .map(([at, reason]) =>
       command('setProtection', `${String(at)}, ${reason}`, ({ manager, world }) => {
         const tabId = tabAt(manager, at);
@@ -913,9 +1311,16 @@ const commands: fc.Arbitrary<Command>[] = [
       world.now += ms;
     }),
   ),
+  // Days at a time (the model counts an active day every 6 hours): Sleeping tabs go dormant, so
+  // the policy archives them (M3.3).
+  fc.integer({ min: 1, max: 5 }).map((days) =>
+    command('advanceDays', String(days), ({ world }) => {
+      world.now += days * 24 * 60 * 60 * 1000;
+    }),
+  ),
   fc.constant(
     command('reopenClosed', '', ({ manager }) => {
-      if (manager.tabs().length < MAX_TABS) {
+      if (openTabs(manager) < MAX_TABS) {
         manager.reopenClosed();
       }
     }),
@@ -930,7 +1335,9 @@ const commands: fc.Arbitrary<Command>[] = [
   ),
   fc.tuple(index, index).map(([at, to]) =>
     command('move', `${String(at)}, ${String(to)}`, ({ manager }) => {
-      const tabId = tabAt(manager, at);
+      // The strip's tabs only: moving a Sleeping tab corrupts the strip (a bug found by
+      // tab-manager-placement.test.ts, reported and not fixed here).
+      const tabId = stripTabAt(manager, at);
       if (tabId !== undefined) {
         manager.move(tabId, to);
       }
@@ -939,9 +1346,219 @@ const commands: fc.Arbitrary<Command>[] = [
   index.map((at) =>
     command('duplicate', String(at), ({ manager }) => {
       const tabId = tabAt(manager, at);
-      if (tabId !== undefined && manager.tabs().length < MAX_TABS) {
+      if (tabId !== undefined && openTabs(manager) < MAX_TABS) {
         manager.duplicate(tabId);
       }
+    }),
+  ),
+
+  // Placement (M3.3): Sleeping, the Archive, Undo, protecting a tab, and "Leave page?".
+  fc
+    .record({
+      at: index,
+      origin: fc.constantFrom<MoveRequest['origin']>('user', 'automation'),
+      epoch: fc.constantFrom('fresh', 'fresh', 'stale', 'none'),
+    })
+    .map(({ at, origin, epoch }) =>
+      command('shelve', `${String(at)}, ${origin}, ${epoch}`, (real, model) => {
+        const tabId = tabAt(real.manager, at);
+        if (tabId !== undefined) {
+          shelveChecked(real, model, tabId, moveRequest(real.manager, tabId, origin, epoch));
+        }
+      }),
+    ),
+  fc
+    .record({
+      at: index,
+      origin: fc.constantFrom<MoveRequest['origin']>('user', 'automation'),
+      epoch: fc.constantFrom('fresh', 'fresh', 'stale', 'none'),
+    })
+    .map(({ at, origin, epoch }) =>
+      command('archive', `${String(at)}, ${origin}, ${epoch}`, (real, model) => {
+        const tabId = tabAt(real.manager, at);
+        if (tabId !== undefined) {
+          archiveIssued(real, model, tabId, moveRequest(real.manager, tabId, origin, epoch));
+        }
+      }),
+    ),
+  fc
+    .record({ at: index, select: fc.boolean(), place: fc.option(index), focus: fc.boolean() })
+    .map(({ at, select, place, focus }) =>
+      command(
+        'restoreToStrip',
+        `${String(at)}, ${String(select)}, ${String(place)}`,
+        ({ manager }) => {
+          const sleeping = manager.sleepingTabs();
+          const tab = sleeping[at % Math.max(sleeping.length, 1)];
+          if (tab === undefined) {
+            return;
+          }
+          // Where it should land: at `place` within the unpinned tabs, else right after the
+          // selected tab (within them), else at their end.
+          const strip = manager.tabs();
+          const pinned = strip.filter((candidate) => candidate.pinned).length;
+          const selectedIndex = strip.findIndex(
+            (candidate) => candidate.id === manager.selectedTabId(),
+          );
+          const expected =
+            place !== null
+              ? Math.min(Math.max(place, pinned), strip.length)
+              : selectedIndex >= pinned
+                ? selectedIndex + 1
+                : strip.length;
+          manager.restoreToStrip(tab.id, {
+            select,
+            focus,
+            ...(place === null ? {} : { index: place }),
+          });
+          const after = manager.tabs();
+          if (
+            manager.get(tab.id).placement !== 'strip' ||
+            after.findIndex((t) => t.id === tab.id) !== expected
+          ) {
+            throw new Error(
+              `restoreToStrip(${tab.id}) landed at ${String(after.findIndex((t) => t.id === tab.id))}, expected ${String(expected)}`,
+            );
+          }
+          if (select && manager.selectedTabId() !== tab.id) {
+            throw new Error(`restoreToStrip(${tab.id}) did not select it`);
+          }
+        },
+      ),
+    ),
+  index.map((at) =>
+    command('selectSleeping', String(at), ({ manager }) => {
+      const sleeping = manager.sleepingTabs();
+      const tab = sleeping[at % Math.max(sleeping.length, 1)];
+      if (tab === undefined) {
+        return;
+      }
+      manager.select(tab.id, { focus: at % 2 === 0 });
+      if (manager.selectedTabId() !== tab.id || manager.get(tab.id).placement !== 'strip') {
+        throw new Error(`select(${tab.id}) of a Sleeping tab did not bring it back and select it`);
+      }
+    }),
+  ),
+  fc
+    .record({
+      at: index,
+      select: fc.boolean(),
+      to: fc.constantFrom<'strip' | 'shelf' | undefined>(undefined, 'strip', 'shelf'),
+      place: fc.option(index),
+    })
+    .map(({ at, select, to, place }) =>
+      command(
+        'restoreArchived',
+        `${String(at)}, ${String(select)}, ${String(to)}, ${String(place)}`,
+        ({ manager, world }) => {
+          const archived = manager.archivedTabs();
+          // One in (count + 1) asks for a tab that isn't archived: it must answer null.
+          const entry = archived[at % (archived.length + 1)];
+          if (entry === undefined) {
+            const live = tabAt(manager, at);
+            if (live !== undefined && manager.restoreArchived(live) !== null) {
+              throw new Error(`restoreArchived(${live}) brought back a tab that is not archived`);
+            }
+            return;
+          }
+          if (openTabs(manager) >= MAX_TABS) {
+            return;
+          }
+          const count = manager.archivedCount();
+          const id = manager.restoreArchived(entry.id, {
+            select,
+            ...(to === undefined ? {} : { to }),
+            ...(place === null ? {} : { index: place }),
+          });
+          // Ids are unique here, so it comes back under its own.
+          if (id !== entry.id) {
+            throw new Error(`restoreArchived(${entry.id}) answered ${String(id)}`);
+          }
+          world.archiveBalance -= 1;
+          const state = manager.get(id);
+          if (state.placement !== (to ?? 'strip') || state.pinned) {
+            throw new Error(`${id} came back ${state.placement}, pinned ${String(state.pinned)}`);
+          }
+          if (
+            manager.archivedCount() !== count - 1 ||
+            manager.archivedTabs().some((t) => t.id === id)
+          ) {
+            throw new Error(`${id} is still counted as archived after it came back`);
+          }
+          if (to !== 'shelf' && select && manager.selectedTabId() !== id) {
+            throw new Error(`${id} came back to the strip but was not selected`);
+          }
+        },
+      ),
+    ),
+  fc.integer({ min: 1, max: 6 }).map((count) =>
+    command('undoMoves', String(count), ({ manager, world }, model) => {
+      const batch = model.moves.splice(-count);
+      const undone = manager.undoMoves(batch);
+      // The tabs that came back are a subsequence of the batch, in its order.
+      let from = 0;
+      for (const move of undone) {
+        const found = batch.findIndex(
+          (candidate, at) =>
+            at >= from &&
+            candidate.tabId === move.tabId &&
+            candidate.from === move.from &&
+            candidate.to === move.to &&
+            candidate.index === move.index,
+        );
+        if (found === -1) {
+          throw new Error(`undoMoves reported ${JSON.stringify(move)}, which is not in the batch`);
+        }
+        from = found + 1;
+      }
+      // Each tab is where its oldest undone move left it from; later ones only passed through.
+      const origin = new Map<TabId, PlacementMove['from']>();
+      for (const move of undone) {
+        if (!origin.has(move.tabId)) {
+          origin.set(move.tabId, move.from);
+        }
+      }
+      for (const [tabId, placement] of origin) {
+        if (!manager.has(tabId) || manager.get(tabId).placement !== placement) {
+          throw new Error(`${tabId} should be back ${placement} after undoMoves`);
+        }
+      }
+      world.archiveBalance -= undone.filter((move) => move.to === 'archive').length;
+    }),
+  ),
+  fc.tuple(index, fc.boolean()).map(([at, on]) =>
+    command('setProtected', `${String(at)}, ${String(on)}`, ({ manager }) => {
+      const tabId = tabAt(manager, at);
+      if (tabId !== undefined) {
+        manager.setProtected(tabId, on);
+        if (manager.get(tabId).userProtected !== on) {
+          throw new Error(`setProtected(${tabId}, ${String(on)}) did not stick`);
+        }
+      }
+    }),
+  ),
+  fc
+    .record({
+      at: index,
+      answer: fc.constantFrom<LeaveAnswer>('leave', 'leave', 'stay', 'fail', 'never'),
+    })
+    .map(({ at, answer }) =>
+      command('requestClose', `${String(at)}, ${answer}`, (real, model) => {
+        const tabId = tabAt(real.manager, at);
+        if (tabId !== undefined) {
+          requestCloseIssued(real, model, tabId, answer, at % 2 === 0);
+        }
+      }),
+    ),
+  index.map((at) =>
+    command('activate', String(at), ({ manager, world }) => {
+      // The user touches the page: it may object to a close from now on (until a new document).
+      const tabId = tabAt(manager, at);
+      [...world.alive]
+        .filter((runtime) => runtime.tabId === tabId)
+        .forEach((runtime) => {
+          runtime.activate();
+        });
     }),
   ),
 ];
@@ -993,7 +1610,20 @@ async function runSequence(scheduler: fc.Scheduler, cmds: Iterable<Command>): Pr
       }
     }
   }
-  for (const tab of manager.tabs()) {
+  // Every archive settled and never rejected; the Archive's count is what the model kept.
+  for (const archive of setup.model.archives) {
+    if (archive.rejected) {
+      world.failures.push(`archive of ${archive.tabId} rejected`);
+    } else if (archive.outcome === null) {
+      world.failures.push(`archive of ${archive.tabId} never settled`);
+    }
+  }
+  if (manager.archivedCount() !== world.archiveBalance) {
+    world.failures.push(
+      `the Archive holds ${String(manager.archivedCount())} tabs, the model counted ${String(world.archiveBalance)}`,
+    );
+  }
+  for (const tab of [...manager.tabs(), ...manager.sleepingTabs()]) {
     if (tab.runtime === 'discarding') {
       world.failures.push(`${tab.id} is still discarding after everything settled`);
     }
@@ -1021,9 +1651,16 @@ function schedulerWithChecks(): fc.Arbitrary<fc.Scheduler> {
   });
 }
 
+/**
+ * Sequences of the fixed-seed coverage run. Placement commands share the pool with the discard
+ * ones, so every path (the revive of a tab picked mid-close among them) needs more sequences than
+ * the 250 of M3.1 to be reached on any one seed.
+ */
+const COVERAGE_RUNS = 500;
+
 describe('TabManager model (I1–I8 after every step)', () => {
-  /** Short sequences: 250 runs of up to 80 commands; the checks counted across all of them. */
-  const shortRuns = async (seed: number | undefined): Promise<number> => {
+  /** Short sequences of up to 80 commands; the checks counted across all of them. */
+  const shortRuns = async (seed: number | undefined, runs = 250): Promise<number> => {
     let steps = 0;
     await fc.assert(
       fc.asyncProperty(
@@ -1035,7 +1672,7 @@ describe('TabManager model (I1–I8 after every step)', () => {
           expect(world.failures).toEqual([]);
         },
       ),
-      { numRuns: 250, ...(seed === undefined ? {} : { seed }) },
+      { numRuns: runs, ...(seed === undefined ? {} : { seed }) },
     );
     return steps;
   };
@@ -1044,10 +1681,14 @@ describe('TabManager model (I1–I8 after every step)', () => {
     outcomes.clear();
     transitionCounts.clear();
     policyDiscards.clear();
-    const steps = await shortRuns(20_261_022);
+    policyMoves.clear();
+    placementOutcomes.clear();
+    const steps = await shortRuns(20_261_022, COVERAGE_RUNS);
     console.info('discard outcomes', Object.fromEntries([...outcomes].sort()), 'checks', steps);
     console.info('transitions', Object.fromEntries([...transitionCounts].sort()));
     console.info('policy discards', Object.fromEntries([...policyDiscards].sort()));
+    console.info('policy moves', Object.fromEntries([...policyMoves].sort()));
+    console.info('placement outcomes', Object.fromEntries([...placementOutcomes].sort()));
     // The real policy planned discards under both of its discard rules (M3.2).
     expect(policyDiscards.get('discard-hidden') ?? 0).toBeGreaterThan(0);
     expect(policyDiscards.get('pressure-discard') ?? 0).toBeGreaterThan(0);
@@ -1085,6 +1726,29 @@ describe('TabManager model (I1–I8 after every step)', () => {
     ]) {
       expect(outcomes.get(path) ?? 0, path).toBeGreaterThan(0);
     }
+    // Placement (M3.3): both origins shelved and archived, and each way a move is refused or
+    // stopped was reached, including by the real policy's own plans.
+    for (const path of [
+      'shelve:user:moved',
+      'shelve:user:skipped:pinned',
+      'shelve:user:skipped:wrong-placement',
+      'shelve:automation:moved',
+      'shelve:automation:skipped:selected',
+      'shelve:automation:skipped:stale',
+      'shelve:automation:skipped:pinned',
+      'shelve:automation:blocked:user-protected',
+      'archive:user:moved',
+      'archive:user:blocked:page-unsaved-changes',
+      'archive:automation:moved',
+      'archive:automation:skipped:selected',
+      'archive:automation:skipped:pinned',
+      'archive:automation:skipped:stale',
+      'archive:automation:blocked:user-protected',
+    ]) {
+      expect(placementOutcomes.get(path) ?? 0, path).toBeGreaterThan(0);
+    }
+    expect(policyMoves.get('shelve:shelve-beyond-cap') ?? 0).toBeGreaterThan(0);
+    expect(policyMoves.get('archive:archive-dormant') ?? 0).toBeGreaterThan(0);
   }, 300_000);
 
   it('holds over short random sequences with reordered completions (a new seed each run)', async () => {
