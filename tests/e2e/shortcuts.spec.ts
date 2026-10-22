@@ -41,6 +41,7 @@ import {
   loadTab,
   mainIds,
   omnibox,
+  palette,
   tabElements,
   typeAddress,
   waitForPage,
@@ -567,7 +568,7 @@ test.describe('reserved shortcuts', () => {
     expect(await pageEvents(key.page)).toEqual([]);
   });
 
-  test('Ctrl+Shift+K is reserved and does nothing yet: the page never sees it either', async ({
+  test('Ctrl+Shift+K opens the memory palette (M4.2), and the page never sees it', async ({
     electronApp,
     fixtureServer,
     shell,
@@ -581,13 +582,15 @@ test.describe('reserved shortcuts', () => {
         selected: await selectedTabId(electronApp),
         devTools: (await webContentsRoles(electronApp)).filter((e) => e.role === 'devtools').length,
         fullScreen: (await windowInfo(electronApp)).fullScreen,
-        focused: (await focusedWebContents(electronApp))?.webContentsId ?? null,
       });
     const before = await snapshot();
 
     await sendKey(electronApp, key.tab.webContentsId, 'K', ['control', 'shift']);
 
     await expectSwallowed(key, 0, 'Ctrl+Shift+K');
+    // The palette opens in the shell, which has the keyboard; nothing else changes.
+    await expect(palette(shell)).toBeVisible();
+    await expect.poll(async () => (await focusedWebContents(electronApp))?.isShell).toBe(true);
     expect(await observeFor(700, snapshot)).toEqual([before]);
     // The page, which does not even block keys, never learns of it.
     expect(await pageEvents(key.page)).toEqual([]);
