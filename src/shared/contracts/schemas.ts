@@ -122,6 +122,12 @@ const tabSnapshot = z.strictObject({
         realm: z.string().max(100),
         secure: z.boolean(),
       }),
+      /** The page objected to the user closing its tab (M3.3): "Leave page?". */
+      z.strictObject({
+        id: promptId,
+        kind: z.literal('leave-page'),
+        site: z.string().max(300),
+      }),
     ])
     .nullable(),
   /** Popups blocked for lack of a gesture: how many, and the latest one's address text. */

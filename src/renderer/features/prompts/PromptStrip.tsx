@@ -2,6 +2,7 @@ import {
   AppWindow,
   ExternalLink,
   KeyRound,
+  LogOut,
   ShieldQuestionMark,
   TriangleAlert,
   X,
@@ -151,7 +152,7 @@ function QuestionBar({
   return (
     <StripFrame
       kind={prompt.kind}
-      icon={prompt.kind === 'permission' ? ShieldQuestionMark : ExternalLink}
+      icon={QUESTION_ICONS[prompt.kind]}
       frame={frame}
       onFocus={noteFocus}
       promptId={prompt.id}
@@ -205,6 +206,12 @@ function QuestionBar({
     />
   );
 }
+
+const QUESTION_ICONS: Record<Exclude<Prompt, HttpAuthPrompt>['kind'], LucideIcon> = {
+  permission: ShieldQuestionMark,
+  'external-protocol': ExternalLink,
+  'leave-page': LogOut,
+};
 
 const SIGN_IN_FIELD = cn(
   'h-8 w-44 min-w-0 rounded-full border border-input bg-background px-3 text-sm text-foreground placeholder:text-foreground/60',

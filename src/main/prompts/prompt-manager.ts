@@ -32,6 +32,15 @@ export type PromptRequest =
       readonly realm: string;
       /** Whether the password goes over HTTPS or to this machine; otherwise the shell warns. */
       readonly secure: boolean;
+    }
+  | {
+      /**
+       * The user closed the tab and its page objected (`beforeunload`, M3.3): leave anyway? Allow
+       * leaves; anything else stays. Pages never write the text: Chromium ignores theirs too.
+       */
+      readonly kind: 'leave-page';
+      /** `originLabel` of the page. */
+      readonly site: string;
     };
 
 export type Prompt = PromptRequest & { readonly id: string };

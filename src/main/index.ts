@@ -6,6 +6,7 @@ import { performance } from 'node:perf_hooks';
 import type { WebContents } from 'electron';
 
 import { uuidv7 } from '../core/id/uuidv7';
+import { originLabel } from '../core/url/display';
 import { resolveLifecycleSettings } from '../core/lifecycle/policy';
 import type {
   LifecycleClock,
@@ -487,6 +488,12 @@ async function start(): Promise<void> {
     onPageGone: (tabId) => {
       prompts.dismissAll(tabId);
       blockedPopups.clear(tabId);
+    },
+    // M3.3: the page objected to the user closing its tab. The site is main's own label.
+    confirmLeave: async (tabId): Promise<boolean> => {
+      const site = originLabel(tabs.get(tabId).url);
+      const answer = await prompts.ask(tabId, { kind: 'leave-page', site });
+      return answer.decision === 'allow';
     },
     history: historyRecorder,
     // Test builds record the runtime transitions for the specs (M3.1).

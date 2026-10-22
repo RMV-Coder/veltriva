@@ -289,13 +289,14 @@ export function createContextMenus(deps: ContextMenuDependencies): ContextMenus 
         tabs.setPinned(tabId, false);
         return;
       case 'close':
-        tabs.close(tabId, { focus: false });
+        tabs.requestClose(tabId, { focus: false });
         return;
       case 'close-others':
-        // Pinned tabs stay, as in Chrome: pinning is how the user says "keep this one".
+        // Pinned tabs stay, as in Chrome: pinning is how the user says "keep this one". A page
+        // that objects stays too, and asks "Leave page?" (M3.3).
         for (const other of tabs.tabs()) {
           if (other.id !== tabId && !other.pinned) {
-            tabs.close(other.id, { focus: false });
+            tabs.requestClose(other.id, { focus: false });
           }
         }
         tabs.select(tabId, { focus: false });

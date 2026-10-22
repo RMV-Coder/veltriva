@@ -83,7 +83,8 @@ export function createCommandHandlers({
     'tabs.create': () => ({ tabId: tabs.create() }),
     'tabs.close': ({ tabId, keepFocus }) =>
       onTab(tabId, () => {
-        tabs.close(tabId, { focus: keepFocus !== true });
+        // A page the user worked in may object: then "Leave page?" asks (M3.3).
+        tabs.requestClose(tabId, { focus: keepFocus !== true });
         return done;
       }),
     'tabs.select': ({ tabId, keepFocus }) =>

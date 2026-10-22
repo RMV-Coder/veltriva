@@ -18,6 +18,7 @@ export type Prompt = NonNullable<TabSnapshot['prompt']>;
 export type PermissionPrompt = Extract<Prompt, { readonly kind: 'permission' }>;
 export type ExternalProtocolPrompt = Extract<Prompt, { readonly kind: 'external-protocol' }>;
 export type HttpAuthPrompt = Extract<Prompt, { readonly kind: 'http-auth' }>;
+export type LeavePagePrompt = Extract<Prompt, { readonly kind: 'leave-page' }>;
 export type BlockedPopups = NonNullable<TabSnapshot['blockedPopups']>;
 type Permission = PermissionPrompt['permissions'][number];
 
@@ -176,6 +177,14 @@ export function promptSentence(prompt: Prompt): readonly PromptPart[] {
   if (prompt.kind === 'http-auth') {
     return [sitePart(prompt.site, true), plain(' wants you to sign in')];
   }
+  if (prompt.kind === 'leave-page') {
+    // The page's own words are never shown: Chromium ignores them too.
+    return [
+      plain('Leave '),
+      sitePart(prompt.site, true),
+      plain('? Changes you made may not be saved.'),
+    ];
+  }
   const appName = cleanText(prompt.appName);
   if (prompt.site === null) {
     // A typed address: nobody asks, so no site is named.
@@ -258,6 +267,8 @@ export function promptActionLabels(kind: Prompt['kind']): {
       return { allow: 'Sign in', block: 'Cancel' };
     case 'external-protocol':
       return { allow: 'Open', block: 'Cancel' };
+    case 'leave-page':
+      return { allow: 'Leave', block: 'Stay' };
   }
 }
 
@@ -273,6 +284,8 @@ export function stripLabel(kind: StripKind): string {
       return 'Open another app';
     case 'http-auth':
       return 'Sign in';
+    case 'leave-page':
+      return 'Leave page';
     case 'blocked-popups':
       return 'Pop-up blocked';
   }

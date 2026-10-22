@@ -23,6 +23,7 @@ import {
 import type {
   ExternalProtocolPrompt,
   HttpAuthPrompt,
+  LeavePagePrompt,
   PermissionPrompt,
   Prompt,
 } from './prompt-display';
@@ -421,6 +422,30 @@ describe('insecureSignInWarning', () => {
   });
 });
 
+describe('promptSentence: leave page', () => {
+  const leave = (site: string): LeavePagePrompt => ({ id: 'prompt-4', kind: 'leave-page', site });
+
+  it('names the site and says what leaving costs', () => {
+    expect(partsText(promptSentence(leave('docs.example.test')))).toBe(
+      'Leave docs.example.test? Changes you made may not be saved.',
+    );
+  });
+
+  it('marks the site as untrusted and bold, and cuts a long one at the start', () => {
+    const site = `${'a'.repeat(80)}.example.test`;
+    const parts = promptSentence(leave(site));
+    expect(parts[1]).toMatchObject({ untrusted: true, strong: true, full: site });
+    expect(Array.from(parts[1]?.text ?? '')).toHaveLength(MAX_SITE_CHARS);
+    expect(parts[1]?.text.endsWith('.example.test')).toBe(true);
+  });
+
+  it('removes bidi controls from the site', () => {
+    expect(partsText(promptSentence(leave('evil\u202e.test')))).toBe(
+      'Leave evil .test? Changes you made may not be saved.',
+    );
+  });
+});
+
 describe('promptActionLabels and stripLabel', () => {
   it('names the buttons of a permission prompt', () => {
     expect(promptActionLabels('permission')).toEqual({ allow: 'Allow', block: 'Block' });
@@ -434,10 +459,15 @@ describe('promptActionLabels and stripLabel', () => {
     expect(promptActionLabels('http-auth')).toEqual({ allow: 'Sign in', block: 'Cancel' });
   });
 
+  it('names the buttons of "Leave page?"', () => {
+    expect(promptActionLabels('leave-page')).toEqual({ allow: 'Leave', block: 'Stay' });
+  });
+
   it('names each region', () => {
     expect(stripLabel('permission')).toBe('Permission request');
     expect(stripLabel('external-protocol')).toBe('Open another app');
     expect(stripLabel('http-auth')).toBe('Sign in');
+    expect(stripLabel('leave-page')).toBe('Leave page');
     expect(stripLabel('blocked-popups')).toBe('Pop-up blocked');
   });
 });

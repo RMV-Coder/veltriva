@@ -70,6 +70,9 @@ function projectPrompt(prompt: Prompt | null): TabSnapshot['prompt'] {
       secure: prompt.secure,
     };
   }
+  if (prompt.kind === 'leave-page') {
+    return { id: prompt.id, kind: prompt.kind, site: prompt.site };
+  }
   return prompt.kind === 'permission'
     ? { id: prompt.id, kind: prompt.kind, site: prompt.site, permissions: [...prompt.permissions] }
     : {

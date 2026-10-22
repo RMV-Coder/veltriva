@@ -71,9 +71,9 @@ function createCommandRunner({ tabs, focus, fullscreen }: ShortcutDependencies) 
         focus.focusAddressBar();
         return;
       case 'closeTab':
+        // A page the user worked in may object: then "Leave page?" asks (M3.3).
         if (selected !== null) {
-          manager.close(selected, { focus: false });
-          afterSwitch();
+          manager.requestClose(selected, { focus: false, onClosed: afterSwitch });
         }
         return;
       case 'reopenClosedTab':

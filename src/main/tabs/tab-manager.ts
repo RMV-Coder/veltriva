@@ -313,10 +313,10 @@ export interface TabManagerOptions {
    */
   readonly activityClock?: () => LifecycleClock;
   /**
-   * The user closed a tab whose page objected to unloading (`beforeunload`): ask "Leave page?".
-   * The tab is selected by then. Leaving is `close()`; staying needs nothing.
+   * The user closed a tab whose page objected to unloading (`beforeunload`): ask "Leave page?"
+   * and resolve true to leave. The tab is selected by then. Without it, the tab stays.
    */
-  readonly onLeaveRequested?: (tabId: TabId) => void;
+  readonly confirmLeave?: (tabId: TabId) => Promise<boolean>;
 }
 
 /** A tab's page changes, as the memory needs them. Never called for internal pages. */
@@ -486,6 +486,8 @@ interface TabRecord {
   activated: boolean;
   /** A user close is asking the page whether it may unload. */
   userClosing: boolean;
+  /** The page objected to a user close and "Leave page?" waits for the user's answer. */
+  askingToLeave: boolean;
   placementChangedAt: number;
 }
 
@@ -654,15 +656,25 @@ export class TabManager {
 
   /**
    * A close the user asked for (§4.9 Close). A page the user activated may object to unloading
-   * (`beforeunload`): then the tab is selected and `onLeaveRequested` asks "Leave page?", where
-   * only the user can override. Other pages close at once, without the round trip that would let
-   * an untouched page object (S3).
+   * (`beforeunload`): then the tab is selected and `confirmLeave` asks "Leave page?", where only
+   * the user can override. Other pages close at once, without the round trip that would let an
+   * untouched page object (S3). `onClosed` runs once the tab is closed, if it is.
    */
-  requestClose(tabId: TabId, options: { readonly focus?: boolean } = {}): void {
+  requestClose(
+    tabId: TabId,
+    options: { readonly focus?: boolean; readonly onClosed?: () => void } = {},
+  ): void {
     const record = this.#record(tabId);
     const runtime = record.runtime;
     if (record.userClosing) {
       return; // Already asking the page.
+    }
+    if (record.askingToLeave) {
+      // Closing again while "Leave page?" waits: the question is the answer; show it.
+      if (this.#selected !== tabId) {
+        this.select(tabId, options);
+      }
+      return;
     }
     const asks =
       runtime !== undefined &&
@@ -671,6 +683,7 @@ export class TabManager {
       (record.state.runtime === 'live' || record.state.runtime === 'frozen');
     if (!asks) {
       this.close(tabId, options);
+      options.onClosed?.();
       return;
     }
     record.userClosing = true;
@@ -694,6 +707,7 @@ export class TabManager {
       record.userClosing = false;
       if (closed.kind === 'value' && closed.value === 'closed') {
         this.#closeRecord(record, options, captured);
+        options.onClosed?.();
         return;
       }
       // The page objects, or is stuck in its handler: the user decides. The close detached its
@@ -704,7 +718,33 @@ export class TabManager {
         this.#setSelected(tabId, true);
       }
       this.#changed();
-      this.#options.onLeaveRequested?.(tabId);
+      this.#askToLeave(record, options);
+    });
+  }
+
+  #askToLeave(
+    record: TabRecord,
+    options: { readonly focus?: boolean; readonly onClosed?: () => void },
+  ): void {
+    const confirm = this.#options.confirmLeave;
+    if (confirm === undefined) {
+      return;
+    }
+    const tabId = record.state.id;
+    record.askingToLeave = true;
+    const answered = (leave: boolean): void => {
+      if (this.#records.get(tabId) !== record) {
+        return; // Closed meanwhile.
+      }
+      record.askingToLeave = false;
+      if (leave) {
+        // The user overrides the page: a plain close, which runs no handler.
+        this.#closeRecord(record, options, null);
+        options.onClosed?.();
+      }
+    };
+    confirm(tabId).then(answered, () => {
+      answered(false);
     });
   }
 
@@ -2014,6 +2054,7 @@ export class TabManager {
       lastInteractionAt: null,
       activated: false,
       userClosing: false,
+      askingToLeave: false,
       placementChangedAt: tab.placementChangedAt ?? tab.createdAt,
     };
   }
