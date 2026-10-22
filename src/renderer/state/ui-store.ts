@@ -37,6 +37,15 @@ interface UiStore {
   /** The sidebar shows the activity log in place of its sections. */
   readonly activityOpen: boolean;
   readonly setActivityOpen: (open: boolean) => void;
+  /**
+   * Whether the memory palette is open (M4.2). Main opens it with `ui.openPalette` (Ctrl+Shift+K),
+   * the sidebar's "Search memory…" entry point opens it with a click. `paletteOpenCount` counts
+   * the requests, so one that arrives while the palette is open can bring its field back into focus.
+   */
+  readonly paletteOpen: boolean;
+  readonly paletteOpenCount: number;
+  readonly openPalette: () => void;
+  readonly closePalette: () => void;
 }
 
 export const useUiStore = create<UiStore>()((set) => ({
@@ -69,5 +78,13 @@ export const useUiStore = create<UiStore>()((set) => ({
   activityOpen: false,
   setActivityOpen: (open) => {
     set({ activityOpen: open });
+  },
+  paletteOpen: false,
+  paletteOpenCount: 0,
+  openPalette: () => {
+    set((state) => ({ paletteOpen: true, paletteOpenCount: state.paletteOpenCount + 1 }));
+  },
+  closePalette: () => {
+    set({ paletteOpen: false });
   },
 }));

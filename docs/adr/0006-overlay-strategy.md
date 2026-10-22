@@ -39,6 +39,15 @@ Web pages are native views painted *above* the shell, so HTML can't cover them. 
   - **Measured constraint:** A′ works only while the shell's document root (html and body) is transparent. Chromium takes a view's opacity from its document's root background color. A shell raised in its normal, opaque state counts as occlusion and hides the page, whatever its view background is. The lifecycle check found this.
     - The notice mode clears html, body and `#root`, and the handshake raises the shell only after that has painted.
     - The lifecycle check (ADR-0008, 4a) now takes this real path and requires the page under the notice to stay `visible` and unthrottled.
+- **As built in M4.2:** the memory palette (Ctrl+Shift+K) and the address bar's memory suggestions are the two overlays this ADR was written for.
+  - **The handshake.** Each one marks `<html data-overlay>`, which clears `html`, `body` and `#root`. Then:
+    1. Two frames later, the shell sends `overlay.show` with the overlay's name.
+    2. Main raises the shell and gives it the keyboard.
+    3. Closing sends `overlay.hide`, with `focusPage` when the user dismissed it without opening anything.
+  - **Chrome stays opaque.** Unlike under the notice, the toolbar and sidebar stay drawn while an overlay is up: they paint their own backgrounds, never relying on `body`'s. Only the content area is clear, apart from the scrim and the panel.
+  - **Raise reasons.** The layout raises the shell for named reasons: the fullscreen notice, the palette and the suggestions. The shell stays above the tab while any reason holds, so the notice and an overlay never lower each other.
+  - **Ctrl+Shift+K's path:** main's shortcut handler gives the shell the keyboard and sends `ui.openPalette`; the shell does the rest.
+  - **The lifecycle check (ADR-0008, 4a)** has a second scenario, `palette-keeps-page-visible`. It opens the palette that way, waits until the shell is raised for it, and requires the page under it to stay `visible` and unthrottled. Its acceptance and the UI details are in the Phase 4 plan.
 
 ## Consequences
 

@@ -344,3 +344,77 @@ export async function discardDownload(downloadId: string): Promise<boolean> {
 export async function clearDownload(downloadId: string): Promise<boolean> {
   return (await run('downloads.clear', () => window.veltriva.downloads.clear({ downloadId }))).ok;
 }
+
+// ── The memory (M4.2): the palette, the address bar's suggestions, the Archive list ─────────────
+
+export type MemoryScope = CommandInput<'memory.search'>['scope'];
+export type MemorySearch = CommandOutput<'memory.search'>;
+export type MemoryOpenTarget = CommandInput<'memory.open'>['target'];
+
+/**
+ * Searches the memory (all local: main asks its data worker, nothing goes to the network). The
+ * words go as typed; main reads a `site:<domain>` word out of them and says which site it kept
+ * the results to. Resolves to the ranked results, or undefined if the search failed.
+ */
+export async function searchMemory(
+  query: string,
+  scope: MemoryScope,
+  limit: number,
+): Promise<MemorySearch | undefined> {
+  const result = await run('memory.search', () =>
+    window.veltriva.memory.search({ query, scope, limit }),
+  );
+  return result.ok ? result.value : undefined;
+}
+
+/**
+ * Opens a search result. `switch`: the tab that shows the page (brought back from Sleeping or the
+ * Archive if need be), else a new tab; `newTab`: always a new tab; `current`: the selected tab
+ * goes there. Resolves to the tab now showing the page, or undefined if main refused. The page
+ * has the keyboard afterwards, so a caller closes its overlay without asking for the page's focus.
+ */
+export async function openMemoryResult(
+  pageId: number,
+  target: MemoryOpenTarget,
+  tabId?: string,
+): Promise<string | undefined> {
+  const result = await run('memory.open', () =>
+    window.veltriva.memory.open(
+      tabId === undefined ? { pageId, target } : { pageId, target, tabId },
+    ),
+  );
+  return result.ok ? result.value.tabId : undefined;
+}
+
+export type ShellOverlay = CommandInput<'overlay.show'>['overlay'];
+
+/**
+ * The overlay has painted on a transparent page: main raises the shell above the tab and gives it
+ * the keyboard (ADR-0006 A′).
+ */
+export async function showOverlay(overlay: ShellOverlay): Promise<boolean> {
+  return (await run('overlay.show', () => window.veltriva.overlay.show({ overlay }))).ok;
+}
+
+/**
+ * The overlay closed: main lowers the shell once nothing else wants it raised. `focusPage`: the
+ * user dismissed it without opening anything, so the page gets the keyboard back; after
+ * `openMemoryResult` it is false, since that already focused the page it opened.
+ */
+export async function hideOverlay(overlay: ShellOverlay, focusPage: boolean): Promise<boolean> {
+  return (await run('overlay.hide', () => window.veltriva.overlay.hide({ overlay, focusPage }))).ok;
+}
+
+export type ArchiveWindow = CommandOutput<'archive.list'>;
+
+/**
+ * A window of the Archive, newest first, from the database: `limit` tabs from `offset`, with how
+ * many are archived now. Resolves to undefined if main could not read it.
+ */
+export async function listArchive(
+  offset: number,
+  limit: number,
+): Promise<ArchiveWindow | undefined> {
+  const result = await run('archive.list', () => window.veltriva.archive.list({ offset, limit }));
+  return result.ok ? result.value : undefined;
+}

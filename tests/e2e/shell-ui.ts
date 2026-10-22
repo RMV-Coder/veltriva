@@ -35,7 +35,8 @@ export function stopButton(shell: Page): Locator {
   return shell.getByRole('button', { name: 'Stop', exact: true });
 }
 export function omnibox(shell: Page): Locator {
-  return shell.getByRole('textbox', { name: 'Address and search bar', exact: true });
+  // A combobox since M4.2: the memory's suggestions hang under it (its role was a textbox).
+  return shell.getByRole('combobox', { name: 'Address and search bar', exact: true });
 }
 export function newTabButton(shell: Page): Locator {
   return shell.getByRole('button', { name: 'New tab', exact: true });
@@ -530,4 +531,40 @@ export async function blurAddressBar(shell: Page): Promise<void> {
     input.setSelectionRange(0, 0);
   });
   await expect(omnibox(shell)).not.toBeFocused();
+}
+
+// ── M4.2: the memory palette and the address bar's suggestions ──────────────────────────────────
+
+/** The palette's dialog; it exists only while the palette is open. */
+export function palette(shell: Page): Locator {
+  return shell.locator('[data-palette]');
+}
+/** The palette's search field (a combobox). */
+export function paletteInput(shell: Page): Locator {
+  return shell.getByRole('combobox', { name: 'Search memory', exact: true });
+}
+export function paletteOptions(shell: Page): Locator {
+  return palette(shell).getByRole('option');
+}
+/** The palette's filters: All, Open, Sleeping, Archived, Today, This week. */
+export function paletteFilter(shell: Page, label: string): Locator {
+  return palette(shell).getByRole('radio', { name: label, exact: true });
+}
+/** The sidebar's "Search memory…" entry point. */
+export function searchMemoryButton(shell: Page): Locator {
+  return shell.locator('[data-search-memory]');
+}
+/** The address bar's suggestions: the dropdown and its options. */
+export function suggestionList(shell: Page): Locator {
+  return shell.locator('[data-suggestions]');
+}
+export function suggestionOptions(shell: Page): Locator {
+  return suggestionList(shell).getByRole('option');
+}
+/** The Archive section's list of rows, and its scroll box. */
+export function archiveRows(shell: Page): Locator {
+  return shell.locator('[data-row-list="archived"] > li');
+}
+export function archiveScroller(shell: Page): Locator {
+  return shell.locator('[data-archive-scroller]');
 }

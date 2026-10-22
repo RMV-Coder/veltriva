@@ -1283,3 +1283,32 @@ export function activityEntries(app: ElectronApplication): Promise<ActivityEntry
     return hooks.activityEntries();
   });
 }
+
+// ── M4.2: the network log ───────────────────────────────────────────────────────────────────────
+
+export type NetworkRequest = ReturnType<VeltrivaTestHooks['networkRequests']>[number];
+
+/**
+ * Every request any of the app's sessions made since the last `clearNetworkRequests` (the browsing
+ * session, the shell's and the default one), as Chromium reported it before it went out.
+ */
+export function networkRequests(app: ElectronApplication): Promise<NetworkRequest[]> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    return hooks.networkRequests();
+  });
+}
+
+/** Forgets the requests recorded so far. */
+export function clearNetworkRequests(app: ElectronApplication): Promise<void> {
+  return app.evaluate(() => {
+    const hooks = globalThis.__veltrivaTest;
+    if (hooks === undefined) {
+      throw new Error('The test hooks are missing: this is not a test build.');
+    }
+    hooks.clearNetworkRequests();
+  });
+}

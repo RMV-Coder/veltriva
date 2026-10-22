@@ -12,7 +12,8 @@ import type { FocusKey } from './tab-order';
 
 type Activate = (id: string, keyboard: boolean) => void;
 
-const RowActivateContext = createContext<Activate>(() => undefined);
+/** Provided by a list of rows (this file's `RowList`, the Archive's virtual list). */
+export const RowActivateContext = createContext<Activate>(() => undefined);
 
 /**
  * What a row calls when it is activated: `keyboard` is true for Enter or Space, and then the list

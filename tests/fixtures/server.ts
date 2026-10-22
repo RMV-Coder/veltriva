@@ -76,6 +76,8 @@ export interface FixtureServer {
   pathHits(pathname: string): number;
   /** Every request that reached this path (the query is ignored), oldest first (M1.4b). */
   requestsTo(pathname: string): readonly RecordedRequest[];
+  /** How many requests reached the server in all, whatever their path (M4.2: "nothing was sent"). */
+  totalRequests(): number;
   /** Lets every download held on `/dl/gated?key=<key>` finish, and any later one at once. */
   releaseGate(key: string): void;
   /** Answers every pending request to `/held?key=<key>`, and any later one at once. */
@@ -98,8 +100,10 @@ export async function startFixtureServer(
   const held = createHeldPages();
   const gates = createGates();
   const received = new Map<string, RecordedRequest[]>();
+  let total = 0;
 
   const server = createServer((request, response) => {
+    total += 1;
     const target = request.url ?? '/';
     hitCounts.set(target, (hitCounts.get(target) ?? 0) + 1);
     const { pathname } = new URL(target, 'http://fixture.invalid');
@@ -132,6 +136,7 @@ export async function startFixtureServer(
     hits: (pathAndQuery) => hitCounts.get(pathAndQuery) ?? 0,
     pathHits: (pathname) => pathCounts.get(pathname) ?? 0,
     requestsTo: (pathname) => [...(received.get(pathname) ?? [])],
+    totalRequests: () => total,
     releaseGate: (key) => {
       gates.release(key);
     },

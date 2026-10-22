@@ -26,15 +26,6 @@ export function archiveSummary(
   return `Archived today ${String(counts.archivedToday)} · ${String(counts.archived)} in total`;
 }
 
-/**
- * Said under "Recently archived" when the list holds fewer tabs than the Archive does (main lists
- * only the newest), so the number in the header is not mistaken for the number of rows. Null when
- * every archived tab is listed.
- */
-export function archiveListNote(listed: number, total: number): string | null {
-  return listed < total ? `Showing the newest ${String(listed)} of ${String(total)}` : null;
-}
-
 /** "1 tab", "12 tabs". */
 export function tabCount(count: number): string {
   return count === 1 ? '1 tab' : `${String(count)} tabs`;

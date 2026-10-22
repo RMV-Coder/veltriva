@@ -80,6 +80,21 @@ The tab lifecycle mixes asynchronous Chromium events, user commands, a scheduler
    - **Snapshot fields.** Per tab: `keptAwake` (the protection reasons observed now, in the order the sidebar names them), `unloadPressure`, `previewMove`, `movedBy`. On the workspace: `automation` (paused, preview with its last day and today's active day, the memory pressure).
    - **New commands.** `lifecycle.setPaused`, `lifecycle.endPreview`, `tabs.setSiteProtected` (answers the site; `not_found` for a page without one) and `lifecycle.diagnostics` (the regret metric and what automation sees, for the `diagnostics` internal page, `veltriva://diagnostics`).
    - **Main writes the settings document** for these switches; the shell never sends settings, only the intent.
+13. **As built in M4.2 (the palette, the address bar's memory, the Archive list):**
+   - **New commands:**
+     - **`memory.search`:** the words as typed, a scope (All, Open, Sleeping, Archived, Today, This week), an optional site and a limit of at most 50.
+       - **Main does the interpreting.** It reads a `site:` word out of the words, turns the scope into the data worker's filters (Today from local midnight), and checks every tab the database names against TabManager before answering. The database lags TabManager by up to a second, and a private tab is never offered.
+     - **`memory.open`:** a result opened by `switch`, `newTab` or `current`.
+       - **The shell sends ids, never an address to load.** It names the page and the tab, and main reads the page's address from the memory.
+       - **`switch` restores what it must.** It brings a tab back from Sleeping or the Archive, even one only the database still holds.
+     - **`overlay.show` / `overlay.hide`:** the A′ handshake (ADR-0006).
+     - **`archive.list`:** a window of every archived tab, from the database.
+   - **New event:** `ui.openPalette`, after main gave the shell the keyboard for Ctrl+Shift+K.
+   - **`tabs.restore` reaches every archived tab,** not only the newest 200 that memory keeps.
+   - **What the results carry:**
+     - the address as the display rules show it;
+     - title marks as ranges, which the shell renders as text;
+     - the five score terms, for the palette's debug view.
 
 ## Consequences
 

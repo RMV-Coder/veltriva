@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   ROWS_PER_PAGE,
   archiveCountText,
-  archiveListNote,
   archiveSummary,
   archivedDescription,
   archivedLabel,
@@ -43,17 +42,6 @@ describe('archiveSummary', () => {
       'Archived today 3 · 41 in total',
     );
     expect(archiveSummary({ archived: 0, archivedToday: 0 })).toBe('Archived today 0 · 0 in total');
-  });
-});
-
-describe('archiveListNote', () => {
-  it('is null when every archived tab is listed', () => {
-    expect(archiveListNote(41, 41)).toBeNull();
-    expect(archiveListNote(0, 0)).toBeNull();
-  });
-
-  it('says how many of the total the list holds when main lists only the newest', () => {
-    expect(archiveListNote(200, 350)).toBe('Showing the newest 200 of 350');
   });
 });
 

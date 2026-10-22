@@ -13,7 +13,12 @@ export function ContentArea({ ref }: { readonly ref: Ref<HTMLDivElement> }) {
   const tab = useSelectedTab();
 
   return (
-    <main className="relative min-h-0 min-w-0 bg-background">
+    <main
+      // While an overlay is up (globals.css) the page's part of the window clears, so the page
+      // under the transparent shell shows through. An internal page is drawn here, so it keeps its background.
+      data-content-backdrop={tab?.page.kind === 'web' ? 'web' : 'internal'}
+      className="relative min-h-0 min-w-0 bg-background"
+    >
       <div
         ref={ref}
         id={CONTENT_AREA_ID}

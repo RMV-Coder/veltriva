@@ -148,9 +148,26 @@
  * While the fullscreen notice shows, main raises the shell's transparent view above the page
  * (ADR-0006 A'), so the page, the notice and nothing else must be visible: every background the
  * shell paints is cleared. Outside @layer so that it beats the base layer's body background.
+ *
+ * The memory palette and the address bar's suggestions are the same kind of overlay, but the
+ * toolbar and the sidebar stay: they paint their own opaque backgrounds, and only the document
+ * itself and the content area (where the page is) clear. `data-overlay` is a list of names, one
+ * per overlay that is up, hence `~=`. An opaque document above a page counts as occlusion and
+ * hides it (ADR-0006, measured), so these must hold before main raises the shell.
  */
-html[data-overlay='fullscreen-notice'],
-html[data-overlay='fullscreen-notice'] body,
-html[data-overlay='fullscreen-notice'] #root {
+html[data-overlay~='fullscreen-notice'],
+html[data-overlay~='fullscreen-notice'] body,
+html[data-overlay~='fullscreen-notice'] #root,
+html[data-overlay~='palette'],
+html[data-overlay~='palette'] body,
+html[data-overlay~='palette'] #root,
+html[data-overlay~='suggestions'],
+html[data-overlay~='suggestions'] body,
+html[data-overlay~='suggestions'] #root {
+  background: transparent;
+}
+
+html[data-overlay~='palette'] [data-content-backdrop='web'],
+html[data-overlay~='suggestions'] [data-content-backdrop='web'] {
   background: transparent;
 }

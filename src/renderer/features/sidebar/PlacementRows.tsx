@@ -123,12 +123,26 @@ export const SleepingRow = memo(function SleepingRow({
 export interface ArchivedRowProps extends RowProps {
   /** "2 h ago · by automation". */
   readonly meta: string;
+  /**
+   * In the Archive's virtual list (M4.2): the row's place among `setSize` rows, `top` pixels from
+   * the top of the list, `height` tall. Rows then hold a position, not a place in the flow, and
+   * a row with no data yet (`loading`) is a placeholder that does nothing when pressed. All
+   * primitives, so the memoized row is drawn again only when its own words change.
+   */
+  readonly index?: number;
+  readonly setSize?: number;
+  readonly top?: number;
+  readonly height?: number;
+  readonly loading?: boolean;
 }
 
 /**
  * An archived tab: icon and title, and under them when it was archived and by whom. A click, Enter
  * or Space brings it back to Tabs (it may come back under a new id). No context menu: the only
  * thing to do with an archived tab is to restore it.
+ *
+ * In the virtual list the same element serves a placeholder and the row that replaces it, so a
+ * placeholder that has keyboard focus keeps it when its tab arrives.
  */
 export const ArchivedRow = memo(function ArchivedRow({
   id,
@@ -139,23 +153,44 @@ export const ArchivedRow = memo(function ArchivedRow({
   description,
   meta,
   tabStop,
+  index,
+  setSize,
+  top,
+  height,
+  loading = false,
 }: ArchivedRowProps) {
   const onActivate = useRowActivate();
   const descriptionId = `archived-description-${id}`;
   return (
-    <li data-archived-row={id}>
+    <li
+      data-archived-row={loading ? undefined : id}
+      data-archived-loading={loading ? '' : undefined}
+      aria-posinset={index === undefined ? undefined : index + 1}
+      aria-setsize={setSize}
+      style={
+        top === undefined ? undefined : { position: 'absolute', top, left: 0, right: 0, height }
+      }
+    >
       <button
         type="button"
         data-row-button=""
         data-row-id={id}
-        data-archived-tab={id}
-        title={tooltip}
+        data-row-index={index}
+        data-archived-tab={loading ? undefined : id}
+        title={tooltip === '' ? undefined : tooltip}
         aria-describedby={descriptionId}
+        aria-disabled={loading ? true : undefined}
         tabIndex={tabStop ? 0 : -1}
         onClick={(event) => {
-          onActivate(id, isKeyboardClick(event));
+          if (!loading) {
+            onActivate(id, isKeyboardClick(event));
+          }
         }}
-        className={cn(ROW_BUTTON, 'min-h-9 py-1', FOCUS_RING)}
+        className={cn(
+          ROW_BUTTON,
+          height === undefined ? 'min-h-9 py-1' : 'h-full py-1',
+          FOCUS_RING,
+        )}
       >
         <RowIcon favicon={favicon} alert={alert} />
         <span className="min-w-0 flex-1 text-left">
