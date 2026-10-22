@@ -14,9 +14,8 @@
 //
 //   npm run bench:memory                     sizes 10, 25 and 50, 5 runs each
 //   BENCH_SIZES=10 BENCH_RUNS=1 npm run bench:memory    a quick check of the harness
-import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { cpus, freemem, release, totalmem } from 'node:os';
+import { freemem } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,6 +24,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startFixtureServer } from '../fixtures/server';
 import type { FixtureServer } from '../fixtures/server';
 import { runScenario } from '../lifecycle/harness';
+import { environment } from './machine';
 
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 /** Where the raw readings go; a smoke run of the harness points BENCH_OUT_DIR elsewhere. */
@@ -76,40 +76,6 @@ type Run = {
   readonly warmUp: boolean;
   readonly freeMbAtStart: number;
 } & ({ readonly reading: Reading } | { readonly error: string });
-
-/** A read-only PowerShell query; '' when it fails (the field is then reported unknown). */
-function powershell(command: string): string {
-  try {
-    return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
-      encoding: 'utf8',
-      windowsHide: true,
-      timeout: 30_000,
-    }).trim();
-  } catch {
-    return '';
-  }
-}
-
-function environment() {
-  return {
-    cpu: cpus()[0]?.model.trim() ?? 'unknown',
-    logicalCpus: cpus().length,
-    totalMemoryMb: Math.round(totalmem() / 2 ** 20),
-    windows:
-      powershell(
-        '$o = Get-CimInstance Win32_OperatingSystem; "$($o.Caption) $($o.Version) build $($o.BuildNumber)"',
-      ) || `Windows ${release()}`,
-    // BatteryStatus 2 is "on AC"; a desktop has no battery.
-    power:
-      powershell(
-        '$b = Get-CimInstance Win32_Battery; if ($null -eq $b) { "no battery" } elseif ($b.BatteryStatus -eq 2) { "AC power" } else { "battery (status $($b.BatteryStatus))" }',
-      ) || 'unknown',
-    powerPlan: powershell('powercfg /getactivescheme') || 'unknown',
-    defenderRealTime:
-      powershell('(Get-MpComputerStatus).RealTimeProtectionEnabled') || 'unknown (not readable)',
-    electron: 'see package.json',
-  };
-}
 
 let server: FixtureServer;
 const runs: Run[] = [];

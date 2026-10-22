@@ -13,6 +13,8 @@ import { z } from 'zod';
 import { UUID_V7_PATTERN } from '../../core/id/uuidv7';
 import { MAX_FAVICON_BYTES, RASTER_TYPES } from '../../core/net/favicon-format';
 import { VISIT_TRANSITIONS } from '../../core/search/frecency';
+import { MAX_TITLE_RANGES } from '../../core/search/highlight';
+import { SEARCH_PLACEMENTS } from '../../core/search/ranking';
 
 // ── Field schemas ───────────────────────────────────────────────────────────────────────────
 
@@ -177,6 +179,47 @@ const fileName = z
   .max(260)
   .regex(/^[^\\/:*?"<>|]+$/);
 
+/** Results per search: the worker retrieves at most 200 candidates (§5.4) and returns the best. */
+export const MAX_SEARCH_RESULTS = 200;
+/** Longer input is refused; core/search/query.ts reads at most its first 256 characters anyway. */
+export const MAX_SEARCH_QUERY = 4096;
+const scoreTerm = z.number().min(-1e9).max(1e9);
+/** One search result (M4.1, §5.4): a page, the tab showing it if one does, and why it ranks. */
+export const searchResultSchema = z.strictObject({
+  pageId: rowId,
+  url,
+  title,
+  site: hostName,
+  faviconId: rowId.nullable(),
+  lastVisitAt: timestamp,
+  visitCount: count,
+  /** The tab showing the page, unless it's closed: open (strip), Sleeping (shelf) or archived. */
+  tab: z.strictObject({ id: uuid, placement: z.enum(SEARCH_PLACEMENTS) }).nullable(),
+  score: scoreTerm,
+  /** Each weighted term of the score (core/search/ranking.ts), and its raw inputs. */
+  breakdown: z.strictObject({
+    text: scoreTerm,
+    frecency: scoreTerm,
+    titleExact: scoreTerm,
+    siteMatch: scoreTerm,
+    state: scoreTerm,
+    bm25: scoreTerm.nullable(),
+    frecencyNow: z.number().min(0).max(1e12),
+  }),
+  /** Where the words start words of the title: [start, end) in UTF-16 units, sorted, disjoint. */
+  titleRanges: z
+    .array(
+      z
+        .tuple([
+          z.number().int().min(0).max(MAX_STORED_TITLE),
+          z.number().int().min(0).max(MAX_STORED_TITLE),
+        ])
+        .refine(([start, end]) => start < end, 'empty range'),
+    )
+    .max(MAX_TITLE_RANGES),
+});
+export type SearchResult = z.infer<typeof searchResultSchema>;
+
 // ── Methods ─────────────────────────────────────────────────────────────────────────────────
 
 /** Largest batch one write call may carry; one call is one transaction. */
@@ -223,7 +266,10 @@ export const DATA_METHODS = {
     }),
     output: z.strictObject({ tabs: z.array(tabRowSchema).max(10_000) }),
   },
-  /** Inserts or replaces whole rows, in one transaction. */
+  /**
+   * Inserts or replaces whole rows, in one transaction. A row sent without a `pageId` is linked
+   * to the page its address is keyed by, if the memory has one (M4.1), here and in session.save.
+   */
   'tabs.upsertMany': {
     input: z.strictObject({ tabs: z.array(tabRowSchema).min(1).max(MAX_BATCH) }),
     output: changed,
@@ -354,7 +400,32 @@ export const DATA_METHODS = {
     }),
     output: changed,
   },
-  /** The memory, most recently visited first. Search arrives in Phase 4. */
+  /**
+   * Searches the memory (M4.1, §5.4): the user's words as typed, ranked and marked by the worker.
+   * Input without a word of 2 characters gets the recent-and-frequent list (`mode: 'recent'`).
+   * Filters narrow the candidates before they are ranked, so none is lost to the 200 limit:
+   * a tab placement (Tabs, Sleeping, Archive), a site, or a time the page was visited since.
+   * `now` is main's clock, for decaying frecency.
+   */
+  'search.query': {
+    input: z.strictObject({
+      query: z.string().max(MAX_SEARCH_QUERY),
+      now: timestamp,
+      limit: limit(MAX_SEARCH_RESULTS),
+      filter: z
+        .strictObject({
+          placement: z.enum(SEARCH_PLACEMENTS).optional(),
+          site: hostName.optional(),
+          visitedSince: timestamp.optional(),
+        })
+        .optional(),
+    }),
+    output: z.strictObject({
+      mode: z.enum(['text', 'recent']),
+      results: z.array(searchResultSchema).max(MAX_SEARCH_RESULTS),
+    }),
+  },
+  /** The memory, most recently visited first. */
   'history.pages': {
     input: z.strictObject({ limit: limit(1000) }),
     output: z.strictObject({ pages: z.array(pageRowSchema).max(1000) }),

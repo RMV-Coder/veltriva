@@ -385,6 +385,52 @@ describe('tabs', () => {
     });
   });
 
+  describe('the page a saved tab shows (M4.1)', () => {
+    const addPage = (db: ReturnType<typeof setup>['db'], urlKey: string): number =>
+      Number(
+        db
+          .prepare(
+            `INSERT INTO pages (url_key, url, host, site, title, first_visit_at, last_visit_at)
+             VALUES (?, ?, 'example.com', 'example.com', '', 1, 1)`,
+          )
+          .run([urlKey, urlKey]).lastInsertRowid,
+      );
+
+    it('links the tab to the page its address is keyed by, in upsertMany and session.save', () => {
+      const { db, call } = setup();
+      const page = addPage(db, 'https://example.com/1');
+      call('tabs.upsertMany', { tabs: [tabRow(1, { url: 'https://example.com/1?utm_medium=x' })] });
+      call('session.save', {
+        tabs: [tabRow(2, { url: 'https://EXAMPLE.com/1#section' })],
+        deleteIds: [],
+        documents: [],
+      });
+
+      expect(list(call).map((row) => row.pageId)).toEqual([page, page]);
+    });
+
+    it('leaves a tab on a page the memory never recorded without one', () => {
+      const { db, call } = setup();
+      addPage(db, 'https://example.com/1');
+      call('tabs.upsertMany', {
+        tabs: [tabRow(1, { url: 'https://example.com/2' }), tabRow(2, { url: 'about:blank' })],
+      });
+
+      expect(list(call).map((row) => row.pageId)).toEqual([null, null]);
+    });
+
+    it('keeps a page main names, and follows the tab to its next page', () => {
+      const { db, call } = setup();
+      const one = addPage(db, 'https://example.com/1');
+      const two = addPage(db, 'https://example.com/2');
+      call('tabs.upsertMany', { tabs: [tabRow(1, { url: 'https://example.com/1', pageId: two })] });
+      expect(list(call)[0]?.pageId).toBe(two);
+
+      call('tabs.upsertMany', { tabs: [tabRow(1, { url: 'https://example.com/1' })] });
+      expect(list(call)[0]?.pageId).toBe(one);
+    });
+  });
+
   describe('tabs.deleteMany', () => {
     it('deletes the listed tabs and counts them', () => {
       const { call } = setup();

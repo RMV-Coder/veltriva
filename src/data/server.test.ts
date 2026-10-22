@@ -451,6 +451,7 @@ describe('DATA_WRITES', () => {
       'history.pages',
       'history.visits',
       'permissions.list',
+      'search.query',
       'settings.get',
       'tabs.countArchived',
       'tabs.list',

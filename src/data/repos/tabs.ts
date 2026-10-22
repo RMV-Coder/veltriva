@@ -3,6 +3,7 @@ import type { DatabaseConnection } from 'better-sqlite3/win32-x64';
 import { restoreStateSchema } from '../../shared/contracts/data-rpc';
 import type { RestoreState, TabRow } from '../../shared/contracts/data-rpc';
 import type { RepositoryHandlers } from '../handlers';
+import { pageLinker } from './page-links';
 import { bit } from './shared';
 
 /** A `tabs` row as SQLite returns it: the columns are aliased to the contract's field names. */
@@ -94,6 +95,7 @@ export function tabHandlers(
      )`,
   );
   const upsert = db.prepare(UPSERT);
+  const pageOf = pageLinker(db);
   const deleteMany = db.prepare('DELETE FROM tabs WHERE id IN (SELECT value FROM json_each(?))');
   const putDocument = db.prepare(
     'INSERT INTO app_state (key, json) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET json = excluded.json',
@@ -115,9 +117,12 @@ export function tabHandlers(
       return tabs.length + deleted;
     },
   );
+  // Each row is linked to the page its address is keyed by (./page-links.ts), so a search knows
+  // which tab shows a page. A visit is recorded at the commit, before the save that follows it.
   const upsertRow = (tab: TabRow): void => {
     upsert.run({
       ...tab,
+      pageId: tab.pageId ?? pageOf(tab.url),
       pinned: bit(tab.pinned),
       userProtected: bit(tab.userProtected),
       restoreState: tab.restoreState === null ? null : JSON.stringify(tab.restoreState),

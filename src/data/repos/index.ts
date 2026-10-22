@@ -9,6 +9,7 @@ import { downloadHandlers } from './downloads';
 import { faviconHandlers } from './favicons';
 import { historyHandlers } from './history';
 import { permissionHandlers } from './permissions';
+import { searchHandlers } from './search';
 import { settingsHandlers } from './settings';
 import { tabHandlers } from './tabs';
 import { workspaceHandlers } from './workspaces';
@@ -25,5 +26,6 @@ export function createRepositoryHandlers(db: DatabaseConnection): RepositoryHand
     ...downloadHandlers(db),
     ...historyHandlers(db),
     ...faviconHandlers(db),
+    ...searchHandlers(db),
   };
 }

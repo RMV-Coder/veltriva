@@ -103,6 +103,13 @@ const MARKERS = [
   'memoryBenchmark',
   'VELTRIVA_BENCH',
   'pauseAutomation',
+  // src/main/testing/search-benchmark.ts and src/data/testing/search-dataset.ts: the §5.4 search
+  // benchmark and its synthetic memory (Phase 4)
+  'search-benchmark',
+  'searchBenchmark',
+  'generateSearchDataset',
+  'seedSearchDatabase',
+  'kubernetes ingress',
   // src/main/testing/fail-fast.ts
   'exitOnUncaughtException',
   'Uncaught exception in main',

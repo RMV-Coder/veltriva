@@ -22,7 +22,8 @@
     "test": "vitest run",
     "test:e2e": "npm run build:test && node scripts/check-data-isolation.mjs && playwright test",
     "test:lifecycle": "npm run build:test && vitest run --config vitest.lifecycle.config.mts",
-    "bench:memory": "npm run build:test && vitest run --config vitest.benchmark.config.mts",
+    "bench:memory": "npm run build:test && vitest run --config vitest.benchmark.config.mts memory",
+    "bench:search": "npm run build:test && vitest run --config vitest.benchmark.config.mts search",
     "package:dir": "node scripts/verify-sqlite-binary.mjs && electron-vite build && node scripts/check-production-build.mjs && node scripts/check-data-isolation.mjs && electron-builder --win --x64 --dir && node scripts/check-packaged-app.mjs"
   },
   "devDependencies": {

@@ -77,7 +77,9 @@ export class SessionStore {
     this.#workspaceId = options.workspaceId;
     this.#logger = options.logger;
     for (const row of options.loaded ?? []) {
-      this.#written.set(row.id, JSON.stringify(row));
+      // The worker links each row to its page (M4.1); main always sends none, so a loaded row is
+      // compared as main would write it, or every row would look changed at the first flush.
+      this.#written.set(row.id, JSON.stringify({ ...row, pageId: null }));
       this.#writtenPlacement.set(row.id, row.placement);
     }
     this.#structure = this.#structureOf();

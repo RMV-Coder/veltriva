@@ -14,6 +14,8 @@ import type { DataOutput } from '../shared/contracts/data-rpc';
 import { dailyBackupName, pruneBackups } from './backups';
 import { DataError } from './errors';
 import { fullCheck, isCorruption, markNeedsCheck } from './integrity';
+import { tabLinker } from './repos/page-links';
+import type { LinkChunk } from './repos/page-links';
 
 export const BACKUP_EVERY_MS = 24 * 60 * 60 * 1000;
 export const CHECK_EVERY_MS = 7 * BACKUP_EVERY_MS;
@@ -63,6 +65,10 @@ export class Maintenance {
     readonly orphanFavicons: () => number;
     readonly closedTabs: (before: number) => number;
   };
+  /** Links tabs saved before tabs had pages (M4.1), from where the last chunk stopped. */
+  readonly #linkTabs: (after: string) => LinkChunk;
+  /** The last tab id linking looked at; null once every tab was looked at this worker. */
+  #linkAfter: string | null = '';
   #running: Promise<RunResult> | null = null;
   #stopping = false;
   /**
@@ -99,13 +105,20 @@ export class Maintenance {
       const statement = db.prepare(sql);
       return (...params: number[]) => statement.run([...params, RETENTION_CHUNK]).changes;
     };
+    this.#linkTabs = tabLinker(db);
     this.#prune = {
       visits: chunked(
         'DELETE FROM visits WHERE id IN (SELECT id FROM visits WHERE visited_at < ? LIMIT ?)',
       ),
+      // A page a tab still shows stays (M4.1): an archived tab is found by its page, even after
+      // its visits expired. Closed tabs don't count; they go after a week.
       orphanPages: chunked(
         `DELETE FROM pages WHERE id IN (
-           SELECT id FROM pages p WHERE NOT EXISTS (SELECT 1 FROM visits v WHERE v.page_id = p.id)
+           SELECT id FROM pages p
+           WHERE NOT EXISTS (SELECT 1 FROM visits v WHERE v.page_id = p.id)
+             AND NOT EXISTS (
+               SELECT 1 FROM tabs t WHERE t.page_id = p.id AND t.placement <> 'closed'
+             )
            LIMIT ?
          )`,
       ),
@@ -174,6 +187,10 @@ export class Maintenance {
     let pruned = NOTHING_PRUNED;
     if (this.#state.lastCheckOk !== false) {
       try {
+        const linking = this.#link();
+        if (linking !== undefined) {
+          await linking;
+        }
         pruned = await this.#retain(now, visitRetentionDays);
       } catch (error) {
         if (!isCorruption(error)) {
@@ -248,6 +265,47 @@ export class Maintenance {
       this.#db.pragma(`incremental_vacuum(${String(VACUUM_PAGES_PER_RUN)})`);
     }
     return { visits, pages, closedTabs };
+  }
+
+  /**
+   * Links the tabs saved without a page (./repos/page-links.ts), a chunk per statement, once per
+   * worker: the rows saved since are linked as they are saved. It runs before retention, so a page
+   * an archived tab shows is kept.
+   */
+  #link(): Promise<void> | undefined {
+    if (this.#linkAfter === null || this.#stopping) {
+      return undefined;
+    }
+    let linked = 0;
+    /** Links one chunk after `after`; returns where the next one starts, or null at the end. */
+    const step = (after: string): string | null => {
+      const done = this.#linkTabs(after);
+      linked += done.linked;
+      this.#linkAfter = done.last;
+      return done.last;
+    };
+    const finish = (): void => {
+      if (linked > 0) {
+        this.noteWrite();
+      }
+    };
+    // The first chunk runs at once, so a run with nothing left to link goes straight on.
+    let next = step(this.#linkAfter);
+    if (next === null) {
+      finish();
+      return undefined;
+    }
+    return (async () => {
+      for (
+        let chunk = 1;
+        next !== null && chunk < RETENTION_CHUNKS_PER_RUN && !this.#stopping;
+        chunk += 1
+      ) {
+        await nextTurn();
+        next = step(next);
+      }
+      finish();
+    })();
   }
 
   async #backup(now: number, check: RunResult['check'], pruned: Pruned): Promise<RunResult> {

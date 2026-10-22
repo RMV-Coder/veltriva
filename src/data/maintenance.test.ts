@@ -37,6 +37,7 @@ import {
 } from './maintenance';
 import type { MaintenanceState } from './maintenance';
 import { LATEST_VERSION } from './migrations';
+import { LINK_CHUNK } from './repos/page-links';
 import { addWorkspace } from './repos/test-database';
 import { damageTable } from './testing/damage';
 
@@ -1008,18 +1009,20 @@ function insertTab(
     readonly archivedAt?: number | null;
     readonly faviconId?: number | null;
     readonly pageId?: number | null;
+    readonly url?: string;
   } = {},
 ): void {
   db.prepare(
     `INSERT INTO tabs (id, workspace_id, placement, position, page_id, url, favicon_id,
        created_at, last_used_at, last_used_engaged, last_used_active_day, placement_changed_at,
        archived_at, closed_at)
-     VALUES (?, ?, ?, 0, ?, 'https://x.example/', ?, 1, 1, 1, 1, 1, ?, ?)`,
+     VALUES (?, ?, ?, 0, ?, ?, ?, 1, 1, 1, 1, 1, ?, ?)`,
   ).run([
     id,
     WORKSPACE,
     placement,
     extra.pageId ?? null,
+    extra.url ?? 'https://x.example/',
     extra.faviconId ?? null,
     extra.archivedAt ?? (placement === 'archive' ? 1 : null),
     extra.closedAt ?? null,
@@ -1224,11 +1227,25 @@ describe('Maintenance: retention of pages', () => {
     expect(result.check).toBe('ok');
   });
 
-  it('lets a tab outlive its page: the tab stays, with no page', async () => {
+  it('keeps a page a tab shows, after its visits went: an archived tab stays findable (M4.1)', async () => {
+    addWorkspace(db, WORKSPACE);
+    const shown = insertPage(1);
+    insertVisit(shown, T0 - 400 * DAY);
+    insertTab('tab-a', 'archive', { pageId: shown });
+
+    expect((await retainAt(T0)).pruned).toEqual({ visits: 1, pages: 0, closedTabs: 0 });
+
+    expect(count('pages')).toBe(1);
+    expect(db.prepare('SELECT id, page_id AS pageId FROM tabs').all()).toEqual([
+      { id: 'tab-a', pageId: shown },
+    ]);
+  });
+
+  it('lets a closed tab outlive its page: the tab stays, with no page', async () => {
     addWorkspace(db, WORKSPACE);
     const gone = insertPage(1);
     insertVisit(gone, T0 - 400 * DAY);
-    insertTab('tab-a', 'strip', { pageId: gone });
+    insertTab('tab-a', 'closed', { pageId: gone, closedAt: T0 });
 
     await retainAt(T0);
 
@@ -1245,6 +1262,84 @@ describe('Maintenance: retention of pages', () => {
     insertVisit(page, T0 - 1);
 
     expect((await retainAt(T0)).pruned).toEqual({ visits: 2, pages: 0, closedTabs: 0 });
+  });
+});
+
+describe('Maintenance: linking tabs saved before tabs had pages (M4.1)', () => {
+  const pageIdOf = (id: string): unknown =>
+    db.prepare('SELECT page_id FROM tabs WHERE id = ?').pluck().get([id]);
+
+  it('links each tab to the page its address is keyed by, tracking parameters and all', async () => {
+    addWorkspace(db, WORKSPACE);
+    const page = insertPage(1);
+    insertVisit(page, T0 - HOUR);
+    insertTab('tab-a', 'archive', { url: 'https://x.example/1?utm_source=feed#top' });
+    insertTab('tab-b', 'shelf', { url: 'https://x.example/2' });
+
+    await retainAt(T0);
+
+    expect(pageIdOf('tab-a')).toBe(page);
+    expect(pageIdOf('tab-b')).toBeNull();
+  });
+
+  it('leaves closed tabs alone, and a tab that already has a page', async () => {
+    addWorkspace(db, WORKSPACE);
+    const one = insertPage(1);
+    const two = insertPage(2);
+    insertVisit(one, T0 - HOUR);
+    insertVisit(two, T0 - HOUR);
+    insertTab('tab-a', 'closed', { url: 'https://x.example/1', closedAt: T0 });
+    insertTab('tab-b', 'strip', { url: 'https://x.example/1', pageId: two });
+
+    await retainAt(T0);
+
+    expect(pageIdOf('tab-a')).toBeNull();
+    expect(pageIdOf('tab-b')).toBe(two);
+  });
+
+  it('links more tabs than one chunk holds, over a few statements', async () => {
+    addWorkspace(db, WORKSPACE);
+    const page = insertPage(1);
+    insertVisit(page, T0 - HOUR);
+    const total = 2 * LINK_CHUNK + 7;
+    for (let n = 0; n < total; n += 1) {
+      insertTab(`tab-${String(n).padStart(5, '0')}`, 'archive', { url: 'https://x.example/1' });
+    }
+
+    await retainAt(T0);
+
+    expect(db.prepare('SELECT COUNT(*) FROM tabs WHERE page_id = ?').pluck().get([page])).toBe(
+      total,
+    );
+  });
+
+  it('counts a link as a change, so the backup that follows is taken', async () => {
+    addWorkspace(db, WORKSPACE);
+    const page = insertPage(1);
+    insertVisit(page, T0 - HOUR);
+    insertTab('tab-a', 'archive', { url: 'https://x.example/1' });
+    expect(maintenance.status().changedSinceBackup).toBe(false);
+
+    expect((await retainAt(T0)).backup).toBe('done');
+  });
+
+  it('takes no backup for a run that linked nothing and changed nothing', async () => {
+    addWorkspace(db, WORKSPACE);
+    insertTab('tab-a', 'archive', { url: 'https://x.example/1' });
+
+    expect((await retainAt(T0)).backup).toBe('unchanged');
+  });
+
+  it('looks once per worker: a later run leaves the rest to the saves that link them', async () => {
+    addWorkspace(db, WORKSPACE);
+    await retainAt(T0);
+    const page = insertPage(1);
+    insertVisit(page, T0 - HOUR);
+    insertTab('tab-a', 'archive', { url: 'https://x.example/1' });
+
+    await retainAt(T0 + HOUR);
+
+    expect(pageIdOf('tab-a')).toBeNull();
   });
 });
 

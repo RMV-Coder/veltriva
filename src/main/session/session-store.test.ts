@@ -983,6 +983,17 @@ describe('SessionStore', () => {
         ]);
       });
 
+      it('are not sent again for the page the worker linked them to (M4.1)', async () => {
+        const tabs = [tab(1), tab(2)];
+        const loaded = (await writtenRows(tabs)).map((row, n) => ({ ...row, pageId: n + 7 }));
+        const harness = setup({ tabs, selected: id(1), loaded });
+
+        harness.store.changed();
+        await vi.advanceTimersByTimeAsync(FLUSH_DELAY_MS);
+
+        expect(harness.data.saves.map((save) => save.tabs)).toEqual([[]]);
+      });
+
       it('are sent when they differ from the source', async () => {
         const loaded = await writtenRows([tab(1), tab(2)]);
         const harness = setup({

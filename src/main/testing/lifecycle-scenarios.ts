@@ -18,6 +18,7 @@ import {
   freezeExperiment,
 } from './discard-scenarios';
 import { memoryBenchmark } from './benchmark-scenarios';
+import { searchBenchmark } from './search-benchmark';
 import { reportSession, sessionChurn } from './session-scenarios';
 import type { TabId, TabManager } from '../tabs/tab-manager';
 import type { FullscreenController } from '../windows/fullscreen';
@@ -216,6 +217,8 @@ const SCENARIOS: ReadonlyMap<string, Scenario> = new Map([
   ['freeze-experiment', { run: freezeExperiment }],
   // Phase 3: the §9.3 memory benchmark (./benchmark-scenarios.ts, tests/benchmarks).
   ['memory-benchmark', { run: memoryBenchmark }],
+  // Phase 4: the §5.4 search benchmark (./search-benchmark.ts, tests/benchmarks/search.bench.ts).
+  ['search-benchmark', { run: searchBenchmark }],
 ]);
 
 export function runLifecycleScenario(name: string, context: ScenarioContext): void {
