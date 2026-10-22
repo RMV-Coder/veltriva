@@ -145,6 +145,26 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
       - Main keeps the newest 200 archived tabs in memory. An archived tab that leaves that list keeps its row: the session store forgets it rather than deleting it, and the count still includes it.
       - The activity log is the app_state document `activity` (`{ entries }`, the newest 500), written at most every 10 s and at quit. A tab's title and address are cut to 200 and 500 characters, so the document stays under 1 MiB. It is read leniently: a field a later version adds is ignored, and a damaged entry is dropped alone. A private tab's entries are never written (I6).
     - **M3.4:** the regret metric is the app_state document `regret` (`{ since, counts, events }`, the newest 200 events), written at most every 10 s and at quit, checked when read (an unreadable one starts counting again). The settings document's lifecycle section gains `preview` (`auto` or `off`) and `protectedSites` (at most 1,000 sites); main writes the settings document for the first time, when the user pauses automation, starts it early or protects a site (Phase 5's settings page will write the rest). Each field still falls back to its default alone.
+12. **As built in M4.1** (searching the memory; assessment §5.4; no migration):
+    - **`search.query`** takes the user's words as typed, main's clock and a limit (at most 200). Optional filters narrow the candidates before the 200 limit, so an archived tab behind 200 better matches is still found:
+      - a placement (Tabs, Sleeping, Archive);
+      - a site;
+      - a time the page was visited since.
+    - **How the worker answers** (`src/data/repos/search.ts`):
+      1. It builds the MATCH with `core/search/query.ts`: each word is double-quoted and prefix-starred, and every FTS5 operator character only separates words. A word of marks alone is dropped, because one empty phrase in the implicit AND matches nothing (measured).
+      2. It ranks with bm25(10, 3, 5), keeping 200.
+      3. It joins the pages and the tabs showing them. A closed tab is never shown.
+      4. It re-ranks with `core/search/ranking.ts`, returns the best `limit`, and marks only those titles.
+    - **The recent-and-frequent list:** input without a 2-character word gets it, from `pages_frecency_idx`, plus the pages open in the strip.
+    - **The SQL holds no user text:** the expression and every filter are bound parameters. One statement is prepared per mode and filter combination.
+    - **`tabs.page_id` is now filled.** The worker links each tab row that `session.save` or `tabs.upsertMany` writes to the page its address is keyed by. The key is the history recorder's (`core/url/hygiene.ts`, through `repos/page-links.ts`), so main never tracks it.
+      - Rows saved before M4.1 are linked by idle maintenance: 500 a statement, once per worker, ahead of retention.
+      - The session store compares loaded rows with `pageId` set aside, so the link never makes a start rewrite every row.
+    - **Retention keeps a page that a non-closed tab shows**, even after its visits expired. An archived tab must stay findable by its own words. Before M4.1 such a page went, and the tab kept no page.
+    - **Measured** (`docs/benchmarks/search.md`, median of 3 runs on the loaded reference laptop, end to end through the RPC with 50 results):
+      - 10,000 pages: p95 4.3 ms;
+      - 50,000 pages: p95 10.3 ms, p99 12.8 ms, and the first search on a cold index 25 ms.
+      - A first search fired during startup waits for startup: 134–222 ms.
 
 ## Consequences
 

@@ -36,6 +36,11 @@ const SIZES = (process.env.BENCH_SIZES ?? '1000,10000,50000')
   .map(Number)
   .filter((size) => Number.isInteger(size) && size >= 1);
 const RUNS = Number(process.env.BENCH_RUNS ?? 3);
+/**
+ * How long the first search waits after the worker is ready (search-benchmark.ts): 5 s by
+ * default, a settled app; BENCH_FIRST_DELAY_MS=0 measures it inside startup instead.
+ */
+const FIRST_DELAY_MS = Number(process.env.BENCH_FIRST_DELAY_MS ?? 5000);
 /** The database file the app opens (src/main/persistence/data-worker.ts DATABASE_FILE). */
 const DATABASE_FILE = 'veltriva.db';
 
@@ -46,6 +51,7 @@ interface Sample {
 }
 
 interface Reading {
+  readonly firstDelayMs: number;
   readonly limit: number;
   readonly first: Sample;
   readonly headline: readonly (Sample & { readonly class: string })[];
@@ -66,12 +72,12 @@ describe('search benchmark (§5.4)', () => {
   it(`measures ${SIZES.join(', ')} pages, ${String(RUNS)} runs each`, async () => {
     const machine = environment();
     mkdirSync(OUT_DIR, { recursive: true });
-    const name = `phase-4-search-${new Date().toISOString().slice(0, 10)}-${SIZES.join('-')}`;
+    const name = `phase-4-search-${new Date().toISOString().slice(0, 10)}-${SIZES.join('-')}-first-after-${String(FIRST_DELAY_MS)}ms`;
     const runs: Run[] = [];
     const save = (): void => {
       writeFileSync(
         join(OUT_DIR, `${name}.json`),
-        `${JSON.stringify({ machine, sizes: SIZES, runs: RUNS, datasetNow: DATASET_NOW, results: runs }, null, 2)}\n`,
+        `${JSON.stringify({ machine, sizes: SIZES, runs: RUNS, datasetNow: DATASET_NOW, firstDelayMs: FIRST_DELAY_MS, results: runs }, null, 2)}\n`,
       );
     };
     for (const size of SIZES) {
@@ -88,7 +94,10 @@ describe('search benchmark (§5.4)', () => {
             copyFileSync(template, join(profile, DATABASE_FILE));
             const { result } = await runScenario<Reading>('search-benchmark', {
               userDataDir: profile,
-              env: { VELTRIVA_BENCH_NOW: String(DATASET_NOW) },
+              env: {
+                VELTRIVA_BENCH_NOW: String(DATASET_NOW),
+                VELTRIVA_BENCH_FIRST_DELAY_MS: String(FIRST_DELAY_MS),
+              },
               timeoutMs: 15 * 60_000,
             });
             runs.push({ ...base, reading: result });

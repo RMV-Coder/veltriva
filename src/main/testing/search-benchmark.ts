@@ -22,6 +22,13 @@ import type { ScenarioContext } from './lifecycle-scenarios';
 export const BENCH_RESULT_LIMIT = 50;
 /** The time the seeded memory was made at (src/data/testing/search-dataset.ts DATASET_NOW). */
 export const BENCH_NOW_ENV = 'VELTRIVA_BENCH_NOW';
+/**
+ * How long after the worker is ready the first search waits, in ms. 0 measures it inside the
+ * app's startup, where main is still restoring the session and loading the shell; a few seconds
+ * measure a cold search index in a settled app, which is when a person first opens the palette
+ * and what spike S5 measured ("the first search in a fresh worker").
+ */
+export const BENCH_FIRST_DELAY_ENV = 'VELTRIVA_BENCH_FIRST_DELAY_MS';
 
 export const QUERY_CLASSES = {
   oneWord: [
@@ -87,6 +94,8 @@ export interface Sample {
 
 export interface SearchBenchmarkResult {
   readonly limit: number;
+  /** How long the first search waited after the worker was ready. */
+  readonly firstDelayMs: number;
   readonly first: Sample;
   readonly headline: readonly (Sample & { readonly class: QueryClass })[];
   readonly ladders: readonly Sample[];
@@ -104,6 +113,12 @@ export async function searchBenchmark({
   pauseAutomation?.();
   await data.ready;
   const now = Number(process.env[BENCH_NOW_ENV] ?? Date.now());
+  const firstDelayMs = Number(process.env[BENCH_FIRST_DELAY_ENV] ?? 0);
+  if (firstDelayMs > 0) {
+    await new Promise((resolve) => {
+      setTimeout(resolve, firstDelayMs);
+    });
+  }
   const search = async (query: string): Promise<Sample> => {
     const started = performance.now();
     const { results } = await data.call(
@@ -152,6 +167,7 @@ export async function searchBenchmark({
 
   const info = await data.call('db.info', {});
   return {
+    firstDelayMs,
     limit: BENCH_RESULT_LIMIT,
     first,
     headline,

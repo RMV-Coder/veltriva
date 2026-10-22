@@ -44,7 +44,9 @@ const TARGETS = {
 
 for (const raw of raws) {
   console.log(`Machine: ${JSON.stringify(raw.machine)}`);
-  console.log(`Sizes ${raw.sizes.join(', ')}: ${String(raw.runs)} runs each`);
+  console.log(
+    `Sizes ${raw.sizes.join(', ')}: ${String(raw.runs)} runs each; first search ${raw.firstDelayMs === undefined ? 'at once when the worker was ready (before the delay setting existed)' : `${String(raw.firstDelayMs)} ms after the worker was ready`}`,
+  );
 }
 console.log('');
 

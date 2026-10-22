@@ -984,6 +984,13 @@ The weights are starting points, tuned against a **golden query set** (Part 9). 
 
 Phase 4 re-measures with real history data, and may tighten the 50k p95 target to 25 ms.
 
+**Measured in M4.1** ([docs/benchmarks/search.md](../benchmarks/search.md)), end to end through the RPC inside the app, on S5's synthetic data (real history data stays the user's), median of 3 runs on the same loaded laptop:
+
+- **10,000 pages:** p95 4.3 ms.
+- **50,000 pages:** p95 10.3 ms, p99 12.8 ms, and the first search on a cold index 25 ms.
+
+Every target is met. The 25 ms tightening of the 50k p95 is supported by that evidence but not adopted here, so the table above still applies. A first search fired while the app is still starting waits for startup's work, 134–222 ms; the write-up says why. The golden query set is `src/data/repos/search-golden.test.ts`. One of its expectations records a limit of word-start matching: `electron 45` doesn't find `v45.0.0`.
+
 ### 5.5 Write strategy
 
 - **One worker, one connection, WAL mode.** All database work is serialized inside the worker, which is simple and correct. If writes ever delay searches, a second read-only connection in a second worker is an *additive* change, because WAL allows concurrent readers.
