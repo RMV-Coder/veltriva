@@ -61,9 +61,12 @@ describe('classifyOmniboxInput', () => {
     ['vbscript:msgbox', search('vbscript:msgbox')],
     ['app://shell/index.html', search('app://shell/index.html')],
     ['about:srcdoc', search('about:srcdoc')],
-    ['veltriva://settings', search('veltriva://settings')],
+    // A page Veltriva doesn't have is a search.
+    ['veltriva://history', search('veltriva://history')],
     // Internal pages, about:blank, files
     ['veltriva://newtab', { kind: 'internal', page: 'new-tab' }],
+    ['veltriva://settings', { kind: 'internal', page: 'settings' }],
+    ['veltriva://welcome', { kind: 'internal', page: 'welcome' }],
     ['about:blank', navigate('about:blank')],
     ['file:///C:/Users/me/a.pdf', navigate('file:///C:/Users/me/a.pdf')],
     ['C:\\Users\\me\\My File.pdf', navigate('file:///C:/Users/me/My%20File.pdf')],
