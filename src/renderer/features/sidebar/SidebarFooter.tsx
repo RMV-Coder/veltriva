@@ -1,12 +1,13 @@
 import { ActivityButton } from '../activity/ActivityButton';
 import { useCounts } from '../../state/workspace-store';
+import { AutomationStatus } from './AutomationStatus';
 import { NewTabButton } from './NewTabButton';
 import { countsLine } from './placement-display';
 
 /**
  * The foot of the sidebar, which stays in view while the lists scroll: the summary line (assessment
  * §4.13, "Sleeping 12 · Archived today 3"), which is there whether the sections are open or not,
- * then the New tab button and the Activity button.
+ * automation's status (pause, preview, memory), then the New tab button and the Activity button.
  */
 export function SidebarFooter() {
   const line = countsLine(useCounts());
@@ -19,6 +20,7 @@ export function SidebarFooter() {
       >
         {line}
       </p>
+      <AutomationStatus />
       <div className="flex items-center gap-1">
         <div className="min-w-0 flex-1">
           <NewTabButton />

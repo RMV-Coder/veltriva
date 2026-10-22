@@ -2,6 +2,7 @@ import type { TabSnapshot } from '../../../shared/contracts/schemas';
 import { CertificateErrorPage } from './CertificateErrorPage';
 import { ClientCertificatePage } from './ClientCertificatePage';
 import { CrashedPage } from './CrashedPage';
+import { DiagnosticsPage } from './DiagnosticsPage';
 import { NetworkErrorPage } from './NetworkErrorPage';
 import { NewTabPage } from './NewTabPage';
 
@@ -38,5 +39,7 @@ export function InternalPage({ tab }: { readonly tab: TabSnapshot }) {
       );
     case 'crashed':
       return <CrashedPage tabId={tab.id} reason={page.error?.name} />;
+    case 'diagnostics':
+      return <DiagnosticsPage />;
   }
 }

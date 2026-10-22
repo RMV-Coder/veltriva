@@ -113,6 +113,43 @@ export async function fetchActivity(): Promise<readonly ActivityEntry[] | undefi
   return result.ok ? result.value.entries : undefined;
 }
 
+/**
+ * "Pause automation" (or resume it): while it is paused nothing is unloaded or moved on its own.
+ * Main saves the choice and shows it in the next snapshot's `automation.paused`.
+ */
+export async function setAutomationPaused(paused: boolean): Promise<boolean> {
+  return (await run('lifecycle.setPaused', () => window.veltriva.lifecycle.setPaused({ paused })))
+    .ok;
+}
+
+/** Ends preview mode early: automation carries its moves out from now on. */
+export async function endPreview(): Promise<boolean> {
+  return (await run('lifecycle.endPreview', () => window.veltriva.lifecycle.endPreview())).ok;
+}
+
+/**
+ * Protects the site of the tab's page from automation (or ends it). Resolves to the site, or
+ * undefined if main refused: a tab without a site (not an http(s) page) has nothing to protect.
+ */
+export async function setSiteProtected(
+  tabId: string,
+  protect: boolean,
+): Promise<string | undefined> {
+  const result = await run('tabs.setSiteProtected', () =>
+    window.veltriva.tabs.setSiteProtected({ tabId, protected: protect }),
+  );
+  return result.ok ? result.value.site : undefined;
+}
+
+/** What the local diagnostics page shows (assessment §4.13): the regret metric and what automation sees. */
+export type Diagnostics = CommandOutput<'lifecycle.diagnostics'>;
+
+/** The diagnostics, or undefined if they could not be read. */
+export async function fetchDiagnostics(): Promise<Diagnostics | undefined> {
+  const result = await run('lifecycle.diagnostics', () => window.veltriva.lifecycle.diagnostics());
+  return result.ok ? result.value : undefined;
+}
+
 /** `toIndex` is the tab's final index in the whole strip. Main clamps it into the tab's section. */
 export async function moveTab(tabId: string, toIndex: number): Promise<boolean> {
   return (await run('tabs.move', () => window.veltriva.tabs.move({ tabId, toIndex }))).ok;

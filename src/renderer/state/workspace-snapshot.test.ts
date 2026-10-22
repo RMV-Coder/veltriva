@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { findSelectedTab, fullscreenNotice, isNewerSnapshot } from './workspace-snapshot';
+import {
+  NO_AUTOMATION,
+  automationOf,
+  findSelectedTab,
+  fullscreenNotice,
+  isNewerSnapshot,
+} from './workspace-snapshot';
 
 describe('isNewerSnapshot', () => {
   it('accepts the first snapshot, whatever its version', () => {
@@ -54,5 +60,29 @@ describe('fullscreenNotice', () => {
   it('is null when no tab is in fullscreen, or before the first snapshot', () => {
     expect(fullscreenNotice({ fullscreen: null })).toBeNull();
     expect(fullscreenNotice(null)).toBeNull();
+  });
+});
+
+describe('automationOf', () => {
+  it("is the snapshot's automation, as it is", () => {
+    const automation = {
+      paused: true,
+      preview: true,
+      previewUntilDay: 3,
+      activeDay: 2,
+      pressure: 'moderate',
+    } as const;
+    expect(automationOf({ automation })).toBe(automation);
+  });
+
+  it('is "running, nothing to report" before the first snapshot', () => {
+    expect(automationOf(null)).toBe(NO_AUTOMATION);
+    expect(NO_AUTOMATION).toEqual({
+      paused: false,
+      preview: false,
+      previewUntilDay: 0,
+      activeDay: 0,
+      pressure: 'none',
+    });
   });
 });

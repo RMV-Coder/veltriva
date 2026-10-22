@@ -1,15 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  KEPT_AWAKE_PREFIX,
   PROTECTED_TEXT,
+  SITE_PROTECTED_TEXT,
   SLEEPING_TEXT,
+  TOOLTIP_REASONS,
+  keptAwakeAttribute,
+  keptAwakeLine,
   lifecycleStatus,
+  movedByLine,
+  previewLine,
+  siteProtectedLine,
   tabDescriptions,
   tabLabel,
   tabMenuPoint,
   tabStatus,
   tabTooltip,
 } from './tab-display';
+import type { KeptAwakeReason } from './tab-display';
 
 describe('tabMenuPoint', () => {
   const tab = { left: 8, top: 100, right: 252, bottom: 136 };
@@ -145,7 +154,11 @@ type LifecycleTab = Parameters<typeof tabTooltip>[0];
 const liveTab: LifecycleTab = {
   ...webTab,
   unloadedBy: null,
+  unloadPressure: null,
   userProtected: false,
+  keptAwake: [],
+  previewMove: null,
+  movedBy: null,
 };
 const unloaded = (unloadedBy: LifecycleTab['unloadedBy']): LifecycleTab => ({
   ...liveTab,
@@ -170,6 +183,31 @@ describe('lifecycleStatus', () => {
     expect(lifecycleStatus(unloaded('pressure'))).toBe(
       'Unloaded because memory was low — click to reload',
     );
+  });
+
+  it('says how low memory was when it was critical, and "low" for moderate or unknown', () => {
+    const pressure = (level: LifecycleTab['unloadPressure']): LifecycleTab => ({
+      ...unloaded('pressure'),
+      unloadPressure: level,
+    });
+    expect(lifecycleStatus(pressure('critical'))).toBe(
+      'Unloaded because memory was very low — click to reload',
+    );
+    expect(lifecycleStatus(pressure('critical'), false)).toBe(
+      'Unloaded because memory was very low',
+    );
+    expect(lifecycleStatus(pressure('moderate'))).toBe(
+      'Unloaded because memory was low — click to reload',
+    );
+    expect(lifecycleStatus(pressure(null))).toBe(
+      'Unloaded because memory was low — click to reload',
+    );
+  });
+
+  it('keeps the pressure level out of the other ways a page is unloaded', () => {
+    const stale: LifecycleTab = { ...unloaded('automation'), unloadPressure: 'critical' };
+    expect(lifecycleStatus(stale)).toBe('Unloaded to save memory — click to reload');
+    expect(lifecycleStatus({ ...stale, unloadedBy: 'user' })).toBe('Unloaded — click to reload');
   });
 
   it('says a web page nobody unloaded was never loaded', () => {
@@ -298,5 +336,266 @@ describe('tabDescriptions', () => {
     );
     expect(keys(list)).toEqual(['sleeping', 'lifecycle', 'protected']);
     expect(list[1]?.text).toBe('Unloaded because memory was low');
+  });
+
+  it('adds who moved a Sleeping tab there, after how to bring it back', () => {
+    const list = tabDescriptions(described({ ...liveTab, movedBy: 'automation' }, true), {
+      sleeping: true,
+    });
+    expect(list).toEqual([
+      { key: 'sleeping', text: SLEEPING_TEXT },
+      { key: 'moved', text: 'Moved here by automation' },
+    ]);
+  });
+
+  it('does not say who moved a tab that is not on a Sleeping row', () => {
+    expect(tabDescriptions(described({ ...liveTab, movedBy: 'user' }))).toEqual([]);
+  });
+
+  it('names every reason a tab is kept awake, and the site protection and preview, after the rest', () => {
+    const list = tabDescriptions(
+      described({
+        ...liveTab,
+        userProtected: true,
+        keptAwake: [
+          'user-protected',
+          'protected-site',
+          'audio',
+          'fullscreen',
+          'capture',
+          'video',
+          'devtools',
+        ],
+        previewMove: 'shelve',
+      }),
+    );
+    expect(list).toEqual([
+      { key: 'protected', text: PROTECTED_TEXT },
+      { key: 'site-protected', text: SITE_PROTECTED_TEXT },
+      {
+        key: 'kept-awake',
+        text: 'Kept awake: playing audio, in full screen, using the camera or microphone, playing media, developer tools are open',
+      },
+      { key: 'preview', text: 'Preview: would move to Sleeping' },
+    ]);
+  });
+
+  it('says nothing about the user protection twice', () => {
+    const list = tabDescriptions(
+      described({ ...liveTab, userProtected: true, keptAwake: ['user-protected'] }),
+    );
+    expect(list).toEqual([{ key: 'protected', text: PROTECTED_TEXT }]);
+  });
+});
+
+const reasons = (...list: KeptAwakeReason[]): readonly KeptAwakeReason[] => list;
+
+describe('keptAwakeLine', () => {
+  it('is null when nothing keeps the tab awake', () => {
+    expect(keptAwakeLine([])).toBeNull();
+  });
+
+  it('says what Veltriva observed, in plain words, for every reason', () => {
+    const expected: Readonly<Record<KeptAwakeReason, string | null>> = {
+      'user-protected': null,
+      'protected-site': null,
+      fullscreen: 'Kept awake: in full screen',
+      capture: 'Kept awake: using the camera or microphone',
+      audio: 'Kept awake: playing audio',
+      video: 'Kept awake: playing media',
+      'page-unsaved-changes': 'Kept awake: page reported unsaved changes',
+      'unsaved-input': 'Kept awake: unsaved text in a form',
+      'open-popup': 'Kept awake: a sign-in or payment window is open',
+      devtools: 'Kept awake: developer tools are open',
+      editing: "Kept awake: you're editing",
+      'sensitive-page': 'Kept awake: a password or payment page',
+      notifications: 'Kept awake: the site can send you notifications',
+      'background-activity': 'Kept awake: active in the background',
+      'recent-interaction': 'Kept awake: you used it a moment ago',
+    };
+    for (const [reason, line] of Object.entries(expected) as [KeptAwakeReason, string | null][]) {
+      expect(keptAwakeLine([reason])).toBe(line);
+    }
+  });
+
+  it('starts every line with the same words', () => {
+    expect(keptAwakeLine(reasons('audio'))?.startsWith(KEPT_AWAKE_PREFIX)).toBe(true);
+    expect(KEPT_AWAKE_PREFIX).toBe('Kept awake: ');
+  });
+
+  it('puts several reasons on one line, in the order main gave them', () => {
+    expect(keptAwakeLine(reasons('capture', 'audio'))).toBe(
+      'Kept awake: using the camera or microphone, playing audio',
+    );
+    expect(keptAwakeLine(reasons('audio', 'capture'))).toBe(
+      'Kept awake: playing audio, using the camera or microphone',
+    );
+  });
+
+  it('leaves out the reasons that are said elsewhere: the user protection and the site', () => {
+    expect(keptAwakeLine(reasons('user-protected'))).toBeNull();
+    expect(keptAwakeLine(reasons('protected-site'))).toBeNull();
+    expect(keptAwakeLine(reasons('user-protected', 'protected-site', 'audio'))).toBe(
+      'Kept awake: playing audio',
+    );
+  });
+
+  it('names a reason once', () => {
+    expect(keptAwakeLine(reasons('audio', 'audio'))).toBe('Kept awake: playing audio');
+  });
+
+  it('names the first few and counts the rest when asked for a short line', () => {
+    const many = reasons('fullscreen', 'capture', 'audio', 'video', 'devtools', 'editing');
+    expect(keptAwakeLine(many, 3)).toBe(
+      'Kept awake: in full screen, using the camera or microphone, playing audio, and 3 more',
+    );
+    expect(keptAwakeLine(many)).toBe(
+      "Kept awake: in full screen, using the camera or microphone, playing audio, playing media, developer tools are open, you're editing",
+    );
+  });
+
+  it('never says "and 1 more": it names that one instead', () => {
+    const four = reasons('fullscreen', 'capture', 'audio', 'video');
+    expect(keptAwakeLine(four, 3)).toBe(
+      'Kept awake: in full screen, using the camera or microphone, playing audio, playing media',
+    );
+    expect(keptAwakeLine(reasons('fullscreen', 'capture', 'audio'), 3)).not.toMatch(/more/);
+  });
+
+  it('counts only the reasons that make the line when it counts the rest', () => {
+    const list = reasons(
+      'user-protected',
+      'protected-site',
+      'audio',
+      'video',
+      'devtools',
+      'editing',
+    );
+    expect(keptAwakeLine(list, 1)).toBe('Kept awake: playing audio, and 3 more');
+  });
+
+  it('always names at least one reason', () => {
+    expect(keptAwakeLine(reasons('audio', 'video', 'devtools'), 0)).toBe(
+      'Kept awake: playing audio, and 2 more',
+    );
+    expect(keptAwakeLine(reasons('audio'), -4)).toBe('Kept awake: playing audio');
+  });
+
+  it('is a tooltip of three reasons at most', () => {
+    expect(TOOLTIP_REASONS).toBe(3);
+  });
+});
+
+describe('keptAwakeAttribute', () => {
+  it('lists every reason main gave, space-separated, or leaves the attribute off', () => {
+    expect(keptAwakeAttribute([])).toBeUndefined();
+    expect(keptAwakeAttribute(reasons('user-protected', 'audio'))).toBe('user-protected audio');
+  });
+});
+
+describe('siteProtectedLine', () => {
+  it('is said when the tab is kept as it is for its site', () => {
+    expect(siteProtectedLine(reasons('audio', 'protected-site'))).toBe(
+      'Its site is protected from automation',
+    );
+  });
+
+  it('is null otherwise', () => {
+    expect(siteProtectedLine(reasons('audio', 'user-protected'))).toBeNull();
+    expect(siteProtectedLine([])).toBeNull();
+  });
+});
+
+describe('previewLine', () => {
+  it('says what automation would do to the tab', () => {
+    expect(previewLine('shelve')).toBe('Preview: would move to Sleeping');
+    expect(previewLine('archive')).toBe('Preview: would be archived');
+  });
+
+  it('is null when it would do nothing', () => {
+    expect(previewLine(null)).toBeNull();
+  });
+});
+
+describe('movedByLine', () => {
+  it('says who put a Sleeping tab there', () => {
+    expect(movedByLine('automation')).toBe('Moved here by automation');
+    expect(movedByLine('user')).toBe('You moved it here');
+  });
+
+  it('says nothing when it is not known', () => {
+    expect(movedByLine(null)).toBeNull();
+  });
+});
+
+describe('the "why" in a tab tooltip', () => {
+  it('is still the label alone for a tab nothing is observed about', () => {
+    expect(tabTooltip(liveTab)).toBe('Example Domain');
+    expect(tabTooltip(liveTab, { sleeping: true })).toBe(`Example Domain\n${SLEEPING_TEXT}`);
+  });
+
+  it('says what keeps a tab awake on the line after its label', () => {
+    expect(tabTooltip({ ...liveTab, keptAwake: ['audio'] })).toBe(
+      'Example Domain\nKept awake: playing audio',
+    );
+  });
+
+  it('combines several reasons on one line and cuts a long list', () => {
+    const tab: LifecycleTab = {
+      ...liveTab,
+      keptAwake: ['fullscreen', 'capture', 'audio', 'video', 'devtools', 'editing'],
+    };
+    expect(tabTooltip(tab)).toBe(
+      'Example Domain\nKept awake: in full screen, using the camera or microphone, playing audio, and 3 more',
+    );
+  });
+
+  it('puts the protections before what is observed, then the preview last', () => {
+    const tab: LifecycleTab = {
+      ...liveTab,
+      userProtected: true,
+      keptAwake: ['user-protected', 'protected-site', 'audio'],
+      previewMove: 'archive',
+    };
+    expect(tabTooltip(tab)).toBe(
+      [
+        'Example Domain',
+        PROTECTED_TEXT,
+        SITE_PROTECTED_TEXT,
+        'Kept awake: playing audio',
+        'Preview: would be archived',
+      ].join('\n'),
+    );
+  });
+
+  it('says a protected site on its own line, not as "Kept awake"', () => {
+    expect(tabTooltip({ ...liveTab, keptAwake: ['protected-site'] })).toBe(
+      `Example Domain\n${SITE_PROTECTED_TEXT}`,
+    );
+  });
+
+  it('says the preview move', () => {
+    expect(tabTooltip({ ...liveTab, previewMove: 'shelve' })).toBe(
+      'Example Domain\nPreview: would move to Sleeping',
+    );
+  });
+
+  it('says who moved a Sleeping tab there, right after how to bring it back', () => {
+    expect(tabTooltip({ ...liveTab, movedBy: 'automation' }, { sleeping: true })).toBe(
+      `Example Domain\n${SLEEPING_TEXT}\nMoved here by automation`,
+    );
+    expect(tabTooltip({ ...unloaded('pressure'), movedBy: 'user' }, { sleeping: true })).toBe(
+      `Example Domain\n${SLEEPING_TEXT}\nYou moved it here\nUnloaded because memory was low`,
+    );
+  });
+
+  it('does not say who moved a tab that is not on a Sleeping row', () => {
+    expect(tabTooltip({ ...liveTab, movedBy: 'automation' })).toBe('Example Domain');
+  });
+
+  it('says how low memory was in the tooltip of a tab that pressure unloaded', () => {
+    expect(tabTooltip({ ...unloaded('pressure'), unloadPressure: 'critical' })).toBe(
+      'Example Domain\nUnloaded because memory was very low — click to reload',
+    );
   });
 });

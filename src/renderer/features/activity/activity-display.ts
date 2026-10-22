@@ -40,7 +40,8 @@ export function activitySentence(
   }
 }
 
-const MONTHS = [
+/** Short month names, for a date in the user's words ("21 Oct"). */
+export const MONTHS = [
   'Jan',
   'Feb',
   'Mar',

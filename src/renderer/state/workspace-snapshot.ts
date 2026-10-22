@@ -1,4 +1,5 @@
 // Pure helpers over the workspace snapshot main sends. No DOM and no store, so they run in Vitest.
+import type { WorkspaceSnapshot } from '../../shared/contracts/schemas';
 
 interface Versioned {
   readonly version: number;
@@ -47,4 +48,20 @@ export function fullscreenNotice(
     return null;
   }
   return { tabId: fullscreen.tabId, origin: fullscreen.origin };
+}
+
+type Automation = WorkspaceSnapshot['automation'];
+
+/** What the shell assumes before the first snapshot: automation running, nothing to report. */
+export const NO_AUTOMATION: Automation = {
+  paused: false,
+  preview: false,
+  previewUntilDay: 0,
+  activeDay: 0,
+  pressure: 'none',
+};
+
+/** What automation is doing (M3.4), or `NO_AUTOMATION` before the first snapshot. */
+export function automationOf(snapshot: { readonly automation: Automation } | null): Automation {
+  return snapshot?.automation ?? NO_AUTOMATION;
 }

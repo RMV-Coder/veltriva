@@ -5,9 +5,11 @@ import { FOCUS_RING } from '@/lib/focus';
 import { cn } from '@/lib/utils';
 
 import { showTabMenu } from '../../state/commands';
+import { PreviewMarker } from './PreviewMarker';
 import { RowIcon } from './RowIcon';
 import { useRowActivate } from './RowList';
 import { PROTECTED_TEXT, tabMenuPoint } from './tab-display';
+import type { MovedBy, PreviewMove } from './tab-display';
 
 /**
  * Both kinds of row are memoized on primitives, and all the words come from the display modules:
@@ -39,6 +41,14 @@ function isKeyboardClick(event: { readonly detail: number }): boolean {
 export interface SleepingRowProps extends RowProps {
   /** The user protected the tab from automation: a shield shows. */
   readonly protectedTab: boolean;
+  /** Why automation keeps the tab as it is, space-separated, for `data-kept-awake` (or undefined). */
+  readonly keptAwake: string | undefined;
+  /** Preview mode: what automation would do to the tab, which draws a small marker. */
+  readonly previewMove: PreviewMove | null;
+  /** Who moved the tab to Sleeping, when it is known. */
+  readonly movedBy: MovedBy | null;
+  /** How low memory was when it unloaded the page; null for any other way a page is unloaded. */
+  readonly unloadPressure: 'moderate' | 'critical' | null;
 }
 
 /**
@@ -54,6 +64,10 @@ export const SleepingRow = memo(function SleepingRow({
   tooltip,
   description,
   protectedTab,
+  keptAwake,
+  previewMove,
+  movedBy,
+  unloadPressure,
   tabStop,
 }: SleepingRowProps) {
   const onActivate = useRowActivate();
@@ -66,6 +80,10 @@ export const SleepingRow = memo(function SleepingRow({
         data-row-id={id}
         data-sleeping-tab={id}
         data-user-protected={protectedTab}
+        data-kept-awake={keptAwake}
+        data-preview-move={previewMove ?? undefined}
+        data-moved-by={movedBy ?? undefined}
+        data-unload-pressure={unloadPressure ?? undefined}
         title={tooltip}
         aria-describedby={descriptionId}
         tabIndex={tabStop ? 0 : -1}
@@ -93,6 +111,7 @@ export const SleepingRow = memo(function SleepingRow({
             className="size-3.5 shrink-0 text-sidebar-foreground/70"
           />
         ) : null}
+        {previewMove === null ? null : <PreviewMarker move={previewMove} />}
       </button>
       <span id={descriptionId} hidden>
         {description}

@@ -11,6 +11,9 @@ export const ACTIVITY_BUTTON_ID = 'activity-button';
 /** The activity log view: the button's `aria-controls` points at it. */
 export const ACTIVITY_VIEW_ID = 'activity-view';
 
+/** The sidebar's "Pause automation" / "Resume automation" button, which keeps focus when a notice goes. */
+export const AUTOMATION_TOGGLE_ID = 'automation-toggle';
+
 /** The downloads button, which opens and closes the panel under the toolbar. */
 export const DOWNLOADS_BUTTON_ID = 'downloads-button';
 /** The downloads panel: the button's `aria-controls` points at it. */

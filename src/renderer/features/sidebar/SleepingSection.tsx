@@ -7,7 +7,13 @@ import { SleepingRow } from './PlacementRows';
 import { isSectionExpanded, tabCount } from './placement-display';
 import { RowList } from './RowList';
 import { EmptyLine, SidebarSection, sectionToggleId } from './SidebarSection';
-import { tabDescriptions, tabLabel, tabStatus, tabTooltip } from './tab-display';
+import {
+  keptAwakeAttribute,
+  tabDescriptions,
+  tabLabel,
+  tabStatus,
+  tabTooltip,
+} from './tab-display';
 
 /**
  * Sleeping (assessment §4.4): the tabs automation or the user put to rest, most recently moved
@@ -64,6 +70,10 @@ function SleepingRows() {
           favicon={tab.favicon}
           alert={tabStatus(tab) === 'crashed'}
           protectedTab={tab.userProtected}
+          keptAwake={keptAwakeAttribute(tab.keptAwake)}
+          previewMove={tab.previewMove}
+          movedBy={tab.movedBy}
+          unloadPressure={tab.unloadPressure}
           tooltip={tabTooltip(tab, { sleeping: true })}
           description={tabDescriptions(tab, { sleeping: true })
             .map((description) => description.text)

@@ -8,9 +8,11 @@ import { cn } from '@/lib/utils';
 import type { TabSnapshot } from '../../../shared/contracts/schemas';
 import { closeTab, setTabPinned, showTabMenu } from '../../state/commands';
 import { CONTENT_AREA_ID, tabDomId } from '../layout/ids';
+import { PreviewMarker } from './PreviewMarker';
 import { TabIcon } from './TabIcon';
 import {
   PROTECTED_TEXT,
+  keptAwakeAttribute,
   tabDescriptions,
   tabLabel,
   tabMenuPoint,
@@ -73,14 +75,18 @@ export function TabRow({
           descriptions.length === 0 ? undefined : descriptions.map(({ id }) => id).join(' ')
         }
         tabIndex={tabStop ? 0 : -1}
-        // The label first, then what automation did to the tab and any protection (§4.13).
+        // The label first, then what automation did to the tab, any protection, and what Veltriva
+        // observed that keeps it awake (§4.10, §4.13).
         title={tabTooltip(tab)}
         data-tab-id={tab.id}
         data-pinned={tab.pinned}
         data-selected={selected}
         data-runtime={tab.runtime}
         data-unloaded-by={tab.unloadedBy ?? undefined}
+        data-unload-pressure={tab.unloadPressure ?? undefined}
         data-user-protected={tab.userProtected}
+        data-kept-awake={keptAwakeAttribute(tab.keptAwake)}
+        data-preview-move={tab.previewMove ?? undefined}
         onClick={onActivate}
         onKeyDown={onKeyDown}
         // Right-click, the Menu key or Shift+F10: main shows the tab's native menu (pin, duplicate,
@@ -115,6 +121,7 @@ export function TabRow({
             className="size-3.5 shrink-0 text-sidebar-foreground/70"
           />
         ) : null}
+        {tab.previewMove === null ? null : <PreviewMarker move={tab.previewMove} />}
       </div>
       {descriptions.map(({ id, text }) => (
         <span key={id} id={id} hidden>

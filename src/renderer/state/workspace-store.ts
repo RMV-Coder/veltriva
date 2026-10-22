@@ -4,7 +4,12 @@ import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 
 import type { TabSnapshot, WorkspaceSnapshot } from '../../shared/contracts/schemas';
-import { findSelectedTab, fullscreenNotice, isNewerSnapshot } from './workspace-snapshot';
+import {
+  automationOf,
+  findSelectedTab,
+  fullscreenNotice,
+  isNewerSnapshot,
+} from './workspace-snapshot';
 
 interface WorkspaceStore {
   /** Null until the first snapshot arrives. */
@@ -58,6 +63,14 @@ export function useCounts(): WorkspaceSnapshot['counts'] {
 /** The Undo offer, or null. Re-renders only when the offer changes, not at every snapshot. */
 export function useUndoOffer(): WorkspaceSnapshot['undo'] {
   return useWorkspaceStore(useShallow((state) => state.snapshot?.undo ?? null));
+}
+
+/**
+ * What automation is doing (M3.4): paused, previewing, under memory pressure. Re-renders only when
+ * one of those changes, not at every snapshot.
+ */
+export function useAutomation(): WorkspaceSnapshot['automation'] {
+  return useWorkspaceStore(useShallow((state) => automationOf(state.snapshot)));
 }
 
 export function useSelectedTabId(): string | null {
