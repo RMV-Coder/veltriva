@@ -58,7 +58,13 @@ import {
   PROBE_TIMEOUT_MS,
 } from '../../core/lifecycle/probe';
 import type { CloseMode } from '../../core/lifecycle/probe';
-import { blockingProtection, protectionFor } from '../../core/lifecycle/protections';
+import {
+  BACKGROUND_ACTIVITY_MS,
+  BACKGROUND_SETTLE_MS,
+  blockingProtection,
+  PROTECTION_REASONS,
+  protectionFor,
+} from '../../core/lifecycle/protections';
 import type { Protection, ProtectionReason } from '../../core/lifecycle/protections';
 import { nextRuntime } from '../../core/lifecycle/runtime-machine';
 import type { RuntimeEvent, RuntimeState } from '../../core/lifecycle/runtime-machine';
@@ -109,6 +115,10 @@ export interface TabState {
    * the user (§4.13: the tooltip says why). Null otherwise, as for a tab not loaded since start.
    */
   readonly unloadedBy: DiscardOrigin | null;
+  /** For a tab memory pressure unloaded: how low memory was (M3.4). Null otherwise. */
+  readonly unloadPressure: 'moderate' | 'critical' | null;
+  /** Who moved a Sleeping tab there in this run (M3.4's "why"); null in the strip or unknown. */
+  readonly movedBy: 'automation' | 'user' | null;
   /**
    * Never persisted or recorded in the memory (invariant I6). Nothing opens one yet: the option
    * exists so private windows can slot in later (ADR-0009 item 4).
@@ -323,6 +333,11 @@ export interface TabManagerOptions {
    * and resolve true to leave. The tab is selected by then. Without it, the tab stays.
    */
   readonly confirmLeave?: (tabId: TabId) => Promise<boolean>;
+  /**
+   * The user selected a tab that automation or memory pressure had unloaded, so it loads again
+   * (M3.4: the regret metric counts these). Called before the reload starts.
+   */
+  readonly onAutomaticUnloadShown?: (tabId: TabId, unloadedBy: 'automation' | 'pressure') => void;
 }
 
 /** A tab's page changes, as the memory needs them. Never called for internal pages. */
@@ -430,6 +445,8 @@ export function sanitizeTitle(title: string): string {
 interface DiscardProgress {
   /** Who asked: the tab says so while it stays unloaded. */
   readonly origin: DiscardOrigin;
+  /** How low memory was, for a pressure discard. */
+  readonly pressure: 'moderate' | 'critical' | null;
   /** The close was sent: from here, the page decides (it closes, or objects). */
   closing: boolean;
   /** The tab was selected while closing: it comes back as soon as the close settles. */
@@ -494,6 +511,13 @@ interface TabRecord {
   activated: boolean;
   /** A user close is asking the page whether it may unload. */
   userClosing: boolean;
+  /**
+   * Lifecycle wall time of the last title or icon change while the tab was hidden (and had been
+   * for BACKGROUND_SETTLE_MS): a chat or an inbox at work (§4.10). Null for a new document.
+   */
+  backgroundActivityAt: number | null;
+  /** Lifecycle wall time its current document committed: a page settling isn't activity. */
+  documentAt: number | null;
   /** The page objected to a user close and "Leave page?" waits for the user's answer. */
   askingToLeave: boolean;
   placementChangedAt: number;
@@ -1353,7 +1377,11 @@ export class TabManager {
     this.#leaveSelection(record);
     this.#order.splice(this.#order.indexOf(tabId), 1);
     this.#shelf.unshift(tabId);
-    record.state = { ...record.state, placement: 'shelf' };
+    record.state = {
+      ...record.state,
+      placement: 'shelf',
+      movedBy: request.origin === 'automation' ? 'automation' : 'user',
+    };
     record.placementChangedAt = this.#clock().wallNow;
     this.#ensureStripNotEmpty();
     this.#syncVisibility();
@@ -1375,7 +1403,7 @@ export class TabManager {
     }
     this.#shelf.splice(this.#shelf.indexOf(tabId), 1);
     this.#order.splice(this.#stripSlot(record.state.pinned, options.index), 0, tabId);
-    record.state = { ...record.state, placement: 'strip' };
+    record.state = { ...record.state, placement: 'strip', movedBy: null };
     record.placementChangedAt = this.#clock().wallNow;
     if (options.select !== false) {
       this.#setSelected(tabId, options.focus ?? true);
@@ -1527,6 +1555,7 @@ export class TabManager {
     }
     const progress: DiscardProgress = {
       origin: request.origin,
+      pressure: request.origin === 'pressure' ? (request.pressure ?? null) : null,
       closing: false,
       revive: false,
       deferred: [],
@@ -1635,8 +1664,12 @@ export class TabManager {
     // I3: no web contents in the Archive. A live page is discarded first; a dead one let go.
     if (record.runtime !== undefined) {
       if (record.state.runtime === 'live' || record.state.runtime === 'frozen') {
+        // The user asked for this tab: soft protections (notifications, background activity, a
+        // focused editor) give way, hard ones (unsaved input, an objecting page) don't. Automation
+        // re-validated above, soft ones included.
         const discarded = await this.#runDiscard(record, {
           origin: request.origin === 'user' ? 'user' : 'automation',
+          overrideSoft: request.origin === 'user',
         });
         if (discarded.outcome !== 'discarded') {
           // The page stays (it objected, or holds unsaved input): so does the user's view of it.
@@ -1705,13 +1738,56 @@ export class TabManager {
     return protection === null ? null : { outcome: 'blocked', reason: protection.reason };
   }
 
-  /** The protections of a tab: the monitor's, the user's, and what discards learned. */
+  /** The protections automation sees on a tab: the monitor's, ours, the user's, the lessons. */
   #protectionsOf(record: TabRecord): Protection[] {
-    return [
-      ...(this.#options.protections?.(record.state.id) ?? []),
-      ...(record.state.userProtected ? [protectionFor('user-protected')] : []),
-      ...this.#freshLearned(record),
-    ];
+    return this.#protectionsNow(record, { user: false, learned: true });
+  }
+
+  /**
+   * What keeps a tab as it is now (§4.10): the monitor's signals (`protections`), its fullscreen,
+   * its activity in the background, the user's protection (not against the user's own request),
+   * and, when asked, what a discard learned.
+   */
+  #protectionsNow(
+    record: TabRecord,
+    options: { readonly user: boolean; readonly learned: boolean },
+  ): Protection[] {
+    const tabId = record.state.id;
+    const protections = [...(this.#options.protections?.(tabId) ?? [])];
+    if (this.#fullscreen === tabId) {
+      protections.push(protectionFor('fullscreen'));
+    }
+    const active = record.backgroundActivityAt;
+    const now = this.#clock().wallNow;
+    // An unloaded tab runs nothing in the background (found by tests).
+    if (
+      record.runtime !== undefined &&
+      active !== null &&
+      now >= active &&
+      now - active < BACKGROUND_ACTIVITY_MS
+    ) {
+      protections.push(protectionFor('background-activity'));
+    }
+    if (record.state.userProtected && !options.user) {
+      protections.push(protectionFor('user-protected'));
+    }
+    if (options.learned) {
+      protections.push(...this.#freshLearned(record));
+    }
+    return protections;
+  }
+
+  /**
+   * Why a tab is kept as it is (M3.4's "why", §4.13): the reasons observed now, once each, in the
+   * order the sidebar names them. The recent-interaction guard is the policy's and isn't here.
+   */
+  keptAwake(tabId: TabId): ProtectionReason[] {
+    const record = this.#records.get(tabId);
+    if (record === undefined) {
+      return [];
+    }
+    const reasons = new Set(this.#protectionsOf(record).map((protection) => protection.reason));
+    return PROTECTION_REASONS.filter((reason) => reasons.has(reason));
   }
 
   /** If this tab is selected, selects the strip tab next to it (or a new tab if it is the last). */
@@ -1836,18 +1912,28 @@ export class TabManager {
     useLearned: boolean,
   ): DiscardOutcome | null {
     // The user's protection keeps automation away, not the user (found by tests).
-    const userProtected = record.state.userProtected && request.origin !== 'user';
-    const protections: Protection[] = [
-      ...(this.#options.protections?.(record.state.id) ?? []),
-      ...(userProtected ? [protectionFor('user-protected')] : []),
-    ];
-    if (useLearned) {
-      protections.push(...this.#freshLearned(record));
-    }
+    const protections = this.#protectionsNow(record, {
+      user: request.origin === 'user',
+      learned: useLearned,
+    });
     const protection = blockingProtection(protections, action, {
       overrideSoft: request.overrideSoft ?? false,
     });
     return protection === null ? null : blocked(protection.reason);
+  }
+
+  /** A title or icon change: activity, if the tab has been hidden a while (§4.10). */
+  #noteBackgroundActivity(record: TabRecord): void {
+    if (this.#selected === record.state.id || record.hiddenSince === null || record.state.loading) {
+      return;
+    }
+    // Settled since it was hidden and since its document began: a page loading in the background
+    // reports its title and icon as it goes, which is no activity (found by tests).
+    const since = Math.max(record.hiddenSince, record.documentAt ?? record.hiddenSince);
+    const now = this.#clock().wallNow;
+    if (now - since >= BACKGROUND_SETTLE_MS) {
+      record.backgroundActivityAt = now;
+    }
   }
 
   #freshLearned(record: TabRecord): Protection[] {
@@ -1937,7 +2023,12 @@ export class TabManager {
       this.#startRestore(record, 'load');
     } else {
       this.#transition(record, 'discarded');
-      record.state = { ...record.state, unloadedBy: progress.origin };
+      record.backgroundActivityAt = null;
+      record.state = {
+        ...record.state,
+        unloadedBy: progress.origin,
+        unloadPressure: progress.pressure,
+      };
     }
     this.#syncVisibility();
     this.#changed();
@@ -2024,9 +2115,10 @@ export class TabManager {
     const from = record.state.runtime;
     const to = nextRuntime(from, event);
     record.epoch += 1;
-    if (to !== from) {
-      // Loaded again (or gone another way): the reason it was unloaded no longer applies.
-      record.state = { ...record.state, runtime: to, unloadedBy: null };
+    if (to !== from || record.state.unloadedBy !== null) {
+      // Loaded again, gone another way, or showing an internal page: the reason it was unloaded no
+      // longer applies (found by tests). The discard sets it again right after its transition.
+      record.state = { ...record.state, runtime: to, unloadedBy: null, unloadPressure: null };
     }
     this.#options.onTransition?.({ tabId: record.state.id, from, to, event, epoch: record.epoch });
   }
@@ -2060,6 +2152,8 @@ export class TabManager {
         placement: tab.placement ?? 'strip',
         userProtected: tab.userProtected ?? false,
         unloadedBy: null,
+        unloadPressure: null,
+        movedBy: null,
         ephemeral: tab.ephemeral,
         runtime: 'unloaded',
         page: web ? { kind: 'web' } : NEW_TAB_PAGE,
@@ -2082,6 +2176,8 @@ export class TabManager {
       lateCloseSnapshot: null,
       lastHistory: null,
       learned: new Map(),
+      backgroundActivityAt: null,
+      documentAt: null,
       heldUnloaded: false,
       restoringHidden: false,
       focusOnCommit: false,
@@ -2229,6 +2325,10 @@ export class TabManager {
     }
     this.#selected = tabId;
     const record = this.#record(tabId);
+    const unloadedBy = record.state.runtime === 'unloaded' ? record.state.unloadedBy : null;
+    if (unloadedBy === 'automation' || unloadedBy === 'pressure') {
+      this.#options.onAutomaticUnloadShown?.(tabId, unloadedBy);
+    }
     this.#stampUse(record);
     record.hiddenSince = null;
     // I2: an unloaded tab (restored at startup, reopened, discarded) is restored when selected; a
@@ -2362,6 +2462,8 @@ export class TabManager {
           // page hasn't been activated yet.
           record.learned.clear();
           record.activated = false;
+          record.backgroundActivityAt = null;
+          record.documentAt = this.#clock().wallNow;
           record.lateCloseSnapshot = null;
           // A new document closes the find bar, as in Chrome; Ctrl+F reopens it with the same
           // text, searched on the new page. Stopping also resets Chromium's find state, which
@@ -2401,6 +2503,9 @@ export class TabManager {
       },
       titleChanged: (title) => {
         const record = current();
+        if (record !== undefined && record.state.title !== sanitizeTitle(title)) {
+          this.#noteBackgroundActivity(record);
+        }
         update({ title: sanitizeTitle(title) });
         if (record?.state.page.kind === 'web') {
           remember(record)?.titleChanged(tabId, record.state.title);
@@ -2408,6 +2513,9 @@ export class TabManager {
       },
       faviconChanged: (favicon) => {
         const record = current();
+        if (record !== undefined && record.state.favicon !== favicon) {
+          this.#noteBackgroundActivity(record);
+        }
         update({ favicon });
         if (favicon !== null && record?.state.page.kind === 'web') {
           remember(record)?.faviconChanged(tabId, favicon);

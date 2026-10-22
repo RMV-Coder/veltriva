@@ -98,6 +98,11 @@ const MARKERS = [
   'freeze-experiment',
   'freezeExperiment',
   'veltriva-tick',
+  // src/main/testing/benchmark-scenarios.ts: the §9.3 memory benchmark (Phase 3)
+  'memory-benchmark',
+  'memoryBenchmark',
+  'VELTRIVA_BENCH',
+  'pauseAutomation',
   // src/main/testing/fail-fast.ts
   'exitOnUncaughtException',
   'Uncaught exception in main',

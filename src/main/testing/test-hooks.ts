@@ -7,13 +7,9 @@ import type { WebContentsView } from 'electron';
 
 import type { Rect } from '../../core/layout/rect';
 import type { DiscardOutcome, DiscardRequest } from '../../core/lifecycle/discard';
-import type {
-  LifecycleAction,
-  LifecycleClock,
-  LifecycleSettingsInput,
-  MemoryPressure,
-} from '../../core/lifecycle/policy';
+import type { LifecycleAction, LifecycleClock, MemoryPressure } from '../../core/lifecycle/policy';
 import type { ActivityEntry } from '../../shared/contracts/activity';
+import type { LifecycleSettingsDocument } from '../../shared/contracts/settings';
 import type { ActivityLog } from '../lifecycle/activity-log';
 import type { ActionRecord, LifecycleScheduler } from '../lifecycle/scheduler';
 import type { UndoManager, UndoOffer } from '../lifecycle/undo';
@@ -172,7 +168,7 @@ export interface VeltrivaTestHooks {
   /** Overrides the memory pressure the scheduler sees; null goes back to the real monitor. */
   setMemoryPressure(level: MemoryPressure | null): void;
   /** Replaces the lifecycle settings (as the Phase 5 settings page will), merged on the current. */
-  setLifecycleSettings(settings: Partial<LifecycleSettingsInput>): void;
+  setLifecycleSettings(settings: Partial<LifecycleSettingsDocument>): void;
   /**
    * Marks a web contents as captured (camera, microphone or screen), or not. Test builds don't
    * read `isBeingCaptured()`: Playwright makes it true for every page.
@@ -217,7 +213,7 @@ export interface TestHookContext {
   readonly lifecycle: {
     readonly scheduler: LifecycleScheduler;
     readonly clock: () => LifecycleClock;
-    readonly setSettings: (settings: Partial<LifecycleSettingsInput>) => void;
+    readonly setSettings: (settings: Partial<LifecycleSettingsDocument>) => void;
     readonly undo: UndoManager;
     readonly activity: ActivityLog;
   };

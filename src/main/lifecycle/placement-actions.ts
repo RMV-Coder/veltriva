@@ -26,6 +26,8 @@ export function createPlacementActions(deps: {
   readonly undo: UndoManager;
   /** Wall-clock time, as the lifecycle sees it. */
   readonly now: () => number;
+  /** The user brought a tab back from Sleeping or the Archive (the regret metric, M3.4). */
+  readonly onRestored?: (tabId: TabId) => void;
 }): PlacementActions {
   let manualMoves = 0;
   const offer = (move: PlacementMove): void => {
@@ -56,11 +58,19 @@ export function createPlacementActions(deps: {
     restore(tabId, { focus }) {
       const tabs = deps.tabs;
       if (tabs.has(tabId)) {
+        const sleeping = tabs.get(tabId).placement === 'shelf';
         // In the strip already, or Sleeping: selecting brings a Sleeping tab back (§4.4).
         tabs.select(tabId, { focus });
+        if (sleeping) {
+          deps.onRestored?.(tabId);
+        }
         return tabId;
       }
-      return tabs.restoreArchived(tabId, { select: true, focus });
+      const restored = tabs.restoreArchived(tabId, { select: true, focus });
+      if (restored !== null) {
+        deps.onRestored?.(tabId);
+      }
+      return restored;
     },
     setProtected(tabId, on) {
       deps.tabs.setProtected(tabId, on);

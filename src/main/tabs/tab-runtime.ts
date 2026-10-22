@@ -22,7 +22,7 @@
 //   destroyed                    → settles every close; `gone` unless destroy() asked for it
 //   freeze() / thaw()            → CDP Page.setWebLifecycleState through webContents.debugger
 //                                  (experimental, off by default; a detach means thawed)
-import type { ContextMenuParams, Event, Input, WebContentsView } from 'electron';
+import type { ContextMenuParams, Event, Input, WebContents, WebContentsView } from 'electron';
 
 import { isActivationInput } from '../../core/input/user-activation';
 import type { ActivationTracker } from '../../core/input/user-activation';
@@ -84,6 +84,8 @@ export function createTabRuntimes(options: {
   readonly activation: ActivationTracker<number>;
   readonly windowOpenHandler: (source: WindowOpenSource) => WindowOpenHandler;
   readonly logger: Logger;
+  /** A tab's web contents was just created: the protection monitor watches it from here (M3.4). */
+  readonly onContentsCreated?: (tabId: TabId, contents: WebContents) => void;
 }): TabRuntimes {
   const views = new Map<TabId, WebContentsView>();
 
@@ -93,6 +95,7 @@ export function createTabRuntimes(options: {
     // Read once: a destroyed web contents can't be asked any more.
     const contentsId = contents.id;
     views.set(tabId, view);
+    options.onContentsCreated?.(tabId, contents);
     /** destroy() was called, or the web contents is gone: nothing more is reported. */
     let destroyed = false;
     /** The pending discard closes, settled when the web contents is destroyed. */

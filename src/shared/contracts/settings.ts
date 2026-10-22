@@ -6,6 +6,10 @@ import { z } from 'zod';
 
 import { PRESETS } from '../../core/lifecycle/policy';
 import { DEFAULT_SEARCH_TEMPLATE, isValidSearchTemplate } from '../../core/url/omnibox';
+import { MAX_SITE_LENGTH } from '../../core/url/site';
+
+/** At most this many protected sites: a list the user keeps by hand. */
+export const MAX_PROTECTED_SITES = 1000;
 
 /** §5.7: a year of visits. */
 export const DEFAULT_HISTORY_RETENTION_DAYS = 365;
@@ -27,6 +31,27 @@ const lifecycleSchema = z.object({
   freeze: z.boolean().catch(false),
   /** "Pause automation" (§4.12). */
   paused: z.boolean().catch(false),
+  /**
+   * Preview mode (§4.13, M3.4): `auto` previews automation's moves for the first active days;
+   * `off` once the user started automation early (or a later version decides).
+   */
+  preview: z.enum(['auto', 'off']).catch('auto'),
+  /**
+   * Sites whose tabs automation leaves alone (§4.10 "Protected site"), as `siteOf` gives them. An
+   * entry that isn't a site is dropped alone, and so is anything past the first 1,000: one bad
+   * entry never costs the user the others.
+   */
+  protectedSites: z
+    .array(z.unknown())
+    .catch([])
+    .transform((entries) =>
+      entries
+        .filter(
+          (entry): entry is string =>
+            typeof entry === 'string' && entry.length >= 1 && entry.length <= MAX_SITE_LENGTH,
+        )
+        .slice(0, MAX_PROTECTED_SITES),
+    ),
   overrides: z
     .object({
       discardAfterMs: override(
@@ -57,6 +82,8 @@ export const DEFAULT_LIFECYCLE_DOCUMENT: LifecycleSettingsDocument = {
   autoArchive: true,
   freeze: false,
   paused: false,
+  preview: 'auto',
+  protectedSites: [],
   overrides: {},
 };
 

@@ -4,6 +4,7 @@ import { app } from 'electron';
 
 import { PRODUCT_NAME } from '../../shared/constants/app-identity';
 import type { ActivityEntry } from '../../shared/contracts/activity';
+import type { CommandOutput } from '../../shared/contracts/schemas';
 import type { DownloadManager } from '../downloads/download-manager';
 import type { ExternalProtocolGuard } from '../external/protocol-guard';
 import type { FocusManager } from '../focus/focus-manager';
@@ -46,6 +47,14 @@ export interface LifecycleCommands {
   dismissUndo(batchId: string): void;
   /** The activity log, newest first. */
   activity(): ActivityEntry[];
+  /** "Pause automation" (M3.4), saved in the settings. */
+  setPaused(paused: boolean): void;
+  /** Ends preview mode early (M3.4). */
+  endPreview(): void;
+  /** Protects a tab's site, or stops; the site, or null when the tab's page has none. */
+  setSiteProtected(tabId: TabId, on: boolean): string | null;
+  /** What the local diagnostics page shows (M3.4). */
+  diagnostics(): CommandOutput<'lifecycle.diagnostics'>;
 }
 
 export function createCommandHandlers({
@@ -290,6 +299,24 @@ export function createCommandHandlers({
       return done;
     },
     'lifecycle.activity': () => ({ entries: lifecycle.activity() }),
+    // M3.4: Pause, preview, protected sites and the diagnostics page.
+    'lifecycle.setPaused': ({ paused }) => {
+      lifecycle.setPaused(paused);
+      return done;
+    },
+    'lifecycle.endPreview': () => {
+      lifecycle.endPreview();
+      return done;
+    },
+    'tabs.setSiteProtected': ({ tabId, protected: on }) =>
+      onTab(tabId, () => {
+        const site = lifecycle.setSiteProtected(tabId, on);
+        if (site === null) {
+          throw new CommandError('not_found');
+        }
+        return { site };
+      }),
+    'lifecycle.diagnostics': () => lifecycle.diagnostics(),
 
     'layout.setInsets': (insets) => {
       layout.setInsets(insets);

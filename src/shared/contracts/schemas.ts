@@ -4,6 +4,8 @@
 import { z } from 'zod';
 
 import { UUID_V7_PATTERN } from '../../core/id/uuidv7';
+import { LIFECYCLE_RULES } from '../../core/lifecycle/policy';
+import { PROTECTION_REASONS } from '../../core/lifecycle/protections';
 import { activityEntrySchema, MAX_ACTIVITY_ENTRIES } from './activity';
 import { PROMPTED_PERMISSIONS } from '../../core/permissions/permission-policy';
 import { INTERNAL_PAGES } from '../../core/url/internal-pages';
@@ -88,8 +90,19 @@ const tabSnapshot = z.strictObject({
   runtime: z.enum(['unloaded', 'creating', 'live', 'frozen', 'discarding', 'crashed']),
   /** Who unloaded the page, while it stays unloaded after a discard (§4.13); null otherwise. */
   unloadedBy: z.enum(['automation', 'pressure', 'user']).nullable(),
+  /** For a tab memory pressure unloaded, how low memory was (M3.4); null otherwise. */
+  unloadPressure: z.enum(['moderate', 'critical']).nullable(),
   /** The user protected the tab from automation (M3.3). */
   userProtected: z.boolean(),
+  /**
+   * Why automation keeps the tab as it is, as observed now (M3.4, §4.10): "Kept awake: playing
+   * audio". In the order the sidebar names them; empty when nothing keeps it.
+   */
+  keptAwake: z.array(z.enum(PROTECTION_REASONS)).max(PROTECTION_REASONS.length),
+  /** What automation would do to the tab if preview were over (M3.4, §4.13); null for nothing. */
+  previewMove: z.enum(['shelve', 'archive']).nullable(),
+  /** For a Sleeping tab, who moved it there in this run; null otherwise or unknown (M3.4). */
+  movedBy: z.enum(['automation', 'user']).nullable(),
   page: z.discriminatedUnion('kind', [
     z.strictObject({ kind: z.literal('web') }),
     z.strictObject({
@@ -195,6 +208,18 @@ const workspaceSnapshot = z.strictObject({
     .nullable(),
   /** The activity log's newest entry id (0 for none): the open log view refreshes when it moves. */
   activityVersion: z.number().int().nonnegative(),
+  /**
+   * What automation is doing (M3.4): paused by the user; previewing its moves for the first
+   * active days (`previewUntilDay` is the last of them, `activeDay` today's); and the memory
+   * pressure it sees.
+   */
+  automation: z.strictObject({
+    paused: z.boolean(),
+    preview: z.boolean(),
+    previewUntilDay: z.number().int().nonnegative(),
+    activeDay: z.number().int().nonnegative(),
+    pressure: z.enum(['none', 'moderate', 'critical']),
+  }),
   /**
    * A tab in HTML fullscreen (threat T6). While `notice` is true the shell draws only the notice,
    * naming `origin`, because main raises it above the page (ADR-0006 A′).
@@ -386,6 +411,57 @@ export const commandSchemas = {
   'lifecycle.activity': {
     input: nothing,
     output: z.strictObject({ entries: z.array(activityEntrySchema).max(MAX_ACTIVITY_ENTRIES) }),
+  },
+  /** "Pause automation" (§4.12, M3.4): nothing is planned while paused. Saved in the settings. */
+  'lifecycle.setPaused': { input: z.strictObject({ paused: z.boolean() }), output: nothing },
+  /** Ends preview mode early (§4.13): automation carries its moves out from now on. */
+  'lifecycle.endPreview': { input: nothing, output: nothing },
+  /**
+   * Protects the site of a tab's page, or stops protecting it (§4.10 "Protected site"): every tab
+   * on the site is then left alone. `not_found` for a tab without a site (not an http(s) page).
+   */
+  'tabs.setSiteProtected': {
+    input: z.strictObject({ tabId, protected: z.boolean() }),
+    output: z.strictObject({ site: z.string().min(1).max(253) }),
+  },
+  /** The local diagnostics page (§4.13): the regret metric and what automation sees. */
+  'lifecycle.diagnostics': {
+    input: nothing,
+    output: z.strictObject({
+      regret: z.strictObject({
+        since: z.number().int().nonnegative(),
+        moves: z.number().int().nonnegative(),
+        moveRegrets: z.number().int().nonnegative(),
+        unloads: z.number().int().nonnegative(),
+        unloadRegrets: z.number().int().nonnegative(),
+        events: z
+          .array(
+            z.strictObject({
+              at: z.number().int().nonnegative(),
+              how: z.enum(['restore', 'undo', 'reload']),
+              action: z.enum(['shelve', 'archive', 'discard']),
+              rule: z.enum(LIFECYCLE_RULES),
+              afterEngagedMs: z.number().int().nonnegative(),
+            }),
+          )
+          .max(200),
+      }),
+      engagement: z.strictObject({
+        activeDay: z.number().int().nonnegative(),
+        engagedMs: z.number().nonnegative(),
+      }),
+      settings: z.strictObject({
+        preset: z.string().max(32),
+        paused: z.boolean(),
+        preview: z.boolean(),
+        protectedSites: z.array(z.string().max(253)).max(1000),
+      }),
+      pressure: z.enum(['none', 'moderate', 'critical']),
+      memory: z.strictObject({
+        totalMb: z.number().nonnegative(),
+        availableMb: z.number().nonnegative(),
+      }),
+    }),
   },
 } as const satisfies Record<CommandName, CommandSchema>;
 

@@ -5,10 +5,19 @@
 // M3.1 has the reasons the discard procedure itself learns (§4.9): the probe found unsaved input,
 // the page objected to unloading, or the probe saw a focused editor or a sensitive page. M3.2,
 // which starts automation, adds the signals it must never override: audio, capture, DevTools, an
-// open popup, and the recent-interaction guard. The protection monitor (M3.4) adds the rest of
-// the table through the same shape.
+// open popup, and the recent-interaction guard. M3.3 adds the user's protection of a tab. The
+// protection monitor (M3.4) completes the table: a protected site, video, fullscreen, the
+// camera or microphone granted to the page, notifications, and a page active in the background.
 
 export const LIFECYCLE_ACTIONS = ['freeze', 'discard', 'shelve', 'archive'] as const;
+
+/**
+ * A background page's title or icon change counts as activity (a chat, a mail inbox) only once it
+ * has been hidden this long: a page that finishes loading in the background isn't "active".
+ */
+export const BACKGROUND_SETTLE_MS = 30 * 1000;
+/** Background activity keeps a tab softly this long after the last change (§4.10). */
+export const BACKGROUND_ACTIVITY_MS = 60 * 60 * 1000;
 export type LifecycleActionKind = (typeof LIFECYCLE_ACTIONS)[number];
 
 export type ProtectionReason =
@@ -31,7 +40,39 @@ export type ProtectionReason =
   /** The user interacted with it within the preset's guard (wall clock). */
   | 'recent-interaction'
   /** The user protected the tab (M3.3): automation leaves it alone. */
-  | 'user-protected';
+  | 'user-protected'
+  /** The user protected the tab's site (M3.4): every tab on it is left alone. */
+  | 'protected-site'
+  /** A video or audio element is playing (`media-started-playing`, M3.4). */
+  | 'video'
+  /** The page is in HTML fullscreen. */
+  | 'fullscreen'
+  /** The site may show notifications (the user allowed it): soft, as Chrome's Memory Saver. */
+  | 'notifications'
+  /** Its title or icon changed while it was hidden (a chat, a mail inbox): soft, heuristic. */
+  | 'background-activity';
+
+/**
+ * Every reason, in the order the "why" names them: what the user did first, then the page. (The
+ * table below is a Record over the union, so a reason missing here fails its unit test.)
+ */
+export const PROTECTION_REASONS = [
+  'user-protected',
+  'protected-site',
+  'fullscreen',
+  'capture',
+  'audio',
+  'video',
+  'page-unsaved-changes',
+  'unsaved-input',
+  'open-popup',
+  'devtools',
+  'editing',
+  'sensitive-page',
+  'notifications',
+  'background-activity',
+  'recent-interaction',
+] as const satisfies readonly ProtectionReason[];
 
 export interface Protection {
   readonly reason: ProtectionReason;
@@ -61,6 +102,23 @@ const PROTECTIONS: Readonly<Record<ProtectionReason, Protection>> = {
     reason: 'user-protected',
     hard: true,
     blocks: ['freeze', 'discard', 'shelve', 'archive'],
+  },
+  'protected-site': {
+    reason: 'protected-site',
+    hard: true,
+    blocks: ['freeze', 'discard', 'shelve', 'archive'],
+  },
+  video: { reason: 'video', hard: true, blocks: ['freeze', 'discard'] },
+  fullscreen: {
+    reason: 'fullscreen',
+    hard: true,
+    blocks: ['freeze', 'discard', 'shelve', 'archive'],
+  },
+  notifications: { reason: 'notifications', hard: false, blocks: ['freeze', 'discard'] },
+  'background-activity': {
+    reason: 'background-activity',
+    hard: false,
+    blocks: ['freeze', 'discard'],
   },
 };
 

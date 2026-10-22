@@ -1,5 +1,6 @@
 // WorkspaceProjector (ADR-0005 §2): turns TabManager state into the versioned snapshot the shell
 // renders. Changes are coalesced: however many arrive, at most one snapshot goes out per frame.
+import type { ProtectionReason } from '../../core/lifecycle/protections';
 import { displayUrl } from '../../core/url/display';
 import { MAX_LISTED_ARCHIVED } from '../../shared/contracts/schemas';
 import type {
@@ -17,10 +18,24 @@ export const SNAPSHOT_INTERVAL_MS = 16;
 
 const NO_ADDRESS = { text: '', security: 'neutral', hadCredentials: false } as const;
 
-/** What other parts of main add to a tab's snapshot: the toolbar's question, blocked popups. */
+/** Before automation exists (tests, a start without a database): nothing to report. */
+const NO_AUTOMATION: WorkspaceSnapshot['automation'] = {
+  paused: false,
+  preview: false,
+  previewUntilDay: 0,
+  activeDay: 0,
+  pressure: 'none',
+};
+
+/**
+ * What other parts of main add to a tab's snapshot: the toolbar's question, blocked popups, and
+ * the lifecycle's "why" (M3.4): what keeps it awake, and what preview would do to it.
+ */
 export interface TabExtras {
   readonly prompt?: Prompt | null;
   readonly blockedPopups?: BlockedPopupsState | null;
+  readonly keptAwake?: readonly ProtectionReason[];
+  readonly previewMove?: 'shelve' | 'archive' | null;
 }
 
 export function projectTab(tab: TabState, extras: TabExtras = {}): TabSnapshot {
@@ -45,7 +60,12 @@ export function projectTab(tab: TabState, extras: TabExtras = {}): TabSnapshot {
     canGoForward: tab.canGoForward,
     runtime: tab.runtime,
     unloadedBy: tab.runtime === 'unloaded' ? tab.unloadedBy : null,
+    unloadPressure:
+      tab.runtime === 'unloaded' && tab.unloadedBy === 'pressure' ? tab.unloadPressure : null,
     userProtected: tab.userProtected,
+    keptAwake: [...(extras.keptAwake ?? [])],
+    previewMove: extras.previewMove ?? null,
+    movedBy: tab.placement === 'shelf' ? tab.movedBy : null,
     page,
     zoomPercent: Math.min(Math.max(tab.zoomPercent, 25), 500),
     find: tab.find,
@@ -181,6 +201,8 @@ export function createWorkspaceProjector(options: {
   readonly counts?: () => WorkspaceSnapshot['counts'];
   readonly undo?: () => WorkspaceSnapshot['undo'];
   readonly activityVersion?: () => number;
+  /** What automation is doing (M3.4). */
+  readonly automation?: () => WorkspaceSnapshot['automation'];
   readonly publish: (snapshot: WorkspaceSnapshot) => void;
   readonly schedule?: (callback: () => void, ms: number) => unknown;
   readonly cancel?: (handle: unknown) => void;
@@ -203,11 +225,14 @@ export function createWorkspaceProjector(options: {
       fullscreen: options.fullscreen?.() ?? null,
       downloads: options.downloads?.() ?? [],
       notices: (options.notices?.list() ?? []).map(projectNotice),
-      sleeping: (options.sleeping?.() ?? []).map((tab) => projectTab(tab)),
+      sleeping: (options.sleeping?.() ?? []).map((tab) =>
+        projectTab(tab, options.extrasFor?.(tab.id) ?? {}),
+      ),
       archived: (options.archived?.() ?? []).slice(0, MAX_LISTED_ARCHIVED).map(projectArchived),
       counts: options.counts?.() ?? { sleeping: 0, archived: 0, archivedToday: 0 },
       undo: options.undo?.() ?? null,
       activityVersion: options.activityVersion?.() ?? 0,
+      automation: options.automation?.() ?? NO_AUTOMATION,
     };
   };
 

@@ -16,7 +16,9 @@ export type TabMenuItemId =
   | 'archive'
   | 'restore'
   | 'protect'
-  | 'unprotect';
+  | 'unprotect'
+  | 'protect-site'
+  | 'unprotect-site';
 
 export type TabMenuEntry =
   | {
@@ -34,6 +36,9 @@ export interface TabMenuContext {
   readonly userProtected: boolean;
   /** It has a page worth keeping in the Archive (an address, and not a private tab). */
   readonly canArchive: boolean;
+  /** Its page's site (M3.4), or null for a page without one; and whether the user protects it. */
+  readonly site: string | null;
+  readonly siteProtected: boolean;
   /** The tab shows a web page (or an error or crash page with a URL to load again). */
   readonly hasPage: boolean;
   /** How many tabs "Close other tabs" would close: the others that aren't pinned, as in Chrome. */
@@ -53,11 +58,21 @@ export function buildTabMenu(context: TabMenuContext): TabMenuEntry[] {
   const protect = context.userProtected
     ? item('unprotect', 'Stop protecting')
     : item('protect', 'Protect from automation');
+  // The site's name is main's own label of the page's host, never page text.
+  const site =
+    context.site === null
+      ? []
+      : [
+          context.siteProtected
+            ? item('unprotect-site', `Stop protecting ${context.site}`)
+            : item('protect-site', `Always protect ${context.site}`),
+        ];
   if (context.placement === 'shelf') {
     return [
       item('restore', 'Move to Tabs'),
       item('archive', 'Archive tab', context.canArchive),
       protect,
+      ...site,
       SEPARATOR,
       item('close', 'Close tab'),
       SEPARATOR,
@@ -75,6 +90,7 @@ export function buildTabMenu(context: TabMenuContext): TabMenuEntry[] {
     item('shelve', 'Move to Sleeping', !context.pinned),
     item('archive', 'Archive tab', context.canArchive),
     protect,
+    ...site,
     SEPARATOR,
     item('close', 'Close tab'),
     item('close-others', 'Close other tabs', context.otherUnpinnedTabs > 0),

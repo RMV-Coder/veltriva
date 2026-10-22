@@ -11,6 +11,9 @@
 //   - Every planned action is logged with the rule that produced it and what came of it.
 //   - The tabs one evaluation moved (to Sleeping or the Archive) are one batch, which the user
 //     can undo (M3.3).
+//   - Preview (M3.4, §4.13): for a new user's first active days, moves are planned and shown, not
+//     carried out (`previewMoves`). Discards and freezes go on: they change nothing the user sees
+//     but a reload.
 import type { DiscardOutcome, DiscardRequest, Timers } from '../../core/lifecycle/discard';
 import type { MoveOutcome, MoveRequest, PlacementMove } from '../../core/lifecycle/placement';
 import { planLifecycle } from '../../core/lifecycle/policy';
@@ -42,7 +45,7 @@ export type ActionResult =
   | MoveOutcome
   /** Over the evaluation's limit: the next evaluation plans it again if it still applies. */
   | { readonly outcome: 'rate-limited' }
-  /** Planned only, not carried out (M3.4's preview mode). */
+  /** Planned only, not carried out: preview mode (M3.4). */
   | { readonly outcome: 'planned' }
   /** Automation was paused before its turn came. */
   | { readonly outcome: 'paused' };
@@ -83,6 +86,10 @@ export interface LifecycleSchedulerOptions {
   readonly onAction?: (record: ActionRecord) => void;
   /** The tabs an evaluation moved, once all its actions have settled (Undo, M3.3). */
   readonly onBatch?: (batch: MoveBatch) => void;
+  /** Whether automation only previews its moves (M3.4, §4.13). */
+  readonly preview?: () => boolean;
+  /** What preview marks changed. */
+  readonly onPreviewChange?: () => void;
 }
 
 /** One evaluation, as its actions are carried out. */
@@ -114,6 +121,8 @@ export class LifecycleScheduler {
   #plannedBefore = new Set<string>();
   #stopped = false;
   #evaluations = 0;
+  /** The moves the last evaluation previewed, by tab (M3.4). */
+  #previewMoves = new Map<string, 'shelve' | 'archive'>();
 
   constructor(options: LifecycleSchedulerOptions) {
     this.#options = options;
@@ -165,6 +174,11 @@ export class LifecycleScheduler {
       clock: this.#options.clock(),
       pressure: this.#options.pressure(),
     });
+  }
+
+  /** What the last evaluation would have moved, had preview been off: tab id → move. */
+  previewMoves(): ReadonlyMap<string, 'shelve' | 'archive'> {
+    return this.#previewMoves;
   }
 
   /** The newest actions, oldest first. */
@@ -246,11 +260,22 @@ export class LifecycleScheduler {
     const started: Promise<void>[] = [];
     let discards = 0;
     let freezes = 0;
-    // What this evaluation left over its limits: logged only when new (no log spam).
+    // What this evaluation left over its limits or only previewed: logged only when new.
     const planned = new Set<string>();
+    const preview = this.#options.preview?.() ?? false;
+    const previewMoves = new Map<string, 'shelve' | 'archive'>();
     for (const action of actions) {
       if (this.#stopped) {
         break;
+      }
+      if (preview && (action.kind === 'shelve' || action.kind === 'archive')) {
+        previewMoves.set(action.tabId, action.kind);
+        const key = `preview:${action.kind}:${action.tabId}`;
+        planned.add(key);
+        if (!this.#plannedBefore.has(key)) {
+          this.#record(recordOf(action, batch, { outcome: 'planned' }));
+        }
+        continue;
       }
       // Shelving, and archiving a tab that isn't loaded, free nothing and cost nothing.
       const free =
@@ -294,6 +319,7 @@ export class LifecycleScheduler {
       started.push(this.#carryOut(action, batch));
     }
     this.#plannedBefore = planned;
+    this.#setPreviewMoves(previewMoves);
     await Promise.all(started);
     // After stop() (shutdown) nobody can undo anything: the batch isn't offered.
     if (batch.moves.length > 0 && !this.#isStopped()) {
@@ -317,6 +343,9 @@ export class LifecycleScheduler {
             origin: action.rule === 'pressure-discard' ? 'pressure' : 'automation',
             epoch: action.epoch,
             overrideSoft: action.overrideSoft,
+            ...(action.rule === 'pressure-discard' && batch.pressure !== 'none'
+              ? { pressure: batch.pressure }
+              : {}),
           });
           break;
         case 'freeze':
@@ -338,6 +367,21 @@ export class LifecycleScheduler {
       batch.moves.push(result.move);
     }
     this.#record(recordOf(action, batch, result));
+  }
+
+  #setPreviewMoves(next: Map<string, 'shelve' | 'archive'>): void {
+    const before = this.#previewMoves;
+    const same =
+      before.size === next.size && [...next].every(([tabId, kind]) => before.get(tabId) === kind);
+    if (same) {
+      return;
+    }
+    this.#previewMoves = next;
+    try {
+      this.#options.onPreviewChange?.();
+    } catch {
+      this.#options.logger.error('lifecycle.onPreviewChangeFailed');
+    }
   }
 
   #record(record: ActionRecord): void {

@@ -54,6 +54,10 @@ export const COMMAND_NAMES = [
   'lifecycle.undo',
   'lifecycle.dismissUndo',
   'lifecycle.activity',
+  'lifecycle.setPaused',
+  'lifecycle.endPreview',
+  'tabs.setSiteProtected',
+  'lifecycle.diagnostics',
 ] as const;
 export type CommandName = (typeof COMMAND_NAMES)[number];
 

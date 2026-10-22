@@ -1,20 +1,40 @@
 import { describe, expect, it } from 'vitest';
 
 import { uuidv7 } from '../../core/id/uuidv7';
+import { LIFECYCLE_RULES } from '../../core/lifecycle/policy';
+import { PROTECTION_REASONS } from '../../core/lifecycle/protections';
 import { COMMAND_NAMES } from './ipc';
 import { commandSchemas, MAX_LISTED_ARCHIVED } from './schemas';
 
 const snapshot = commandSchemas['workspace.getSnapshot'].output;
 const dismiss = commandSchemas['notices.dismiss'];
 
-/** What every snapshot has besides its tabs, downloads and notices (M3.3: Sleeping, the Archive). */
+/** What automation reports when it runs unpaused and unobserved (M3.4). */
+const AUTOMATION = {
+  paused: false,
+  preview: false,
+  previewUntilDay: 0,
+  activeDay: 0,
+  pressure: 'none',
+} as const;
+
+/**
+ * What every snapshot has besides its tabs, downloads and notices (M3.3: Sleeping, the Archive;
+ * M3.4: what automation is doing).
+ */
 const PLACEMENT_FIELDS = {
   sleeping: [],
   archived: [],
   counts: { sleeping: 0, archived: 0, archivedToday: 0 },
   undo: null,
   activityVersion: 0,
+  automation: AUTOMATION,
 } as const;
+
+/** The object without one of its keys. */
+function withoutKey(object: Record<string, unknown>, key: string): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(object).filter(([name]) => name !== key));
+}
 
 function withNotices(notices: unknown): unknown {
   return {
@@ -366,7 +386,14 @@ describe('Sleeping, the Archive and Undo in the snapshot (M3.3)', () => {
   });
 
   it('requires the new fields', () => {
-    for (const field of ['sleeping', 'archived', 'counts', 'undo']) {
+    for (const field of [
+      'sleeping',
+      'archived',
+      'counts',
+      'undo',
+      'activityVersion',
+      'automation',
+    ]) {
       const value = Object.fromEntries(
         Object.entries(withPlacement({})).filter(([key]) => key !== field),
       );
@@ -420,5 +447,531 @@ describe('Sleeping, the Archive and Undo in the snapshot (M3.3)', () => {
     const protect = commandSchemas['tabs.setProtected'].input;
     expect(protect.safeParse({ tabId: TAB_ID, protected: true }).success).toBe(true);
     expect(protect.safeParse({ tabId: TAB_ID }).success).toBe(false);
+  });
+});
+
+describe('the why, preview and automation in the snapshot (M3.4)', () => {
+  const TAB_ID = uuidv7(1_700_000_000_000, new Uint8Array(10).fill(4));
+  const tab = (overrides: Record<string, unknown> = {}) => ({
+    id: TAB_ID,
+    pinned: false,
+    title: 'A page',
+    address: { text: 'example.com/a', security: 'secure', hadCredentials: false },
+    favicon: null,
+    loading: false,
+    canGoBack: false,
+    canGoForward: false,
+    runtime: 'live',
+    unloadedBy: null,
+    unloadPressure: null,
+    userProtected: false,
+    keptAwake: [],
+    previewMove: null,
+    movedBy: null,
+    page: { kind: 'web' },
+    zoomPercent: 100,
+    find: null,
+    prompt: null,
+    blockedPopups: null,
+    ...overrides,
+  });
+  const withFields = (fields: Record<string, unknown>) => ({
+    version: 1,
+    selectedTabId: null,
+    tabs: [],
+    fullscreen: null,
+    downloads: [],
+    notices: [],
+    ...PLACEMENT_FIELDS,
+    ...fields,
+  });
+  const accepts = (fields: Record<string, unknown>): boolean =>
+    snapshot.safeParse(withFields(fields)).success;
+  const tabAccepts = (overrides: Record<string, unknown>): boolean =>
+    accepts({ tabs: [tab(overrides)] });
+
+  it('accepts a tab with the fixture fields, to make the refusals below mean something', () => {
+    expect(tabAccepts({})).toBe(true);
+  });
+
+  describe.each(['tabs', 'sleeping'] as const)('a tab in %s', (list) => {
+    const acceptsHere = (overrides: Record<string, unknown>): boolean =>
+      accepts({ [list]: [tab(overrides)] });
+
+    it.each(['unloadPressure', 'keptAwake', 'previewMove', 'movedBy'])('must carry %s', (field) => {
+      expect(accepts({ [list]: [withoutKey(tab(), field)] })).toBe(false);
+    });
+
+    it('refuses a key it does not know', () => {
+      expect(acceptsHere({ keptAwakeSince: 1 })).toBe(false);
+    });
+
+    it.each(['moderate', 'critical', null])('accepts %s as unloadPressure', (unloadPressure) => {
+      expect(acceptsHere({ unloadPressure })).toBe(true);
+    });
+
+    it.each(['none', 'high', 'Moderate', '', 1, true, undefined])(
+      'refuses %j as unloadPressure',
+      (unloadPressure) => {
+        expect(acceptsHere({ unloadPressure })).toBe(false);
+      },
+    );
+
+    it.each(['shelve', 'archive', null])('accepts %s as previewMove', (previewMove) => {
+      expect(acceptsHere({ previewMove })).toBe(true);
+    });
+
+    it.each(['discard', 'freeze', 'restore', '', 0, false, undefined])(
+      'refuses %j as previewMove',
+      (previewMove) => {
+        expect(acceptsHere({ previewMove })).toBe(false);
+      },
+    );
+
+    it.each(['automation', 'user', null])('accepts %s as movedBy', (movedBy) => {
+      expect(acceptsHere({ movedBy })).toBe(true);
+    });
+
+    it.each(['pressure', 'system', '', 0, false, undefined])('refuses %j as movedBy', (movedBy) => {
+      expect(acceptsHere({ movedBy })).toBe(false);
+    });
+  });
+
+  describe('keptAwake', () => {
+    it('lists every reason of the table, which is what the sidebar can say', () => {
+      expect(tabAccepts({ keptAwake: [...PROTECTION_REASONS] })).toBe(true);
+    });
+
+    it.each([...PROTECTION_REASONS])('accepts %s alone', (reason) => {
+      expect(tabAccepts({ keptAwake: [reason] })).toBe(true);
+    });
+
+    it('accepts none, and a few', () => {
+      expect(tabAccepts({ keptAwake: [] })).toBe(true);
+      expect(tabAccepts({ keptAwake: ['audio', 'recent-interaction'] })).toBe(true);
+    });
+
+    it('holds no more than there are reasons', () => {
+      const one = PROTECTION_REASONS[0];
+
+      expect(
+        tabAccepts({ keptAwake: Array.from({ length: PROTECTION_REASONS.length }, () => one) }),
+      ).toBe(true);
+      expect(
+        tabAccepts({ keptAwake: Array.from({ length: PROTECTION_REASONS.length + 1 }, () => one) }),
+      ).toBe(false);
+    });
+
+    it.each([
+      ['a reason that does not exist', ['sleepy']],
+      ['text written by a page', ['<b>audio</b>']],
+      ['the wrong case', ['Audio']],
+      ['a number', [3]],
+      ['null', [null]],
+      ['an object', [{ reason: 'audio' }]],
+    ])('refuses %s among the reasons', (_what, bad) => {
+      expect(tabAccepts({ keptAwake: ['audio', ...bad] })).toBe(false);
+    });
+
+    it.each([
+      ['null', null],
+      ['a string', 'audio'],
+      ['an object', { audio: true }],
+      ['undefined', undefined],
+    ])('refuses %s instead of a list', (_what, keptAwake) => {
+      expect(tabAccepts({ keptAwake })).toBe(false);
+    });
+  });
+
+  describe('automation', () => {
+    it('accepts the quiet state, paused, previewing, and a state under pressure', () => {
+      expect(accepts({ automation: AUTOMATION })).toBe(true);
+      expect(accepts({ automation: { ...AUTOMATION, paused: true } })).toBe(true);
+      expect(
+        accepts({
+          automation: { ...AUTOMATION, preview: true, previewUntilDay: 3, activeDay: 2 },
+        }),
+      ).toBe(true);
+      expect(accepts({ automation: { ...AUTOMATION, pressure: 'moderate' } })).toBe(true);
+      expect(accepts({ automation: { ...AUTOMATION, pressure: 'critical' } })).toBe(true);
+    });
+
+    it('is required, whole: a snapshot without it is not a snapshot', () => {
+      expect(snapshot.safeParse(withoutKey(withFields({}), 'automation')).success).toBe(false);
+    });
+
+    it.each(['paused', 'preview', 'previewUntilDay', 'activeDay', 'pressure'])(
+      'is not complete without %s',
+      (field) => {
+        expect(accepts({ automation: withoutKey({ ...AUTOMATION }, field) })).toBe(false);
+      },
+    );
+
+    it('refuses a key it does not know, and a value that is not an object', () => {
+      expect(accepts({ automation: { ...AUTOMATION, extra: true } })).toBe(false);
+      for (const automation of [null, [], 'running', true, 0]) {
+        expect(accepts({ automation }), JSON.stringify(automation)).toBe(false);
+      }
+    });
+
+    it.each(['paused', 'preview'])('takes %s only as a boolean', (field) => {
+      for (const value of [0, 1, 'true', 'false', null]) {
+        expect(accepts({ automation: { ...AUTOMATION, [field]: value } }), String(value)).toBe(
+          false,
+        );
+      }
+    });
+
+    it.each(['previewUntilDay', 'activeDay'])(
+      'takes %s as a whole, non-negative number',
+      (field) => {
+        for (const value of [0, 1, 3, 40_000]) {
+          expect(accepts({ automation: { ...AUTOMATION, [field]: value } }), String(value)).toBe(
+            true,
+          );
+        }
+        for (const value of [-1, 1.5, Number.NaN, Infinity, '3', null]) {
+          expect(accepts({ automation: { ...AUTOMATION, [field]: value } }), String(value)).toBe(
+            false,
+          );
+        }
+      },
+    );
+
+    it('takes the pressure as none, moderate or critical', () => {
+      for (const pressure of ['low', 'high', 'normal', '', null, 0]) {
+        expect(accepts({ automation: { ...AUTOMATION, pressure } }), String(pressure)).toBe(false);
+      }
+    });
+  });
+});
+
+describe('the commands of M3.4', () => {
+  const TAB_ID = uuidv7(1_700_000_000_000, new Uint8Array(10).fill(5));
+  const NEW_COMMANDS = [
+    'lifecycle.setPaused',
+    'lifecycle.endPreview',
+    'tabs.setSiteProtected',
+    'lifecycle.diagnostics',
+  ] as const;
+
+  it.each(NEW_COMMANDS)('%s is a command, with a schema', (name) => {
+    expect(COMMAND_NAMES).toContain(name);
+    expect(commandSchemas[name].input).toBeDefined();
+    expect(commandSchemas[name].output).toBeDefined();
+  });
+
+  it('has a schema for every command and a command for every schema', () => {
+    expect(Object.keys(commandSchemas).sort()).toEqual([...COMMAND_NAMES].sort());
+  });
+
+  describe('lifecycle.setPaused', () => {
+    const { input, output } = commandSchemas['lifecycle.setPaused'];
+
+    it('takes the new state, as a boolean, and answers with nothing', () => {
+      expect(input.safeParse({ paused: true }).success).toBe(true);
+      expect(input.safeParse({ paused: false }).success).toBe(true);
+      expect(output.safeParse({}).success).toBe(true);
+      expect(output.safeParse({ paused: true }).success).toBe(false);
+    });
+
+    it('refuses everything else', () => {
+      for (const bad of [
+        undefined,
+        null,
+        [],
+        true,
+        {},
+        { paused: 'true' },
+        { paused: 1 },
+        { paused: null },
+        { pause: true },
+        { paused: true, extra: 1 },
+      ]) {
+        expect(input.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+      }
+    });
+  });
+
+  describe('lifecycle.endPreview', () => {
+    const { input, output } = commandSchemas['lifecycle.endPreview'];
+
+    it('takes nothing and answers with nothing', () => {
+      expect(input.safeParse({}).success).toBe(true);
+      expect(output.safeParse({}).success).toBe(true);
+    });
+
+    it('refuses any key, and anything that is not an object', () => {
+      for (const bad of [undefined, null, [], 'now', { now: true }, { extra: 1 }]) {
+        expect(input.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+      }
+      expect(output.safeParse({ ended: true }).success).toBe(false);
+    });
+  });
+
+  describe('tabs.setSiteProtected', () => {
+    const { input, output } = commandSchemas['tabs.setSiteProtected'];
+
+    it('takes a tab id and the new state', () => {
+      expect(input.safeParse({ tabId: TAB_ID, protected: true }).success).toBe(true);
+      expect(input.safeParse({ tabId: TAB_ID, protected: false }).success).toBe(true);
+    });
+
+    it('refuses a missing field, another type, an id that is not a UUIDv7 and a key more', () => {
+      for (const bad of [
+        undefined,
+        null,
+        [],
+        {},
+        { tabId: TAB_ID },
+        { protected: true },
+        { tabId: TAB_ID, protected: 'yes' },
+        { tabId: TAB_ID, protected: 1 },
+        { tabId: 'tab-1', protected: true },
+        { tabId: '', protected: true },
+        { tabId: 7, protected: true },
+        { tabId: TAB_ID, protected: true, site: 'example.com' },
+        { tabId: TAB_ID, protected: true, extra: 1 },
+      ]) {
+        expect(input.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+      }
+    });
+
+    it('answers with the site it changed, at most 253 characters, and nothing else', () => {
+      expect(output.safeParse({ site: 'example.com' }).success).toBe(true);
+      expect(output.safeParse({ site: 'a'.repeat(253) }).success).toBe(true);
+      expect(output.safeParse({ site: 'a'.repeat(254) }).success).toBe(false);
+      expect(output.safeParse({}).success).toBe(false);
+      expect(output.safeParse({ site: 'example.com', protected: true }).success).toBe(false);
+      expect(output.safeParse({ site: 7 }).success).toBe(false);
+      expect(output.safeParse({ site: null }).success).toBe(false);
+    });
+  });
+
+  describe('lifecycle.diagnostics', () => {
+    const { input, output } = commandSchemas['lifecycle.diagnostics'];
+    const event = (overrides: Record<string, unknown> = {}) => ({
+      at: 1_700_000_000_000,
+      how: 'restore',
+      action: 'shelve',
+      rule: 'shelve-beyond-cap',
+      afterEngagedMs: 120_000,
+      ...overrides,
+    });
+    const diagnostics = (overrides: Record<string, unknown> = {}) => ({
+      regret: {
+        since: 1_700_000_000_000,
+        moves: 12,
+        moveRegrets: 1,
+        unloads: 30,
+        unloadRegrets: 2,
+        events: [event()],
+      },
+      engagement: { activeDay: 4, engagedMs: 5_400_000.5 },
+      settings: {
+        preset: 'balanced',
+        paused: false,
+        preview: true,
+        protectedSites: ['example.com'],
+      },
+      pressure: 'none',
+      memory: { totalMb: 16_384, availableMb: 8_000.25 },
+      ...overrides,
+    });
+    const accepts = (value: unknown): boolean => output.safeParse(value).success;
+    /** The diagnostics with `change` applied to the regret part. */
+    const withRegret = (change: Record<string, unknown>) =>
+      diagnostics({ regret: { ...diagnostics().regret, ...change } });
+
+    it('takes nothing', () => {
+      expect(input.safeParse({}).success).toBe(true);
+      for (const bad of [undefined, null, [], { tab: 1 }]) {
+        expect(input.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+      }
+    });
+
+    it('answers with the regret metric, the engagement, the settings, the pressure and the memory', () => {
+      expect(accepts(diagnostics())).toBe(true);
+    });
+
+    it('answers for a browser that has not moved anything yet', () => {
+      expect(
+        accepts(withRegret({ moves: 0, moveRegrets: 0, unloads: 0, unloadRegrets: 0, events: [] })),
+      ).toBe(true);
+    });
+
+    it.each(['regret', 'engagement', 'settings', 'pressure', 'memory'])(
+      'is not complete without %s',
+      (key) => {
+        expect(accepts(withoutKey(diagnostics(), key))).toBe(false);
+      },
+    );
+
+    it('refuses a key it does not know, at every level', () => {
+      expect(accepts({ ...diagnostics(), extra: 1 })).toBe(false);
+      expect(accepts(withRegret({ extra: 1 }))).toBe(false);
+      expect(accepts(withRegret({ events: [event({ extra: 1 })] }))).toBe(false);
+      expect(accepts(diagnostics({ engagement: { activeDay: 1, engagedMs: 1, extra: 1 } }))).toBe(
+        false,
+      );
+      expect(
+        accepts(
+          diagnostics({
+            settings: { ...diagnostics().settings, extra: 1 },
+          }),
+        ),
+      ).toBe(false);
+      expect(accepts(diagnostics({ memory: { totalMb: 1, availableMb: 1, extra: 1 } }))).toBe(
+        false,
+      );
+    });
+
+    describe('regret', () => {
+      it.each(['since', 'moves', 'moveRegrets', 'unloads', 'unloadRegrets', 'events'])(
+        'is not complete without %s',
+        (key) => {
+          expect(accepts(diagnostics({ regret: withoutKey(diagnostics().regret, key) }))).toBe(
+            false,
+          );
+        },
+      );
+
+      it.each(['since', 'moves', 'moveRegrets', 'unloads', 'unloadRegrets'])(
+        'counts %s in whole, non-negative numbers',
+        (key) => {
+          expect(accepts(withRegret({ [key]: 0 }))).toBe(true);
+          for (const value of [-1, 1.5, Number.NaN, Infinity, '3', null]) {
+            expect(accepts(withRegret({ [key]: value })), String(value)).toBe(false);
+          }
+        },
+      );
+
+      it('lists at most 200 events', () => {
+        expect(accepts(withRegret({ events: Array.from({ length: 200 }, () => event()) }))).toBe(
+          true,
+        );
+        expect(accepts(withRegret({ events: Array.from({ length: 201 }, () => event()) }))).toBe(
+          false,
+        );
+      });
+
+      it.each(['restore', 'undo', 'reload'])('accepts %s as how a move was undone', (how) => {
+        expect(accepts(withRegret({ events: [event({ how })] }))).toBe(true);
+      });
+
+      it.each(['click', 'close', '', null, 0])('refuses %j as how', (how) => {
+        expect(accepts(withRegret({ events: [event({ how })] }))).toBe(false);
+      });
+
+      it.each(['shelve', 'archive', 'discard'])('accepts %s as the action regretted', (action) => {
+        expect(accepts(withRegret({ events: [event({ action })] }))).toBe(true);
+      });
+
+      it.each(['freeze', 'restore', '', null])('refuses %j as the action', (action) => {
+        expect(accepts(withRegret({ events: [event({ action })] }))).toBe(false);
+      });
+
+      it.each([...LIFECYCLE_RULES])('accepts the rule %s', (rule) => {
+        expect(accepts(withRegret({ events: [event({ rule })] }))).toBe(true);
+      });
+
+      it.each(['shelve', 'discard', 'manual', '', null])('refuses %j as the rule', (rule) => {
+        expect(accepts(withRegret({ events: [event({ rule })] }))).toBe(false);
+      });
+
+      it.each(['at', 'afterEngagedMs'])('takes %s as a whole, non-negative number', (key) => {
+        expect(accepts(withRegret({ events: [event({ [key]: 0 })] }))).toBe(true);
+        for (const value of [-1, 0.5, Number.NaN, Infinity, '1', null]) {
+          expect(accepts(withRegret({ events: [event({ [key]: value })] })), String(value)).toBe(
+            false,
+          );
+        }
+      });
+
+      it('is not complete for an event missing a field', () => {
+        for (const key of ['at', 'how', 'action', 'rule', 'afterEngagedMs']) {
+          expect(accepts(withRegret({ events: [withoutKey(event(), key)] })), key).toBe(false);
+        }
+      });
+    });
+
+    describe('engagement', () => {
+      it('counts the active day in whole numbers and the engaged time in any non-negative number', () => {
+        expect(accepts(diagnostics({ engagement: { activeDay: 0, engagedMs: 0 } }))).toBe(true);
+        expect(accepts(diagnostics({ engagement: { activeDay: 1, engagedMs: 1.5 } }))).toBe(true);
+        expect(accepts(diagnostics({ engagement: { activeDay: 1.5, engagedMs: 1 } }))).toBe(false);
+        expect(accepts(diagnostics({ engagement: { activeDay: -1, engagedMs: 1 } }))).toBe(false);
+        expect(accepts(diagnostics({ engagement: { activeDay: 1, engagedMs: -1 } }))).toBe(false);
+        expect(accepts(diagnostics({ engagement: { activeDay: 1, engagedMs: Infinity } }))).toBe(
+          false,
+        );
+        expect(accepts(diagnostics({ engagement: { activeDay: 1, engagedMs: Number.NaN } }))).toBe(
+          false,
+        );
+      });
+
+      it('is not complete without either field', () => {
+        expect(accepts(diagnostics({ engagement: { activeDay: 1 } }))).toBe(false);
+        expect(accepts(diagnostics({ engagement: { engagedMs: 1 } }))).toBe(false);
+      });
+    });
+
+    describe('settings', () => {
+      const settings = (overrides: Record<string, unknown>) =>
+        diagnostics({ settings: { ...diagnostics().settings, ...overrides } });
+
+      it('names the preset in at most 32 characters', () => {
+        expect(accepts(settings({ preset: 'a'.repeat(32) }))).toBe(true);
+        expect(accepts(settings({ preset: 'a'.repeat(33) }))).toBe(false);
+        expect(accepts(settings({ preset: 7 }))).toBe(false);
+      });
+
+      it('takes paused and preview as booleans', () => {
+        for (const key of ['paused', 'preview']) {
+          expect(accepts(settings({ [key]: true }))).toBe(true);
+          expect(accepts(settings({ [key]: 'on' })), key).toBe(false);
+          expect(accepts(settings({ [key]: null })), key).toBe(false);
+        }
+      });
+
+      it('lists at most 1,000 protected sites, each of at most 253 characters', () => {
+        expect(accepts(settings({ protectedSites: [] }))).toBe(true);
+        expect(
+          accepts(
+            settings({
+              protectedSites: Array.from({ length: 1000 }, (_, n) => `s${String(n)}.example`),
+            }),
+          ),
+        ).toBe(true);
+        expect(
+          accepts(
+            settings({
+              protectedSites: Array.from({ length: 1001 }, (_, n) => `s${String(n)}.example`),
+            }),
+          ),
+        ).toBe(false);
+        expect(accepts(settings({ protectedSites: ['a'.repeat(253)] }))).toBe(true);
+        expect(accepts(settings({ protectedSites: ['a'.repeat(254)] }))).toBe(false);
+        expect(accepts(settings({ protectedSites: [7] }))).toBe(false);
+      });
+    });
+
+    describe('pressure and memory', () => {
+      it.each(['none', 'moderate', 'critical'])('accepts the pressure %s', (pressure) => {
+        expect(accepts(diagnostics({ pressure }))).toBe(true);
+      });
+
+      it.each(['low', 'high', '', null, 0])('refuses %j as the pressure', (pressure) => {
+        expect(accepts(diagnostics({ pressure }))).toBe(false);
+      });
+
+      it('takes the memory in any non-negative number, and refuses a negative or infinite one', () => {
+        expect(accepts(diagnostics({ memory: { totalMb: 0, availableMb: 0 } }))).toBe(true);
+        expect(accepts(diagnostics({ memory: { totalMb: -1, availableMb: 0 } }))).toBe(false);
+        expect(accepts(diagnostics({ memory: { totalMb: 1, availableMb: -0.5 } }))).toBe(false);
+        expect(accepts(diagnostics({ memory: { totalMb: Infinity, availableMb: 0 } }))).toBe(false);
+        expect(accepts(diagnostics({ memory: { totalMb: 1 } }))).toBe(false);
+      });
+    });
   });
 });

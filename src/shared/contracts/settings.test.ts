@@ -5,6 +5,7 @@ import {
   DEFAULT_HISTORY_RETENTION_DAYS,
   DEFAULT_LIFECYCLE_DOCUMENT,
   DEFAULT_SETTINGS,
+  MAX_PROTECTED_SITES,
   parseSettings,
   settingsSchema,
 } from './settings';
@@ -21,6 +22,8 @@ describe('the defaults', () => {
         autoArchive: true,
         freeze: false,
         paused: false,
+        preview: 'auto',
+        protectedSites: [],
         overrides: {},
       },
     });
@@ -263,6 +266,8 @@ describe('parseSettings: lifecycle (M3.2)', () => {
         autoArchive: false,
         freeze: true,
         paused: true,
+        preview: 'off',
+        protectedSites: ['example.com', 'localhost'],
         overrides: { stripCap: 20, discardAfterMs: 30 * 60 * 1000, discardPinned: true },
       }),
     ).toEqual({
@@ -270,7 +275,29 @@ describe('parseSettings: lifecycle (M3.2)', () => {
       autoArchive: false,
       freeze: true,
       paused: true,
+      preview: 'off',
+      protectedSites: ['example.com', 'localhost'],
       overrides: { stripCap: 20, discardAfterMs: 30 * 60 * 1000, discardPinned: true },
+    });
+  });
+
+  it('takes a document from before M3.4, with no preview and no protected sites, at their defaults', () => {
+    expect(
+      lifecycle({
+        preset: 'gentle',
+        autoArchive: false,
+        freeze: true,
+        paused: true,
+        overrides: { stripCap: 20 },
+      }),
+    ).toEqual({
+      preset: 'gentle',
+      autoArchive: false,
+      freeze: true,
+      paused: true,
+      preview: 'auto',
+      protectedSites: [],
+      overrides: { stripCap: 20 },
     });
   });
 
@@ -307,5 +334,177 @@ describe('parseSettings: lifecycle (M3.2)', () => {
 
   it('takes no overrides when they are not an object', () => {
     expect(lifecycle({ overrides: 'none' }).overrides).toEqual({});
+  });
+});
+
+describe('parseSettings: preview mode (M3.4)', () => {
+  const preview = (value: unknown) =>
+    parseSettings({ lifecycle: { preview: value } }).lifecycle.preview;
+
+  it.each(['auto', 'off'] as const)('keeps %s', (value) => {
+    expect(preview(value)).toBe(value);
+  });
+
+  it('is auto by default, and in the default document', () => {
+    expect(preview(undefined)).toBe('auto');
+    expect(DEFAULT_LIFECYCLE_DOCUMENT.preview).toBe('auto');
+    expect(parseSettings({}).lifecycle.preview).toBe('auto');
+  });
+
+  it.each([
+    ['an unknown word', 'on'],
+    ['the wrong case', 'OFF'],
+    ['an empty string', ''],
+    ['true', true],
+    ['false', false],
+    ['a number', 0],
+    ['null', null],
+    ['an array', ['off']],
+    ['an object', { mode: 'off' }],
+  ])('falls back to auto for %s', (_what, value) => {
+    expect(preview(value)).toBe('auto');
+  });
+
+  it('falls back alone: the other fields of the section are kept', () => {
+    expect(
+      parseSettings({
+        lifecycle: { preset: 'gentle', paused: true, preview: 'maybe', protectedSites: ['a.com'] },
+      }).lifecycle,
+    ).toEqual({
+      ...DEFAULT_LIFECYCLE_DOCUMENT,
+      preset: 'gentle',
+      paused: true,
+      protectedSites: ['a.com'],
+    });
+  });
+
+  it('keeps off when everything else in the section is invalid', () => {
+    expect(
+      parseSettings({
+        lifecycle: { preset: 'turbo', autoArchive: 3, freeze: 'x', paused: null, preview: 'off' },
+      }).lifecycle,
+    ).toEqual({ ...DEFAULT_LIFECYCLE_DOCUMENT, preview: 'off' });
+  });
+});
+
+describe('parseSettings: protectedSites (M3.4)', () => {
+  const sites = (value: unknown) =>
+    parseSettings({ lifecycle: { protectedSites: value } }).lifecycle.protectedSites;
+  const site = (length: number): string => `${'a'.repeat(length - 4)}.com`;
+
+  it('allows 1,000 sites, each up to 253 characters', () => {
+    expect(MAX_PROTECTED_SITES).toBe(1000);
+  });
+
+  it('is an empty list by default', () => {
+    expect(sites(undefined)).toEqual([]);
+    expect(parseSettings({}).lifecycle.protectedSites).toEqual([]);
+    expect(DEFAULT_LIFECYCLE_DOCUMENT.protectedSites).toEqual([]);
+  });
+
+  it('keeps a list, in its order', () => {
+    expect(sites(['example.com', 'localhost', '127.0.0.1', 'foo.github.io'])).toEqual([
+      'example.com',
+      'localhost',
+      '127.0.0.1',
+      'foo.github.io',
+    ]);
+  });
+
+  it('keeps an empty list', () => {
+    expect(sites([])).toEqual([]);
+  });
+
+  it('keeps one site of exactly 253 characters, and drops one of 254', () => {
+    expect(sites([site(253)])).toEqual([site(253)]);
+    expect(site(253)).toHaveLength(253);
+    expect(sites([site(254)])).toEqual([]);
+    expect(sites([site(254), 'ok.example'])).toEqual(['ok.example']);
+  });
+
+  it('keeps a site of one character', () => {
+    expect(sites(['a'])).toEqual(['a']);
+  });
+
+  it('keeps the first 1,000 sites of a longer list', () => {
+    const thousand = Array.from({ length: 1000 }, (_, index) => `site${String(index)}.example`);
+
+    expect(sites(thousand)).toEqual(thousand);
+    expect(sites([...thousand, 'one-more.example'])).toEqual(thousand);
+  });
+
+  describe('an invalid entry is dropped alone: one bad entry never costs the others', () => {
+    it.each([
+      ['an over-long site', 'a'.repeat(254)],
+      ['an empty string', ''],
+      ['a number', 42],
+      ['null', null],
+      ['an object', { site: 'example.com' }],
+      ['a nested list', ['example.com']],
+    ])('with %s among good ones', (_what, bad) => {
+      expect(sites(['good.example', bad, 'other.example'])).toEqual([
+        'good.example',
+        'other.example',
+      ]);
+    });
+
+    it('whatever the position of the invalid entry', () => {
+      expect(sites(['', 'good.example'])).toEqual(['good.example']);
+      expect(sites(['good.example', ''])).toEqual(['good.example']);
+    });
+  });
+
+  it.each([
+    ['a string', 'example.com'],
+    ['null', null],
+    ['an object', { 'example.com': true }],
+    ['a number', 3],
+    ['true', true],
+  ])('is an empty list for %s', (_what, value) => {
+    expect(sites(value)).toEqual([]);
+  });
+
+  it('falls back alone: the rest of the section is kept when the list is invalid', () => {
+    expect(
+      parseSettings({
+        lifecycle: {
+          preset: 'aggressive',
+          paused: true,
+          preview: 'off',
+          protectedSites: ['ok.example', 7],
+          overrides: { stripCap: 12 },
+        },
+      }).lifecycle,
+    ).toEqual({
+      preset: 'aggressive',
+      autoArchive: true,
+      freeze: false,
+      paused: true,
+      preview: 'off',
+      protectedSites: ['ok.example'],
+      overrides: { stripCap: 12 },
+    });
+  });
+
+  it('leaves the other sections of the document alone', () => {
+    expect(
+      parseSettings({
+        history: { retentionDays: 90 },
+        lifecycle: { protectedSites: ['example.com'] },
+      }),
+    ).toEqual({
+      search: DEFAULT_SETTINGS.search,
+      history: { retentionDays: 90 },
+      lifecycle: { ...DEFAULT_LIFECYCLE_DOCUMENT, protectedSites: ['example.com'] },
+    });
+  });
+
+  it('does not change the list it was given', () => {
+    const stored = { lifecycle: { protectedSites: ['example.com', 'localhost'] } };
+    const copy = structuredClone(stored);
+
+    parseSettings(stored);
+
+    expect(stored).toEqual(copy);
   });
 });

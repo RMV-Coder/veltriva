@@ -36,6 +36,11 @@ export interface PermissionBrokerOptions {
   /** The tab a web contents belongs to, if it's a tab's. */
   readonly tabIdOf: (contents: WebContents) => TabId | undefined;
   readonly logger: Logger;
+  /**
+   * The camera or the microphone was granted to a tab's page: it may capture from now on, which
+   * protects the tab until its next document (M3.4, §4.10).
+   */
+  readonly onMediaGranted?: (contents: WebContents) => void;
 }
 
 function requesterRole(contents: WebContents | null): RequesterRole {
@@ -100,9 +105,16 @@ export function installPermissionBroker(
       callback(false);
       return;
     }
+    const capture = permissions.includes('camera') || permissions.includes('microphone');
+    const grant = (): void => {
+      if (capture && !contents.isDestroyed()) {
+        options.onMediaGranted?.(contents);
+      }
+      callback(true);
+    };
     const undecided = permissions.filter((asked) => decisions.get(origin, asked) === undefined);
     if (undecided.length === 0) {
-      callback(true);
+      grant();
       return;
     }
     prompts
@@ -111,7 +123,7 @@ export function installPermissionBroker(
         switch (answer.decision) {
           case 'allow':
             decisions.set(origin, undecided, 'allow');
-            callback(true);
+            grant();
             return;
           case 'block':
             decisions.set(origin, undecided, 'block');

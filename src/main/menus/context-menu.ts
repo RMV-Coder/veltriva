@@ -28,6 +28,10 @@ export interface ContextMenuDependencies {
   readonly searchEngine: () => string;
   /** The user's moves to Sleeping and the Archive, with Undo (M3.3). */
   readonly placement: () => PlacementActions;
+  /** The site of a page, and whether the user protects it (M3.4). */
+  readonly siteOf?: (url: string) => string | null;
+  readonly isSiteProtected?: (site: string) => boolean;
+  readonly setSiteProtected?: (tabId: TabId, on: boolean) => void;
 }
 
 export interface ContextMenus {
@@ -258,11 +262,14 @@ export function createContextMenus(deps: ContextMenuDependencies): ContextMenus 
   function sidebarTabEntries(tabId: TabId): TabMenuEntry[] {
     const tabs = deps.tabs();
     const tab = tabs.get(tabId);
+    const site = tab.page.kind === 'web' ? (deps.siteOf?.(tab.url) ?? null) : null;
     return buildTabMenu({
       placement: tab.placement,
       pinned: tab.pinned,
       userProtected: tab.userProtected,
       canArchive: tab.url !== '' && !tab.ephemeral,
+      site,
+      siteProtected: site !== null && (deps.isSiteProtected?.(site) ?? false),
       hasPage: tab.url !== '',
       otherUnpinnedTabs: tabs.tabs().filter((other) => other.id !== tabId && !other.pinned).length,
       canReopenClosed: tabs.canReopenClosed(),
@@ -322,6 +329,10 @@ export function createContextMenus(deps: ContextMenuDependencies): ContextMenus 
       case 'protect':
       case 'unprotect':
         deps.placement().setProtected(tabId, id === 'protect');
+        return;
+      case 'protect-site':
+      case 'unprotect-site':
+        deps.setSiteProtected?.(tabId, id === 'protect-site');
         return;
     }
   }

@@ -16,6 +16,8 @@ export interface DiscardRequest {
   readonly epoch?: number;
   /** Critical memory pressure: soft protections don't block (§4.7 rule 4). */
   readonly overrideSoft?: boolean;
+  /** For a pressure discard, how low memory was: the "why" says so (M3.4). */
+  readonly pressure?: 'moderate' | 'critical';
 }
 
 /** Why a discard didn't run: nothing to do, or the decision no longer holds. */

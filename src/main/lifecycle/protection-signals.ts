@@ -1,13 +1,24 @@
-// The protections automation must respect from its first day (assessment §4.10), read on every
-// evaluation from each tab's web contents. M3.2 has the signals whose loss would be plainly wrong:
-//   audio:      `isCurrentlyAudible()`, and for 2 minutes after it stops (`audio-state-changed`);
-//               a muted tab that plays still reports audible (S1);
-//   capture:    `isBeingCaptured()`: camera, microphone or screen;
-//   devtools:   `isDevToolsOpened()`;
-//   open-popup: a popup window it opened is still open (a sign-in, a payment).
-// The protection monitor (M3.4) adds the rest of the table and the explanations.
+// The protection monitor (assessment §4.10): what each tab's web contents says about keeping it
+// as it is, read on every evaluation and for the "why" in the sidebar. TabManager adds what only
+// it knows (fullscreen, background activity, the user's protection, what discards learned).
+//   audio:          `isCurrentlyAudible()`, and for 2 minutes after it stops (`audio-state-changed`);
+//                   a muted tab that plays still reports audible (S1);
+//   video:          a per-tab count of `media-started-playing` less `media-paused` (they carry no
+//                   payload, S1), reset by a new document;
+//   capture:        `isBeingCaptured()`, or the camera or microphone granted to the page by the
+//                   permission broker. Chromium says when capture starts, not exactly when it
+//                   stops, so a grant protects until the next document or the close (§4.10);
+//   devtools:       `isDevToolsOpened()`;
+//   open-popup:     a popup window it opened is still open (a sign-in, a payment);
+//   notifications:  the user allowed the page's origin to show notifications (soft);
+//   protected-site: the user protected the page's site.
+// The last two read the tab's address from TabManager (`urlOf`), so they hold for an unloaded
+// tab too: a protected site's tab is never shelved or archived, loaded or not.
+// Each tab's web contents is watched from its creation (`attach`), so a video that starts before
+// the first evaluation is counted. A change that alters what the sidebar shows calls `onChange`.
 import type { WebContents } from 'electron';
 
+import type { Timers } from '../../core/lifecycle/discard';
 import { protectionFor } from '../../core/lifecycle/protections';
 import type { Protection } from '../../core/lifecycle/protections';
 import type { TabId } from '../tabs/tab-manager';
@@ -26,16 +37,55 @@ export interface ProtectionSignalsOptions {
    * answer, because Playwright's focus emulation makes every page report captured (found by E2E).
    */
   readonly isCaptured?: (contents: WebContents) => boolean;
+  /** The address of the tab's page, as TabManager has it ('' for none). */
+  readonly urlOf?: (tabId: TabId) => string;
+  /** Whether the user allowed this page's origin to show notifications. */
+  readonly notificationsAllowed?: (url: string) => boolean;
+  /** Whether the user protected this page's site (M3.4). */
+  readonly siteProtected?: (url: string) => boolean;
+  /** Something the "why" shows changed: audio, video, capture. */
+  readonly onChange?: () => void;
+  /** For the audio grace's end (the "why" changes then, with no event). */
+  readonly timers?: Timers;
+}
+
+interface Watch {
+  /** When the page was last heard. */
+  lastAudible: number | undefined;
+  /** Media elements playing: started less paused, never below 0. */
+  playing: number;
+  /** The camera or microphone was granted to this document. */
+  captureGranted: boolean;
+  /** The timer that announces the end of the audio grace. */
+  graceTimer: unknown;
 }
 
 export class ProtectionSignals {
   readonly #options: ProtectionSignalsOptions;
-  /** When each tab's page was last heard, by web contents. */
-  readonly #lastAudible = new WeakMap<WebContents, number>();
-  readonly #watched = new WeakSet<WebContents>();
+  readonly #watches = new WeakMap<WebContents, Watch>();
 
   constructor(options: ProtectionSignalsOptions) {
     this.#options = options;
+  }
+
+  /** Starts watching a tab's new web contents. Idempotent. */
+  attach(contents: WebContents): void {
+    this.#watch(contents);
+  }
+
+  /**
+   * The permission broker granted the camera or the microphone to this page: it may be capturing
+   * from now until its next document, whatever `isBeingCaptured()` says later.
+   */
+  mediaGranted(contents: WebContents): void {
+    if (contents.isDestroyed()) {
+      return;
+    }
+    const watch = this.#watch(contents);
+    if (!watch.captureGranted) {
+      watch.captureGranted = true;
+      this.#changed();
+    }
   }
 
   /** The protections a tab has now. O(1) reads of its web contents. */
@@ -43,16 +93,22 @@ export class ProtectionSignals {
     const protections: Protection[] = [];
     const contents = this.#options.contentsOf(tabId);
     if (contents !== undefined && !contents.isDestroyed()) {
-      this.#watch(contents);
+      const watch = this.#watch(contents);
       const now = this.#options.now();
       if (contents.isCurrentlyAudible()) {
-        this.#lastAudible.set(contents, now);
+        watch.lastAudible = now;
       }
-      const heard = this.#lastAudible.get(contents);
+      const heard = watch.lastAudible;
       if (heard !== undefined && now - heard < AUDIO_GRACE_MS && now >= heard) {
         protections.push(protectionFor('audio'));
       }
-      if (this.#options.isCaptured?.(contents) ?? contents.isBeingCaptured()) {
+      if (watch.playing > 0) {
+        protections.push(protectionFor('video'));
+      }
+      if (
+        watch.captureGranted ||
+        (this.#options.isCaptured?.(contents) ?? contents.isBeingCaptured())
+      ) {
         protections.push(protectionFor('capture'));
       }
       if (contents.isDevToolsOpened()) {
@@ -62,19 +118,83 @@ export class ProtectionSignals {
     if (this.#options.hasOpenPopup(tabId)) {
       protections.push(protectionFor('open-popup'));
     }
+    const url = this.#options.urlOf?.(tabId) ?? '';
+    if (url !== '' && this.#options.notificationsAllowed?.(url) === true) {
+      protections.push(protectionFor('notifications'));
+    }
+    if (url !== '' && this.#options.siteProtected?.(url) === true) {
+      protections.push(protectionFor('protected-site'));
+    }
     return protections;
   }
 
-  /** Notes when audio stops, so the grace period starts then, not at the next evaluation. */
-  #watch(contents: WebContents): void {
-    if (this.#watched.has(contents)) {
-      return;
+  #watch(contents: WebContents): Watch {
+    const known = this.#watches.get(contents);
+    if (known !== undefined) {
+      return known;
     }
-    this.#watched.add(contents);
+    const watch: Watch = {
+      lastAudible: undefined,
+      playing: 0,
+      captureGranted: false,
+      graceTimer: undefined,
+    };
+    this.#watches.set(contents, watch);
+    // Notes when audio stops, so the grace period starts then, not at the next evaluation, and
+    // says when it ends.
     contents.on('audio-state-changed', () => {
-      if (!contents.isDestroyed()) {
-        this.#lastAudible.set(contents, this.#options.now());
+      if (contents.isDestroyed()) {
+        return;
+      }
+      watch.lastAudible = this.#options.now();
+      this.#armGrace(watch);
+      this.#changed();
+    });
+    contents.on('media-started-playing', () => {
+      watch.playing += 1;
+      this.#changed();
+    });
+    contents.on('media-paused', () => {
+      watch.playing = Math.max(0, watch.playing - 1);
+      this.#changed();
+    });
+    // A new document: its media and its grants are its own (§4.10: capture lasts until navigation).
+    contents.on('did-navigate', () => {
+      const changed = watch.playing > 0 || watch.captureGranted;
+      watch.playing = 0;
+      watch.captureGranted = false;
+      if (changed) {
+        this.#changed();
       }
     });
+    contents.once('destroyed', () => {
+      if (watch.graceTimer !== undefined) {
+        this.#options.timers?.clearTimeout(watch.graceTimer);
+        watch.graceTimer = undefined;
+      }
+    });
+    return watch;
+  }
+
+  #armGrace(watch: Watch): void {
+    const timers = this.#options.timers;
+    if (timers === undefined) {
+      return;
+    }
+    if (watch.graceTimer !== undefined) {
+      timers.clearTimeout(watch.graceTimer);
+    }
+    watch.graceTimer = timers.setTimeout(() => {
+      watch.graceTimer = undefined;
+      this.#changed();
+    }, AUDIO_GRACE_MS + 1000);
+  }
+
+  #changed(): void {
+    try {
+      this.#options.onChange?.();
+    } catch {
+      // A listener's bug must not break the web contents' event.
+    }
   }
 }

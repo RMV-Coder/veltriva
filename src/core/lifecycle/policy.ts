@@ -170,6 +170,17 @@ export interface LifecycleClock {
   readonly activeDay: number;
 }
 
+/**
+ * Preview mode (§4.13): for a new user's first active days, automation shows the tabs it would
+ * move instead of moving them, so trust is calibrated before anything leaves the strip.
+ */
+export const PREVIEW_ACTIVE_DAYS = 3;
+
+/** Whether automation only previews its moves today. `off`: the user started it early. */
+export function isPreviewActive(setting: 'auto' | 'off', activeDay: number): boolean {
+  return setting === 'auto' && activeDay <= PREVIEW_ACTIVE_DAYS;
+}
+
 export const LIFECYCLE_RULES = [
   'discard-hidden',
   'shelve-beyond-cap',

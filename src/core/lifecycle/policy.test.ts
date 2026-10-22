@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_LIFECYCLE_SETTINGS,
   FREEZE_AFTER_MS,
+  PREVIEW_ACTIVE_DAYS,
   PRESETS,
   PRESET_VALUES,
   PRESSURE_RULES,
+  isPreviewActive,
   planLifecycle,
   resolveLifecycleSettings,
 } from './policy';
@@ -89,6 +91,12 @@ const PROTECTION_TABLE: Readonly<
   'open-popup': { hard: true, blocks: ['discard', 'archive'] },
   'recent-interaction': { hard: false, blocks: ['discard', 'shelve', 'archive'] },
   'user-protected': { hard: true, blocks: ['freeze', 'discard', 'shelve', 'archive'] },
+  // M3.4: the protection monitor completes the table.
+  'protected-site': { hard: true, blocks: ['freeze', 'discard', 'shelve', 'archive'] },
+  video: { hard: true, blocks: ['freeze', 'discard'] },
+  fullscreen: { hard: true, blocks: ['freeze', 'discard', 'shelve', 'archive'] },
+  notifications: { hard: false, blocks: ['freeze', 'discard'] },
+  'background-activity': { hard: false, blocks: ['freeze', 'discard'] },
 };
 const REASONS = Object.keys(PROTECTION_TABLE) as ProtectionReason[];
 
@@ -269,6 +277,38 @@ describe('FREEZE_AFTER_MS and PRESSURE_RULES', () => {
 
   it('asks 15 minutes hidden and one discard of a moderate evaluation, 2 minutes and three of a critical one', () => {
     expect(PRESSURE_RULES).toStrictEqual(PRESSURE);
+  });
+});
+
+describe('preview mode (assessment §4.13)', () => {
+  it('lasts the first 3 active days', () => {
+    expect(PREVIEW_ACTIVE_DAYS).toBe(3);
+  });
+
+  describe('isPreviewActive', () => {
+    it.each([
+      [1, true],
+      [2, true],
+      [3, true],
+      [4, false],
+      [5, false],
+      [50, false],
+    ] as const)('on active day %i with the setting auto: %s', (activeDay, expected) => {
+      expect(isPreviewActive('auto', activeDay)).toBe(expected);
+    });
+
+    it('is active up to and including the last preview day, and not a day later', () => {
+      expect(isPreviewActive('auto', PREVIEW_ACTIVE_DAYS)).toBe(true);
+      expect(isPreviewActive('auto', PREVIEW_ACTIVE_DAYS + 1)).toBe(false);
+    });
+
+    it('is active on day 0, before the first active day is counted', () => {
+      expect(isPreviewActive('auto', 0)).toBe(true);
+    });
+
+    it.each([0, 1, 3, 4, 100])('is never active when the user ended it (off), on day %i', (day) => {
+      expect(isPreviewActive('off', day)).toBe(false);
+    });
   });
 });
 
@@ -1586,7 +1626,7 @@ describe('planLifecycle', () => {
       );
     });
 
-    it('is blocked by audio and capture only: a recent interaction does not keep a tab from freezing', () => {
+    it('is not blocked by a recent interaction: only the reasons that name freeze hold it back', () => {
       const interacted = tab({ ...hiddenFor(20 * MINUTE), lastInteractionAt: NOW - MINUTE });
 
       expect(plan([interacted], { settings: FREEZING })).toStrictEqual([
@@ -1659,6 +1699,127 @@ describe('planLifecycle', () => {
           { settings: FREEZING },
         ),
       ).toHaveLength(4);
+    });
+  });
+
+  // -------------------------------------------------------------------------------------------
+  describe('the protections of the monitor (M3.4)', () => {
+    const CAP0 = settingsOf('balanced', { stripCap: 0 });
+    /** An unpinned strip tab outside a cap of 0 and idle for 3 engaged hours: due to be shelved. */
+    const due = (overrides: Partial<TabFacts> = {}): TabFacts =>
+      tab({ lastUsedEngaged: ENGAGED_NOW - 3 * HOUR, ...overrides });
+    /** A Sleeping tab, unloaded, last used 10 active days ago: due to be archived. */
+    const dormant = (overrides: Partial<TabFacts> = {}): TabFacts =>
+      tab({
+        placement: 'shelf',
+        runtime: 'unloaded',
+        lastUsedActiveDay: ACTIVE_DAY - 10,
+        ...overrides,
+      });
+
+    it.each([
+      ['protected-site', ['freeze', 'discard', 'shelve', 'archive']],
+      ['fullscreen', ['freeze', 'discard', 'shelve', 'archive']],
+      ['video', ['freeze', 'discard']],
+      ['notifications', ['freeze', 'discard']],
+      ['background-activity', ['freeze', 'discard']],
+    ] as const)('%s blocks %j and nothing else', (reason, blocks) => {
+      expect([...protectionFor(reason).blocks]).toStrictEqual([...blocks]);
+    });
+
+    describe.each(['protected-site', 'fullscreen'] as const)('%s', (reason) => {
+      it('keeps a tab from every rule', () => {
+        const long = hiddenFor(5 * HOUR);
+
+        expect(plan([tab({ ...long, ...protect(reason) })])).toStrictEqual([]);
+        expect(
+          plan([tab({ ...long, ...protect(reason) })], { pressure: 'critical' }),
+        ).toStrictEqual([]);
+        expect(
+          plan([tab({ ...long, ...protect(reason) })], {
+            settings: settingsOf('balanced', { freeze: true }),
+          }),
+        ).toStrictEqual([]);
+        expect(plan([due(protect(reason))], { settings: CAP0 })).toStrictEqual([]);
+        expect(plan([dormant(protect(reason))])).toStrictEqual([]);
+      });
+    });
+
+    describe('video', () => {
+      it('keeps a tab from being discarded, under pressure or not, and from being frozen', () => {
+        const playing = tab({ ...hiddenFor(5 * HOUR), ...protect('video') });
+
+        expect(plan([playing])).toStrictEqual([]);
+        expect(plan([playing], { pressure: 'moderate' })).toStrictEqual([]);
+        expect(plan([playing], { pressure: 'critical' })).toStrictEqual([]);
+        expect(
+          plan([tab({ ...hiddenFor(20 * MINUTE), ...protect('video') })], {
+            settings: settingsOf('balanced', { freeze: true }),
+          }),
+        ).toStrictEqual([]);
+      });
+
+      it('does not keep a tab from being moved to Sleeping: the page stays as it is, only the row moves', () => {
+        const target = due(protect('video'));
+
+        expect(plan([target], { settings: CAP0 })).toStrictEqual([
+          act(target, 'shelve', 'shelve-beyond-cap'),
+        ]);
+      });
+
+      it('does not keep an unloaded Sleeping tab from being archived', () => {
+        const target = dormant(protect('video'));
+
+        expect(plan([target])).toStrictEqual([act(target, 'archive', 'archive-dormant')]);
+      });
+
+      it('keeps a Sleeping tab that still holds its page from being archived, as its discard is blocked', () => {
+        expect(plan([dormant({ runtime: 'live', ...protect('video') })])).toStrictEqual([]);
+      });
+    });
+
+    describe.each(['notifications', 'background-activity'] as const)('%s (soft)', (reason) => {
+      it('keeps a tab hidden for hours from being discarded or frozen', () => {
+        expect(plan([tab({ ...hiddenFor(5 * HOUR), ...protect(reason) })])).toStrictEqual([]);
+        expect(
+          plan([tab({ ...hiddenFor(20 * MINUTE), ...protect(reason) })], {
+            settings: settingsOf('balanced', { freeze: true }),
+          }),
+        ).toStrictEqual([]);
+      });
+
+      it('keeps a tab from moderate pressure, which lifts no protection', () => {
+        const target = tab({ ...hiddenFor(20 * MINUTE), ...protect(reason) });
+
+        expect(plan([target], { pressure: 'moderate' })).toStrictEqual([]);
+      });
+
+      it('lets critical pressure discard the tab, saying it overrides a soft protection', () => {
+        const target = tab({ ...hiddenFor(20 * MINUTE), ...protect(reason) });
+
+        expect(plan([target], { pressure: 'critical' })).toStrictEqual([
+          act(target, 'discard', 'pressure-discard', true),
+        ]);
+      });
+
+      it('does not keep a tab from being moved to Sleeping or archived', () => {
+        const shelve = due(protect(reason));
+        const archive = dormant(protect(reason));
+
+        expect(plan([shelve], { settings: CAP0 })).toStrictEqual([
+          act(shelve, 'shelve', 'shelve-beyond-cap'),
+        ]);
+        expect(plan([archive])).toStrictEqual([act(archive, 'archive', 'archive-dormant')]);
+      });
+    });
+
+    it('lets a hard protection of the monitor win over a soft one under critical pressure', () => {
+      const target = tab({
+        ...hiddenFor(20 * MINUTE),
+        ...protect('notifications', 'video', 'background-activity'),
+      });
+
+      expect(plan([target], { pressure: 'critical' })).toStrictEqual([]);
     });
   });
 

@@ -7,6 +7,8 @@ export const INTERNAL_PAGES = [
   'certificate-error',
   'client-certificate',
   'crashed',
+  /** The local diagnostics page (M3.4, §4.13): the regret metric and what automation sees. */
+  'diagnostics',
 ] as const;
 export type InternalPage = (typeof INTERNAL_PAGES)[number];
 
@@ -16,6 +18,7 @@ export type InternalPage = (typeof INTERNAL_PAGES)[number];
  */
 export const TYPEABLE_INTERNAL_PAGES: ReadonlyMap<string, InternalPage> = new Map([
   ['newtab', 'new-tab'],
+  ['diagnostics', 'diagnostics'],
 ]);
 
 export const INTERNAL_SCHEME = 'veltriva';

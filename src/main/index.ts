@@ -7,17 +7,20 @@ import type { WebContents } from 'electron';
 
 import { uuidv7 } from '../core/id/uuidv7';
 import { displayUrl, originLabel } from '../core/url/display';
-import { resolveLifecycleSettings } from '../core/lifecycle/policy';
-import type {
-  LifecycleClock,
-  LifecycleSettings,
-  LifecycleSettingsInput,
+import {
+  isPreviewActive,
+  PREVIEW_ACTIVE_DAYS,
+  resolveLifecycleSettings,
 } from '../core/lifecycle/policy';
+import type { LifecycleClock, LifecycleSettings, MemoryPressure } from '../core/lifecycle/policy';
+import { originOf } from '../core/permissions/permission-policy';
+import { siteOf } from '../core/url/site';
 import { ActivationTracker } from '../core/input/user-activation';
 import { ClientHintOptIns } from '../core/net/client-hints';
 import { PermissionDecisions } from '../core/permissions/permission-decisions';
+import type { DataInput } from '../shared/contracts/data-rpc';
 import { DEFAULT_SETTINGS } from '../shared/contracts/settings';
-import type { Settings } from '../shared/contracts/settings';
+import type { LifecycleSettingsDocument, Settings } from '../shared/contracts/settings';
 import { APP_USER_MODEL_ID, BROWSING_PARTITION } from '../shared/constants/app-identity';
 import { cleanUserAgent } from './app/user-agent';
 import { resolveUserDataDir, USER_DATA_DIR_OVERRIDE_ENV } from './app/user-data-dir';
@@ -37,6 +40,7 @@ import {
 import { ActivityLog, activityWriter, readStoredActivity } from './lifecycle/activity-log';
 import { MemoryPressureMonitor } from './lifecycle/memory-pressure';
 import { createPlacementActions } from './lifecycle/placement-actions';
+import { readStoredRegret, RegretTracker, regretWriter } from './lifecycle/regret';
 import { ProtectionSignals } from './lifecycle/protection-signals';
 import { LifecycleScheduler } from './lifecycle/scheduler';
 import type { ActionRecord } from './lifecycle/scheduler';
@@ -204,6 +208,8 @@ async function start(): Promise<void> {
     startup === null ? null : await readStoredEngagement(data, consoleLogger);
   // What automation did, and why (M3.3): the local activity log.
   const storedActivity = startup === null ? [] : await readStoredActivity(data, consoleLogger);
+  // The regret metric's totals (M3.4, §4.13), for the local diagnostics page.
+  const storedRegret = startup === null ? null : await readStoredRegret(data, consoleLogger);
   setSearchTemplate(settings.search.template);
   const writeDecision = decisionWriters(data, consoleLogger);
 
@@ -280,7 +286,16 @@ async function start(): Promise<void> {
     stored: stored.decisions,
     onDecided: writeDecision.permission,
   });
-  installPermissionBroker(browsing, { prompts, decisions, tabIdOf, logger: consoleLogger });
+  installPermissionBroker(browsing, {
+    prompts,
+    decisions,
+    tabIdOf,
+    logger: consoleLogger,
+    // M3.4: a page granted the camera or microphone may be capturing (§4.10).
+    onMediaGranted: (contents) => {
+      signals.mediaGranted(contents);
+    },
+  });
   // HTTP authentication: a sign-in question in the strip, never stored (src/main/auth).
   setLoginHandler(createLoginHandler({ prompts, tabIdOf, logger: consoleLogger }));
   // Downloads (M1.4b): the browsing session, the only one a page can download from: tabs and
@@ -376,6 +391,10 @@ async function start(): Promise<void> {
     },
     activation,
     windowOpenHandler,
+    // The protection monitor watches each tab's page from its first moment (M3.4).
+    onContentsCreated: (_tabId, contents) => {
+      signals.attach(contents);
+    },
   });
   const projector = createWorkspaceProjector({
     tabs: () => tabs.tabs(),
@@ -386,6 +405,9 @@ async function start(): Promise<void> {
     extrasFor: (tabId) => ({
       prompt: prompts.current(tabId),
       blockedPopups: blockedPopups.get(tabId),
+      // M3.4's "why": what keeps the tab awake, and what preview would do to it.
+      keptAwake: tabs.keptAwake(tabId),
+      previewMove: automation.scheduler?.previewMoves().get(tabId) ?? null,
     }),
     // M3.3: Sleeping, the Archive, the sidebar's counts and Undo.
     sleeping: () => tabs.sleepingTabs(),
@@ -401,6 +423,13 @@ async function start(): Promise<void> {
     },
     undo: () => undo.current(),
     activityVersion: () => activity.version(),
+    automation: () => ({
+      paused: lifecycleSettings.paused,
+      preview: previewActive(),
+      previewUntilDay: PREVIEW_ACTIVE_DAYS,
+      activeDay: lifecycleClock().activeDay,
+      pressure: pressureLevel(),
+    }),
     publish: (snapshot) => {
       events.emit('workspace.changed', snapshot);
     },
@@ -461,28 +490,71 @@ async function start(): Promise<void> {
     const now = engagement.now();
     return {
       wallNow: Date.now() + adjust.wallMs,
-      engagedNow: now.engagedMs + adjust.engagedMs,
+      // Whole milliseconds: engaged time adds up `performance.now()` steps, and what is stamped
+      // with it is stored as an integer (a fraction made every session save while the user was
+      // active fail, found by E2E in M3.4).
+      engagedNow: Math.floor(now.engagedMs + adjust.engagedMs),
       activeDay: now.activeDay + adjust.activeDays,
     };
   };
-  let lifecycleDocument: LifecycleSettingsInput = settings.lifecycle;
+  let lifecycleDocument: LifecycleSettingsDocument = settings.lifecycle;
   let lifecycleSettings: LifecycleSettings = resolveLifecycleSettings(lifecycleDocument);
+  /** Preview mode (§4.13): the first active days, unless the user started automation early. */
+  const previewActive = (): boolean =>
+    isPreviewActive(lifecycleDocument.preview, lifecycleClock().activeDay);
+  /** Saves a change to the lifecycle section (Pause, preview, protected sites) and applies it. */
+  const saveLifecycle = (next: LifecycleSettingsDocument): void => {
+    lifecycleDocument = next;
+    lifecycleSettings = resolveLifecycleSettings(next);
+    settings = { ...settings, lifecycle: next };
+    const value = JSON.parse(JSON.stringify(settings)) as DataInput<'settings.set'>['value'];
+    data.call('settings.set', { value }).catch(() => {
+      consoleLogger.warn('settings.writeFailed');
+    });
+    projector.markDirty();
+    automation.scheduler?.trigger();
+  };
+  // The regret metric (M3.4, §4.13): local only, read by the diagnostics page.
+  const regret = new RegretTracker({
+    stored: storedRegret,
+    persist: regretWriter(data),
+    clock: lifecycleClock,
+    timers: SYSTEM_TIMERS,
+    logger: consoleLogger,
+  });
+  dataLifecycle.addFlush(() => regret.flush());
   const pressure = new MemoryPressureMonitor({
     read: () => process.getSystemMemoryInfo(),
     timers: SYSTEM_TIMERS,
     monotonic: () => performance.now(),
     onChange: () => {
+      projector.markDirty();
       automation.scheduler?.trigger();
     },
   });
+  /** The pressure automation acts on: the monitor's, or what a test set. */
+  const pressureLevel = (): MemoryPressure =>
+    (import.meta.env.MODE === 'test' ? testMemoryPressure() : null) ?? pressure.level();
   app.on('render-process-gone', (_event, _contents, details) => {
     pressure.rendererGone(details.reason);
   });
-  const signals = new ProtectionSignals({
+  const signals: ProtectionSignals = new ProtectionSignals({
     contentsOf: (tabId) => runtimes.views.get(tabId)?.webContents,
     hasOpenPopup: (tabId) => popupWindows.hasOpenPopupFor(tabId),
     now: () => lifecycleClock().wallNow,
     ...(import.meta.env.MODE === 'test' ? { isCaptured: testIsCaptured } : {}),
+    // M3.4: the rest of §4.10's table. The address is TabManager's: an unloaded tab has one too.
+    urlOf: (tabId): string => (tabs.has(tabId) ? tabs.get(tabId).url : ''),
+    notificationsAllowed: (url) =>
+      decisions.get(originOf(url) ?? 'null', 'notifications') === 'allow',
+    siteProtected: (url) => {
+      const site = siteOf(url);
+      return site !== null && lifecycleDocument.protectedSites.includes(site);
+    },
+    onChange: () => {
+      projector.markDirty();
+    },
+    timers: SYSTEM_TIMERS,
   });
   /** The scheduler, created once the session is restored; until then nothing is automated. */
   const automation: { scheduler?: LifecycleScheduler } = {};
@@ -517,6 +589,10 @@ async function start(): Promise<void> {
       return answer.decision === 'allow';
     },
     history: historyRecorder,
+    // M3.4: a tab automation unloaded, shown again within the hour, is a regret (§4.13).
+    onAutomaticUnloadShown: (tabId) => {
+      regret.reloaded(tabId);
+    },
     // Test builds record the runtime transitions for the specs (M3.1).
     ...(import.meta.env.MODE === 'test' ? { onTransition: recordRuntimeTransition } : {}),
   });
@@ -528,7 +604,15 @@ async function start(): Promise<void> {
       projector.markDirty();
     },
   });
-  const placement = createPlacementActions({ tabs, undo, now: () => lifecycleClock().wallNow });
+  const placement = createPlacementActions({
+    tabs,
+    undo,
+    now: () => lifecycleClock().wallNow,
+    // A tab brought back soon after automation moved it is a regret (§4.13).
+    onRestored: (tabId) => {
+      regret.restored(tabId, 'restore');
+    },
+  });
   const activity = new ActivityLog({
     stored: storedActivity,
     persist: activityWriter(data),
@@ -563,6 +647,10 @@ async function start(): Promise<void> {
     if (outcome !== 'discarded' && outcome !== 'frozen' && outcome !== 'moved') {
       return;
     }
+    // The regret metric watches each move and unload for an engaged hour (§4.13).
+    if (record.kind !== 'freeze') {
+      regret.automated(record.tabId, record.kind, record.rule);
+    }
     const tab = describeTab(record.tabId);
     if (tab === null) {
       return;
@@ -592,6 +680,7 @@ async function start(): Promise<void> {
       // Undoing automation is part of its story; the user's own moves aren't logged.
       if (offer?.automated === true) {
         for (const move of undone) {
+          regret.restored(move.tabId, 'undo');
           const tab = describeTab(move.tabId);
           if (tab !== null) {
             activity.add(
@@ -616,6 +705,41 @@ async function start(): Promise<void> {
       undo.dismiss(batchId);
     },
     activity: () => activity.entries(),
+    setPaused: (paused) => {
+      saveLifecycle({ ...lifecycleDocument, paused });
+    },
+    endPreview: () => {
+      saveLifecycle({ ...lifecycleDocument, preview: 'off' });
+    },
+    setSiteProtected: (tabId, on) => {
+      const site = siteOf(tabs.get(tabId).url);
+      if (site === null) {
+        return null;
+      }
+      const others = lifecycleDocument.protectedSites.filter((known) => known !== site);
+      saveLifecycle({ ...lifecycleDocument, protectedSites: on ? [...others, site] : others });
+      return site;
+    },
+    diagnostics: () => {
+      const state = regret.state();
+      const engaged = engagement.now();
+      const memory = process.getSystemMemoryInfo();
+      return {
+        regret: { since: state.since, ...state.counts, events: [...state.events] },
+        engagement: { activeDay: engaged.activeDay, engagedMs: engaged.engagedMs },
+        settings: {
+          preset: lifecycleDocument.preset,
+          paused: lifecycleDocument.paused,
+          preview: previewActive(),
+          protectedSites: [...lifecycleDocument.protectedSites],
+        },
+        pressure: pressureLevel(),
+        memory: {
+          totalMb: Math.round(memory.total / 1024),
+          availableMb: Math.round(memory.free / 1024),
+        },
+      };
+    },
   };
   const focus = new FocusManager({ shell: main.shell, tabs: () => tabs, events });
   const fullscreen = new FullscreenController({
@@ -644,6 +768,11 @@ async function start(): Promise<void> {
     searchTemplate,
     searchEngine: searchEngineName,
     placement: () => placement,
+    siteOf,
+    isSiteProtected: (site) => lifecycleDocument.protectedSites.includes(site),
+    setSiteProtected: (tabId, on) => {
+      lifecycleCommands.setSiteProtected(tabId, on);
+    },
   });
 
   // Reserved shortcuts, before the shell or any page sees the key (assessment §3.9).
@@ -736,13 +865,17 @@ async function start(): Promise<void> {
     tabs,
     settings: () => lifecycleSettings,
     clock: lifecycleClock,
-    pressure: () =>
-      (import.meta.env.MODE === 'test' ? testMemoryPressure() : null) ?? pressure.level(),
+    pressure: pressureLevel,
     timers: SYSTEM_TIMERS,
     logger: consoleLogger,
     onAction: logAction,
     onBatch: (batch) => {
       undo.offer(batch, { automated: true });
+    },
+    // M3.4: preview mode for the first active days (§4.13).
+    preview: previewActive,
+    onPreviewChange: () => {
+      projector.markDirty();
     },
   });
   automation.scheduler = lifecycle;
@@ -792,6 +925,7 @@ async function start(): Promise<void> {
     lifecycle.stop();
     undo.stop();
     activity.stop();
+    regret.stop();
     pressure.stop();
     engagement.stop();
     sessionStore?.freeze();
@@ -836,6 +970,10 @@ async function start(): Promise<void> {
         dataWorker,
         notices,
         startup,
+        pauseAutomation: () => {
+          lifecycleDocument = { ...lifecycleDocument, paused: true };
+          lifecycleSettings = resolveLifecycleSettings(lifecycleDocument);
+        },
       });
     }
   }
