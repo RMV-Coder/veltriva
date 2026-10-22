@@ -26,6 +26,7 @@ type Responder = (method: DataMethod, input: unknown) => unknown;
  */
 function setup(respond: Responder = () => undefined) {
   const calls: Call[] = [];
+  const memory = { recording: true };
   let nextPageId = 1;
   const faviconIds = new Map<string, number>();
   const clock = { now: T0 };
@@ -62,6 +63,7 @@ function setup(respond: Responder = () => undefined) {
     data: { call: call as never },
     logger,
     now: () => clock.now,
+    recording: () => memory.recording,
   });
   const of = (method: string) =>
     calls.filter((entry) => entry.method === method).map((e) => e.input);
@@ -71,6 +73,8 @@ function setup(respond: Responder = () => undefined) {
     call,
     logger,
     clock,
+    /** "Pause memory" (M5.1): what the settings say now. */
+    memory,
     visits: () =>
       of('history.recordVisit') as { page: Record<string, string>; [key: string]: unknown }[],
     updates: () => of('history.updatePage') as { pageId: number; title?: string }[],
@@ -374,6 +378,48 @@ describe('HistoryRecorder: addresses that are not recorded', () => {
     await settle();
 
     expect(visits()).toHaveLength(1);
+  });
+});
+
+describe('HistoryRecorder: Pause memory (M5.1)', () => {
+  it('records no visit, title or icon while the memory is paused', async () => {
+    const { recorder, calls, memory } = setup();
+    memory.recording = false;
+
+    recorder.committed(TAB_A, commit('https://example.com/'));
+    recorder.titleChanged(TAB_A, 'Example');
+    recorder.faviconChanged(TAB_A, 'data:image/png;base64,iVBORw0KGgo=');
+    await vi.advanceTimersByTimeAsync(TITLE_DEBOUNCE_MS * 3);
+
+    expect(calls).toEqual([]);
+  });
+
+  it('records the next commit once the memory is resumed, and nothing of the page seen while paused', async () => {
+    const { recorder, memory, visits, updates } = setup();
+    memory.recording = false;
+    recorder.committed(TAB_A, commit('https://paused.example/'));
+    memory.recording = true;
+    recorder.titleChanged(TAB_A, 'Seen while paused');
+    await vi.advanceTimersByTimeAsync(TITLE_DEBOUNCE_MS * 2);
+
+    recorder.committed(TAB_A, commit('https://resumed.example/'));
+    await settle();
+
+    expect(visits().map((visit) => visit.page.url)).toEqual(['https://resumed.example/']);
+    expect(updates()).toEqual([]);
+  });
+
+  it('still writes the title of the page left, recorded before the pause', async () => {
+    const { recorder, memory, updates } = setup();
+    recorder.committed(TAB_A, commit('https://before.example/'));
+    await settle();
+    recorder.titleChanged(TAB_A, 'Before the pause');
+    memory.recording = false;
+
+    recorder.committed(TAB_A, commit('https://paused.example/'));
+    await settle();
+
+    expect(updates()).toEqual([{ pageId: 1, title: 'Before the pause' }]);
   });
 });
 

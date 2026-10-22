@@ -11,6 +11,7 @@ import type { Timers } from '../../core/lifecycle/discard';
 import type { MemoryPressure } from '../../core/lifecycle/policy';
 import {
   CRITICAL_FRACTION,
+  DEFAULT_THRESHOLDS,
   ENTER_POLLS,
   levelFor,
   MemoryPressureMonitor,
@@ -19,7 +20,7 @@ import {
   POLL_INTERVAL_MS,
   RELEASE_MARGIN,
 } from './memory-pressure';
-import type { MemoryInfo } from './memory-pressure';
+import type { MemoryInfo, PressureThresholds } from './memory-pressure';
 
 const TOTAL = 1_000_000;
 const reading = (available: number): MemoryInfo => ({
@@ -134,12 +135,13 @@ describe('levelFor', () => {
   );
 });
 
-function build() {
+function build(thresholds?: () => PressureThresholds) {
   const timers = new ManualTimers();
   const clock = { now: 10_000 };
   const system = { info: reading(0.5), throws: false, reads: 0 };
   const changes: MemoryPressure[] = [];
   const monitor = new MemoryPressureMonitor({
+    ...(thresholds === undefined ? {} : { thresholds }),
     read: () => {
       system.reads += 1;
       if (system.throws) {
@@ -295,6 +297,45 @@ describe('MemoryPressureMonitor: levels', () => {
     expect(h.monitor.lastReading()).toEqual(reading(0.3));
     h.poll(0.2);
     expect(h.monitor.lastReading()).toEqual(reading(0.2));
+  });
+});
+
+describe('the thresholds are settings (M5.1)', () => {
+  it('default to the documented fractions', () => {
+    expect(DEFAULT_THRESHOLDS).toEqual({
+      moderate: MODERATE_FRACTION,
+      critical: CRITICAL_FRACTION,
+    });
+  });
+
+  it('levelFor uses the thresholds it is given, with the same release margin', () => {
+    const higher = { moderate: 0.2, critical: 0.08 };
+    expect(levelFor(reading(0.15), 'none', higher)).toBe('moderate');
+    expect(levelFor(reading(0.07), 'none', higher)).toBe('critical');
+    expect(levelFor(reading(0.21), 'none', higher)).toBe('none');
+    // Released only above the threshold plus the margin.
+    expect(levelFor(reading(0.21), 'moderate', higher)).toBe('moderate');
+    expect(levelFor(reading(0.23), 'moderate', higher)).toBe('none');
+    // The defaults would have said none for all of these.
+    expect(levelFor(reading(0.15), 'none')).toBe('none');
+  });
+
+  it('the monitor reads them at every poll, so a change applies from the next one', () => {
+    const thresholds = { current: DEFAULT_THRESHOLDS };
+    const h = build(() => thresholds.current);
+    h.poll(0.15);
+    h.poll(0.15);
+    expect(h.monitor.level()).toBe('none');
+
+    thresholds.current = { moderate: 0.2, critical: 0.05 };
+    h.poll(0.15);
+    h.poll(0.15);
+    expect(h.monitor.level()).toBe('moderate');
+
+    thresholds.current = DEFAULT_THRESHOLDS;
+    h.poll(0.15);
+    expect(h.monitor.level()).toBe('none');
+    expect(h.changes).toEqual(['moderate', 'none']);
   });
 });
 

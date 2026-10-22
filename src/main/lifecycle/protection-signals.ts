@@ -44,6 +44,8 @@ export interface ProtectionSignalsOptions {
   readonly notificationsAllowed?: (url: string) => boolean;
   /** Whether the user protected this page's site (M3.4). */
   readonly siteProtected?: (url: string) => boolean;
+  /** Whether the user excluded this page's site from the memory (M5.1): it is never archived. */
+  readonly siteExcluded?: (url: string) => boolean;
   /** Something the "why" shows changed: audio, capture. */
   readonly onChange?: () => void;
   /** For the audio grace's end (the "why" changes then, with no event). */
@@ -120,6 +122,9 @@ export class ProtectionSignals {
     }
     if (url !== '' && this.#options.siteProtected?.(url) === true) {
       protections.push(protectionFor('protected-site'));
+    }
+    if (url !== '' && this.#options.siteExcluded?.(url) === true) {
+      protections.push(protectionFor('excluded-site'));
     }
     return protections;
   }

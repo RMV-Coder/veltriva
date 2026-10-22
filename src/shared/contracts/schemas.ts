@@ -10,6 +10,12 @@ import { activityEntrySchema, MAX_ACTIVITY_ENTRIES } from './activity';
 import { PROMPTED_PERMISSIONS } from '../../core/permissions/permission-policy';
 import { INTERNAL_PAGES } from '../../core/url/internal-pages';
 import type { CommandName, EventName } from './ipc';
+import {
+  DEFAULT_PRESSURE_PERCENT,
+  NUMERIC_OVERRIDES,
+  settingsChangeSchema,
+  strictSettingsSchema,
+} from './settings';
 
 interface CommandSchema {
   readonly input: z.ZodType;
@@ -44,6 +50,59 @@ const batchId = z.string().regex(/^(?:batch|manual)-[0-9]{1,15}$/);
 
 /** The archived tabs main keeps in memory and the shell lists ("Recently archived"). */
 export const MAX_LISTED_ARCHIVED = 200;
+
+/** One preset's values (core/lifecycle/policy.ts), for the settings page to describe (M5.1). */
+const presetValues = z.strictObject({
+  discardAfterMs: z.number().int().nonnegative(),
+  stripCap: z.number().int().nonnegative(),
+  shelveAfterEngagedMs: z.number().int().nonnegative(),
+  archiveAfterActiveDays: z.number().int().nonnegative(),
+  interactionGuardMs: z.number().int().nonnegative(),
+  discardPinned: z.boolean(),
+});
+const range = z.strictObject({ min: z.number().int(), max: z.number().int() });
+/** At most this many site rules (main/privacy/site-rules.ts MAX_SITE_RULES). */
+export const MAX_LISTED_SITE_RULES = 1000;
+
+/**
+ * What the settings page shows (M5.1): the document as main keeps it, and what the page needs to
+ * describe and check it (the presets, each number's range, the named search engines). The page
+ * never writes the document: it sends a change, and shows the view main answers with.
+ */
+export const settingsViewSchema = z.strictObject({
+  settings: strictSettingsSchema,
+  /** Preview mode is on now (§4.13): the first active days, unless the user started early. */
+  previewActive: z.boolean(),
+  siteRules: z
+    .array(
+      z.strictObject({
+        site: z.string().min(1).max(253),
+        protect: z.boolean(),
+        excludeMemory: z.boolean(),
+      }),
+    )
+    .max(MAX_LISTED_SITE_RULES),
+  presets: z.strictObject({
+    gentle: presetValues,
+    balanced: presetValues,
+    aggressive: presetValues,
+  }),
+  limits: z.record(z.enum(NUMERIC_OVERRIDES), range),
+  pressureDefaults: z.strictObject({
+    moderate: z.literal(DEFAULT_PRESSURE_PERCENT.moderate),
+    critical: z.literal(DEFAULT_PRESSURE_PERCENT.critical),
+  }),
+  searchEngines: z
+    .array(
+      z.strictObject({
+        id: z.string().min(1).max(32),
+        name: z.string().min(1).max(64),
+        template: z.string().min(1).max(2048),
+      }),
+    )
+    .max(20),
+});
+export type SettingsView = z.infer<typeof settingsViewSchema>;
 
 /** The palette's filters (M4.2, §7.3): Tab steps through them. */
 export const MEMORY_SCOPES = ['all', 'open', 'sleeping', 'archived', 'today', 'week'] as const;
@@ -558,6 +617,29 @@ export const commandSchemas = {
    * A window of the Archive list (M4.2), newest first, from the database: any of the archived
    * tabs, not only the newest 200 the snapshot carries. `total` is how many there are now.
    */
+  // M5.1: the settings page. Main validates every change and keeps the document; see
+  // shared/contracts/settings.ts.
+  'settings.get': { input: nothing, output: settingsViewSchema },
+  /**
+   * Applies a change. `invalid_input` when the change fails its strict schema or would make an
+   * invalid document (critical pressure at or above moderate); nothing is changed then.
+   */
+  'settings.update': { input: settingsChangeSchema, output: settingsViewSchema },
+  /**
+   * Sets a site's rules: protect it from automation, exclude it from the memory. `site` is what
+   * the user typed (a site, a host or an address); main reads the site from it. A field left
+   * out keeps its value. `invalid_input` when it names no site, or the list is full.
+   */
+  'settings.setSiteRule': {
+    input: z.strictObject({
+      site: z.string().min(1).max(2048),
+      protect: z.boolean().optional(),
+      excludeMemory: z.boolean().optional(),
+    }),
+    output: settingsViewSchema,
+  },
+  /** Shows Settings: selects its tab if one is open, else opens one. */
+  'settings.open': { input: nothing, output: nothing },
   'archive.list': {
     input: z.strictObject({
       offset: z.number().int().min(0).max(10_000_000),

@@ -2,13 +2,19 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_SEARCH_TEMPLATE } from '../../core/url/omnibox';
 import {
+  applySettingsChange,
   DEFAULT_HISTORY_RETENTION_DAYS,
   DEFAULT_LIFECYCLE_DOCUMENT,
+  DEFAULT_PRESSURE_PERCENT,
   DEFAULT_SETTINGS,
-  MAX_PROTECTED_SITES,
+  OVERRIDE_LIMITS,
   parseSettings,
+  pressurePercent,
+  settingsChangeSchema,
   settingsSchema,
+  strictSettingsSchema,
 } from './settings';
+import type { Settings } from './settings';
 
 const CUSTOM_TEMPLATE = 'https://search.example/?q={searchTerms}';
 
@@ -17,13 +23,14 @@ describe('the defaults', () => {
     expect(DEFAULT_SETTINGS).toEqual({
       search: { template: 'https://duckduckgo.com/?q={searchTerms}' },
       history: { retentionDays: 365 },
+      startup: 'restore',
+      memory: { paused: false },
       lifecycle: {
         preset: 'balanced',
         autoArchive: true,
         freeze: false,
         paused: false,
         preview: 'auto',
-        protectedSites: [],
         overrides: {},
       },
     });
@@ -33,6 +40,10 @@ describe('the defaults', () => {
 
   it('are themselves a document the schema accepts, unchanged', () => {
     expect(settingsSchema.parse(DEFAULT_SETTINGS)).toEqual(DEFAULT_SETTINGS);
+  });
+
+  it('are a document the strict schema accepts', () => {
+    expect(strictSettingsSchema.parse(DEFAULT_SETTINGS)).toEqual(DEFAULT_SETTINGS);
   });
 });
 
@@ -72,6 +83,8 @@ describe('parseSettings: a good document', () => {
     ).toEqual({
       search: { template: CUSTOM_TEMPLATE },
       history: { retentionDays: 90 },
+      startup: 'restore',
+      memory: { paused: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -80,11 +93,15 @@ describe('parseSettings: a good document', () => {
     expect(parseSettings({ history: { retentionDays: 30 } })).toEqual({
       search: DEFAULT_SETTINGS.search,
       history: { retentionDays: 30 },
+      startup: 'restore',
+      memory: { paused: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
     expect(parseSettings({ search: { template: CUSTOM_TEMPLATE } })).toEqual({
       search: { template: CUSTOM_TEMPLATE },
       history: DEFAULT_SETTINGS.history,
+      startup: 'restore',
+      memory: { paused: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -99,6 +116,8 @@ describe('parseSettings: a good document', () => {
     expect(parsed).toEqual({
       search: { template: CUSTOM_TEMPLATE },
       history: { retentionDays: 30 },
+      startup: 'restore',
+      memory: { paused: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
     expect(parsed).not.toHaveProperty('futureFeature');
@@ -121,6 +140,8 @@ describe('parseSettings: each field falls back alone', () => {
     ).toEqual({
       search: { template: CUSTOM_TEMPLATE },
       history: { retentionDays: 365 },
+      startup: 'restore',
+      memory: { paused: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -131,6 +152,8 @@ describe('parseSettings: each field falls back alone', () => {
     ).toEqual({
       search: { template: DEFAULT_SEARCH_TEMPLATE },
       history: { retentionDays: 14 },
+      startup: 'restore',
+      memory: { paused: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -144,6 +167,8 @@ describe('parseSettings: each field falls back alone', () => {
     expect(parseSettings({ search, history: { retentionDays: 14 } })).toEqual({
       search: DEFAULT_SETTINGS.search,
       history: { retentionDays: 14 },
+      startup: 'restore',
+      memory: { paused: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -157,6 +182,8 @@ describe('parseSettings: each field falls back alone', () => {
     expect(parseSettings({ search: { template: CUSTOM_TEMPLATE }, history })).toEqual({
       search: { template: CUSTOM_TEMPLATE },
       history: DEFAULT_SETTINGS.history,
+      startup: 'restore',
+      memory: { paused: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -267,7 +294,6 @@ describe('parseSettings: lifecycle (M3.2)', () => {
         freeze: true,
         paused: true,
         preview: 'off',
-        protectedSites: ['example.com', 'localhost'],
         overrides: { stripCap: 20, discardAfterMs: 30 * 60 * 1000, discardPinned: true },
       }),
     ).toEqual({
@@ -276,12 +302,11 @@ describe('parseSettings: lifecycle (M3.2)', () => {
       freeze: true,
       paused: true,
       preview: 'off',
-      protectedSites: ['example.com', 'localhost'],
       overrides: { stripCap: 20, discardAfterMs: 30 * 60 * 1000, discardPinned: true },
     });
   });
 
-  it('takes a document from before M3.4, with no preview and no protected sites, at their defaults', () => {
+  it('takes a document from before M3.4, with no preview, at its default', () => {
     expect(
       lifecycle({
         preset: 'gentle',
@@ -296,7 +321,6 @@ describe('parseSettings: lifecycle (M3.2)', () => {
       freeze: true,
       paused: true,
       preview: 'auto',
-      protectedSites: [],
       overrides: { stripCap: 20 },
     });
   });
@@ -368,13 +392,12 @@ describe('parseSettings: preview mode (M3.4)', () => {
   it('falls back alone: the other fields of the section are kept', () => {
     expect(
       parseSettings({
-        lifecycle: { preset: 'gentle', paused: true, preview: 'maybe', protectedSites: ['a.com'] },
+        lifecycle: { preset: 'gentle', paused: true, preview: 'maybe' },
       }).lifecycle,
     ).toEqual({
       ...DEFAULT_LIFECYCLE_DOCUMENT,
       preset: 'gentle',
       paused: true,
-      protectedSites: ['a.com'],
     });
   });
 
@@ -387,124 +410,300 @@ describe('parseSettings: preview mode (M3.4)', () => {
   });
 });
 
-describe('parseSettings: protectedSites (M3.4)', () => {
-  const sites = (value: unknown) =>
-    parseSettings({ lifecycle: { protectedSites: value } }).lifecycle.protectedSites;
-  const site = (length: number): string => `${'a'.repeat(length - 4)}.com`;
-
-  it('allows 1,000 sites, each up to 253 characters', () => {
-    expect(MAX_PROTECTED_SITES).toBe(1000);
-  });
-
-  it('is an empty list by default', () => {
-    expect(sites(undefined)).toEqual([]);
-    expect(parseSettings({}).lifecycle.protectedSites).toEqual([]);
-    expect(DEFAULT_LIFECYCLE_DOCUMENT.protectedSites).toEqual([]);
-  });
-
-  it('keeps a list, in its order', () => {
-    expect(sites(['example.com', 'localhost', '127.0.0.1', 'foo.github.io'])).toEqual([
-      'example.com',
-      'localhost',
-      '127.0.0.1',
-      'foo.github.io',
-    ]);
-  });
-
-  it('keeps an empty list', () => {
-    expect(sites([])).toEqual([]);
-  });
-
-  it('keeps one site of exactly 253 characters, and drops one of 254', () => {
-    expect(sites([site(253)])).toEqual([site(253)]);
-    expect(site(253)).toHaveLength(253);
-    expect(sites([site(254)])).toEqual([]);
-    expect(sites([site(254), 'ok.example'])).toEqual(['ok.example']);
-  });
-
-  it('keeps a site of one character', () => {
-    expect(sites(['a'])).toEqual(['a']);
-  });
-
-  it('keeps the first 1,000 sites of a longer list', () => {
-    const thousand = Array.from({ length: 1000 }, (_, index) => `site${String(index)}.example`);
-
-    expect(sites(thousand)).toEqual(thousand);
-    expect(sites([...thousand, 'one-more.example'])).toEqual(thousand);
-  });
-
-  describe('an invalid entry is dropped alone: one bad entry never costs the others', () => {
-    it.each([
-      ['an over-long site', 'a'.repeat(254)],
-      ['an empty string', ''],
-      ['a number', 42],
-      ['null', null],
-      ['an object', { site: 'example.com' }],
-      ['a nested list', ['example.com']],
-    ])('with %s among good ones', (_what, bad) => {
-      expect(sites(['good.example', bad, 'other.example'])).toEqual([
-        'good.example',
-        'other.example',
-      ]);
+describe('parseSettings: the M3.4 list of protected sites (M5.1)', () => {
+  it('is no longer read: migration 3 made each site a rule in the site_rules table', () => {
+    const parsed = parseSettings({
+      lifecycle: { preset: 'gentle', protectedSites: ['example.com', 'localhost'] },
     });
 
-    it('whatever the position of the invalid entry', () => {
-      expect(sites(['', 'good.example'])).toEqual(['good.example']);
-      expect(sites(['good.example', ''])).toEqual(['good.example']);
-    });
+    expect(parsed.lifecycle).toEqual({ ...DEFAULT_LIFECYCLE_DOCUMENT, preset: 'gentle' });
+    expect(parsed.lifecycle).not.toHaveProperty('protectedSites');
+  });
+});
+
+describe('parseSettings: startup behavior (M5.1)', () => {
+  const startup = (value: unknown) => parseSettings({ startup: value }).startup;
+
+  it.each(['restore', 'new-tab'] as const)('keeps %s', (value) => {
+    expect(startup(value)).toBe(value);
   });
 
   it.each([
-    ['a string', 'example.com'],
+    ['missing', undefined],
+    ['an unknown word', 'blank'],
+    ['the wrong case', 'Restore'],
+    ['a boolean', true],
     ['null', null],
-    ['an object', { 'example.com': true }],
-    ['a number', 3],
-    ['true', true],
-  ])('is an empty list for %s', (_what, value) => {
-    expect(sites(value)).toEqual([]);
+    ['an object', { mode: 'new-tab' }],
+  ])('is restore when %s', (_what, value) => {
+    expect(startup(value)).toBe('restore');
+  });
+});
+
+describe('parseSettings: Pause memory (M5.1)', () => {
+  const paused = (memory: unknown) => parseSettings({ memory }).memory.paused;
+
+  it('keeps on and off', () => {
+    expect(paused({ paused: true })).toBe(true);
+    expect(paused({ paused: false })).toBe(false);
   });
 
-  it('falls back alone: the rest of the section is kept when the list is invalid', () => {
+  it.each([
+    ['missing', undefined],
+    ['a string', { paused: 'yes' }],
+    ['a number', { paused: 1 }],
+    ['null', null],
+    ['a boolean section', true],
+  ])('is off when %s', (_what, memory) => {
+    expect(paused(memory)).toBe(false);
+  });
+
+  it('falls back alone: a bad memory section keeps the rest of the document', () => {
+    expect(parseSettings({ memory: 'paused', startup: 'new-tab' })).toEqual({
+      ...DEFAULT_SETTINGS,
+      startup: 'new-tab',
+    });
+  });
+});
+
+describe('parseSettings: the pressure thresholds (M5.1)', () => {
+  const overrides = (value: unknown) =>
+    parseSettings({ lifecycle: { overrides: value } }).lifecycle.overrides;
+
+  it('are 10% and 4% of physical memory by default', () => {
+    expect(DEFAULT_PRESSURE_PERCENT).toEqual({ moderate: 10, critical: 4 });
+    expect(pressurePercent({})).toEqual({ moderate: 10, critical: 4 });
+  });
+
+  it('keeps thresholds in their ranges and in order', () => {
+    expect(overrides({ moderatePressurePercent: 20, criticalPressurePercent: 8 })).toEqual({
+      moderatePressurePercent: 20,
+      criticalPressurePercent: 8,
+    });
+    expect(overrides({ moderatePressurePercent: 5 })).toEqual({ moderatePressurePercent: 5 });
+  });
+
+  it('drops a threshold out of its range alone', () => {
+    expect(overrides({ moderatePressurePercent: 51, criticalPressurePercent: 3 })).toEqual({
+      criticalPressurePercent: 3,
+    });
+    expect(overrides({ moderatePressurePercent: 12, criticalPressurePercent: 0 })).toEqual({
+      moderatePressurePercent: 12,
+    });
+  });
+
+  it('drops both when critical would not be below moderate, keeping the other overrides', () => {
     expect(
-      parseSettings({
+      overrides({ moderatePressurePercent: 6, criticalPressurePercent: 6, stripCap: 9 }),
+    ).toEqual({ stripCap: 9 });
+    // Against the default moderate (10%): critical 12% is out of order.
+    expect(overrides({ criticalPressurePercent: 12 })).toEqual({});
+    // Against the default critical (4%): moderate 3% is out of order.
+    expect(overrides({ moderatePressurePercent: 3 })).toEqual({});
+  });
+});
+
+/** A change as the settings page sends it, checked as main checks it. */
+const accepts = (change: unknown) => settingsChangeSchema.safeParse(change).success;
+
+describe('settingsChangeSchema: what main accepts from the settings page (M5.1)', () => {
+  it.each([
+    ['nothing', {}],
+    ['an engine', { search: { template: 'https://www.google.com/search?q={searchTerms}' } }],
+    ['a custom template', { search: { template: CUSTOM_TEMPLATE } }],
+    ['startup', { startup: 'new-tab' }],
+    ['Pause memory', { memory: { paused: true } }],
+    ['a preset', { lifecycle: { preset: 'gentle' } }],
+    ['the switches', { lifecycle: { autoArchive: false, freeze: true, paused: true } }],
+    ['preview mode', { lifecycle: { preview: 'off' } }],
+    ['an override', { lifecycle: { overrides: { stripCap: 25 } } }],
+    ['clearing an override', { lifecycle: { overrides: { stripCap: null } } }],
+    [
+      'every override at its least',
+      {
         lifecycle: {
-          preset: 'aggressive',
-          paused: true,
-          preview: 'off',
-          protectedSites: ['ok.example', 7],
-          overrides: { stripCap: 12 },
+          overrides: Object.fromEntries(
+            Object.entries(OVERRIDE_LIMITS).map(([key, { min }]) => [key, min]),
+          ),
         },
-      }).lifecycle,
-    ).toEqual({
-      preset: 'aggressive',
-      autoArchive: true,
-      freeze: false,
-      paused: true,
-      preview: 'off',
-      protectedSites: ['ok.example'],
-      overrides: { stripCap: 12 },
+      },
+    ],
+    [
+      'every override at its most',
+      {
+        lifecycle: {
+          overrides: Object.fromEntries(
+            Object.entries(OVERRIDE_LIMITS).map(([key, { max }]) => [key, max]),
+          ),
+        },
+      },
+    ],
+    ['discarding pinned tabs', { lifecycle: { overrides: { discardPinned: true } } }],
+  ])('accepts %s', (_what, change) => {
+    expect(accepts(change)).toBe(true);
+  });
+
+  describe('rejects the whole change for', () => {
+    it.each([
+      ['a field it does not know', { theme: 'dark' }],
+      ['a field it does not know in a section', { search: { template: CUSTOM_TEMPLATE, x: 1 } }],
+      ['a lifecycle field it does not know', { lifecycle: { turbo: true } }],
+      ['an override it does not know', { lifecycle: { overrides: { tabsPerRow: 3 } } }],
+      ['the old protected-site list', { lifecycle: { protectedSites: ['example.com'] } }],
+      ['the history section (M5.2 sets it)', { history: { retentionDays: 30 } }],
+      [
+        'plain http to another host',
+        { search: { template: 'http://search.example/?q={searchTerms}' } },
+      ],
+      ['no {searchTerms}', { search: { template: 'https://search.example/?q=' } }],
+      ['{searchTerms} in the host', { search: { template: 'https://{searchTerms}/' } }],
+      ['a javascript: template', { search: { template: 'javascript:alert({searchTerms})' } }],
+      [
+        'a template too long',
+        {
+          search: { template: `https://search.example/?q={searchTerms}&x=${'a'.repeat(2100)}` },
+        },
+      ],
+      ['an empty template', { search: { template: '' } }],
+      ['no template', { search: {} }],
+      ['an unknown startup', { startup: 'blank' }],
+      ['a startup of the wrong type', { startup: 1 }],
+      ['Pause memory as a string', { memory: { paused: 'yes' } }],
+      ['an unknown preset', { lifecycle: { preset: 'turbo' } }],
+      ['a switch as a number', { lifecycle: { autoArchive: 0 } }],
+      ['an unknown preview mode', { lifecycle: { preview: 'on' } }],
+      ['a discard sooner than a minute', { lifecycle: { overrides: { discardAfterMs: 59_999 } } }],
+      [
+        'a discard later than a week',
+        {
+          lifecycle: { overrides: { discardAfterMs: 7 * 24 * 3_600_000 + 1 } },
+        },
+      ],
+      ['a strip cap of 0', { lifecycle: { overrides: { stripCap: 0 } } }],
+      ['a strip cap of 501', { lifecycle: { overrides: { stripCap: 501 } } }],
+      ['a fraction', { lifecycle: { overrides: { stripCap: 10.5 } } }],
+      ['a number as a string', { lifecycle: { overrides: { stripCap: '10' } } }],
+      ['NaN', { lifecycle: { overrides: { stripCap: Number.NaN } } }],
+      ['infinity', { lifecycle: { overrides: { archiveAfterActiveDays: Infinity } } }],
+      ['a negative guard', { lifecycle: { overrides: { interactionGuardMs: -1 } } }],
+      ['archiving after 366 days', { lifecycle: { overrides: { archiveAfterActiveDays: 366 } } }],
+      [
+        'a moderate threshold of 51%',
+        { lifecycle: { overrides: { moderatePressurePercent: 51 } } },
+      ],
+      ['a critical threshold of 0%', { lifecycle: { overrides: { criticalPressurePercent: 0 } } }],
+      ['discardPinned as a string', { lifecycle: { overrides: { discardPinned: 'true' } } }],
+      ['a section that is not an object', { lifecycle: 'gentle' }],
+      ['a change that is not an object', 'reset'],
+      ['null', null],
+      ['an array', [{ startup: 'new-tab' }]],
+    ])('%s', (_what, change) => {
+      expect(accepts(change)).toBe(false);
+    });
+  });
+});
+
+describe('applySettingsChange: the document a change makes (M5.1)', () => {
+  const change = (value: unknown) => settingsChangeSchema.parse(value);
+
+  it('changes what the change names and keeps the rest', () => {
+    const next = applySettingsChange(
+      DEFAULT_SETTINGS,
+      change({ startup: 'new-tab', lifecycle: { preset: 'gentle', overrides: { stripCap: 7 } } }),
+    );
+
+    expect(next).toEqual({
+      ...DEFAULT_SETTINGS,
+      startup: 'new-tab',
+      lifecycle: { ...DEFAULT_LIFECYCLE_DOCUMENT, preset: 'gentle', overrides: { stripCap: 7 } },
     });
   });
 
-  it('leaves the other sections of the document alone', () => {
+  it('clears an override with null and keeps the others', () => {
+    const current: Settings = {
+      ...DEFAULT_SETTINGS,
+      lifecycle: {
+        ...DEFAULT_LIFECYCLE_DOCUMENT,
+        overrides: { stripCap: 7, discardPinned: true },
+      },
+    };
+
     expect(
-      parseSettings({
-        history: { retentionDays: 90 },
-        lifecycle: { protectedSites: ['example.com'] },
-      }),
-    ).toEqual({
-      search: DEFAULT_SETTINGS.search,
-      history: { retentionDays: 90 },
-      lifecycle: { ...DEFAULT_LIFECYCLE_DOCUMENT, protectedSites: ['example.com'] },
-    });
+      applySettingsChange(current, change({ lifecycle: { overrides: { stripCap: null } } }))
+        ?.lifecycle.overrides,
+    ).toEqual({ discardPinned: true });
   });
 
-  it('does not change the list it was given', () => {
-    const stored = { lifecycle: { protectedSites: ['example.com', 'localhost'] } };
-    const copy = structuredClone(stored);
+  it('leaves the current document alone', () => {
+    const current = structuredClone(DEFAULT_SETTINGS);
 
-    parseSettings(stored);
+    applySettingsChange(current, change({ lifecycle: { overrides: { stripCap: 3 } } }));
 
-    expect(stored).toEqual(copy);
+    expect(current).toEqual(DEFAULT_SETTINGS);
+  });
+
+  it('treats a field sent as undefined like one left out', () => {
+    expect(
+      applySettingsChange(DEFAULT_SETTINGS, {
+        lifecycle: { preset: undefined, paused: true },
+      })?.lifecycle,
+    ).toEqual({ ...DEFAULT_LIFECYCLE_DOCUMENT, paused: true });
+  });
+
+  describe('rejects a valid change that makes an invalid document', () => {
+    it('a critical threshold at or above the moderate one', () => {
+      expect(
+        applySettingsChange(
+          DEFAULT_SETTINGS,
+          change({ lifecycle: { overrides: { criticalPressurePercent: 10 } } }),
+        ),
+      ).toBeNull();
+      expect(
+        applySettingsChange(
+          DEFAULT_SETTINGS,
+          change({ lifecycle: { overrides: { moderatePressurePercent: 4 } } }),
+        ),
+      ).toBeNull();
+    });
+
+    it('a moderate threshold lowered under a critical one set before', () => {
+      const current: Settings = {
+        ...DEFAULT_SETTINGS,
+        lifecycle: { ...DEFAULT_LIFECYCLE_DOCUMENT, overrides: { criticalPressurePercent: 8 } },
+      };
+
+      expect(
+        applySettingsChange(
+          current,
+          change({ lifecycle: { overrides: { moderatePressurePercent: 8 } } }),
+        ),
+      ).toBeNull();
+      // Both in one change, in order, is fine.
+      expect(
+        applySettingsChange(
+          current,
+          change({
+            lifecycle: { overrides: { moderatePressurePercent: 8, criticalPressurePercent: 3 } },
+          }),
+        )?.lifecycle.overrides,
+      ).toEqual({ moderatePressurePercent: 8, criticalPressurePercent: 3 });
+    });
+
+    it('clearing the critical override when the moderate one is below the default critical', () => {
+      const current: Settings = {
+        ...DEFAULT_SETTINGS,
+        lifecycle: {
+          ...DEFAULT_LIFECYCLE_DOCUMENT,
+          overrides: { moderatePressurePercent: 3, criticalPressurePercent: 2 },
+        },
+      };
+
+      expect(
+        applySettingsChange(
+          current,
+          change({ lifecycle: { overrides: { criticalPressurePercent: null } } }),
+        ),
+      ).toBeNull();
+    });
   });
 });

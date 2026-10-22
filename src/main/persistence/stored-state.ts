@@ -1,12 +1,12 @@
 // What main keeps besides the session (M2.2b): the settings document, the user's permission
 // decisions (protocol "always allow" among them, amendment (b)), the client-hint opt-ins
-// (amendment (d)) and the download history (amendment (c)). Read once at startup, within a
+// (amendment (d)), the download history (amendment (c)) and the site rules (M5.1). Read once at startup, within a
 // deadline; anything unreadable starts empty or at its default, as before Phase 2. Each change is
 // then written through, and a failed write is logged by code and dropped: a decision the user
 // made still holds for the run.
 import type { StoredDecision } from '../../core/permissions/permission-decisions';
 import type { Decision, PromptedPermission } from '../../core/permissions/permission-policy';
-import type { DataInput, DownloadRow } from '../../shared/contracts/data-rpc';
+import type { DataInput, DownloadRow, SiteRuleRow } from '../../shared/contracts/data-rpc';
 import { DEFAULT_SETTINGS, parseSettings } from '../../shared/contracts/settings';
 import type { Settings } from '../../shared/contracts/settings';
 import type { DataClient } from './data-client';
@@ -20,6 +20,8 @@ export const CLIENT_HINTS_WRITE_DELAY_MS = 5000;
 const PROTOCOL_PREFIX = 'protocol:';
 /** More than the table should ever hold; a cap, so a damaged file can't flood main. */
 const MAX_DECISIONS_LOADED = 10_000;
+/** Likewise for the site rules (main keeps at most 1,000). */
+const MAX_SITE_RULES_LOADED = 10_000;
 
 export interface StoredState {
   readonly settings: Settings;
@@ -30,6 +32,8 @@ export interface StoredState {
   readonly clientHints: unknown;
   /** Newest first. */
   readonly downloads: readonly DownloadRow[];
+  /** By site. */
+  readonly siteRules: readonly SiteRuleRow[];
 }
 
 export const EMPTY_STORED_STATE: StoredState = {
@@ -38,6 +42,7 @@ export const EMPTY_STORED_STATE: StoredState = {
   alwaysAllowed: [],
   clientHints: null,
   downloads: [],
+  siteRules: [],
 };
 
 /** The database is not there to write to, so there is nothing to report for each write. */
@@ -92,7 +97,12 @@ export async function readStoredState(
       [],
       async () => (await data.call('downloads.list', { limit: options.downloads })).downloads,
     ),
-  ]).then(([settings, rows, clientHints, downloads]): StoredState => {
+    read(
+      'siteRules',
+      [],
+      async () => (await data.call('siteRules.list', { limit: MAX_SITE_RULES_LOADED })).rules,
+    ),
+  ]).then(([settings, rows, clientHints, downloads, siteRules]): StoredState => {
     const decisions: StoredDecision[] = [];
     const alwaysAllowed: { site: string; scheme: string }[] = [];
     for (const row of rows) {
@@ -107,7 +117,7 @@ export async function readStoredState(
         decisions.push(row);
       }
     }
-    return { settings, decisions, alwaysAllowed, clientHints, downloads };
+    return { settings, decisions, alwaysAllowed, clientHints, downloads, siteRules };
   });
   const deadlineMs = options.deadlineMs ?? STORED_STATE_DEADLINE_MS;
   let timer: ReturnType<typeof setTimeout> | undefined;

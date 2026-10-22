@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import { uuidv7 } from '../../core/id/uuidv7';
-import { LIFECYCLE_RULES } from '../../core/lifecycle/policy';
+import { LIFECYCLE_RULES, PRESET_VALUES } from '../../core/lifecycle/policy';
 import { PROTECTION_REASONS } from '../../core/lifecycle/protections';
+import { SEARCH_ENGINES } from '../../core/url/search-engines';
 import { COMMAND_NAMES } from './ipc';
 import { commandSchemas, MAX_LISTED_ARCHIVED } from './schemas';
+import {
+  DEFAULT_PRESSURE_PERCENT,
+  DEFAULT_SETTINGS,
+  OVERRIDE_LIMITS,
+  settingsChangeSchema,
+} from './settings';
 
 const snapshot = commandSchemas['workspace.getSnapshot'].output;
 const dismiss = commandSchemas['notices.dismiss'];
@@ -973,5 +980,119 @@ describe('the commands of M3.4', () => {
         expect(accepts(diagnostics({ memory: { totalMb: 1 } }))).toBe(false);
       });
     });
+  });
+});
+
+describe('the commands of M5.1: settings', () => {
+  const NEW_COMMANDS = [
+    'settings.get',
+    'settings.update',
+    'settings.setSiteRule',
+    'settings.open',
+  ] as const;
+
+  /** A view as main sends it: the defaults, the real presets, limits and engines. */
+  const VIEW = {
+    settings: DEFAULT_SETTINGS,
+    previewActive: true,
+    siteRules: [{ site: 'example.com', protect: true, excludeMemory: false }],
+    presets: PRESET_VALUES,
+    limits: OVERRIDE_LIMITS,
+    pressureDefaults: DEFAULT_PRESSURE_PERCENT,
+    searchEngines: [...SEARCH_ENGINES],
+  };
+
+  it.each(NEW_COMMANDS)('%s is a command, with a schema', (name) => {
+    expect(COMMAND_NAMES).toContain(name);
+    expect(commandSchemas[name].input).toBeDefined();
+    expect(commandSchemas[name].output).toBeDefined();
+  });
+
+  it('settings.update takes exactly the strict change schema: main rejects what it rejects', () => {
+    expect(commandSchemas['settings.update'].input).toBe(settingsChangeSchema);
+  });
+
+  describe('the settings view', () => {
+    const { output } = commandSchemas['settings.get'];
+
+    it('is what main sends', () => {
+      expect(output.parse(VIEW)).toEqual(VIEW);
+      expect(commandSchemas['settings.update'].output.safeParse(VIEW).success).toBe(true);
+      expect(commandSchemas['settings.setSiteRule'].output.safeParse(VIEW).success).toBe(true);
+    });
+
+    it.each([
+      ['an invalid document', { ...VIEW, settings: { ...DEFAULT_SETTINGS, startup: 'blank' } }],
+      [
+        'thresholds out of order',
+        {
+          ...VIEW,
+          settings: {
+            ...DEFAULT_SETTINGS,
+            lifecycle: {
+              ...DEFAULT_SETTINGS.lifecycle,
+              overrides: { moderatePressurePercent: 4, criticalPressurePercent: 4 },
+            },
+          },
+        },
+      ],
+      [
+        'a document with the old site list',
+        {
+          ...VIEW,
+          settings: {
+            ...DEFAULT_SETTINGS,
+            lifecycle: { ...DEFAULT_SETTINGS.lifecycle, protectedSites: [] },
+          },
+        },
+      ],
+      [
+        'a rule without a site',
+        { ...VIEW, siteRules: [{ site: '', protect: true, excludeMemory: false }] },
+      ],
+      ['a missing preset', { ...VIEW, presets: { balanced: PRESET_VALUES.balanced } }],
+      ['a missing limit', { ...VIEW, limits: { stripCap: { min: 1, max: 500 } } }],
+      ['an unknown field', { ...VIEW, extra: 1 }],
+    ])('refuses %s, so a bad answer never reaches the page', (_what, view) => {
+      expect(output.safeParse(view).success).toBe(false);
+    });
+  });
+
+  describe('settings.setSiteRule', () => {
+    const { input } = commandSchemas['settings.setSiteRule'];
+
+    it('takes what the user typed and one rule or both; main reads the site from it', () => {
+      for (const good of [
+        { site: 'example.com', protect: true },
+        { site: 'https://mail.example.com/inbox', excludeMemory: true },
+        { site: 'example.com', protect: false, excludeMemory: false },
+        { site: 'Example.COM' },
+      ]) {
+        expect(input.safeParse(good).success, JSON.stringify(good)).toBe(true);
+      }
+    });
+
+    it('refuses an empty or oversized text, a rule of the wrong type, and anything else', () => {
+      for (const bad of [
+        {},
+        { site: '' },
+        { site: 'x'.repeat(2049) },
+        { site: 'example.com', protect: 'yes' },
+        { site: 'example.com', exclude: true },
+        { site: 7 },
+        null,
+      ]) {
+        expect(input.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+      }
+    });
+  });
+
+  it('settings.get and settings.open take nothing', () => {
+    expect(commandSchemas['settings.get'].input.safeParse({}).success).toBe(true);
+    expect(commandSchemas['settings.open'].input.safeParse({}).success).toBe(true);
+    expect(commandSchemas['settings.open'].input.safeParse({ page: 'settings' }).success).toBe(
+      false,
+    );
+    expect(commandSchemas['settings.open'].output.safeParse({}).success).toBe(true);
   });
 });

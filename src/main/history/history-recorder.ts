@@ -8,6 +8,8 @@
 //   - An icon is stored as the bytes the favicon service validated, with the type they sniff as
 //     (core/net/favicon-format.ts), once by their SHA-256: the same icon on a thousand pages is
 //     one row. Main never decodes it (threat T5); the shell draws and scales it.
+//   - "Pause memory" (M5.1, §6.6): while it is on, a commit records nothing, and the title and
+//     icon of a page committed then are not written either.
 // Nothing here throws into TabManager: a failed write is logged by code and dropped. The memory
 // is a convenience; losing a visit must never break browsing.
 import { storedFavicon } from '../../core/net/favicon-format';
@@ -27,6 +29,8 @@ export interface HistoryRecorderOptions {
   readonly data: Pick<DataClient, 'call'>;
   readonly logger: Logger;
   readonly now?: () => number;
+  /** False while the user paused the memory (M5.1). Read at each commit. */
+  readonly recording?: () => boolean;
 }
 
 interface TabEntry {
@@ -42,6 +46,7 @@ export class HistoryRecorder implements TabHistoryObserver {
   readonly #data: Pick<DataClient, 'call'>;
   readonly #logger: Logger;
   readonly #now: () => number;
+  readonly #recording: () => boolean;
   readonly #tabs = new Map<TabId, TabEntry>();
   readonly #favicons = new Map<string, Promise<number | null>>();
   readonly #inFlight = new Set<Promise<unknown>>();
@@ -51,6 +56,7 @@ export class HistoryRecorder implements TabHistoryObserver {
     this.#data = options.data;
     this.#logger = options.logger;
     this.#now = options.now ?? Date.now;
+    this.#recording = options.recording ?? (() => true);
   }
 
   committed(
@@ -71,6 +77,12 @@ export class HistoryRecorder implements TabHistoryObserver {
     }
     // The title waiting belongs to the page being left.
     this.#writeTitle(entry);
+    if (!this.#recording()) {
+      // Paused: this page is not recorded, so neither are its title and icon.
+      entry.urlKey = null;
+      entry.pageId = Promise.resolve(null);
+      return;
+    }
     entry.urlKey = page?.urlKey ?? null;
     if (page === null) {
       entry.pageId = Promise.resolve(null);

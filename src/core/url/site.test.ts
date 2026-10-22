@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_SITE_LENGTH, siteOf } from './site';
+import { MAX_SITE_LENGTH, siteFromInput, siteOf } from './site';
 
 /** A host name of exactly `length` characters, in labels of at most 63, ending in `.com`. */
 function hostOfLength(length: number): string {
@@ -230,6 +230,53 @@ describe('siteOf', () => {
 
       expect(site).not.toBeNull();
       expect(siteOf(`https://${site ?? ''}/`)).toBe(site);
+    }
+  });
+});
+
+describe('siteFromInput: what the user types as a site rule (M5.1)', () => {
+  it.each([
+    ['a site', 'example.com', 'example.com'],
+    ['a host on it', 'mail.example.co.uk', 'example.co.uk'],
+    ['an address', 'https://www.github.com/veltriva?tab=1', 'github.com'],
+    ['an http address', 'http://intranet.example.org:8080/', 'example.org'],
+    ['upper case', 'WWW.Example.COM', 'example.com'],
+    ['spaces around it', '  example.com  ', 'example.com'],
+    ['a trailing path', 'example.com/some/page', 'example.com'],
+    ['localhost', 'localhost', 'localhost'],
+    ['localhost with a port', 'localhost:3000', 'localhost'],
+    ['an IP address', '192.168.1.10', '192.168.1.10'],
+    ['an IPv6 address', '[::1]', '[::1]'],
+    ['an international name', 'bücher.example', 'xn--bcher-kva.example'],
+    ['a private suffix', 'foo.github.io', 'foo.github.io'],
+    ['a wildcard', '*.example.com', 'example.com'],
+  ])('takes %s', (_what, text, site) => {
+    expect(siteFromInput(text)).toBe(site);
+  });
+
+  it.each([
+    ['nothing', ''],
+    ['only spaces', '   '],
+    ['two words', 'example com'],
+    ['a file address', 'file:///C:/Users/'],
+    ['a javascript address', 'javascript:alert(1)'],
+    ['a mailto address', 'mailto:someone@example.com'],
+    ['an internal page', 'veltriva://settings'],
+    ['a name too long for a host', `${'a'.repeat(260)}.com`],
+    ['text far too long', `example.com/${'a'.repeat(3000)}`],
+    ['a broken address', 'https://'],
+    ['credentials only', 'user@'],
+  ])('refuses %s', (_what, text) => {
+    expect(siteFromInput(text)).toBeNull();
+  });
+
+  it('gives the site siteOf gives the same page', () => {
+    for (const url of [
+      'https://mail.example.co.uk/x',
+      'http://localhost:3000/',
+      'https://a.b.c.example.net/',
+    ]) {
+      expect(siteFromInput(url)).toBe(siteOf(url));
     }
   });
 });

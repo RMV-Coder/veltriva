@@ -35,6 +35,7 @@ const TABLE: Readonly<
   fullscreen: { hard: true, blocks: ['freeze', 'discard', 'shelve', 'archive'] },
   notifications: { hard: false, blocks: ['freeze', 'discard'] },
   'background-activity': { hard: false, blocks: ['freeze', 'discard'] },
+  'excluded-site': { hard: true, blocks: ['archive'] },
 };
 const REASONS = Object.keys(TABLE) as ProtectionReason[];
 /** Every real protection, in the order of TABLE. */
@@ -71,13 +72,14 @@ describe('PROTECTION_REASONS', () => {
   it('names every reason of the table, each once', () => {
     expect([...PROTECTION_REASONS].sort()).toEqual([...REASONS].sort());
     expect(new Set(PROTECTION_REASONS).size).toBe(PROTECTION_REASONS.length);
-    expect(PROTECTION_REASONS).toHaveLength(15);
+    expect(PROTECTION_REASONS).toHaveLength(16);
   });
 
   it('is the order the why names them: what the user did first, then the page', () => {
     expect([...PROTECTION_REASONS]).toEqual([
       'user-protected',
       'protected-site',
+      'excluded-site',
       'fullscreen',
       'capture',
       'audio',
@@ -135,6 +137,7 @@ describe('protectionFor', () => {
     ['fullscreen', 'hard'],
     ['notifications', 'soft'],
     ['background-activity', 'soft'],
+    ['excluded-site', 'hard'],
   ] as const)('makes %s %s (assessment §4.10)', (reason, strength) => {
     expect(protectionFor(reason).hard).toBe(strength === 'hard');
   });
@@ -149,6 +152,7 @@ describe('protectionFor', () => {
       'audio',
       'capture',
       'devtools',
+      'excluded-site',
       'fullscreen',
       'open-popup',
       'page-unsaved-changes',
@@ -166,10 +170,11 @@ describe('protectionFor', () => {
     ]);
   });
 
-  it('blocks discard for every reason', () => {
-    for (const reason of REASONS) {
+  it('blocks discard for every reason but an excluded site, which only keeps a tab out of the Archive (M5.1)', () => {
+    for (const reason of REASONS.filter((known) => known !== 'excluded-site')) {
       expect(protectionFor(reason).blocks).toContain('discard');
     }
+    expect(protectionFor('excluded-site').blocks).toEqual(['archive']);
   });
 
   it('blocks archive for the reasons that would lose work or a live page, not for audio, video or DevTools', () => {
@@ -178,6 +183,7 @@ describe('protectionFor', () => {
     ).toEqual([
       'capture',
       'editing',
+      'excluded-site',
       'fullscreen',
       'open-popup',
       'page-unsaved-changes',

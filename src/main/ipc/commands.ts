@@ -4,7 +4,8 @@ import { app } from 'electron';
 
 import { PRODUCT_NAME } from '../../shared/constants/app-identity';
 import type { ActivityEntry } from '../../shared/contracts/activity';
-import type { CommandOutput } from '../../shared/contracts/schemas';
+import type { CommandOutput, SettingsView } from '../../shared/contracts/schemas';
+import type { SettingsChange } from '../../shared/contracts/settings';
 import type { DownloadManager } from '../downloads/download-manager';
 import type { ExternalProtocolGuard } from '../external/protocol-guard';
 import type { FocusManager } from '../focus/focus-manager';
@@ -15,6 +16,7 @@ import { submitAddress } from '../navigation/submit';
 import type { AppNotices } from '../notices/app-notices';
 import type { BlockedPopups } from '../popups/blocked-popups';
 import type { PromptManager } from '../prompts/prompt-manager';
+import { SettingsRejected } from '../settings/settings-service';
 import type { TabId, TabManager } from '../tabs/tab-manager';
 import type { WorkspaceProjector } from '../tabs/workspace-projector';
 import type { FullscreenController } from '../windows/fullscreen';
@@ -42,6 +44,24 @@ export interface CommandContext {
   readonly lifecycle: LifecycleCommands;
   /** Searching the memory, opening results, the Archive list (M4.2). */
   readonly memory: MemoryCommands;
+  /** The settings page (M5.1). */
+  readonly settings: SettingsCommands;
+}
+
+export interface SettingsCommands {
+  view(): SettingsView;
+  /** Applies a change; throws SettingsRejected when it would make an invalid document. */
+  update(change: SettingsChange): SettingsView;
+  /** Sets a site's rules; null when `text` names no site or the list is full. */
+  setSiteRule(
+    text: string,
+    change: {
+      readonly protect?: boolean | undefined;
+      readonly excludeMemory?: boolean | undefined;
+    },
+  ): SettingsView | null;
+  /** Selects the settings tab, or opens one. */
+  open(): void;
 }
 
 export interface LifecycleCommands {
@@ -76,6 +96,7 @@ export function createCommandHandlers({
   placement,
   lifecycle,
   memory,
+  settings,
 }: CommandContext): CommandHandlers {
   /** Runs `action` on an existing tab, or answers `not_found`. */
   const onTab = <T>(tabId: TabId, action: () => T): T => {
@@ -340,6 +361,30 @@ export function createCommandHandlers({
       return done;
     },
     'archive.list': (input) => memory.archiveList(input),
+
+    // M5.1: the settings page. Nothing of a rejected change is kept.
+    'settings.get': () => settings.view(),
+    'settings.update': (change) => {
+      try {
+        return settings.update(change);
+      } catch (error) {
+        if (error instanceof SettingsRejected) {
+          throw new CommandError('invalid_input');
+        }
+        throw error;
+      }
+    },
+    'settings.setSiteRule': ({ site, ...change }) => {
+      const view = settings.setSiteRule(site, change);
+      if (view === null) {
+        throw new CommandError('invalid_input');
+      }
+      return view;
+    },
+    'settings.open': () => {
+      settings.open();
+      return done;
+    },
 
     'layout.setInsets': (insets) => {
       layout.setInsets(insets);

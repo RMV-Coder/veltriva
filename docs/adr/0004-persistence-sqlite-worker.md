@@ -166,6 +166,17 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
       - 50,000 pages: p95 10.3 ms, p99 12.8 ms, and the first search on a cold index 25 ms.
       - A first search fired during startup waits for startup: 134–222 ms.
 
+13. **As built in M5.1** (settings and site rules; **migration 3**, `0003_site_rules.sql`):
+    - **Site rules move to their table.** M3.4 kept the sites the user protects in the settings document (`lifecycle.protectedSites`). M5.1 adds excluding a site from the memory, which `site_rules` already had a column for, so both rules now live there.
+      - **The migration:** each listed site becomes a row with `protect = 1`, and an existing row keeps its `exclude_memory`. Only what the document's schema read is copied: text of 1–253 characters, the first 1,000, lower case. Then the list leaves the document.
+      - **Tests:** a frozen schema-2 fixture (`migrations/fixtures/veltriva-v2.db`, generated once by `generate-v2.mjs`) covers the copy, the merge with an existing exclusion, what is dropped, and the 1,000-entry cap.
+    - **Two data methods.** `siteRules.list` (by site) and `siteRules.set` (both rules; a site with neither loses its row). `siteRules.set` counts as a write for the backup. `history.recordVisit` already refused an excluded site's visit in the worker, so an exclusion holds even if main has not caught up.
+    - **The settings document is now written whole by main** (`main/settings/settings-service.ts`). It is read leniently, as before, so a bad field falls back alone. A change is applied strictly: the change and the document it makes must both pass the strict schema, or nothing is kept.
+    - **What the document gains:**
+      - `startup` (`restore` or `new-tab`);
+      - `memory.paused` ("Pause memory": while on, the history recorder sends nothing for a commit, and the title and icon of a page committed then aren't written either);
+      - two overrides, `moderatePressurePercent` and `criticalPressurePercent`, kept in order.
+
 ## Consequences
 
 - **Positive:** the UI thread stays responsive regardless of query cost, persistence is crash-safe, and the data layer is testable on plain Node. S5 measured it: while the worker ran a 1.09 s query, main-thread timers drifted by at most 15 ms. The same query run on the main thread stalled it for 1,489 ms.

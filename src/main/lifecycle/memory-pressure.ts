@@ -10,6 +10,8 @@
 //   critical: available under 4% of total (316 MB here), or a renderer died with `oom` or
 //             `memory-eviction` in the last 2 minutes;
 //   moderate: available under 10% (790 MB here).
+// Both thresholds are advanced settings (M5.1, `thresholds`): the settings document keeps them in
+// order, critical below moderate.
 // The policy (core/lifecycle/policy.ts) decides what each level does: a few discards of tabs
 // hidden for a while, never a visible change.
 import type { MemoryPressure } from '../../core/lifecycle/policy';
@@ -31,8 +33,21 @@ export interface MemoryInfo {
   readonly free: number;
 }
 
+/** The levels' thresholds: available memory as a fraction of the total. */
+export interface PressureThresholds {
+  readonly moderate: number;
+  readonly critical: number;
+}
+
+export const DEFAULT_THRESHOLDS: PressureThresholds = {
+  moderate: MODERATE_FRACTION,
+  critical: CRITICAL_FRACTION,
+};
+
 export interface MemoryPressureOptions {
   readonly read: () => MemoryInfo;
+  /** The thresholds now (the settings'); the defaults when left out. Read at every poll. */
+  readonly thresholds?: () => PressureThresholds;
   readonly timers: Timers;
   /** A monotonic clock (ms). */
   readonly monotonic: () => number;
@@ -40,16 +55,20 @@ export interface MemoryPressureOptions {
 }
 
 /** The level a reading alone calls for, given the level now (for the release margin). */
-export function levelFor(info: MemoryInfo, current: MemoryPressure): MemoryPressure {
+export function levelFor(
+  info: MemoryInfo,
+  current: MemoryPressure,
+  thresholds: PressureThresholds = DEFAULT_THRESHOLDS,
+): MemoryPressure {
   if (!(info.total > 0) || !(info.free >= 0)) {
     return current;
   }
   const available = info.free / info.total;
-  const critical = CRITICAL_FRACTION + (current === 'critical' ? RELEASE_MARGIN : 0);
+  const critical = thresholds.critical + (current === 'critical' ? RELEASE_MARGIN : 0);
   if (available < critical) {
     return 'critical';
   }
-  const moderate = MODERATE_FRACTION + (current === 'none' ? 0 : RELEASE_MARGIN);
+  const moderate = thresholds.moderate + (current === 'none' ? 0 : RELEASE_MARGIN);
   return available < moderate ? 'moderate' : 'none';
 }
 
@@ -108,7 +127,9 @@ export class MemoryPressureMonitor {
     this.#last = reading;
     const now = this.#options.monotonic();
     const killed = this.#oomAt !== null && now - this.#oomAt < OOM_CRITICAL_MS;
-    const wanted = killed ? 'critical' : levelFor(reading, this.#level);
+    const wanted = killed
+      ? 'critical'
+      : levelFor(reading, this.#level, this.#options.thresholds?.() ?? DEFAULT_THRESHOLDS);
     if (wanted === this.#level) {
       this.#candidate = wanted;
       this.#candidatePolls = 0;

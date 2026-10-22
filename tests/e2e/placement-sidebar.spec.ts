@@ -100,8 +100,9 @@ test.describe('the Sleeping section', () => {
       'Move to Tabs',
       'Archive tab',
       'Protect from automation',
-      // M3.4: the page's site can be protected too.
+      // M3.4: the page's site can be protected too; M5.1: or not remembered.
       `Always protect ${new URL(fixtureServer.url('/')).hostname}`,
+      `Don't remember ${new URL(fixtureServer.url('/')).hostname}`,
       'Close tab',
       'Reopen closed tab (disabled)',
     ]);

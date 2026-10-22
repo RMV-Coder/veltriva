@@ -95,6 +95,15 @@ The tab lifecycle mixes asynchronous Chromium events, user commands, a scheduler
      - the address as the display rules show it;
      - title marks as ranges, which the shell renders as text;
      - the five score terms, for the palette's debug view.
+14. **As built in M5.1 (settings):**
+   - **New commands:**
+     - **`settings.get`:** the view. It holds the document as main keeps it, and what the page needs to describe and check it: the presets' values, each number's range, the pressure defaults and the named search engines.
+     - **`settings.update`:** a change.
+     - **`settings.setSiteRule`:** what the user typed (a site, a host or an address) and one rule or both. Main reads the site from it.
+     - **`settings.open`:** selects the Settings tab, or opens one.
+   - **The shell never writes the document.** It sends a change and shows the view main answers with.
+   - **`invalid_input` has a second meaning.** Besides input that fails its schema, it now answers a change that is valid alone but would make an invalid document, such as critical pressure at or above moderate. `CommandError` can carry it. Nothing of a rejected change is kept.
+   - **Two internal pages:** `settings` and `welcome`, the first-run onboarding. Both can be typed (`veltriva://settings`, `veltriva://welcome`).
 
 ## Consequences
 

@@ -50,7 +50,12 @@ export type ProtectionReason =
   /** The site may show notifications (the user allowed it): soft, as Chrome's Memory Saver. */
   | 'notifications'
   /** Its title or icon changed while it was hidden (a chat, a mail inbox): soft, heuristic. */
-  | 'background-activity';
+  | 'background-activity'
+  /**
+   * The user excluded the tab's site from the memory (M5.1, §5.7): the tab is never archived by
+   * automation, since the Archive is part of the memory. Discards and Sleeping still apply.
+   */
+  | 'excluded-site';
 
 /**
  * Every reason, in the order the "why" names them: what the user did first, then the page. (The
@@ -59,6 +64,7 @@ export type ProtectionReason =
 export const PROTECTION_REASONS = [
   'user-protected',
   'protected-site',
+  'excluded-site',
   'fullscreen',
   'capture',
   'audio',
@@ -120,6 +126,7 @@ const PROTECTIONS: Readonly<Record<ProtectionReason, Protection>> = {
     hard: false,
     blocks: ['freeze', 'discard'],
   },
+  'excluded-site': { reason: 'excluded-site', hard: true, blocks: ['archive'] },
 };
 
 export function protectionFor(reason: ProtectionReason): Protection {

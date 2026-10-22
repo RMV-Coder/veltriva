@@ -32,6 +32,9 @@ export interface ContextMenuDependencies {
   readonly siteOf?: (url: string) => string | null;
   readonly isSiteProtected?: (site: string) => boolean;
   readonly setSiteProtected?: (tabId: TabId, on: boolean) => void;
+  /** Whether the user excluded a site from the memory, and doing so for a tab's site (M5.1). */
+  readonly isSiteExcluded?: (site: string) => boolean;
+  readonly setSiteExcluded?: (tabId: TabId, on: boolean) => void;
 }
 
 export interface ContextMenus {
@@ -273,6 +276,7 @@ export function createContextMenus(deps: ContextMenuDependencies): ContextMenus 
       canArchive: tab.url !== '' && !tab.ephemeral,
       site,
       siteProtected: site !== null && (deps.isSiteProtected?.(site) ?? false),
+      siteExcluded: site !== null && (deps.isSiteExcluded?.(site) ?? false),
       hasPage: tab.url !== '',
       otherUnpinnedTabs: tabs.tabs().filter((other) => other.id !== tabId && !other.pinned).length,
       canReopenClosed: tabs.canReopenClosed(),
@@ -336,6 +340,10 @@ export function createContextMenus(deps: ContextMenuDependencies): ContextMenus 
       case 'protect-site':
       case 'unprotect-site':
         deps.setSiteProtected?.(tabId, id === 'protect-site');
+        return;
+      case 'exclude-site':
+      case 'include-site':
+        deps.setSiteExcluded?.(tabId, id === 'exclude-site');
         return;
     }
   }

@@ -122,6 +122,8 @@ function setup(
     readonly failRestoreOfRuntimes?: readonly number[];
     /** The ids newId() gives first, before it makes up its own. */
     readonly newIds?: readonly string[];
+    /** Pages whose tab keeps no record when it closes (an excluded site, M5.1). */
+    readonly keepsNoRecord?: (url: string) => boolean;
   } = {},
 ) {
   const runtimes: FakeRuntime[] = [];
@@ -144,6 +146,7 @@ function setup(
       changes += 1;
     },
     now: () => clock.now,
+    ...(options.keepsNoRecord === undefined ? {} : { keepsNoRecord: options.keepsNoRecord }),
   });
   /** Every runtime a tab has had, oldest first. */
   const runtimesOf = (tabId: TabId): FakeRuntime[] =>
@@ -1594,6 +1597,23 @@ describe('TabManager session', () => {
       manager.close(manager.create());
 
       expect(manager.closedTabs()).toEqual([]);
+    });
+
+    it('does not list a tab whose site keeps no record, and still lists the others (M5.1)', () => {
+      const { manager, liveTab } = setup({
+        keepsNoRecord: (url) => new URL(url).hostname === 'bank.example',
+      });
+      const bank = liveTab('https://bank.example/account');
+      const other = liveTab('https://a.example/');
+      liveTab('https://b.example/');
+
+      manager.close(bank);
+      manager.close(other);
+
+      expect(manager.closedTabs().map((tab) => tab.id)).toEqual([other]);
+      expect(manager.canReopenClosed()).toBe(true);
+      manager.reopenClosed();
+      expect(manager.canReopenClosed()).toBe(false);
     });
 
     it('keeps the newest 100, newest first', () => {

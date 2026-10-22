@@ -1,6 +1,7 @@
 // The context menu of a tab in the sidebar: right-click, the Menu key or Shift+F10 on the tab. It
 // is also how a keyboard user pins or duplicates a tab, and moves it to Sleeping or the Archive or
-// protects it from automation (M3.3). A Sleeping tab has a shorter menu. Pure, so the entries are
+// protects it from automation (M3.3), and sets its site's rules: protect it (M3.4), and exclude it
+// from the memory (M5.1; Settings lists every rule). A Sleeping tab has a shorter menu. Pure, so the entries are
 // unit-tested and a test hook can show them (Playwright can't click native menus).
 
 export type TabMenuItemId =
@@ -18,7 +19,9 @@ export type TabMenuItemId =
   | 'protect'
   | 'unprotect'
   | 'protect-site'
-  | 'unprotect-site';
+  | 'unprotect-site'
+  | 'exclude-site'
+  | 'include-site';
 
 export type TabMenuEntry =
   | {
@@ -39,6 +42,8 @@ export interface TabMenuContext {
   /** Its page's site (M3.4), or null for a page without one; and whether the user protects it. */
   readonly site: string | null;
   readonly siteProtected: boolean;
+  /** Whether the user excluded its page's site from the memory (M5.1). */
+  readonly siteExcluded: boolean;
   /** The tab shows a web page (or an error or crash page with a URL to load again). */
   readonly hasPage: boolean;
   /** How many tabs "Close other tabs" would close: the others that aren't pinned, as in Chrome. */
@@ -66,6 +71,9 @@ export function buildTabMenu(context: TabMenuContext): TabMenuEntry[] {
           context.siteProtected
             ? item('unprotect-site', `Stop protecting ${context.site}`)
             : item('protect-site', `Always protect ${context.site}`),
+          context.siteExcluded
+            ? item('include-site', `Remember ${context.site} again`)
+            : item('exclude-site', `Don't remember ${context.site}`),
         ];
   if (context.placement === 'shelf') {
     return [

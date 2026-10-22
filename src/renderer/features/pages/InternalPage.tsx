@@ -5,6 +5,8 @@ import { CrashedPage } from './CrashedPage';
 import { DiagnosticsPage } from './DiagnosticsPage';
 import { NetworkErrorPage } from './NetworkErrorPage';
 import { NewTabPage } from './NewTabPage';
+import { SettingsPage } from './SettingsPage';
+import { WelcomePage } from './WelcomePage';
 
 /** The page the shell draws itself for a tab whose page is internal. Nothing for a web page. */
 export function InternalPage({ tab }: { readonly tab: TabSnapshot }) {
@@ -41,5 +43,9 @@ export function InternalPage({ tab }: { readonly tab: TabSnapshot }) {
       return <CrashedPage tabId={tab.id} reason={page.error?.name} />;
     case 'diagnostics':
       return <DiagnosticsPage />;
+    case 'settings':
+      return <SettingsPage />;
+    case 'welcome':
+      return <WelcomePage tabId={tab.id} />;
   }
 }

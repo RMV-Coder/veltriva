@@ -118,6 +118,8 @@ const MARKERS = [
   // M5.0: src/main/testing/print-requests.ts
   'recordPrintRequest',
   'recordedPrintRequests',
+  'testFirstRun',
+  'VELTRIVA_TEST_FIRST_RUN',
   // src/main/testing/fail-fast.ts
   'exitOnUncaughtException',
   'Uncaught exception in main',

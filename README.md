@@ -4,7 +4,7 @@
 
 Veltriva is a local-first, Chromium-powered desktop browser that intelligently manages inactive tabs, preserves browsing context, and makes previously visited pages instantly searchable.
 
-**Status: Phase 4 done (search and the memory, on Electron 45); Phase 5 next.** Every page you visited, and every tab wherever it went, is one keystroke away: Ctrl+Shift+K finds it by a few partial words and brings it back. Veltriva manages your tabs for you: it unloads the ones you left to free memory, moves the ones you stopped using to Sleeping and then the Archive, and leaves alone anything that might hold your work. It reached Milestone 0.1, daily dogfooding, in Phase 2: it keeps your tabs, history and choices across restarts and crashes. Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 (the browser foundation) is done:
+**Status: Phase 5 (settings, privacy and control) under way; Phase 4 (search and the memory, on Electron 45) is done.** Every page you visited, and every tab wherever it went, is one keystroke away: Ctrl+Shift+K finds it by a few partial words and brings it back. Veltriva manages your tabs for you: it unloads the ones you left to free memory, moves the ones you stopped using to Sleeping and then the Archive, and leaves alone anything that might hold your work. It reached Milestone 0.1, daily dogfooding, in Phase 2: it keeps your tabs, history and choices across restarts and crashes. Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 (the browser foundation) is done:
 - Milestone 1.1 built the project scaffold and CI.
 - Milestone 1.2 built the secure shell. The UI is served from `app://shell` with a strict Content Security Policy. It talks to the main process through a typed, validated IPC contract, and every web page gets a role and a locked-down policy.
 - Milestone 1.3a made it a browser, with tabs in a vertical sidebar (pinned first; reorder by dragging or with Alt+Shift+arrow keys). Its pieces:
@@ -68,6 +68,15 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
     - **The memory palette, Ctrl+Shift+K** (or **Search memory…** in the sidebar): type, then Enter switches to the tab, or brings it back from Sleeping or the Archive; Ctrl+Enter opens it in a new tab. Tab steps through All, Open, Sleeping, Archived, Today and This week, and `site:example.com` keeps to one site. The page underneath stays live.
     - **The address bar suggests** pages from your memory as you type, with **Switch to tab** for one already open. Nothing you type leaves your machine.
     - **The Archive list** shows every archived tab, thousands of them, smoothly.
+- Phase 5 (settings, privacy and control) is under way.
+  - Milestone 5.0 checked what the MVP still lacked ([the gap audit](docs/plans/mvp-gap-audit.md)) and added **Print** (Ctrl+P, or **Print…** in a page's menu) and **"Leave page?"** when a page with unsaved changes would stop your own navigation or reload.
+  - Milestone 5.1 adds **Settings** (the gear at the foot of the sidebar, or `veltriva://settings`). Every change applies at once.
+    - **Search engine:** DuckDuckGo, Google, Bing, Brave Search, Ecosia, Startpage, or another engine's address.
+    - **When Veltriva starts:** continue where you left off, or start with a new tab (the tabs you had go to the Archive, and pinned ones stay).
+    - **Tabs and automation:** the presets, described plainly, and every value behind them, including when memory counts as low.
+    - **Pause memory:** stop remembering pages without opening a private window.
+    - **Site rules:** protect a site from automation, or don't remember it at all: its pages are never recorded, its tabs never archived, and closing one keeps no record. Set them here or from a tab's menu.
+    - **A welcome page** on a new profile asks for the search engine, the preset, and whether automation shows its moves first.
 
 ## Why
 

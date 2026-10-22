@@ -274,6 +274,22 @@ Wall-clock timers would also archive a user's workspace after a weekend away.
      - an objection while a question already waits;
      - a navigation the page started itself, such as a link in it. Its handler runs in the renderer before main hears of any navigation (*measured*), so there is nothing to repeat, and the page's objection stands, as before.
 
+17. **As built in M5.1: settings, site rules and startup.**
+   - **Settings.** Every value automation runs on is on `veltriva://settings` (ADR-0005 item 14):
+     - the preset, with a plain description of what each does;
+     - Pause automation, auto-archive and the freeze experiment;
+     - each advanced number in the unit a person thinks in (discard after, tabs kept, shelve after, archive after, the interaction guard), plus "unload pinned tabs too".
+     - **Choosing a preset clears the advanced values** it sets. The pressure thresholds are not a preset's, so they stay.
+   - **Pressure thresholds are settings too.** Moderate is below 10% of physical memory available, and critical below 4% (M3.2's measurements). Either can be changed, but critical must stay below moderate. The monitor reads them at every poll.
+   - **Site rules live in the `site_rules` table** (ADR-0004 item 13), which main keeps in memory:
+     - **Protect** is M3.4's protected site.
+     - **Exclude from the memory** adds the protection reason **`excluded-site`**. It is hard and blocks `archive` only: such a tab may still be discarded and moved to Sleeping, but automation never archives it (§5.7). It is the one reason that doesn't block a discard, so the "why" gives it its own line rather than a "Kept awake" phrase.
+     - **Closing such a tab keeps no record:** TabManager's `keepsNoRecord` leaves it out of Recently closed, so the session never saves it.
+     - **Where they're set:** a tab's menu offers "Don't remember ‹site›" / "Remember ‹site› again" beside "Always protect ‹site›", and Settings lists, adds and removes rules.
+   - **Startup behavior:** "Continue where you left off" (the default) or "Start with a new tab".
+     - **With a new tab:** after the restore, the unpinned tabs that were open go to the Archive (as the user's moves, with nothing loaded), new-tab pages close, a new tab is selected, and pinned tabs and Sleeping stay as they were.
+     - **Safe mode** leaves the session as it was.
+
 ## Consequences
 
 - **Positive:** both product-critical states are first-class, the policy is unit-testable without Electron, and every automatic action can be explained.

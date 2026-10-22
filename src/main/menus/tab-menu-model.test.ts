@@ -20,6 +20,7 @@ const base: TabMenuContext = {
   canArchive: true,
   site: null,
   siteProtected: false,
+  siteExcluded: false,
   hasPage: true,
   otherUnpinnedTabs: 2,
   canReopenClosed: true,
@@ -98,6 +99,7 @@ describe('buildTabMenu', () => {
           canArchive: false,
           site: null,
           siteProtected: false,
+          siteExcluded: false,
           hasPage: false,
           otherUnpinnedTabs: 0,
           canReopenClosed: false,
@@ -135,6 +137,7 @@ describe('buildTabMenu: the site (M3.4)', () => {
       'Archive tab',
       'Protect from automation',
       'Always protect example.com',
+      "Don't remember example.com",
       '---',
       'Close tab',
       'Close other tabs',
@@ -190,6 +193,7 @@ describe('buildTabMenu: the site (M3.4)', () => {
       'Archive tab',
       'Protect from automation',
       'Always protect example.com',
+      "Don't remember example.com",
       '---',
       'Close tab',
       '---',
@@ -210,6 +214,7 @@ describe('buildTabMenu: the site (M3.4)', () => {
       'Archive tab (disabled)',
       'Stop protecting',
       'Stop protecting example.com',
+      "Don't remember example.com",
       '---',
       'Close tab',
       '---',
@@ -265,10 +270,10 @@ describe('buildTabMenu: the site (M3.4)', () => {
     expect(shape(buildTabMenu({ ...base, site }))).toContain(`Always protect ${site}`);
   });
 
-  it('adds exactly one item to the strip menu and one to the Sleeping menu', () => {
-    expect(buildTabMenu(onSite)).toHaveLength(buildTabMenu(base).length + 1);
+  it('adds exactly two items to the strip menu and two to the Sleeping menu: protect and exclude', () => {
+    expect(buildTabMenu(onSite)).toHaveLength(buildTabMenu(base).length + 2);
     expect(buildTabMenu({ ...onSite, placement: 'shelf' })).toHaveLength(
-      buildTabMenu({ ...base, placement: 'shelf' }).length + 1,
+      buildTabMenu({ ...base, placement: 'shelf' }).length + 2,
     );
   });
 
@@ -282,6 +287,46 @@ describe('buildTabMenu: the site (M3.4)', () => {
       const all = ids(buildTabMenu(context));
 
       expect(new Set(all).size).toBe(all.length);
+    }
+  });
+});
+
+describe('buildTabMenu: excluding the site from the memory (M5.1)', () => {
+  it("offers not to remember the page's site, right after protecting it", () => {
+    const entries = shape(buildTabMenu(onSite));
+    const protect = entries.indexOf('Always protect example.com');
+
+    expect(entries[protect + 1]).toBe("Don't remember example.com");
+    expect(ids(buildTabMenu(onSite))).toContain('exclude-site');
+  });
+
+  it('offers to remember an excluded site again', () => {
+    const entries = buildTabMenu({ ...onSite, siteExcluded: true });
+
+    expect(shape(entries)).toContain('Remember example.com again');
+    expect(shape(entries)).not.toContain("Don't remember example.com");
+    expect(ids(entries)).toContain('include-site');
+    expect(ids(entries)).not.toContain('exclude-site');
+  });
+
+  it('keeps protecting and excluding independent', () => {
+    const both = shape(buildTabMenu({ ...onSite, siteProtected: true, siteExcluded: true }));
+
+    expect(both).toContain('Stop protecting example.com');
+    expect(both).toContain('Remember example.com again');
+  });
+
+  it('offers it for a Sleeping tab too', () => {
+    expect(shape(buildTabMenu({ ...onSite, placement: 'shelf' }))).toContain(
+      "Don't remember example.com",
+    );
+  });
+
+  it('leaves it out for a page without a site, whatever the stale flag says', () => {
+    for (const siteExcluded of [false, true]) {
+      const entries = buildTabMenu({ ...base, siteExcluded });
+      expect(ids(entries)).not.toContain('exclude-site');
+      expect(ids(entries)).not.toContain('include-site');
     }
   });
 });

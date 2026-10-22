@@ -9,6 +9,10 @@ export const INTERNAL_PAGES = [
   'crashed',
   /** The local diagnostics page (M3.4, §4.13): the regret metric and what automation sees. */
   'diagnostics',
+  /** Settings (M5.1): lifecycle, search engine, startup, the memory and site rules. */
+  'settings',
+  /** First-run onboarding (M5.1, §7.2): search engine, preset and preview mode. */
+  'welcome',
 ] as const;
 export type InternalPage = (typeof INTERNAL_PAGES)[number];
 
@@ -19,6 +23,8 @@ export type InternalPage = (typeof INTERNAL_PAGES)[number];
 export const TYPEABLE_INTERNAL_PAGES: ReadonlyMap<string, InternalPage> = new Map([
   ['newtab', 'new-tab'],
   ['diagnostics', 'diagnostics'],
+  ['settings', 'settings'],
+  ['welcome', 'welcome'],
 ]);
 
 export const INTERNAL_SCHEME = 'veltriva';

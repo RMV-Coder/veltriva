@@ -327,6 +327,11 @@ export interface TabManagerOptions {
   readonly onPageGone?: (tabId: TabId) => void;
   /** What the memory records (main/history/history-recorder.ts). Each is called after the change. */
   readonly history?: TabHistoryObserver;
+  /**
+   * A page whose tab keeps no record when it closes (M5.1, §5.7): a site excluded from the
+   * memory. Such a tab is not in Recently closed, so nothing of it is saved.
+   */
+  readonly keepsNoRecord?: (url: string) => boolean;
   /** Wall-clock time, for the session's timestamps and learned protections. */
   readonly now?: () => number;
   /** The discard's and freeze's deadlines run on these (tests drive them). */
@@ -845,7 +850,11 @@ export class TabManager {
     const sleeping = record.state.placement === 'shelf';
     // A Sleeping tab reopens at the end of the strip.
     const index = sleeping ? this.#order.length : this.#order.indexOf(tabId);
-    if (record.state.url !== '' && !record.state.ephemeral) {
+    if (
+      record.state.url !== '' &&
+      !record.state.ephemeral &&
+      this.#options.keepsNoRecord?.(record.state.url) !== true
+    ) {
       // Its stack is read before the runtime goes (Recently closed keeps it for 7 days).
       this.#closed.push({
         ...(captured ?? this.#sessionTab(record)),

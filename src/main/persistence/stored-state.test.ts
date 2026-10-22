@@ -70,13 +70,14 @@ function setup(respond: Responder = () => ({})) {
   return { call, calls, logger, data: { call: call as never } };
 }
 
-/** Answers each of the four startup reads with what the database would hold. */
+/** Answers each of the five startup reads with what the database would hold. */
 function database(
   overrides: Partial<{
     settings: unknown;
     decisions: unknown[];
     clientHints: unknown;
     downloads: unknown[];
+    siteRules: unknown[];
   }> = {},
 ): Responder {
   return (method) => {
@@ -89,6 +90,8 @@ function database(
         return { value: 'clientHints' in overrides ? overrides.clientHints : null };
       case 'downloads.list':
         return { downloads: overrides.downloads ?? [] };
+      case 'siteRules.list':
+        return { rules: overrides.siteRules ?? [] };
       default:
         return {};
     }
@@ -134,7 +137,7 @@ describe('isDataUnavailable', () => {
 });
 
 describe('readStoredState: what it reads', () => {
-  it('asks for the settings, the permissions, the client hints and the downloads', async () => {
+  it('asks for the settings, the permissions, the client hints, the downloads and the site rules', async () => {
     const { data, calls, logger } = setup(database());
 
     await readStoredState(data, logger, { downloads: 100 });
@@ -145,19 +148,20 @@ describe('readStoredState: what it reads', () => {
         { method: 'permissions.list', input: { limit: 10_000 } },
         { method: 'appState.get', input: { key: 'client_hints' } },
         { method: 'downloads.list', input: { limit: 100 } },
+        { method: 'siteRules.list', input: { limit: 10_000 } },
       ]),
     );
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
   });
 
-  it('starts all four reads at once, not one after the other', () => {
+  it('starts all five reads at once, not one after the other', () => {
     const never = new Promise(() => undefined);
     const { data, calls, logger } = setup(() => never);
 
     void readStoredState(data, logger, { downloads: 100 });
 
     // Nothing has resolved, and every call is already out.
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
   });
 
   it('asks for as many downloads as it is told', async () => {
@@ -179,6 +183,7 @@ describe('readStoredState: what it reads', () => {
       alwaysAllowed: [],
       clientHints: null,
       downloads: [],
+      siteRules: [],
     });
     expect(logger.warn).not.toHaveBeenCalled();
   });
@@ -196,9 +201,9 @@ describe('readStoredState: what it reads', () => {
     const state = await readStoredState(data, logger, { downloads: 100 });
 
     expect(state.settings).toEqual({
+      ...DEFAULT_SETTINGS,
       search: { template: 'https://search.example/?q={searchTerms}' },
       history: { retentionDays: 30 },
-      lifecycle: DEFAULT_SETTINGS.lifecycle,
     });
   });
 
@@ -211,11 +216,19 @@ describe('readStoredState: what it reads', () => {
 
     const state = await readStoredState(data, logger, { downloads: 100 });
 
-    expect(state.settings).toEqual({
-      search: DEFAULT_SETTINGS.search,
-      history: { retentionDays: 14 },
-      lifecycle: DEFAULT_SETTINGS.lifecycle,
-    });
+    expect(state.settings).toEqual({ ...DEFAULT_SETTINGS, history: { retentionDays: 14 } });
+  });
+
+  it('hands the site rules on, as the worker listed them (M5.1)', async () => {
+    const rules = [
+      { site: 'bank.example', protect: false, excludeMemory: true, createdAt: T0 },
+      { site: 'github.com', protect: true, excludeMemory: false, createdAt: T0 },
+    ];
+    const { data, logger } = setup(database({ siteRules: rules }));
+
+    const state = await readStoredState(data, logger, { downloads: 100 });
+
+    expect(state.siteRules).toEqual(rules);
   });
 
   it('hands the client hints document on as it is, unchecked', async () => {
@@ -621,6 +634,7 @@ describe('readStoredState: the deadline', () => {
       alwaysAllowed: [],
       clientHints: null,
       downloads: [],
+      siteRules: [],
     });
   });
 });

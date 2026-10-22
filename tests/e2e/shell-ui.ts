@@ -55,7 +55,14 @@ export function contentArea(shell: Page): Locator {
   return shell.locator('#content-area');
 }
 export type InternalPageName =
-  'new-tab' | 'network-error' | 'certificate-error' | 'client-certificate' | 'crashed';
+  | 'new-tab'
+  | 'network-error'
+  | 'certificate-error'
+  | 'client-certificate'
+  | 'crashed'
+  | 'diagnostics'
+  | 'settings'
+  | 'welcome';
 
 /** An internal page the shell draws in the content area. */
 export function internalPage(shell: Page, name: InternalPageName): Locator {

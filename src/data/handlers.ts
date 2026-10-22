@@ -26,6 +26,7 @@ export const DATA_WRITES: ReadonlySet<RepositoryMethod> = new Set<RepositoryMeth
   'settings.set',
   'permissions.set',
   'permissions.delete',
+  'siteRules.set',
   'downloads.upsert',
   'downloads.delete',
   'downloads.clear',

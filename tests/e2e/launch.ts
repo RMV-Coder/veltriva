@@ -147,6 +147,8 @@ export interface LaunchOptions {
    * a spec that must change one thing about the browser: say why next to the switch.
    */
   readonly switches?: readonly string[];
+  /** More environment variables for the app, such as a test build's VELTRIVA_TEST_FIRST_RUN. */
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 export async function launchApp(
@@ -158,7 +160,7 @@ export async function launchApp(
     executablePath: electronBinary,
     args: [...(options.switches ?? []), repoRoot],
     cwd: repoRoot,
-    env: buildLaunchEnv(userDataDir),
+    env: { ...buildLaunchEnv(userDataDir), ...options.env },
     timeout: LAUNCH_TIMEOUT_MS,
   });
   // Electron is ready before the app is: since M2.2a, main reads the saved session before it

@@ -24,6 +24,11 @@
    - Multi-window and private windows come after the MVP.
    - Invariant I6 (ephemeral tabs never reach persistence) is enforced from day one, so private windows can slot in later.
 
+5. **As built in M5.1.**
+   - **D5's first-run choice is the welcome page.** It shows on a new profile (no earlier run and no saved tabs); test builds show it only when a test sets `VELTRIVA_TEST_FIRST_RUN`.
+   - **What it asks:** the search engine (DuckDuckGo chosen), the preset (Balanced) and whether automation shows its moves first (preview mode, §4.13). "Start browsing" sends the choices in one change and opens the new-tab page.
+   - **Settings offers the rest:** DuckDuckGo, Google, Bing, Brave Search, Ecosia and Startpage, or another engine's address with `{searchTerms}`, which main checks (https, or http to this machine).
+
 ## Consequences
 
 - **Positive:** a focused MVP whose central idea (Tabs, Sleeping, Archive) is visible on screen.

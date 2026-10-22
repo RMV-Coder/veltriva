@@ -9,17 +9,24 @@ import { uuidv7 } from '../core/id/uuidv7';
 import { displayUrl, originLabel } from '../core/url/display';
 import {
   isPreviewActive,
+  PRESET_VALUES,
   PREVIEW_ACTIVE_DAYS,
   resolveLifecycleSettings,
 } from '../core/lifecycle/policy';
 import type { LifecycleClock, LifecycleSettings, MemoryPressure } from '../core/lifecycle/policy';
 import { originOf } from '../core/permissions/permission-policy';
-import { siteOf } from '../core/url/site';
+import { SEARCH_ENGINES } from '../core/url/search-engines';
+import { siteFromInput, siteOf } from '../core/url/site';
 import { ActivationTracker } from '../core/input/user-activation';
 import { ClientHintOptIns } from '../core/net/client-hints';
 import { PermissionDecisions } from '../core/permissions/permission-decisions';
-import type { DataInput } from '../shared/contracts/data-rpc';
-import { DEFAULT_SETTINGS } from '../shared/contracts/settings';
+import type { SettingsView } from '../shared/contracts/schemas';
+import {
+  DEFAULT_PRESSURE_PERCENT,
+  DEFAULT_SETTINGS,
+  OVERRIDE_LIMITS,
+  pressurePercent,
+} from '../shared/contracts/settings';
 import type { LifecycleSettingsDocument, Settings } from '../shared/contracts/settings';
 import { APP_USER_MODEL_ID, BROWSING_PARTITION } from '../shared/constants/app-identity';
 import { cleanUserAgent } from './app/user-agent';
@@ -50,7 +57,7 @@ import { installPageMenu } from './input/page-menu';
 import { createShortcutHandler } from './input/shortcuts';
 import { createCommandHandlers } from './ipc/commands';
 import { createMemoryCommands } from './memory/memory-commands';
-import type { LifecycleCommands } from './ipc/commands';
+import type { LifecycleCommands, SettingsCommands } from './ipc/commands';
 import { createShellEvents } from './ipc/events';
 import { installIpcRouter } from './ipc/install';
 import { createContextMenus } from './menus/context-menu';
@@ -71,11 +78,13 @@ import { consoleLogger } from './platform/logger';
 import { BlockedPopups } from './popups/blocked-popups';
 import { createWindowOpenHandler } from './popups/popup-policy';
 import type { WindowOpenHandler, WindowOpenSource } from './popups/popup-policy';
+import { SiteRules } from './privacy/site-rules';
 import { PromptManager } from './prompts/prompt-manager';
 import { SHELL_ORIGIN, SHELL_URL } from './shell/assets';
 import { parseDevServerUrl } from './shell/dev-server';
 import { registerShellScheme } from './shell/protocol';
 import { createShellSession } from './shell/shell-session';
+import { SettingsService } from './settings/settings-service';
 import { createFaviconService } from './tabs/favicons';
 import { TabManager } from './tabs/tab-manager';
 import { createTabRuntimes } from './tabs/tab-runtime';
@@ -85,6 +94,7 @@ import { recordPrintRequest } from './testing/print-requests';
 import { recordRuntimeTransition } from './testing/runtime-transitions';
 import { testClockAdjustment, testIsCaptured, testMemoryPressure } from './testing/test-clock';
 import { exitOnUncaughtException } from './testing/fail-fast';
+import { testFirstRun } from './testing/first-run';
 import { recordingFileActions, testDownloadsFolder } from './testing/test-files';
 import { LIFECYCLE_SCENARIO_ENV, runLifecycleScenario } from './testing/lifecycle-scenarios';
 import { installTestHooks } from './testing/test-hooks';
@@ -205,6 +215,28 @@ async function start(): Promise<void> {
       ? EMPTY_STORED_STATE
       : await readStoredState(data, consoleLogger, { downloads: MAX_LISTED_DOWNLOADS });
   settings = stored.settings;
+  // M5.1: the settings document's one writer, and the user's site rules. A change applies at once
+  // (applySettings, below, once everything it reaches exists; nothing calls it before then).
+  const settingsService = new SettingsService({
+    initial: settings,
+    data,
+    logger: consoleLogger,
+    onChange: (next, previous) => {
+      settings = next;
+      applySettings(next, previous);
+    },
+  });
+  const siteRules = new SiteRules({
+    data,
+    logger: consoleLogger,
+    stored: stored.siteRules,
+    // Automation looks again (a protected or excluded site changes what it may do), and so does
+    // the "why" of each tab.
+    onChange: () => {
+      projector.markDirty();
+      automation.scheduler?.trigger();
+    },
+  });
   // The engagement clock (assessment §4.6), from where it stopped. A new profile starts at zero.
   const storedEngagement =
     startup === null ? null : await readStoredEngagement(data, consoleLogger);
@@ -448,6 +480,8 @@ async function start(): Promise<void> {
   const historyRecorder = new HistoryRecorder({
     data,
     logger: consoleLogger,
+    // "Pause memory" (M5.1): nothing is recorded while it is on.
+    recording: () => !settings.memory.paused,
   });
   dataLifecycle.addFlush(() => historyRecorder.flush());
   // Lifecycle automation (M3.2, assessment §4.6–§4.8): the engagement clock, memory pressure, the
@@ -506,17 +540,25 @@ async function start(): Promise<void> {
   /** Preview mode (§4.13): the first active days, unless the user started automation early. */
   const previewActive = (): boolean =>
     isPreviewActive(lifecycleDocument.preview, lifecycleClock().activeDay);
-  /** Saves a change to the lifecycle section (Pause, preview, protected sites) and applies it. */
+  /** Saves a change to the lifecycle section (Pause, preview); applySettings applies it. */
   const saveLifecycle = (next: LifecycleSettingsDocument): void => {
-    lifecycleDocument = next;
-    lifecycleSettings = resolveLifecycleSettings(next);
-    settings = { ...settings, lifecycle: next };
-    const value = JSON.parse(JSON.stringify(settings)) as DataInput<'settings.set'>['value'];
-    data.call('settings.set', { value }).catch(() => {
-      consoleLogger.warn('settings.writeFailed');
-    });
+    settingsService.setLifecycle(next);
+  };
+  /**
+   * What a kept settings change does at once (M5.1): the omnibox's engine, automation's settings
+   * (and an evaluation with them), the pressure thresholds (read at the next poll), Pause memory
+   * (read at the next commit). The shell sees it in the next snapshot.
+   */
+  const applySettings = (next: Settings, previous: Settings): void => {
+    if (next.search.template !== previous.search.template) {
+      setSearchTemplate(next.search.template);
+    }
+    if (next.lifecycle !== previous.lifecycle) {
+      lifecycleDocument = next.lifecycle;
+      lifecycleSettings = resolveLifecycleSettings(next.lifecycle);
+      automation.scheduler?.trigger();
+    }
     projector.markDirty();
-    automation.scheduler?.trigger();
   };
   // The regret metric (M3.4, §4.13): local only, read by the diagnostics page.
   const regret = new RegretTracker({
@@ -529,6 +571,11 @@ async function start(): Promise<void> {
   dataLifecycle.addFlush(() => regret.flush());
   const pressure = new MemoryPressureMonitor({
     read: () => process.getSystemMemoryInfo(),
+    // M5.1: the settings' thresholds, in percent; kept in order by the settings document.
+    thresholds: () => {
+      const percent = pressurePercent(lifecycleDocument.overrides);
+      return { moderate: percent.moderate / 100, critical: percent.critical / 100 };
+    },
     timers: SYSTEM_TIMERS,
     monotonic: () => performance.now(),
     onChange: () => {
@@ -551,10 +598,9 @@ async function start(): Promise<void> {
     urlOf: (tabId): string => (tabs.has(tabId) ? tabs.get(tabId).url : ''),
     notificationsAllowed: (url) =>
       decisions.get(originOf(url) ?? 'null', 'notifications') === 'allow',
-    siteProtected: (url) => {
-      const site = siteOf(url);
-      return site !== null && lifecycleDocument.protectedSites.includes(site);
-    },
+    siteProtected: (url) => siteRules.protectsUrl(url),
+    // M5.1: a tab on a site excluded from the memory is never archived.
+    siteExcluded: (url) => siteRules.excludesUrl(url),
     onChange: () => {
       projector.markDirty();
     },
@@ -593,6 +639,8 @@ async function start(): Promise<void> {
       return answer.decision === 'allow';
     },
     history: historyRecorder,
+    // M5.1: closing a tab on a site excluded from the memory keeps no record of it.
+    keepsNoRecord: (url) => siteRules.excludesUrl(url),
     // M3.4: a tab automation unloaded, shown again within the hour, is a regret (§4.13).
     onAutomaticUnloadShown: (tabId) => {
       regret.reloaded(tabId);
@@ -719,12 +767,7 @@ async function start(): Promise<void> {
     },
     setSiteProtected: (tabId, on) => {
       const site = siteOf(tabs.get(tabId).url);
-      if (site === null) {
-        return null;
-      }
-      const others = lifecycleDocument.protectedSites.filter((known) => known !== site);
-      saveLifecycle({ ...lifecycleDocument, protectedSites: on ? [...others, site] : others });
-      return site;
+      return site !== null && siteRules.set(site, { protect: on }) ? site : null;
     },
     diagnostics: () => {
       const state = regret.state();
@@ -737,7 +780,10 @@ async function start(): Promise<void> {
           preset: lifecycleDocument.preset,
           paused: lifecycleDocument.paused,
           preview: previewActive(),
-          protectedSites: [...lifecycleDocument.protectedSites],
+          protectedSites: siteRules
+            .list()
+            .filter((rule) => rule.protect)
+            .map((rule) => rule.site),
         },
         pressure: pressureLevel(),
         memory: {
@@ -775,11 +821,51 @@ async function start(): Promise<void> {
     searchEngine: searchEngineName,
     placement: () => placement,
     siteOf,
-    isSiteProtected: (site) => lifecycleDocument.protectedSites.includes(site),
+    isSiteProtected: (site) => siteRules.isProtected(site),
     setSiteProtected: (tabId, on) => {
       lifecycleCommands.setSiteProtected(tabId, on);
     },
+    // M5.1: excluding the tab's site from the memory, from its menu.
+    isSiteExcluded: (site) => siteRules.isExcluded(site),
+    setSiteExcluded: (tabId, on) => {
+      const site = siteOf(tabs.get(tabId).url);
+      if (site !== null) {
+        siteRules.set(site, { excludeMemory: on });
+      }
+    },
   });
+  /** What the settings page shows (M5.1). */
+  const settingsView = (): SettingsView => ({
+    settings: settingsService.current(),
+    previewActive: previewActive(),
+    siteRules: siteRules.list(),
+    presets: PRESET_VALUES,
+    limits: OVERRIDE_LIMITS,
+    pressureDefaults: DEFAULT_PRESSURE_PERCENT,
+    searchEngines: [...SEARCH_ENGINES],
+  });
+  const settingsCommands: SettingsCommands = {
+    view: settingsView,
+    update: (change) => {
+      settingsService.update(change);
+      return settingsView();
+    },
+    setSiteRule: (text, change) => {
+      const site = siteFromInput(text);
+      return site !== null && siteRules.set(site, change) ? settingsView() : null;
+    },
+    // Settings is one page: its open tab is selected, else a new tab shows it.
+    open: () => {
+      const open = tabs
+        .tabs()
+        .find((tab) => tab.page.kind === 'internal' && tab.page.name === 'settings');
+      if (open !== undefined) {
+        tabs.select(open.id);
+        return;
+      }
+      tabs.showInternal(tabs.create(), 'settings');
+    },
+  };
 
   // Reserved shortcuts, before the shell or any page sees the key (assessment §3.9).
   const handleShortcut = createShortcutHandler({ tabs: () => tabs, focus, fullscreen });
@@ -838,15 +924,44 @@ async function start(): Promise<void> {
     tabs.create();
   } else {
     const { loaded, ready, safeMode } = startup;
+    // M5.1: "Start with a new tab" (Settings). Safe mode leaves the session as it was.
+    const startFresh = settings.startup === 'new-tab' && !safeMode;
     tabs.restoreSession({
       tabs: loaded.tabs,
       selectedTabId: loaded.selectedTabId,
       closed: loaded.closed,
-      loadSelected: !safeMode,
+      loadSelected: !safeMode && !startFresh,
       shelf: loaded.shelf,
       archived: loaded.archived,
       archivedCount: loaded.archivedCount,
     });
+    if (startFresh) {
+      // A new tab is selected; the tabs that were open go to the Archive, where the memory still
+      // finds them, and nothing of theirs loads. Pinned tabs stay; a new-tab page has nothing to
+      // keep, so it closes. Sleeping stays as it was.
+      const fresh = tabs.create();
+      for (const tab of tabs.tabs()) {
+        if (tab.id === fresh || tab.pinned) {
+          continue;
+        }
+        if (tab.url === '') {
+          tabs.close(tab.id);
+        } else {
+          void tabs.archive(tab.id, { origin: 'user' });
+        }
+      }
+    }
+    // M5.1: first-run onboarding (§7.2) on a new profile: search engine, preset, preview mode.
+    if (
+      ready.previousExit === 'none' &&
+      loaded.tabs.length === 0 &&
+      (import.meta.env.MODE === 'test' ? testFirstRun() : true)
+    ) {
+      const selected = tabs.selectedTabId();
+      if (selected !== null) {
+        tabs.showInternal(selected, 'welcome');
+      }
+    }
     if (safeMode) {
       notices.show({ kind: 'safe-mode' });
     } else if (ready.previousExit === 'crash' && loaded.tabs.length > 0) {
@@ -919,6 +1034,7 @@ async function start(): Promise<void> {
         workspaceId: () => workspaceId,
         flushSession: () => sessionStore?.flush() ?? Promise.resolve(),
       }),
+      settings: settingsCommands,
     }),
     allowedOrigins: new Set(
       devServer === undefined ? [SHELL_ORIGIN] : [SHELL_ORIGIN, devServer.origin],
@@ -971,9 +1087,7 @@ async function start(): Promise<void> {
         scheduler: lifecycle,
         clock: lifecycleClock,
         setSettings: (changes) => {
-          lifecycleDocument = { ...lifecycleDocument, ...changes };
-          lifecycleSettings = resolveLifecycleSettings(lifecycleDocument);
-          lifecycle.trigger();
+          saveLifecycle({ ...lifecycleDocument, ...changes });
         },
         undo,
         activity,

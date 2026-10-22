@@ -204,17 +204,20 @@ test.describe('a protected site', () => {
     expect(planned).not.toContain(b);
     expect(planned).toContain(other);
 
-    // Saved in the settings document, and in force after a restart for tabs not loaded yet.
+    // Saved as the site's rule (M5.1: the site_rules table), and in force after a restart for
+    // tabs not loaded yet.
     await expect
       .poll(async () => {
-        const stored = await dataValue<{ value: { lifecycle?: { protectedSites?: string[] } } }>(
-          app,
-          'settings.get',
-          {},
-        );
-        return stored.value.lifecycle?.protectedSites;
+        const stored = await dataValue<{
+          rules: { site: string; protect: boolean; excludeMemory: boolean }[];
+        }>(app, 'siteRules.list', { limit: 100 });
+        return stored.rules.map(({ site, protect, excludeMemory }) => ({
+          site,
+          protect,
+          excludeMemory,
+        }));
       })
-      .toEqual(['127.0.0.1']);
+      .toEqual([{ site: '127.0.0.1', protect: true, excludeMemory: false }]);
     await launcher.quit(rig);
     const second = await launcher.launch();
     await setMemoryPressure(second.app, 'none');

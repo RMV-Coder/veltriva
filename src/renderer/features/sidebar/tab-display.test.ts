@@ -412,6 +412,8 @@ describe('keptAwakeLine', () => {
       notifications: 'Kept awake: the site can send you notifications',
       'background-activity': 'Kept awake: active in the background',
       'recent-interaction': 'Kept awake: you used it a moment ago',
+      // M5.1: it only keeps the tab out of the Archive, and has its own line.
+      'excluded-site': null,
     };
     for (const [reason, line] of Object.entries(expected) as [KeptAwakeReason, string | null][]) {
       expect(keptAwakeLine([reason])).toBe(line);

@@ -63,6 +63,10 @@ export const COMMAND_NAMES = [
   'overlay.show',
   'overlay.hide',
   'archive.list',
+  'settings.get',
+  'settings.update',
+  'settings.setSiteRule',
+  'settings.open',
 ] as const;
 export type CommandName = (typeof COMMAND_NAMES)[number];
 
@@ -84,7 +88,8 @@ export type EventName = (typeof EVENT_NAMES)[number];
  * Why a command failed. Stack traces and error messages never cross the process boundary.
  * - `forbidden`: the sender isn't the shell's main frame on an allowed origin. Nothing ran.
  * - `unknown_command`: the name isn't in the contract.
- * - `invalid_input`: the input failed its strict schema.
+ * - `invalid_input`: the input failed its strict schema, or (M5.1) the settings it would make are
+ *   invalid. Nothing was changed.
  * - `not_found`: the input named something that doesn't exist (a closed tab, say).
  * - `internal`: the handler failed; details are in main's log.
  */

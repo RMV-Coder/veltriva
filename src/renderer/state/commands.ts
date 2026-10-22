@@ -418,3 +418,48 @@ export async function listArchive(
   const result = await run('archive.list', () => window.veltriva.archive.list({ offset, limit }));
   return result.ok ? result.value : undefined;
 }
+
+// ── Settings (M5.1) ──────────────────────────────────────────────────────────────────────────────
+
+export type SettingsView = CommandOutput<'settings.get'>;
+export type SettingsChange = CommandInput<'settings.update'>;
+
+/** What main says to a change: the view it keeps now, or why nothing changed. */
+export type SettingsAnswer =
+  | { readonly ok: true; readonly view: SettingsView }
+  | { readonly ok: false; readonly invalid: boolean };
+
+/** The settings as main keeps them, or undefined if it could not answer. */
+export async function fetchSettings(): Promise<SettingsView | undefined> {
+  const result = await run('settings.get', () => window.veltriva.settings.get());
+  return result.ok ? result.value : undefined;
+}
+
+/**
+ * Asks main to apply a change. Main checks it and the document it makes; `invalid` says it
+ * refused a value, which the page says next to the field, and nothing changed.
+ */
+export async function updateSettings(change: SettingsChange): Promise<SettingsAnswer> {
+  const result = await run('settings.update', () => window.veltriva.settings.update(change));
+  return result.ok
+    ? { ok: true, view: result.value }
+    : { ok: false, invalid: result.code === 'invalid_input' };
+}
+
+/** Sets a site's rules from what the user typed; `invalid`: it names no site, or the list is full. */
+export async function setSiteRule(
+  site: string,
+  change: { readonly protect?: boolean; readonly excludeMemory?: boolean },
+): Promise<SettingsAnswer> {
+  const result = await run('settings.setSiteRule', () =>
+    window.veltriva.settings.setSiteRule({ site, ...change }),
+  );
+  return result.ok
+    ? { ok: true, view: result.value }
+    : { ok: false, invalid: result.code === 'invalid_input' };
+}
+
+/** Shows Settings: its tab if one is open, else a new one. */
+export async function openSettings(): Promise<boolean> {
+  return (await run('settings.open', () => window.veltriva.settings.open())).ok;
+}

@@ -10,14 +10,24 @@ interface DisplayableTab {
   readonly page: { readonly kind: 'web' } | { readonly kind: 'internal'; readonly name: string };
 }
 
-/** The tab's label: its title, else "New Tab" on the new-tab page, else its address, else "Untitled". */
+/** The labels of the shell's own pages that have one (M5.1 adds Settings and Welcome). */
+const INTERNAL_PAGE_LABELS: ReadonlyMap<string, string> = new Map([
+  ['new-tab', 'New Tab'],
+  ['settings', 'Settings'],
+  ['welcome', 'Welcome to Veltriva'],
+]);
+
+/** The tab's label: its title, else the label of the shell's own page, else its address, else "Untitled". */
 export function tabLabel(tab: DisplayableTab): string {
   const title = tab.title.trim();
   if (title !== '') {
     return title;
   }
-  if (tab.page.kind === 'internal' && tab.page.name === 'new-tab') {
-    return 'New Tab';
+  if (tab.page.kind === 'internal') {
+    const name = INTERNAL_PAGE_LABELS.get(tab.page.name);
+    if (name !== undefined) {
+      return name;
+    }
   }
   const address = tab.address.text.trim();
   return address === '' ? 'Untitled' : address;
@@ -69,6 +79,8 @@ export const PROTECTED_TEXT = 'Protected from automation';
 
 /** The line a tab on a protected site adds (§4.10 "Protected site"). */
 export const SITE_PROTECTED_TEXT = 'Its site is protected from automation';
+/** M5.1: the tab's site is excluded from the memory, so automation never archives it. */
+export const SITE_EXCLUDED_TEXT = "Its site isn't kept in the memory, so it's never archived";
 
 /** What a Sleeping row's tooltip starts with: clicking it is not a reload, it brings the tab back. */
 export const SLEEPING_TEXT = 'Sleeping — click to bring it back to Tabs';
@@ -116,6 +128,8 @@ const KEPT_AWAKE_PHRASES: Readonly<Record<KeptAwakeReason, string | null>> = {
   'sensitive-page': 'a password or payment page',
   notifications: 'the site can send you notifications',
   'background-activity': 'active in the background',
+  // It only keeps the tab out of the Archive, and has its own line.
+  'excluded-site': null,
   // Main never reports this one (it is the policy's own guard, not an observation of the page),
   // but the type allows it, so it has words.
   'recent-interaction': 'you used it a moment ago',
@@ -166,6 +180,11 @@ export function keptAwakeAttribute(reasons: readonly KeptAwakeReason[]): string 
 /** The site-protection line, or null: the tab's site is on the user's list of protected sites. */
 export function siteProtectedLine(reasons: readonly KeptAwakeReason[]): string | null {
   return reasons.includes('protected-site') ? SITE_PROTECTED_TEXT : null;
+}
+
+/** The line for a tab whose site is excluded from the memory (M5.1), or null. */
+export function siteExcludedLine(reasons: readonly KeptAwakeReason[]): string | null {
+  return reasons.includes('excluded-site') ? SITE_EXCLUDED_TEXT : null;
 }
 
 /**
@@ -282,6 +301,7 @@ export function tabTooltip(tab: TooltipTab, options: { readonly sleeping?: boole
     lines.push(PROTECTED_TEXT);
   }
   add(siteProtectedLine(tab.keptAwake));
+  add(siteExcludedLine(tab.keptAwake));
   add(keptAwakeLine(tab.keptAwake, TOOLTIP_REASONS));
   add(previewLine(tab.previewMove));
   return lines.join('\n');
@@ -295,6 +315,7 @@ export type TabDescriptionKey =
   | 'lifecycle'
   | 'protected'
   | 'site-protected'
+  | 'site-excluded'
   | 'kept-awake'
   | 'preview';
 
@@ -341,6 +362,7 @@ export function tabDescriptions(
     add('protected', PROTECTED_TEXT);
   }
   add('site-protected', siteProtectedLine(tab.keptAwake));
+  add('site-excluded', siteExcludedLine(tab.keptAwake));
   add('kept-awake', keptAwakeLine(tab.keptAwake));
   add('preview', previewLine(tab.previewMove));
   return descriptions;

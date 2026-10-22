@@ -97,8 +97,13 @@ const PROTECTION_TABLE: Readonly<
   fullscreen: { hard: true, blocks: ['freeze', 'discard', 'shelve', 'archive'] },
   notifications: { hard: false, blocks: ['freeze', 'discard'] },
   'background-activity': { hard: false, blocks: ['freeze', 'discard'] },
+  'excluded-site': { hard: true, blocks: ['archive'] },
 };
 const REASONS = Object.keys(PROTECTION_TABLE) as ProtectionReason[];
+/** Every reason but an excluded site (M5.1), which only keeps a tab out of the Archive. */
+const DISCARD_REASONS = REASONS.filter((reason) =>
+  PROTECTION_TABLE[reason].blocks.includes('discard'),
+);
 
 /** A live, unpinned strip tab, hidden for a minute and used a minute ago: nothing applies to it. */
 const tab = (overrides: Partial<TabFacts> = {}): TabFacts => ({
@@ -1293,11 +1298,19 @@ describe('planLifecycle', () => {
         ).toStrictEqual([]);
       });
 
-      it.each(REASONS)('with the %s protection', (reason) => {
-        // Every reason blocks a discard, and moderate pressure lifts none of them.
+      it.each(DISCARD_REASONS)('with the %s protection', (reason) => {
+        // Every reason that blocks a discard does, and moderate pressure lifts none of them.
         expect(plan([idleTab('a', 30, protect(reason))], { pressure: 'moderate' })).toStrictEqual(
           [],
         );
+      });
+
+      it('discards a tab on an excluded site: that only keeps it out of the Archive (M5.1)', () => {
+        const target = idleTab('a', 30, protect('excluded-site'));
+
+        expect(plan([target], { pressure: 'moderate' })).toStrictEqual([
+          act(target, 'discard', 'pressure-discard'),
+        ]);
       });
 
       it('does not spend its one discard on a protected tab', () => {
@@ -1350,7 +1363,7 @@ describe('planLifecycle', () => {
         ).toHaveLength(2);
       });
 
-      it.each(REASONS)(
+      it.each(DISCARD_REASONS)(
         'with the %s protection: a hard one still blocks, a soft one does not',
         (reason) => {
           const target = idleTab('a', 30, protect(reason));
@@ -1723,6 +1736,7 @@ describe('planLifecycle', () => {
       ['video', ['freeze', 'discard']],
       ['notifications', ['freeze', 'discard']],
       ['background-activity', ['freeze', 'discard']],
+      ['excluded-site', ['archive']],
     ] as const)('%s blocks %j and nothing else', (reason, blocks) => {
       expect([...protectionFor(reason).blocks]).toStrictEqual([...blocks]);
     });
@@ -1742,6 +1756,23 @@ describe('planLifecycle', () => {
         ).toStrictEqual([]);
         expect(plan([due(protect(reason))], { settings: CAP0 })).toStrictEqual([]);
         expect(plan([dormant(protect(reason))])).toStrictEqual([]);
+      });
+    });
+
+    describe('excluded-site (M5.1)', () => {
+      it('keeps a Sleeping tab out of the Archive, however long it sleeps', () => {
+        expect(plan([dormant(protect('excluded-site'))])).toStrictEqual([]);
+        expect(plan([dormant({ runtime: 'live', ...protect('excluded-site') })])).toStrictEqual([]);
+      });
+
+      it('still lets automation discard it, under pressure too, and move it to Sleeping', () => {
+        const hidden = tab({ ...hiddenFor(5 * HOUR), ...protect('excluded-site') });
+        expect(plan([hidden])).toStrictEqual([act(hidden, 'discard', 'discard-hidden')]);
+
+        const target = due(protect('excluded-site'));
+        expect(plan([target], { settings: CAP0 })).toStrictEqual([
+          act(target, 'shelve', 'shelve-beyond-cap'),
+        ]);
       });
     });
 

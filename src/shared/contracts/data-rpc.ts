@@ -107,6 +107,21 @@ export const permissionRowSchema = z.strictObject({
 });
 export type PermissionRow = z.infer<typeof permissionRowSchema>;
 
+/** A site as a rule names it (core/url/site.ts): lower case, a host name's characters. */
+const ruleSite = z
+  .string()
+  .min(1)
+  .max(253)
+  .regex(/^[a-z0-9.\-[\]:]+$/);
+/** One site's rules (§5.3 site_rules, M5.1). A site with neither rule has no row. */
+export const siteRuleRowSchema = z.strictObject({
+  site: z.string().min(1).max(253),
+  protect: z.boolean(),
+  excludeMemory: z.boolean(),
+  createdAt: timestamp,
+});
+export type SiteRuleRow = z.infer<typeof siteRuleRowSchema>;
+
 export const DOWNLOAD_STATES = [
   'progressing',
   'paused',
@@ -376,6 +391,22 @@ export const DATA_METHODS = {
   'permissions.delete': {
     input: z.strictObject({ origin, permission: permissionName.optional() }),
     output: changed,
+  },
+
+  /** The user's site rules (M5.1), by site. */
+  'siteRules.list': {
+    input: z.strictObject({ limit: limit(10_000) }),
+    output: z.strictObject({ rules: z.array(siteRuleRowSchema).max(10_000) }),
+  },
+  /** Sets a site's two rules; a site left with neither loses its row. */
+  'siteRules.set': {
+    input: z.strictObject({
+      site: ruleSite,
+      protect: z.boolean(),
+      excludeMemory: z.boolean(),
+      at: timestamp,
+    }),
+    output: nothing,
   },
 
   /** Newest first. */

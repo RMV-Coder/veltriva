@@ -65,12 +65,12 @@ The table names a file or a test as evidence. The last column is the milestone t
 
 | Item | Status | Evidence | Closed by |
 |---|---|---|---|
-| Lifecycle presets plus advanced thresholds | partial | The settings document holds the preset and per-rule overrides (`src/shared/contracts/settings.ts`), and automation reads them, but no page sets them. | M5.1 |
-| Site rules: protect | partial | "Always protect ‹site›" in the tab menu (M3.4, stored in `lifecycle.protectedSites`). No list in which to see or remove them. | M5.1 |
-| Site rules: exclude from the memory | missing | `history.recordVisit` honors `site_rules.exclude_memory`, but nothing writes it. "Never auto-archived" and "closing keeps no record" aren't built. | M5.1 |
+| Lifecycle presets plus advanced thresholds | **done** (M5.1) | `veltriva://settings`: presets with plain descriptions, every advanced value and the pressure thresholds; main checks each change (`tests/e2e/settings.spec.ts`, `settings.test.ts`) | M5.1 |
+| Site rules: protect | **done** (M5.1) | the `site_rules` table (migration 3 moved M3.4's list there); Settings lists, adds and removes rules; the tab menu sets them | M5.1 |
+| Site rules: exclude from the memory | **done** (M5.1) | never recorded (the worker refuses the visit), never auto-archived (the `excluded-site` protection), and closing keeps no record (`keepsNoRecord`); `settings.spec.ts` | M5.1 |
 | Clear memory and site data | missing | — | M5.2 |
-| Default search engine | partial | DuckDuckGo by default; `settings.search.template` is read at start, but nothing sets it, and nothing asks at first run. | M5.1 |
-| Startup behavior | missing | The session is always restored. | M5.1 |
+| Default search engine | **done** (M5.1) | chosen on the welcome page at first run (DuckDuckGo preselected), changed in Settings, with a custom template checked by main | M5.1 |
+| Startup behavior | **done** (M5.1) | "Continue where you left off" or "Start with a new tab" (open tabs go to the Archive) | M5.1 |
 
 ### Release (Phase 6)
 
@@ -87,11 +87,11 @@ The table names a file or a test as evidence. The last column is the milestone t
 |---|---|---|---|
 | HTTP-auth prompt | done | `tests/e2e/sign-in.spec.ts` | — |
 | Scroll position restored across restarts (non-sensitive pages) | partial | Within a run, a discarded tab comes back where it was (Chromium's page state, M3.1). Across a restart a tab reloads at the top. ADR-0004 item 4 keeps Chromium's page state out of the database, so this needs a scroll offset of our own per tab, kept only for pages not marked sensitive. | M5.3 |
-| "Pause memory" toggle | missing | — | M5.1 |
+| "Pause memory" toggle | **done** (M5.1) | Settings; the history recorder sends nothing while it is on (`history-recorder.test.ts`, `settings.spec.ts`) | M5.1 |
 | Per-tab memory display | missing | The memory benchmark reads each process's private bytes (S8), but nothing shows them. | M5.3 |
 | Dark theme | done | follows Windows' setting (`nativeTheme`, the `app.themeChanged` event), light and dark throughout the shell. A choice in Settings is M5.1's, optionally. | — |
-| First-run onboarding (search engine, preset, preview mode) | missing | — | M5.1 |
-| The freeze experiment behind a flag | done | `lifecycle.freeze`, off by default (M3.1); its switch on a settings page is M5.1's | M5.1 (the switch) |
+| First-run onboarding (search engine, preset, preview mode) | **done** (M5.1) | `veltriva://welcome` on a new profile (`settings.spec.ts`) | M5.1 |
+| The freeze experiment behind a flag | done | `lifecycle.freeze`, off by default (M3.1), switched in Settings (M5.1) | — |
 | Regret rate on a diagnostics page | done | `veltriva://diagnostics` (M3.4) | — |
 | Silent auto-update once builds are signed | missing | — | Phase 6 |
 

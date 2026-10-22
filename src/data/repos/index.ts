@@ -11,6 +11,7 @@ import { historyHandlers } from './history';
 import { permissionHandlers } from './permissions';
 import { searchHandlers } from './search';
 import { settingsHandlers } from './settings';
+import { siteRuleHandlers } from './site-rules';
 import { tabHandlers } from './tabs';
 import { workspaceHandlers } from './workspaces';
 
@@ -23,6 +24,7 @@ export function createRepositoryHandlers(db: DatabaseConnection): RepositoryHand
     ...appRunHandlers(db),
     ...settingsHandlers(db),
     ...permissionHandlers(db),
+    ...siteRuleHandlers(db),
     ...downloadHandlers(db),
     ...historyHandlers(db),
     ...faviconHandlers(db),

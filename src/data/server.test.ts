@@ -454,6 +454,7 @@ describe('DATA_WRITES', () => {
       'permissions.list',
       'search.query',
       'settings.get',
+      'siteRules.list',
       'tabs.countArchived',
       'tabs.get',
       'tabs.list',

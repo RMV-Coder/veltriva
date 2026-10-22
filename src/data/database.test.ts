@@ -1,5 +1,5 @@
 // The opener and migration runner, on real files (ADR-0008 §3, assessment §5.6). Every historical
-// schema version has a fixture here: 0 is a new file, 1 is migrations/fixtures/veltriva-v1.db.
+// schema version has a fixture here: 0 is a new file, 1 and 2 are migrations/fixtures/veltriva-v<n>.db.
 import {
   copyFileSync,
   existsSync,
@@ -23,6 +23,7 @@ import { LATEST_VERSION, MIGRATIONS } from './migrations';
 import type { Migration } from './migrations';
 
 const V1_FIXTURE = join(import.meta.dirname, 'migrations', 'fixtures', 'veltriva-v1.db');
+const V2_FIXTURE = join(import.meta.dirname, 'migrations', 'fixtures', 'veltriva-v2.db');
 const NOW = Date.UTC(2026, 9, 21, 8, 30, 15);
 
 /** A harmless migration after the latest, to exercise the runner beyond the real history. */
@@ -273,7 +274,12 @@ describe('migration 2: favicons keep their bytes and type (M2.2b, threat T5)', (
   });
 
   it('upgrades the version 1 fixture after a backup, keeping its icon and every reference to it', async () => {
-    const { db, fromVersion, userVersion: version, backupFile } = await open();
+    const {
+      db,
+      fromVersion,
+      userVersion: version,
+      backupFile,
+    } = await open(MIGRATIONS.slice(0, 2));
     expect(fromVersion).toBe(1);
     expect(version).toBe(2);
     expect(backupFile).toBe(join(backupDir, 'veltriva-v1-before-v2-2026-10-21T08-30-15Z.db'));
@@ -336,6 +342,114 @@ describe('migration 2: favicons keep their bytes and type (M2.2b, threat T5)', (
     rmSync(`${file}-shm`, { force: true });
     const fresh = schema((await open()).db);
     expect(upgraded).toEqual(fresh);
+  });
+});
+
+describe('migration 3: site rules move to their table (M5.1)', () => {
+  beforeEach(() => {
+    copyFileSync(V2_FIXTURE, file);
+  });
+
+  const rules = (db: OpenedDatabase['db']) =>
+    db
+      .prepare(
+        'SELECT site, protect, exclude_memory AS excludeMemory FROM site_rules ORDER BY site',
+      )
+      .all();
+  const settings = (db: OpenedDatabase['db']): unknown =>
+    JSON.parse(db.prepare('SELECT json FROM settings').pluck().get() as string);
+
+  it('opens the version 2 fixture with every row intact, after a backup of it', async () => {
+    const { db, fromVersion, userVersion: version, backupFile } = await open();
+    expect(fromVersion).toBe(2);
+    expect(version).toBe(LATEST_VERSION);
+    expect(backupFile).toBe(join(backupDir, 'veltriva-v2-before-v3-2026-10-21T08-30-15Z.db'));
+    expect(userVersion(backupFile ?? '')).toBe(2);
+    expect(
+      Object.fromEntries(
+        ['tabs', 'pages', 'visits', 'permission_decisions', 'app_state', 'app_runs'].map(
+          (table) => [table, count(db, table)],
+        ),
+      ),
+    ).toEqual({
+      tabs: 2,
+      pages: 2,
+      visits: 3,
+      permission_decisions: 1,
+      app_state: 1,
+      app_runs: 1,
+    });
+    expect(db.pragma('foreign_key_check')).toEqual([]);
+    expect(db.pragma('quick_check', { simple: true })).toBe('ok');
+    db.exec("INSERT INTO pages_fts(pages_fts) VALUES ('integrity-check')");
+  });
+
+  it("makes each protected site a rule, keeping a site's exclusion and dropping what was never a site", async () => {
+    const { db } = await open();
+    expect(rules(db)).toEqual([
+      // 'Example.com' was the same site; '', 5 and a name too long were dropped.
+      { site: 'example.com', protect: 1, excludeMemory: 0 },
+      // Already excluded from the memory, and protected too: one row with both.
+      { site: 'github.com', protect: 1, excludeMemory: 1 },
+    ]);
+    const created = db
+      .prepare('SELECT site, created_at AS createdAt FROM site_rules ORDER BY site')
+      .all() as { site: string; createdAt: number }[];
+    // The new row is stamped now (the migration's clock); the old one keeps its own.
+    expect(created[0]?.createdAt).toBeGreaterThan(1_792_600_000_000);
+    expect(created[1]?.createdAt).toBe(1_792_600_000_000);
+  });
+
+  it('removes the list from the settings document and keeps everything else in it', async () => {
+    const { db } = await open();
+    expect(settings(db)).toEqual({
+      search: { template: 'https://duckduckgo.com/?q={searchTerms}' },
+      history: { retentionDays: 365 },
+      lifecycle: {
+        preset: 'gentle',
+        autoArchive: true,
+        freeze: false,
+        paused: false,
+        preview: 'off',
+        overrides: { stripCap: 12 },
+      },
+    });
+  });
+
+  it.each([
+    ['no settings document', null],
+    ['a document without the list', JSON.stringify({ lifecycle: { preset: 'gentle' } })],
+    ['a list that is not an array', JSON.stringify({ lifecycle: { protectedSites: 'a.com' } })],
+    ['an empty list', JSON.stringify({ lifecycle: { protectedSites: [] } })],
+  ])('adds no rule for %s', async (_what, json) => {
+    const fixture = new Database(file);
+    fixture.exec('DELETE FROM site_rules; DELETE FROM settings;');
+    if (json !== null) {
+      fixture.prepare('INSERT INTO settings VALUES (1, ?)').run([json]);
+    }
+    fixture.close();
+
+    const { db } = await open();
+    expect(rules(db)).toEqual([]);
+    if (json !== null) {
+      expect(settings(db)).not.toHaveProperty('lifecycle.protectedSites');
+    }
+  });
+
+  it('copies no more than the first 1,000 entries, as the document schema read them', async () => {
+    const fixture = new Database(file);
+    fixture.exec('DELETE FROM site_rules;');
+    const sites = Array.from({ length: 1005 }, (_, index) => `site-${String(index)}.example`);
+    fixture
+      .prepare('UPDATE settings SET json = ?')
+      .run([JSON.stringify({ lifecycle: { protectedSites: sites } })]);
+    fixture.close();
+
+    const { db } = await open();
+    expect(count(db, 'site_rules')).toBe(1000);
+    expect(
+      db.prepare("SELECT count(*) FROM site_rules WHERE site = 'site-1004.example'").pluck().get(),
+    ).toBe(0);
   });
 });
 
