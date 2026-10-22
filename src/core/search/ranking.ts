@@ -76,14 +76,18 @@ const PLACEMENT_ORDER: Readonly<Record<SearchPlacement, number>> = {
 };
 
 /**
- * Scores and sorts the candidates for `words` (SearchQuery.words) at `now`. Ties go to the more
- * recently visited page, then the lower page id, then the tab nearer the strip, then the tab id,
- * so the order never depends on how SQLite returned the rows.
+ * Scores and sorts the candidates for `words` (SearchQuery.words) at `now`, and returns the best
+ * `limit` of them (all by default), titles marked. Ties go to the more recently visited page,
+ * then the lower page id, then the tab nearer the strip, then the tab id, so the order never
+ * depends on how SQLite returned the rows. Only the returned results are marked: marking is the
+ * costly part, and the worker returns 50 of 200 (measured in M4.1: marking all 200 took
+ * 17–35 ms at 10k pages on the reference laptop).
  */
 export function rankCandidates(
   candidates: readonly SearchCandidate[],
   words: readonly string[],
   now: number,
+  limit = Number.POSITIVE_INFINITY,
 ): RankedResult[] {
   // FTS5's bm25 is never positive: the more relevant, the more negative. Dividing by the best
   // keeps proportions, so two near-equal matches stay near-equal (stretching the candidates'
@@ -95,7 +99,7 @@ export function rankCandidates(
     }
   }
 
-  const ranked = candidates.map((candidate): RankedResult => {
+  const scored = candidates.map((candidate): Omit<RankedResult, 'titleRanges'> => {
     const rank = candidate.textRank;
     const textScore =
       rank === null || !Number.isFinite(rank)
@@ -125,19 +129,21 @@ export function rankCandidates(
         breakdown.siteMatch +
         breakdown.state,
       breakdown,
-      titleRanges: titleRanges(candidate.title, words),
     };
   });
 
-  return ranked.sort(
-    (a, b) =>
-      b.score - a.score ||
-      b.lastVisitAt - a.lastVisitAt ||
-      a.pageId - b.pageId ||
-      (a.placement === null ? 3 : PLACEMENT_ORDER[a.placement]) -
-        (b.placement === null ? 3 : PLACEMENT_ORDER[b.placement]) ||
-      compareText(a.tabId ?? '', b.tabId ?? ''),
-  );
+  return scored
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.lastVisitAt - a.lastVisitAt ||
+        a.pageId - b.pageId ||
+        (a.placement === null ? 3 : PLACEMENT_ORDER[a.placement]) -
+          (b.placement === null ? 3 : PLACEMENT_ORDER[b.placement]) ||
+        compareText(a.tabId ?? '', b.tabId ?? ''),
+    )
+    .slice(0, limit)
+    .map((result) => ({ ...result, titleRanges: titleRanges(result.title, words) }));
 }
 
 function compareText(a: string, b: string): number {

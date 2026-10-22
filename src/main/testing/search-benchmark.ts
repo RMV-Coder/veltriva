@@ -96,7 +96,12 @@ export interface SearchBenchmarkResult {
   readonly workerThreadId: number;
 }
 
-export async function searchBenchmark({ data }: ScenarioContext): Promise<SearchBenchmarkResult> {
+export async function searchBenchmark({
+  data,
+  pauseAutomation,
+}: ScenarioContext): Promise<SearchBenchmarkResult> {
+  // Nothing else should write while the searches are timed.
+  pauseAutomation?.();
   await data.ready;
   const now = Number(process.env[BENCH_NOW_ENV] ?? Date.now());
   const search = async (query: string): Promise<Sample> => {

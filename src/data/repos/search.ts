@@ -131,9 +131,8 @@ export function searchHandlers(db: DatabaseConnection): Pick<RepositoryHandlers,
         placement: isPlacement(row.placement) ? row.placement : null,
         tabId: isPlacement(row.placement) ? row.tabId : null,
       }));
-      const results = rankCandidates(candidates, parsed.words, now)
-        .slice(0, limit)
-        .map((result): SearchResult => ({
+      const results = rankCandidates(candidates, parsed.words, now, limit).map(
+        (result): SearchResult => ({
           pageId: result.pageId,
           url: result.url,
           title: result.title,
@@ -148,7 +147,8 @@ export function searchHandlers(db: DatabaseConnection): Pick<RepositoryHandlers,
           score: result.score,
           breakdown: result.breakdown,
           titleRanges: result.titleRanges.map(([start, end]) => [start, end] as const),
-        }));
+        }),
+      );
       return { mode, results };
     },
   };
