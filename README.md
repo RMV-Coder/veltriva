@@ -4,7 +4,7 @@
 
 Veltriva is a local-first, Chromium-powered desktop browser that intelligently manages inactive tabs, preserves browsing context, and makes previously visited pages instantly searchable.
 
-**Status: Phase 2.** Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 (the browser foundation) is done:
+**Status: Phase 2 done; Phase 3 (tab lifecycle) next.** Veltriva has reached Milestone 0.1, daily dogfooding: it keeps your tabs, history and choices across restarts and crashes. Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 (the browser foundation) is done:
 - Milestone 1.1 built the project scaffold and CI.
 - Milestone 1.2 built the secure shell. The UI is served from `app://shell` with a strict Content Security Policy. It talks to the main process through a typed, validated IPC contract, and every web page gets a role and a locked-down policy.
 - Milestone 1.3a made it a browser, with tabs in a vertical sidebar (pinned first; reorder by dragging or with Alt+Shift+arrow keys). Its pieces:
@@ -27,7 +27,7 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
   - **Certificate errors:** a site whose certificate can't be trusted gets a warning page with no way past it, and so does a site that asks for a client certificate.
   - **Sign-in:** a site that asks for a password (HTTP authentication) gets a sign-in form in the toolbar strip. The password is sent once and never stored.
 - The Phase 1 wrap-up moved to Electron 44.9.0 (Phase 2 began with the 44.9.1 patch). It also added a checklist for the checks only a person can run, with real sites, real accounts, the keyboard and the packaged build: [docs/testing/phase-1-manual-checks.md](docs/testing/phase-1-manual-checks.md).
-- Phase 2 (persistence and session restore) is under way. [Its plan](docs/plans/phase-2-plan.md) is in the repository.
+- Phase 2 (persistence and session restore) is done. [Its plan](docs/plans/phase-2-plan.md) records what was built, where it differs from the plan, and the evidence for each Milestone 0.1 criterion. The checks only a person can run (restarts, kills, the window on real screens, a damaged database) are in [docs/testing/phase-2-manual-checks.md](docs/testing/phase-2-manual-checks.md).
   - Milestone 2.1a adds the local database: SQLite (better-sqlite3), opened in your profile folder by a worker thread, so a slow query never holds up a page.
   - Milestone 2.1b makes it durable: after a crash the file is checked, a damaged one is set aside and restored from a backup (a notice says so), a backup is taken daily while you're away, and quitting never waits more than 3 seconds for it.
   - Milestone 2.2a restores your session:

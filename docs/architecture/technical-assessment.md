@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| **Status** | **Approved 2026-10-16**: decisions D1–D8 accepted as recommended, recorded as [ADRs 0001–0009](../adr/README.md). Phase 0 spikes done (S7's manual checks pending); Phase 1 under way |
+| **Status** | **Approved 2026-10-16**: decisions D1–D8 accepted as recommended, recorded as [ADRs 0001–0009](../adr/README.md). Phase 0 spikes done; Phase 1 done (2026-10-17); Phase 2 done (2026-10-22, Milestone 0.1 reached, see §8.2); Phase 3 next |
 | **Date** | 2026-10-16 |
 | **Scope** | MVP for Windows 10/11 x64 |
 | **Identity** | Project *Veltriva* · repo `veltriva` · app *Veltriva Browser* · MIT license (after dependency license review) |
@@ -1353,6 +1353,8 @@ Effort assumes one developer at 15–20 h/week.
 | **5 · Settings, privacy & control** | Settings UI (presets and advanced), site rules, clear-data flows (database and Chromium storage), Pause memory, permission management, startup behavior, diagnostics page (regret rate, memory per tab) | 3, 4 | Every automatic action is explainable and reversible from the UI. Tests verify deletion: rows, index entries and file shrink. Invalid settings are rejected | 40–55 | 2–3 |
 | **6 · Quality & release** | Benchmark report (10, 25, 50, 100 tabs × 3 modes). Security review (checklist, threat-model re-check, dependency and **license audit**). Accessibility pass. NSIS installer with fuses and ASAR integrity. Signing, if approved. Update notification. README, architecture docs, screenshots and GIFs, release notes. Manual release workflow (tag → build → draft release) | all | Clean install on Windows 10 and 11 VMs. Reproducible benchmark report. Known limitations documented. CI green | 55–75 | 3–4 |
 | **Total** | | | | **440–585 h** | **~25–33 weeks** |
+
+**Progress, 2026-10-22.** Phases 0, 1 and 2 are done; **Milestone 0.1 (daily dogfooding) is reached**. Each Phase 2 acceptance criterion above, with its evidence and the test that proves it, is in [the Phase 2 plan's as-built record](../plans/phase-2-plan.md#milestone-01-acceptance-assessment-82); the hands-on checks are in `docs/testing/phase-2-manual-checks.md`. Still open from earlier phases: S7's OAuth-popup check (M2), and the manual checklists, which the user runs at the end. Phase 3 is next.
 
 At 15–20 h/week that's **about 6–8 months**. Add 15–20% contingency for Electron surprises. Daily dogfooding starts around **week 11–16**. Subagent assistance may shorten the *coding* hours, but review, debugging, dogfooding and decisions don't shrink the same way, so I plan against the full estimate and treat any speed-up as buffer.
 
