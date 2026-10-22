@@ -49,6 +49,7 @@ import { SYSTEM_TIMERS } from './platform/timers';
 import { installPageMenu } from './input/page-menu';
 import { createShortcutHandler } from './input/shortcuts';
 import { createCommandHandlers } from './ipc/commands';
+import { createMemoryCommands } from './memory/memory-commands';
 import type { LifecycleCommands } from './ipc/commands';
 import { createShellEvents } from './ipc/events';
 import { installIpcRouter } from './ipc/install';
@@ -440,6 +441,8 @@ async function start(): Promise<void> {
   downloads.restore(stored.downloads);
   // Created once the session is restored, below; until then TabManager's changes are its own.
   let sessionStore: SessionStore | undefined;
+  /** The workspace the session loaded (M4.2: the Archive list's rows); null without data. */
+  let workspaceId: string | null = null;
   // The memory (§5.5): visits, titles and icons, as tabs commit them.
   const historyRecorder = new HistoryRecorder({
     data,
@@ -848,6 +851,7 @@ async function start(): Promise<void> {
       loaded: loaded.rows,
     });
     sessionStore = store;
+    workspaceId = loaded.workspaceId;
     // The restored state (and any repair restoreSession made) is written once at the start.
     store.changed();
     dataLifecycle.addFlush(() => store.flush());
@@ -899,6 +903,13 @@ async function start(): Promise<void> {
       searchTemplate,
       placement,
       lifecycle: lifecycleCommands,
+      memory: createMemoryCommands({
+        data,
+        tabs,
+        placement,
+        workspaceId: () => workspaceId,
+        flushSession: () => sessionStore?.flush() ?? Promise.resolve(),
+      }),
     }),
     allowedOrigins: new Set(
       devServer === undefined ? [SHELL_ORIGIN] : [SHELL_ORIGIN, devServer.origin],
@@ -974,6 +985,8 @@ async function start(): Promise<void> {
           lifecycleDocument = { ...lifecycleDocument, paused: true };
           lifecycleSettings = resolveLifecycleSettings(lifecycleDocument);
         },
+        focus,
+        layout,
       });
     }
   }

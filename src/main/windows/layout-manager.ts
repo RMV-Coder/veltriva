@@ -3,8 +3,10 @@
 // (`layout.setInsets`). Tab views are added after the shell, so they paint above it (§3.3).
 //
 // Two more modes (M1.3b): in HTML fullscreen the tab fills the whole window, and for something
-// the shell must draw over the page (the fullscreen notice) the transparent shell is raised above
-// the tab (ADR-0006, option A′). The page stays visible and live underneath.
+// the shell must draw over the page the transparent shell is raised above the tab (ADR-0006,
+// option A′). The page stays visible and live underneath. Several things may want it raised at
+// once (M4.2): the fullscreen notice, the memory palette, the address bar's suggestions. It stays
+// raised until none does.
 import type { BaseWindow, WebContentsView } from 'electron';
 
 import { fillRect, insetRect } from '../../core/layout/rect';
@@ -12,6 +14,9 @@ import type { Insets, Rect } from '../../core/layout/rect';
 
 /** Until the shell measures its chrome: ADR-0009's toolbar and sidebar, so a tab never covers them. */
 const DEFAULT_INSETS: Insets = { top: 48, right: 0, bottom: 0, left: 260 };
+
+/** What may raise the shell above the page: the fullscreen notice, or one of the shell's overlays. */
+export type ShellRaiseReason = 'fullscreen-notice' | 'palette' | 'suggestions';
 
 export class LayoutManager {
   readonly #window: BaseWindow;
@@ -25,7 +30,8 @@ export class LayoutManager {
    */
   readonly #hidden = new Set<WebContentsView>();
   #fullscreen = false;
-  #shellRaised = false;
+  /** Why the shell is raised; it is raised while any reason holds. */
+  readonly #raisedFor = new Set<ShellRaiseReason>();
 
   constructor(window: BaseWindow, shell: WebContentsView) {
     this.#window = window;
@@ -71,7 +77,7 @@ export class LayoutManager {
     this.#content = view;
     this.#window.contentView.addChildView(view);
     view.setBounds(this.contentRect());
-    if (this.#shellRaised) {
+    if (this.#raisedFor.size > 0) {
       this.#window.contentView.addChildView(this.#shell);
     }
   }
@@ -120,28 +126,33 @@ export class LayoutManager {
   }
 
   /**
-   * Puts the shell above the tab (A′). The shell's view background is transparent, and while it is
-   * raised it must draw nothing but what belongs over the page. It gets every click over the
-   * content area until it is lowered; keyboard focus stays where it was.
+   * Puts the shell above the tab (A′), for `reason`. The shell's view background is transparent,
+   * and while it is raised it must draw nothing but what belongs over the page. It gets every
+   * click over the content area until it is lowered; keyboard focus stays where it was.
    */
-  raiseShell(): void {
+  raiseShell(reason: ShellRaiseReason = 'fullscreen-notice'): void {
     if (this.#window.isDestroyed()) {
       return;
     }
-    this.#shellRaised = true;
+    this.#raisedFor.add(reason);
     // Adding a child view it already has moves it to the top.
     this.#window.contentView.addChildView(this.#shell);
   }
 
-  /** Puts the tab back above the shell. */
-  lowerShell(): void {
+  /** Drops `reason`; once none is left, puts the tab back above the shell. */
+  lowerShell(reason: ShellRaiseReason = 'fullscreen-notice'): void {
     if (this.#window.isDestroyed()) {
       return;
     }
-    this.#shellRaised = false;
-    if (this.#content !== undefined) {
+    this.#raisedFor.delete(reason);
+    if (this.#raisedFor.size === 0 && this.#content !== undefined) {
       this.#window.contentView.addChildView(this.#content);
     }
+  }
+
+  /** Whether the shell is above the tab now, and for what. */
+  shellRaisedFor(): ReadonlySet<ShellRaiseReason> {
+    return new Set(this.#raisedFor);
   }
 
   #layout(): void {

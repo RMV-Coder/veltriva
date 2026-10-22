@@ -21,7 +21,9 @@ import { memoryBenchmark } from './benchmark-scenarios';
 import { searchBenchmark } from './search-benchmark';
 import { reportSession, sessionChurn } from './session-scenarios';
 import type { TabId, TabManager } from '../tabs/tab-manager';
+import type { FocusManager } from '../focus/focus-manager';
 import type { FullscreenController } from '../windows/fullscreen';
+import type { LayoutManager } from '../windows/layout-manager';
 import type { MainWindow } from '../windows/main-window';
 import type { WebContentsView } from 'electron';
 
@@ -41,6 +43,10 @@ export interface ScenarioContext {
   readonly startup: StartupSession | null;
   /** Pauses automation for this run (not saved): a measurement makes every move itself. */
   readonly pauseAutomation?: () => void;
+  /** Opens the memory palette the way Ctrl+Shift+K does (M4.2). */
+  readonly focus?: Pick<FocusManager, 'openPalette'>;
+  /** Says what the shell is raised for (ADR-0006 A′). */
+  readonly layout?: Pick<LayoutManager, 'shellRaisedFor'>;
 }
 
 const wait = (ms: number): Promise<void> =>
@@ -199,8 +205,54 @@ async function raisedShellKeepsPageVisible({
   return { windowMs, raised, stillRaised: fullscreen.shellRaised() };
 }
 
+/**
+ * ADR-0006 A′ for the memory palette (M4.2): Ctrl+Shift+K's path, through the shell, which paints
+ * the palette on a transparent page and asks to be raised. The page under it must stay `visible`
+ * and unthrottled, as under the fullscreen notice.
+ */
+async function paletteKeepsPageVisible({
+  main,
+  tabs,
+  views,
+  focus,
+  layout,
+}: ScenarioContext): Promise<unknown> {
+  if (focus === undefined || layout === undefined) {
+    throw new Error('The palette scenario needs the focus manager and the layout');
+  }
+  main.window.setAlwaysOnTop(true);
+  const tab = tabs.create();
+  tabs.navigate(tab, 'about:blank');
+  const view = await waitForView(views, tab);
+  await view.webContents.executeJavaScript(INSTALL_COUNTER);
+  // The shell must be up to hear the event: its page loads alongside the scenario.
+  const shellDeadline = Date.now() + LOAD_TIMEOUT_MS;
+  while (main.shell.webContents.isLoading() || main.shell.webContents.getURL() === '') {
+    if (Date.now() > shellDeadline) {
+      throw new Error('The shell did not load');
+    }
+    await wait(100);
+  }
+  await wait(1_000);
+  focus.openPalette();
+  const deadline = Date.now() + 10_000;
+  while (!layout.shellRaisedFor().has('palette')) {
+    if (Date.now() > deadline) {
+      throw new Error('The shell was not raised for the palette');
+    }
+    await wait(50);
+  }
+  await wait(500);
+  await view.webContents.executeJavaScript(RESET_COUNTER);
+  const windowMs = 2_500;
+  await wait(windowMs);
+  const raised = (await view.webContents.executeJavaScript(READ_COUNTER)) as unknown;
+  return { windowMs, raised, stillRaised: layout.shellRaisedFor().has('palette') };
+}
+
 const SCENARIOS: ReadonlyMap<string, Scenario> = new Map([
   ['raised-shell-keeps-page-visible', { run: raisedShellKeepsPageVisible }],
+  ['palette-keeps-page-visible', { run: paletteKeepsPageVisible }],
   ['background-tab-hidden', { run: backgroundTabHidden }],
   ['close-with-live-tabs', { run: closeWithLiveTabs, endsByClosingWindow: true }],
   ['quit-with-busy-database', { run: quitWithBusyDatabase, endsByClosingWindow: true }],

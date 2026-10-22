@@ -110,6 +110,11 @@ const MARKERS = [
   'generateSearchDataset',
   'seedSearchDatabase',
   'kubernetes ingress',
+  // M4.2: the palette's lifecycle scenario and the network log (src/main/testing/network-log.ts)
+  'palette-keeps-page-visible',
+  'paletteKeepsPageVisible',
+  'recordNetworkRequests',
+  'clearNetworkRequests',
   // src/main/testing/fail-fast.ts
   'exitOnUncaughtException',
   'Uncaught exception in main',

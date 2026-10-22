@@ -22,7 +22,7 @@ export function historyHandlers(
   db: DatabaseConnection,
 ): Pick<
   RepositoryHandlers,
-  'history.recordVisit' | 'history.updatePage' | 'history.pages' | 'history.visits'
+  'history.recordVisit' | 'history.updatePage' | 'history.pages' | 'history.page' | 'history.visits'
 > {
   const excluded = db
     .prepare('SELECT 1 FROM site_rules WHERE site = ? AND exclude_memory = 1')
@@ -61,6 +61,7 @@ export function historyHandlers(
   const pages = db.prepare(
     `SELECT ${PAGE_COLUMNS} FROM pages ORDER BY last_visit_at DESC, id DESC LIMIT ?`,
   );
+  const onePage = db.prepare(`SELECT ${PAGE_COLUMNS} FROM pages WHERE id = ?`);
   const visits = db.prepare(
     `SELECT id, visited_at AS visitedAt, transition, tab_id AS tabId FROM visits
      WHERE page_id = ? ORDER BY visited_at DESC, id DESC LIMIT ?`,
@@ -121,6 +122,9 @@ export function historyHandlers(
     'history.recordVisit': (input) => recordVisit(input),
     'history.updatePage': (input) => update(input),
     'history.pages': ({ limit }) => ({ pages: pages.all([limit]) as PageRow[] }),
+    'history.page': ({ pageId }) => ({
+      page: (onePage.get([pageId]) as PageRow | undefined) ?? null,
+    }),
     'history.visits': ({ pageId, limit }) => ({
       visits: visits.all([pageId, limit]) as DataVisit[],
     }),

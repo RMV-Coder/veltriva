@@ -2,7 +2,7 @@
 // `installTestHooks` behind `import.meta.env.MODE === 'test'`, which production builds fold to
 // `false` and drop, and `npm run package:dir` refuses a build that still contains the marker.
 // Tests reach the hooks with `electronApp.evaluate(() => globalThis.__veltrivaTest...)`.
-import { webContents } from 'electron';
+import { session, webContents } from 'electron';
 import type { WebContentsView } from 'electron';
 
 import type { Rect } from '../../core/layout/rect';
@@ -42,7 +42,14 @@ import type { ClientHints } from '../web/client-hints';
 import type { LayoutManager } from '../windows/layout-manager';
 import type { MainWindow } from '../windows/main-window';
 import type { PopupWindowInfo, PopupWindows } from '../windows/popup-windows';
+import { BROWSING_PARTITION } from '../../shared/constants/app-identity';
 import { recordedExternalLaunches } from './external-launches';
+import {
+  clearNetworkRequests,
+  recordNetworkRequests,
+  recordedNetworkRequests,
+} from './network-log';
+import type { NetworkRequestEntry } from './network-log';
 import { recordedRuntimeTransitions } from './runtime-transitions';
 import { recordedFileActions, testDownloadsFolder } from './test-files';
 
@@ -104,6 +111,12 @@ export interface VeltrivaTestHooks {
    * any app (src/main/testing/external-launches.ts).
    */
   externalLaunches(): string[];
+  /**
+   * Every request any of the app's sessions made since the last clear (M4.2): the browsing
+   * session, the shell's and the default one (src/main/testing/network-log.ts).
+   */
+  networkRequests(): NetworkRequestEntry[];
+  clearNetworkRequests(): void;
   /** The open popup windows, with what their address bar shows and their layout. */
   popupWindows(): PopupWindowInfo[];
   /** Whether main knows Chromium's client-hint values, so navigations carry the hints. */
@@ -256,6 +269,13 @@ export function installTestHooks({
   lifecycle,
 }: TestHookContext): void {
   const testTabs = new Set<WebContentsView>();
+  recordNetworkRequests(
+    new Map([
+      ['browsing', session.fromPartition(BROWSING_PARTITION)],
+      ['shell', main.shell.webContents.session],
+      ['default', session.defaultSession],
+    ]),
+  );
   /** A tab as `tabStates` reports it: its state and its view's. */
   const stateEntry = (tab: TabState): TabStateEntry => {
     const view = views.get(tab.id);
@@ -358,6 +378,14 @@ export function installTestHooks({
 
     externalLaunches() {
       return recordedExternalLaunches();
+    },
+
+    networkRequests() {
+      return recordedNetworkRequests();
+    },
+
+    clearNetworkRequests() {
+      clearNetworkRequests();
     },
 
     popupWindows() {

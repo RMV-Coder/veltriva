@@ -732,6 +732,15 @@ describe('history', () => {
     });
   });
 
+  describe('history.page (M4.2: opening a search result)', () => {
+    it('reads one page by id, or null', () => {
+      const { call, pages } = setup();
+      const { pageId } = call('history.recordVisit', visit(1));
+      expect(call('history.page', { pageId: must(pageId) }).page).toEqual(pages()[0]);
+      expect(call('history.page', { pageId: must(pageId) + 100 }).page).toBeNull();
+    });
+  });
+
   describe('history.pages', () => {
     it('is empty before any visit', () => {
       expect(setup().call('history.pages', { limit: 10 })).toEqual({ pages: [] });

@@ -1408,6 +1408,63 @@ describe('TabManager placement: archiving', () => {
   });
 });
 
+describe('TabManager placement: an archived tab only the database held (M4.2)', () => {
+  it('takes it into memory, so it can be brought back, and the count stays the same', () => {
+    const env = setupEmpty();
+    env.manager.restoreSession(
+      session({
+        tabs: [savedTab('a')],
+        selectedTabId: 'a',
+        archived: [archivedTab('new', { archivedAt: 9000 })],
+        archivedCount: 3,
+      }),
+    );
+    expect(env.manager.archivedCount()).toBe(3);
+
+    env.manager.adoptArchived(archivedTab('old', { archivedAt: 1000 }));
+    expect(env.manager.archivedCount()).toBe(3);
+    // Newest first, as the sidebar lists them.
+    expect(env.archived()).toEqual(['new', 'old']);
+
+    expect(env.manager.restoreArchived('old')).toBe('old');
+    expect(env.strip()).toEqual(['a', 'old']);
+    expect(env.manager.selectedTabId()).toBe('old');
+    expect(env.manager.archivedCount()).toBe(2);
+  });
+
+  it('changes nothing for a tab memory already has, archived or live', () => {
+    const env = setupEmpty();
+    env.manager.restoreSession(
+      session({
+        tabs: [savedTab('a')],
+        selectedTabId: 'a',
+        archived: [archivedTab('x')],
+        archivedCount: 1,
+      }),
+    );
+
+    env.manager.adoptArchived(archivedTab('x'));
+    env.manager.adoptArchived(archivedTab('a'));
+
+    expect(env.archived()).toEqual(['x']);
+    expect(env.strip()).toEqual(['a']);
+    expect(env.manager.archivedCount()).toBe(1);
+  });
+
+  it('refuses one with nothing to bring back, as startup does', () => {
+    const env = setupEmpty();
+    env.manager.restoreSession(
+      session({ tabs: [savedTab('a')], selectedTabId: 'a', archivedCount: 1 }),
+    );
+
+    env.manager.adoptArchived(archivedTab('bad', { url: SESSION_NEW_TAB_URL, history: null }));
+
+    expect(env.archived()).toEqual([]);
+    expect(env.manager.restoreArchived('bad')).toBeNull();
+    expect(env.manager.archivedCount()).toBe(1);
+  });
+});
+
 describe('TabManager placement: bringing back an archived tab', () => {
   it('puts it next to the selected tab and selects it', () => {
     const env = setupEmpty();

@@ -305,8 +305,18 @@ export const DATA_METHODS = {
   },
   /** Archived tabs (placement 'archive'), newest first (M3.3); tabs_archived_idx serves it. */
   'tabs.listArchived': {
-    input: z.strictObject({ workspaceId: uuid, limit: limit(1000) }),
+    input: z.strictObject({
+      workspaceId: uuid,
+      limit: limit(1000),
+      /** Rows to skip, newest first: the Archive list's window (M4.2). */
+      offset: z.number().int().min(0).max(10_000_000).optional(),
+    }),
     output: z.strictObject({ tabs: z.array(tabRowSchema).max(1000) }),
+  },
+  /** One tab's row, whatever its placement, or null (M4.2: restoring an archived tab by id). */
+  'tabs.get': {
+    input: z.strictObject({ id: uuid }),
+    output: z.strictObject({ tab: tabRowSchema.nullable() }),
   },
   /** How many tabs a workspace has archived (M3.3: the Archive section's count). */
   'tabs.countArchived': {
@@ -429,6 +439,11 @@ export const DATA_METHODS = {
   'history.pages': {
     input: z.strictObject({ limit: limit(1000) }),
     output: z.strictObject({ pages: z.array(pageRowSchema).max(1000) }),
+  },
+  /** One page of the memory, or null (M4.2: opening a search result). */
+  'history.page': {
+    input: z.strictObject({ pageId: rowId }),
+    output: z.strictObject({ page: pageRowSchema.nullable() }),
   },
   /** One page's visits, newest first. */
   'history.visits': {

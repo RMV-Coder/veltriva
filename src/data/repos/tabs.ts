@@ -31,7 +31,7 @@ const LIST = `${SELECT}
 const LIST_ARCHIVED = `${SELECT}
   WHERE workspace_id = ? AND placement = 'archive'
   ORDER BY archived_at DESC, id DESC
-  LIMIT ?`;
+  LIMIT ? OFFSET ?`;
 
 /** Recently closed, newest first; tabs_closed_idx serves it. */
 const LIST_CLOSED = `${SELECT}
@@ -81,6 +81,7 @@ export function tabHandlers(
   | 'tabs.listArchived'
   | 'tabs.countArchived'
   | 'tabs.purgeClosed'
+  | 'tabs.get'
   | 'session.save'
 > {
   const list = db.prepare(LIST);
@@ -94,6 +95,7 @@ export function tabHandlers(
        SELECT id FROM tabs WHERE placement = 'closed' AND closed_at < ? ORDER BY closed_at LIMIT ?
      )`,
   );
+  const getOne = db.prepare(`${SELECT} WHERE id = ?`);
   const upsert = db.prepare(UPSERT);
   const pageOf = pageLinker(db);
   const deleteMany = db.prepare('DELETE FROM tabs WHERE id IN (SELECT value FROM json_each(?))');
@@ -146,9 +148,13 @@ export function tabHandlers(
     'tabs.listClosed': ({ workspaceId, limit }) => ({
       tabs: (listClosed.all([workspaceId, limit]) as StoredTab[]).map(toTabRow),
     }),
-    'tabs.listArchived': ({ workspaceId, limit }) => ({
-      tabs: (listArchived.all([workspaceId, limit]) as StoredTab[]).map(toTabRow),
+    'tabs.listArchived': ({ workspaceId, limit, offset = 0 }) => ({
+      tabs: (listArchived.all([workspaceId, limit, offset]) as StoredTab[]).map(toTabRow),
     }),
+    'tabs.get': ({ id }) => {
+      const row = getOne.get([id]) as StoredTab | undefined;
+      return { tab: row === undefined ? null : toTabRow(row) };
+    },
     'tabs.countArchived': ({ workspaceId }) => ({
       count: (countArchived.get([workspaceId]) as { count: number }).count,
     }),

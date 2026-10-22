@@ -9,6 +9,8 @@
 //     bar for a new tab. A switch by keyboard inside the sidebar keeps focus in the sidebar.
 //   - F6: from the page to the address bar, and from the shell to the page.
 //   - Closing the find bar, or the fullscreen notice: back to the page.
+//   - Ctrl+Shift+K: the shell, which opens the memory palette (M4.2); the palette's overlay keeps
+//     it while open, and closing it without opening anything gives the page its keyboard back.
 import type { WebContentsView } from 'electron';
 
 import type { ShellEvents } from '../ipc/events';
@@ -41,6 +43,17 @@ export class FocusManager {
   focusFindBar(): void {
     this.#focusShell();
     this.#options.events.emit('ui.focusFind', {});
+  }
+
+  /** Ctrl+Shift+K: the shell gets the keyboard and opens the memory palette (M4.2). */
+  openPalette(): void {
+    this.#focusShell();
+    this.#options.events.emit('ui.openPalette', {});
+  }
+
+  /** The shell's overlay is up (ADR-0006 A′): its field has the keyboard. */
+  focusShell(): void {
+    this.#focusShell();
   }
 
   /** The selected tab's page; for a tab without one, the address bar (a new tab) or the shell. */

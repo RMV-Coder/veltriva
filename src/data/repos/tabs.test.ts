@@ -431,6 +431,60 @@ describe('tabs', () => {
     });
   });
 
+  describe('tabs.listArchived and tabs.get (M4.2: the Archive list)', () => {
+    const archived = (n: number, at: number): TabRow =>
+      tabRow(n, { placement: 'archive', archivedAt: at, archiveReason: 'auto', position: 0 });
+
+    it('lists archived tabs newest first, a window at a time', () => {
+      const { call } = setup();
+      call('tabs.upsertMany', {
+        tabs: [
+          archived(1, T0 + 10),
+          archived(2, T0 + 30),
+          archived(3, T0 + 20),
+          archived(4, T0 + 40),
+          tabRow(5),
+        ],
+      });
+      const window = (offset: number, limit: number) =>
+        call('tabs.listArchived', { workspaceId: WORKSPACE_ID, limit, offset }).tabs.map(
+          (row) => row.id,
+        );
+
+      expect(window(0, 10)).toEqual([testId(104), testId(102), testId(103), testId(101)]);
+      expect(window(1, 2)).toEqual([testId(102), testId(103)]);
+      expect(window(3, 10)).toEqual([testId(101)]);
+      expect(window(4, 10)).toEqual([]);
+      // No offset: from the newest, as before M4.2.
+      expect(
+        call('tabs.listArchived', { workspaceId: WORKSPACE_ID, limit: 1 }).tabs.map(
+          (row) => row.id,
+        ),
+      ).toEqual([testId(104)]);
+    });
+
+    it('breaks a tie in time by id, so windows never overlap or skip', () => {
+      const { call } = setup();
+      call('tabs.upsertMany', { tabs: [archived(1, T0), archived(2, T0), archived(3, T0)] });
+      const ids = [0, 1, 2].flatMap((offset) =>
+        call('tabs.listArchived', { workspaceId: WORKSPACE_ID, limit: 1, offset }).tabs.map(
+          (row) => row.id,
+        ),
+      );
+      expect(ids).toEqual([testId(103), testId(102), testId(101)]);
+    });
+
+    it('reads one tab by id, whatever its placement, or null', () => {
+      const { call } = setup();
+      const row = archived(1, T0);
+      call('tabs.upsertMany', { tabs: [row, tabRow(2)] });
+
+      expect(call('tabs.get', { id: row.id }).tab).toEqual(row);
+      expect(call('tabs.get', { id: testId(102) }).tab?.placement).toBe('strip');
+      expect(call('tabs.get', { id: testId(199) }).tab).toBeNull();
+    });
+  });
+
   describe('tabs.deleteMany', () => {
     it('deletes the listed tabs and counts them', () => {
       const { call } = setup();

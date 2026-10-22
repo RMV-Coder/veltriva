@@ -1429,6 +1429,29 @@ export class TabManager {
   }
 
   /**
+   * Takes an archived tab the database holds but memory doesn't (only the newest
+   * MAX_ARCHIVED_IN_MEMORY are kept) into memory, so it can be restored (M4.2: the Archive list
+   * and search reach every archived tab). Already in memory, or a live tab: nothing changes.
+   */
+  adoptArchived(entry: ArchivedTab): void {
+    if (this.#records.has(entry.id) || this.#archived.some((held) => held.id === entry.id)) {
+      return;
+    }
+    const checked = checkedSessionTab(entry);
+    if (checked.url === '') {
+      return; // As at startup: nothing to bring back.
+    }
+    // Oldest first: it goes before every newer one, so restoring it leaves the order right.
+    const at = this.#archived.findIndex((held) => held.archivedAt > entry.archivedAt);
+    this.#archived.splice(at === -1 ? this.#archived.length : at, 0, {
+      ...entry,
+      ...checked,
+      pinned: false,
+    });
+    this.#archivedElsewhere = Math.max(0, this.#archivedElsewhere - 1);
+  }
+
+  /**
    * Brings an archived tab back (§4.4): to the strip next to the selected tab and selected, or,
    * for an Undo, to where it was (`to`, `index`) without selecting it. Null if it isn't in memory.
    */

@@ -64,17 +64,10 @@ export async function loadSession(
     workspaceId,
     tabs: strip.tabs.map(toSessionTab),
     shelf: shelf.tabs.map(toSessionTab),
-    archived: archived.tabs.flatMap((row) =>
-      row.archivedAt === null
-        ? []
-        : [
-            {
-              ...toSessionTab(row),
-              archivedAt: row.archivedAt,
-              reason: row.archiveReason ?? 'auto',
-            },
-          ],
-    ),
+    archived: archived.tabs.flatMap((row) => {
+      const tab = toArchivedTab(row);
+      return tab === null ? [] : [tab];
+    }),
     archivedCount: archivedCount.count,
     closed: closed.tabs.flatMap((row) =>
       row.closedAt === null
@@ -88,6 +81,14 @@ export async function loadSession(
       .map((run) => ({ startedAt: run.startedAt, endedAt: run.endedAt, exitKind: run.exitKind })),
     rows: [...strip.tabs, ...shelf.tabs, ...archived.tabs, ...closed.tabs],
   };
+}
+
+/** An archived row as TabManager keeps it, or null for a row that isn't archived (M4.2). */
+export function toArchivedTab(row: TabRow): ArchivedTab | null {
+  if (row.placement !== 'archive' || row.archivedAt === null) {
+    return null;
+  }
+  return { ...toSessionTab(row), archivedAt: row.archivedAt, reason: row.archiveReason ?? 'auto' };
 }
 
 function toSessionTab(row: TabRow): SessionTab {

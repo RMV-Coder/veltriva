@@ -132,7 +132,7 @@ function createCommandRunner({ tabs, focus, fullscreen }: ShortcutDependencies) 
         }
         return;
       case 'memoryPalette':
-        // Reserved for the memory palette (Phase 4); nothing to open yet.
+        focus.openPalette();
         return;
     }
   };

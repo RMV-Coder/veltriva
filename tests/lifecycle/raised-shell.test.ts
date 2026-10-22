@@ -26,3 +26,18 @@ describe('a page under the raised shell', () => {
     expect(result.raised.ticks).toBeGreaterThanOrEqual(result.windowMs / 100 / 2);
   });
 });
+
+describe('a page under the memory palette (M4.2)', () => {
+  it('stays visible and is not throttled while Ctrl+Shift+K raises the shell', async () => {
+    const { result } = await runScenario<{
+      windowMs: number;
+      raised: Reading;
+      stillRaised: boolean;
+    }>('palette-keeps-page-visible');
+
+    // Measured while the palette was open, with the shell above the page.
+    expect(result.stillRaised).toBe(true);
+    expect(result.raised.visibility).toBe('visible');
+    expect(result.raised.ticks).toBeGreaterThanOrEqual(result.windowMs / 100 / 2);
+  });
+});

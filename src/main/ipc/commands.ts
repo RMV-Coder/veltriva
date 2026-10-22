@@ -9,6 +9,7 @@ import type { DownloadManager } from '../downloads/download-manager';
 import type { ExternalProtocolGuard } from '../external/protocol-guard';
 import type { FocusManager } from '../focus/focus-manager';
 import type { PlacementActions } from '../lifecycle/placement-actions';
+import type { MemoryCommands } from '../memory/memory-commands';
 import type { ContextMenus } from '../menus/context-menu';
 import { submitAddress } from '../navigation/submit';
 import type { AppNotices } from '../notices/app-notices';
@@ -39,6 +40,8 @@ export interface CommandContext {
   readonly placement: PlacementActions;
   /** Undo and the activity log (M3.3). */
   readonly lifecycle: LifecycleCommands;
+  /** Searching the memory, opening results, the Archive list (M4.2). */
+  readonly memory: MemoryCommands;
 }
 
 export interface LifecycleCommands {
@@ -72,6 +75,7 @@ export function createCommandHandlers({
   searchTemplate,
   placement,
   lifecycle,
+  memory,
 }: CommandContext): CommandHandlers {
   /** Runs `action` on an existing tab, or answers `not_found`. */
   const onTab = <T>(tabId: TabId, action: () => T): T => {
@@ -280,9 +284,10 @@ export function createCommandHandlers({
       }
       return { moved: await placement.archive(tabId) };
     },
-    'tabs.restore': ({ tabId, keepFocus }) => {
-      // A tab in the strip or Sleeping, or one in the Archive (not a live tab: `has` is false).
-      const restored = placement.restore(tabId, { focus: keepFocus !== true });
+    'tabs.restore': async ({ tabId, keepFocus }) => {
+      // A tab in the strip or Sleeping, or one in the Archive (not a live tab: `has` is false),
+      // even one only the database still holds (M4.2: the Archive list reaches them all).
+      const restored = await memory.restore(tabId, { focus: keepFocus !== true });
       if (restored === null) {
         throw new CommandError('not_found');
       }
@@ -317,6 +322,24 @@ export function createCommandHandlers({
         return { site };
       }),
     'lifecycle.diagnostics': () => lifecycle.diagnostics(),
+
+    'memory.search': (input) => memory.search(input),
+    'memory.open': async (input) => ({ tabId: await memory.open(input) }),
+    // ADR-0006 A′: the shell painted its overlay on a transparent page; raise it and give it the
+    // keyboard. Hiding lowers it once nothing else wants it raised.
+    'overlay.show': ({ overlay }) => {
+      layout.raiseShell(overlay);
+      focus.focusShell();
+      return done;
+    },
+    'overlay.hide': ({ overlay, focusPage }) => {
+      layout.lowerShell(overlay);
+      if (focusPage) {
+        focus.focusSelected();
+      }
+      return done;
+    },
+    'archive.list': (input) => memory.archiveList(input),
 
     'layout.setInsets': (insets) => {
       layout.setInsets(insets);

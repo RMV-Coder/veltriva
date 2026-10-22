@@ -45,6 +45,50 @@ const batchId = z.string().regex(/^(?:batch|manual)-[0-9]{1,15}$/);
 /** The archived tabs main keeps in memory and the shell lists ("Recently archived"). */
 export const MAX_LISTED_ARCHIVED = 200;
 
+/** The palette's filters (M4.2, §7.3): Tab steps through them. */
+export const MEMORY_SCOPES = ['all', 'open', 'sleeping', 'archived', 'today', 'week'] as const;
+export type MemoryScope = (typeof MEMORY_SCOPES)[number];
+/** What a memory search may carry: the data worker reads at most 256 characters of it. */
+export const MAX_MEMORY_QUERY = 1024;
+/** Results per memory search: a palette page, or the address bar's few. */
+export const MAX_MEMORY_RESULTS = 50;
+/** Rows per Archive list window (M4.2). */
+export const MAX_ARCHIVE_WINDOW = 200;
+/** A site as the memory stores it: a host name or registrable domain, lower case. */
+const memorySite = z
+  .string()
+  .min(1)
+  .max(253)
+  .regex(/^[a-z0-9.\-[\]:]+$/);
+const memoryPageId = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
+const overlayName = z.enum(['palette', 'suggestions']);
+const memoryScore = z.number().min(-1e9).max(1e9);
+/** One memory search result (M4.2): what the palette and the address bar show. */
+const memoryResult = z.strictObject({
+  pageId: memoryPageId,
+  title: z.string().max(1024),
+  /** The page's address, as the display rules show it (core/url/display.ts). */
+  address: z.string().max(4096),
+  site: z.string().max(253),
+  lastVisitAt: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  visitCount: z.number().int().nonnegative(),
+  /** The tab showing the page, unless it's closed: in the strip (Tabs), Sleeping or the Archive. */
+  tab: z.strictObject({ tabId, placement: z.enum(['strip', 'shelf', 'archive']) }).nullable(),
+  /** Where the words start words of the title: [start, end) in UTF-16 units, sorted, disjoint. */
+  titleRanges: z
+    .array(z.tuple([z.number().int().min(0).max(1024), z.number().int().min(0).max(1024)]))
+    .max(32),
+  score: memoryScore,
+  /** Each weighted term of the score (core/search/ranking.ts), for the debug view. */
+  breakdown: z.strictObject({
+    text: memoryScore,
+    frecency: memoryScore,
+    titleExact: memoryScore,
+    siteMatch: memoryScore,
+    state: memoryScore,
+  }),
+});
+
 /** What a tab's address shows: rebuilt by main from the parsed URL (src/core/url/display.ts). */
 const addressSnapshot = z.strictObject({
   text: z.string().max(4096),
@@ -167,7 +211,7 @@ const tabSnapshot = z.strictObject({
 });
 
 /** An archived tab: data only, never a page (I3). Restoring it brings it back next to the current tab. */
-const archivedTabSnapshot = z.strictObject({
+export const archivedTabSnapshot = z.strictObject({
   id: tabId,
   title: z.string().max(1024),
   address: addressSnapshot,
@@ -463,6 +507,67 @@ export const commandSchemas = {
       }),
     }),
   },
+  /**
+   * Searches the memory (M4.2, assessment §5.4, §7.3): the palette and the address bar. The words
+   * go to the data worker as typed; main reads a `site:<domain>` word out of them, which, like
+   * `site`, keeps the results on that site. `scope` is the palette's filter:
+   *   - `open`, `sleeping`, `archived`: only pages a tab there shows;
+   *   - `today`, `week`: visited since local midnight, or in the last 7 days.
+   * Results come ranked, each with the tab showing it (if any), title marks and its score terms.
+   */
+  'memory.search': {
+    input: z.strictObject({
+      query: z.string().max(MAX_MEMORY_QUERY),
+      scope: z.enum(MEMORY_SCOPES),
+      site: memorySite.optional(),
+      limit: z.number().int().min(1).max(MAX_MEMORY_RESULTS),
+    }),
+    output: z.strictObject({
+      mode: z.enum(['text', 'recent']),
+      /** The site the results are kept to, from `site` or a `site:` word; null for none. */
+      site: memorySite.nullable(),
+      results: z.array(memoryResult).max(MAX_MEMORY_RESULTS),
+    }),
+  },
+  /**
+   * Opens a search result (M4.2). `switch`: its tab, brought back from Sleeping or the Archive if
+   * need be, or a new tab when no tab shows it (any more). `newTab`: always a new tab, the page's
+   * address. `current`: the selected tab goes there (the address bar's suggestion). Returns the
+   * tab now showing it, selected, with the page's keyboard focus.
+   */
+  'memory.open': {
+    input: z.strictObject({
+      pageId: memoryPageId,
+      tabId: tabId.optional(),
+      target: z.enum(['switch', 'newTab', 'current']),
+    }),
+    output: tabRef,
+  },
+  /**
+   * The shell has painted an overlay on a transparent page (ADR-0006 A′): main raises the shell
+   * above the tab and gives it the keyboard. One handshake per overlay; the shell stays raised
+   * while any overlay (or the fullscreen notice) wants it.
+   */
+  'overlay.show': { input: z.strictObject({ overlay: overlayName }), output: nothing },
+  /** The overlay closed: main lowers the shell once nothing wants it, and may focus the page. */
+  'overlay.hide': {
+    input: z.strictObject({ overlay: overlayName, focusPage: z.boolean() }),
+    output: nothing,
+  },
+  /**
+   * A window of the Archive list (M4.2), newest first, from the database: any of the archived
+   * tabs, not only the newest 200 the snapshot carries. `total` is how many there are now.
+   */
+  'archive.list': {
+    input: z.strictObject({
+      offset: z.number().int().min(0).max(10_000_000),
+      limit: z.number().int().min(1).max(MAX_ARCHIVE_WINDOW),
+    }),
+    output: z.strictObject({
+      total: z.number().int().nonnegative(),
+      tabs: z.array(archivedTabSnapshot).max(MAX_ARCHIVE_WINDOW),
+    }),
+  },
 } as const satisfies Record<CommandName, CommandSchema>;
 
 export const eventSchemas = {
@@ -470,6 +575,7 @@ export const eventSchemas = {
   'workspace.changed': workspaceSnapshot,
   'ui.focusAddressBar': nothing,
   'ui.focusFind': nothing,
+  'ui.openPalette': nothing,
 } as const satisfies Record<EventName, z.ZodType>;
 
 export type CommandInput<C extends CommandName> = z.input<(typeof commandSchemas)[C]['input']>;

@@ -58,19 +58,25 @@ export const COMMAND_NAMES = [
   'lifecycle.endPreview',
   'tabs.setSiteProtected',
   'lifecycle.diagnostics',
+  'memory.search',
+  'memory.open',
+  'overlay.show',
+  'overlay.hide',
+  'archive.list',
 ] as const;
 export type CommandName = (typeof COMMAND_NAMES)[number];
 
 /**
  * `workspace.changed` carries a versioned, coalesced snapshot: at most one per ~16 ms.
  * `ui.focusAddressBar` and `ui.focusFind` come after main gave the shell keyboard focus (Ctrl+L,
- * Ctrl+F): the shell focuses that field.
+ * Ctrl+F): the shell focuses that field. `ui.openPalette` likewise, for Ctrl+Shift+K (M4.2).
  */
 export const EVENT_NAMES = [
   'app.themeChanged',
   'workspace.changed',
   'ui.focusAddressBar',
   'ui.focusFind',
+  'ui.openPalette',
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 
