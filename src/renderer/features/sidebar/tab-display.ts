@@ -4,7 +4,7 @@ interface DisplayableTab {
   /** Page-controlled text, already sanitized by main. May be empty. */
   readonly title: string;
   readonly address: { readonly text: string };
-  readonly runtime: 'unloaded' | 'creating' | 'live' | 'crashed';
+  readonly runtime: 'unloaded' | 'creating' | 'live' | 'frozen' | 'discarding' | 'crashed';
   readonly loading: boolean;
   readonly page: { readonly kind: 'web' } | { readonly kind: 'internal'; readonly name: string };
 }

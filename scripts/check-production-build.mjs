@@ -34,6 +34,13 @@ const MARKERS = [
   'dataReady',
   'holdDataWorker',
   'showNotice',
+  // (the hook `lifecycleFacts` is not here: production TabManager has a method of that name)
+  'discardTab',
+  'freezeTab',
+  'runtimeTransitions',
+  // src/main/testing/runtime-transitions.ts
+  'recordRuntimeTransition',
+  'recordedRuntimeTransitions',
   // src/main/testing/data-hold.ts and src/data/testing/hold.ts: holding the data worker
   'veltriva-test-hold',
   'holdThread',

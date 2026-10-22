@@ -54,6 +54,7 @@ import { TabManager } from './tabs/tab-manager';
 import { createTabRuntimes } from './tabs/tab-runtime';
 import { createWorkspaceProjector } from './tabs/workspace-projector';
 import { recordExternalLaunch } from './testing/external-launches';
+import { recordRuntimeTransition } from './testing/runtime-transitions';
 import { exitOnUncaughtException } from './testing/fail-fast';
 import { recordingFileActions, testDownloadsFolder } from './testing/test-files';
 import { LIFECYCLE_SCENARIO_ENV, runLifecycleScenario } from './testing/lifecycle-scenarios';
@@ -390,6 +391,8 @@ async function start(): Promise<void> {
       blockedPopups.clear(tabId);
     },
     history: historyRecorder,
+    // Test builds record the runtime transitions for the specs (M3.1).
+    ...(import.meta.env.MODE === 'test' ? { onTransition: recordRuntimeTransition } : {}),
   });
   const focus = new FocusManager({ shell: main.shell, tabs: () => tabs, events });
   const fullscreen = new FullscreenController({

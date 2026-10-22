@@ -2,14 +2,21 @@
 // this class decides. It has no Electron imports: each tab's web contents sits behind the
 // TabRuntime port (./tab-runtime.ts in the app, fakes in tests).
 //
-// Invariants, checked by the unit tests after every operation:
-//   1. Order is pinned tabs first, then the rest; ids are unique.
-//   2. A non-empty strip has exactly one selected tab; an empty strip has none.
-//   3. At most one runtime is shown: the selected tab's, and only while it shows web content.
-//   4. A closed tab's runtime is destroyed; nothing refers to it afterwards (ADR-0002 §2).
-//
-// The tab model is shaped for ADR-0003: placement is always 'strip' until Phase 3, and runtime
-// is a subset of its states (unloaded, creating, live, crashed).
+// Invariants (assessment §4.5), checked by the unit tests after every operation and by the
+// model-based tests after every step (tab-manager-model.test.ts):
+//   I1. A non-empty strip has exactly one selected tab, in the strip; an empty strip has none.
+//   I2. The selected tab is creating, live or crashed: selecting wakes it. It is unloaded only
+//       while it shows an internal page, or in safe mode until the user picks it.
+//   I3. A closed tab holds no web contents.
+//   I4. A tab has a web contents if and only if its runtime isn't unloaded. No leaks, no zombies.
+//   I5. Automation never acts on the selected tab, on a protected tab, or on a decision made
+//       before the tab's runtime last changed (its epoch).
+//   I6. An ephemeral tab never reaches persistence or the memory.
+//   I7. A tab has at most one lifecycle operation in flight (its serial queue).
+//   I8. A pinned tab is in the strip.
+// Also: pinned tabs come first and ids are unique; at most one runtime is shown, the selected
+// tab's, and only while it shows web content; a closed tab's runtime is destroyed and nothing
+// refers to it afterwards (ADR-0002 §2).
 //
 // M1.3b adds what the browser does to a page: find in page, zoom, HTML fullscreen (at most one
 // tab, always the selected one), DevTools, and reopening closed tabs.
@@ -18,17 +25,47 @@
 // its sanitized back/forward stack, and is restored into a brand-new runtime only when selected:
 // at startup that is the selected tab alone. A closed tab keeps its stack for Ctrl+Shift+T, and
 // the session store (src/main/session) persists both lists.
+//
+// M3.1 adds the runtime state machine of §4.3 (core/lifecycle/runtime-machine.ts), with the
+// discard of §4.9 and an experimental freeze. Every lifecycle operation runs on its tab's serial
+// queue, every runtime transition bumps the tab's epoch, and each operation re-validates before
+// its irreversible step (§4.11). A discarded tab keeps its stack with Chromium's page state in
+// memory, so selecting it brings back the page, its scroll position and plain form values.
 import { nextZoomFactor, zoomPercent } from '../../core/layout/zoom';
+import {
+  CLOSE_TIMEOUT_MS,
+  FREEZE_TIMEOUT_MS,
+  LEARNED_RECHECK_MS,
+  withDeadline,
+} from '../../core/lifecycle/discard';
+import type {
+  DiscardBlock,
+  DiscardOutcome,
+  DiscardRequest,
+  DiscardSkip,
+  Timers,
+} from '../../core/lifecycle/discard';
+import { judgeProbe, parseProbeReading, PROBE_TIMEOUT_MS } from '../../core/lifecycle/probe';
+import type { CloseMode } from '../../core/lifecycle/probe';
+import { blockingProtection, protectionFor } from '../../core/lifecycle/protections';
+import type { Protection, ProtectionReason } from '../../core/lifecycle/protections';
+import { nextRuntime } from '../../core/lifecycle/runtime-machine';
+import type { RuntimeEvent, RuntimeState } from '../../core/lifecycle/runtime-machine';
+import { SerialQueue } from '../../core/lifecycle/serial-queue';
+import { restorableSnapshot, sameStack, withoutPageState } from '../../core/lifecycle/snapshot';
+import type { NavigationSnapshot } from '../../core/lifecycle/snapshot';
 import { restorableUrl, sanitizeHistory, singleEntryHistory } from '../../core/session/history';
 import type { TabHistory } from '../../core/session/history';
 import { errorPageFor } from '../../core/net/error-pages';
 import type { ZoomDirection } from '../../core/layout/zoom';
 import type { VisitTransition } from '../../core/search/frecency';
 import type { InternalPage } from '../../core/url/internal-pages';
+import { SYSTEM_TIMERS } from '../platform/timers';
 
 export type TabId = string;
 
-export type TabRuntimeState = 'unloaded' | 'creating' | 'live' | 'crashed';
+/** ADR-0003's runtime dimension (core/lifecycle/runtime-machine.ts). */
+export type TabRuntimeState = RuntimeState;
 
 export interface TabPageError {
   /** A Chromium net error code (did-fail-load), or a process exit code (crashed). */
@@ -45,6 +82,11 @@ export interface TabState {
   readonly id: TabId;
   readonly pinned: boolean;
   readonly placement: 'strip';
+  /**
+   * Never persisted or recorded in the memory (invariant I6). Nothing opens one yet: the option
+   * exists so private windows can slot in later (ADR-0009 item 4).
+   */
+  readonly ephemeral: boolean;
   readonly runtime: TabRuntimeState;
   readonly page: TabPage;
   /**
@@ -79,6 +121,9 @@ export interface FindState {
   readonly matches: number;
 }
 
+/** How a discard's close ended (§4.9 step 5). */
+export type CloseResult = 'closed' | 'prevented';
+
 /** One tab's web contents. Implemented over a WebContentsView by ./tab-runtime.ts. */
 export interface TabRuntime {
   load(url: string): void;
@@ -101,6 +146,11 @@ export interface TabRuntime {
   exitFullscreen(): void;
   /** Attaches the view in the content area. Idempotent. */
   show(): void;
+  /**
+   * Attaches the view where it can't be seen, for a restore while the tab isn't selected: a
+   * restore into a detached view puts the scroll position off by the display's scale (S2).
+   */
+  showHidden(): void;
   /** Detaches the view. Idempotent. */
   hide(): void;
   /** Gives the page keyboard focus. */
@@ -109,12 +159,32 @@ export interface TabRuntime {
   destroy(): void;
   /**
    * Rebuilds a back/forward stack in this runtime, which must never have loaded anything (S2).
-   * TabManager attaches the view first. A failure to create it arrives as `restoreFailed`; a
-   * page that fails to load arrives as `loadFailed`, with the stack intact.
+   * Entries may carry Chromium's page state, kept in memory since a discard. TabManager attaches
+   * the view first. A failure to create it arrives as `restoreFailed`; a page that fails to load
+   * arrives as `loadFailed`, with the stack intact.
    */
-  restore(history: TabHistory): void;
+  restore(history: NavigationSnapshot): void;
   /** The current back/forward stack (URLs and titles), unsanitized; null before any load. */
   history(): TabHistory | null;
+  /**
+   * Runs the discard probe in our isolated world: unsaved input, `hasBeenActive`, and the page
+   * state flush (§4.9 step 3). Its answer comes from a renderer and is untrusted; a busy page may
+   * take long to answer, so TabManager enforces the budget.
+   */
+  probe(): Promise<unknown>;
+  /** Chromium's navigation entries with their page state, and the active index; null before any load. */
+  snapshot(): { readonly index: number; readonly entries: readonly unknown[] } | null;
+  /**
+   * Detaches and closes the web contents for a discard (§4.9 step 5). `beforeunload` lets the
+   * page object, which settles as `prevented` and leaves it alive; `plain` doesn't. Settles as
+   * `closed` once the web contents is destroyed. It may never settle (a page stuck in its
+   * handler): TabManager stops waiting after CLOSE_TIMEOUT_MS.
+   */
+  closeForDiscard(mode: CloseMode): Promise<CloseResult>;
+  /** Experimental (§4.3): freezes the page; rejects if it can't. */
+  freeze(): Promise<void>;
+  /** Lets a frozen page run again. Idempotent. */
+  thaw(): void;
 }
 
 /**
@@ -126,7 +196,10 @@ export interface TabRuntime {
  * included, into the address bar. The address only changes on a commit or a reported failure.
  */
 export interface TabRuntimeEvents {
-  /** A main-frame navigation committed. `sameDocument` for fragment and history-API changes. */
+  /**
+   * A main-frame navigation committed. `sameDocument` for fragment and history-API changes. The
+   * probe's own page-state flush is not one: the runtime drops the commit it causes (S2).
+   */
   committed(state: {
     url: string;
     sameDocument: boolean;
@@ -152,9 +225,26 @@ export interface TabRuntimeEvents {
    * "creation failure"). TabManager replaces it and loads the active entry instead.
    */
   restoreFailed(): void;
+  /**
+   * The web contents was destroyed without `destroy()`: by a discard's close (reported to it as
+   * well), by a close that finished after TabManager stopped waiting, or by something else.
+   */
+  gone(): void;
+  /** A frozen page runs again without TabManager asking (its debugger detached). */
+  thawed(): void;
 }
 
 export type TabRuntimeFactory = (tabId: TabId, events: TabRuntimeEvents) => TabRuntime;
+
+/** A runtime transition, as `onTransition` reports it. */
+export interface RuntimeTransition {
+  readonly tabId: TabId;
+  readonly from: TabRuntimeState;
+  readonly to: TabRuntimeState;
+  readonly event: RuntimeEvent;
+  /** The tab's epoch after the transition. */
+  readonly epoch: number;
+}
 
 export interface TabManagerOptions {
   readonly createRuntime: TabRuntimeFactory;
@@ -165,13 +255,20 @@ export interface TabManagerOptions {
   readonly onFullscreenChange?: (tabId: TabId | null) => void;
   /**
    * The page a tab showed is gone: a new document committed, it failed or crashed, an internal
-   * page replaced it, or the tab closed. Its permission prompts and blocked popups no longer apply.
+   * page replaced it, it was discarded, or the tab closed. Its permission prompts and blocked
+   * popups no longer apply.
    */
   readonly onPageGone?: (tabId: TabId) => void;
   /** What the memory records (main/history/history-recorder.ts). Each is called after the change. */
   readonly history?: TabHistoryObserver;
-  /** Wall-clock time, for the session's timestamps. */
+  /** Wall-clock time, for the session's timestamps and learned protections. */
   readonly now?: () => number;
+  /** The discard's and freeze's deadlines run on these (tests drive them). */
+  readonly timers?: Timers;
+  /** Protections from outside TabManager (the protection monitor, M3.4). */
+  readonly protections?: (tabId: TabId) => Iterable<Protection>;
+  /** Every runtime transition, after it happened. */
+  readonly onTransition?: (transition: RuntimeTransition) => void;
 }
 
 /** A tab's page changes, as the memory needs them. Never called for internal pages. */
@@ -193,6 +290,28 @@ export interface TabHistoryObserver {
   closed(tabId: TabId): void;
 }
 
+export type FreezeOutcome =
+  | { readonly outcome: 'frozen' }
+  | { readonly outcome: 'skipped'; readonly why: DiscardSkip }
+  | { readonly outcome: 'blocked'; readonly reason: DiscardBlock }
+  | { readonly outcome: 'failed' };
+
+/** What the lifecycle knows about a tab beyond its state: for the scheduler and the tests. */
+export interface LifecycleFacts {
+  /** Bumped by every runtime transition (§4.11). */
+  readonly epoch: number;
+  /** Lifecycle operations queued or running on the tab. */
+  readonly queued: number;
+  /** Lifecycle operations running right now: never more than one (I7). */
+  readonly running: number;
+  /** Protections a discard learned, still fresh, newest first. */
+  readonly learned: readonly ProtectionReason[];
+  /** Safe mode left the selected tab unloaded until the user picks it. */
+  readonly heldUnloaded: boolean;
+  /** A discard's page state waits in memory for the tab's next restore. */
+  readonly pageStateInMemory: boolean;
+}
+
 /**
  * How many closed tabs Ctrl+Shift+T can bring back in a run. The database keeps every closed tab
  * for 7 days (ADR-0003 item 8); the session store loads the newest of them at startup.
@@ -202,7 +321,7 @@ export const MAX_CLOSED_TABS = 100;
 /** How a new-tab page is stored in the session: its typeable address (internal-pages.ts). */
 export const SESSION_NEW_TAB_URL = 'veltriva://newtab';
 
-/** A tab as the session stores it and restores it. */
+/** A tab as the session stores it and restores it. Only non-ephemeral tabs become one (I6). */
 export interface SessionTab {
   readonly id: TabId;
   readonly pinned: boolean;
@@ -231,11 +350,44 @@ export function sanitizeTitle(title: string): string {
   return title.replace(TITLE_UNSAFE, '').trim().slice(0, MAX_TITLE_LENGTH);
 }
 
+/** A discard under way (§4.9). */
+interface DiscardProgress {
+  /** The close was sent: from here, the page decides (it closes, or objects). */
+  closing: boolean;
+  /** The tab was selected while closing: it comes back as soon as the close settles. */
+  revive: boolean;
+  /** What the user did to the tab while it was closing, done once the close settles. */
+  readonly deferred: (() => void)[];
+  /** Set when something other than the procedure ended it (the renderer died, the contents went). */
+  result: DiscardOutcome | null;
+}
+
 interface TabRecord {
   state: TabState;
   runtime: TabRuntime | undefined;
   /** Identifies the current runtime, so events from a replaced one are ignored. */
   runtimeToken: symbol | undefined;
+  /** Bumped by every runtime transition; a decision made before the last one is stale (§4.11). */
+  epoch: number;
+  /** The tab's lifecycle operations, one at a time (I7). */
+  readonly queue: SerialQueue;
+  /** The discard in progress, if any. */
+  discard: DiscardProgress | null;
+  /**
+   * The last discard's snapshot with Chromium's page state, kept in memory for this run only, and
+   * used by the next restore if the tab's stack is still the one it holds.
+   */
+  memorySnapshot: NavigationSnapshot | null;
+  /** The snapshot of a close that timed out, in case it finishes after all. Until the next commit. */
+  lateCloseSnapshot: NavigationSnapshot | null;
+  /** The runtime's last reported stack, for a web contents that vanishes before it can be read. */
+  lastHistory: TabHistory | null;
+  /** Protections a discard learned, with when; forgotten with the document (§4.10). */
+  readonly learned: Map<ProtectionReason, number>;
+  /** Safe mode: the selected tab stays unloaded until the user picks it. */
+  heldUnloaded: boolean;
+  /** Restored while not selected: attached invisibly until its page has loaded (S2). */
+  restoringHidden: boolean;
   /** Focus the page when the next navigation commits (it came from the address bar). */
   focusOnCommit: boolean;
   /** `credentialsRemoved` for whatever the next navigation commits or fails with. */
@@ -257,8 +409,13 @@ interface TabRecord {
 
 const NEW_TAB_PAGE: TabPage = { kind: 'internal', name: 'new-tab' };
 
+const skipped = (why: DiscardSkip): DiscardOutcome => ({ outcome: 'skipped', why });
+const blocked = (reason: DiscardBlock): DiscardOutcome => ({ outcome: 'blocked', reason });
+const DISCARDED: DiscardOutcome = { outcome: 'discarded' };
+
 export class TabManager {
   readonly #options: TabManagerOptions;
+  readonly #timers: Timers;
   readonly #order: TabId[] = [];
   readonly #records = new Map<TabId, TabRecord>();
   readonly #closed: ClosedTab[] = [];
@@ -268,6 +425,7 @@ export class TabManager {
 
   constructor(options: TabManagerOptions) {
     this.#options = options;
+    this.#timers = options.timers ?? SYSTEM_TIMERS;
   }
 
   /** Every tab in strip order: pinned first. */
@@ -291,8 +449,30 @@ export class TabManager {
     return this.#fullscreen;
   }
 
-  /** Opens a new-tab page at the end of the strip (or right after `afterTabId`). */
-  create(options: { readonly select?: boolean; readonly afterTabId?: TabId } = {}): TabId {
+  /** What the lifecycle knows about a tab beyond its state. */
+  lifecycleFacts(tabId: TabId): LifecycleFacts {
+    const record = this.#record(tabId);
+    return {
+      epoch: record.epoch,
+      queued: record.queue.pending,
+      running: record.queue.running,
+      learned: this.#freshLearned(record).map((protection) => protection.reason),
+      heldUnloaded: record.heldUnloaded,
+      pageStateInMemory: record.memorySnapshot !== null,
+    };
+  }
+
+  /**
+   * Opens a new-tab page at the end of the strip (or right after `afterTabId`). An `ephemeral`
+   * tab is never persisted or recorded (I6).
+   */
+  create(
+    options: {
+      readonly select?: boolean;
+      readonly afterTabId?: TabId;
+      readonly ephemeral?: boolean;
+    } = {},
+  ): TabId {
     const after = options.afterTabId === undefined ? undefined : this.#record(options.afterTabId);
     const id = this.#options.newId();
     const now = this.#now();
@@ -301,6 +481,7 @@ export class TabManager {
       this.#newRecord({
         id,
         pinned: after?.state.pinned ?? false,
+        ephemeral: options.ephemeral ?? after?.state.ephemeral ?? false,
         createdAt: now,
         lastUsedAt: now,
       }),
@@ -318,15 +499,16 @@ export class TabManager {
   }
 
   /**
-   * Closes a tab and destroys its runtime. Selection moves to the tab that took its place (the
-   * next one), or the previous one at the end of the strip. Closing the last tab opens a new one:
-   * the window always has something to show. `focus: false` keeps keyboard focus where it is
-   * (the sidebar) instead of giving it to the newly selected page.
+   * Closes a tab and destroys its runtime, whatever lifecycle operation it has under way.
+   * Selection moves to the tab that took its place (the next one), or the previous one at the
+   * end of the strip. Closing the last tab opens a new one: the window always has something to
+   * show. `focus: false` keeps keyboard focus where it is (the sidebar) instead of giving it to
+   * the newly selected page.
    */
   close(tabId: TabId, options: { readonly focus?: boolean } = {}): void {
     const record = this.#record(tabId);
     const index = this.#order.indexOf(tabId);
-    if (record.state.url !== '') {
+    if (record.state.url !== '' && !record.state.ephemeral) {
       // Its stack is read before the runtime goes (Recently closed keeps it for 7 days).
       this.#closed.push({ ...this.#sessionTab(record), closedAt: this.#now(), index });
       if (this.#closed.length > MAX_CLOSED_TABS) {
@@ -338,10 +520,15 @@ export class TabManager {
     if (this.#fullscreen === tabId) {
       this.#setFullscreen(null);
     }
+    record.discard = null;
+    record.memorySnapshot = null;
     record.runtime?.destroy();
     record.runtime = undefined;
+    record.runtimeToken = undefined;
     this.#options.onPageGone?.(tabId);
-    this.#options.history?.closed(tabId);
+    if (!record.state.ephemeral) {
+      this.#options.history?.closed(tabId);
+    }
 
     if (this.#order.length === 0) {
       this.#selected = null;
@@ -373,7 +560,10 @@ export class TabManager {
       return null;
     }
     const id = this.#records.has(closed.id) ? this.#options.newId() : closed.id;
-    this.#records.set(id, this.#newRecord({ ...closed, id, lastUsedAt: this.#now() }));
+    this.#records.set(
+      id,
+      this.#newRecord({ ...closed, id, ephemeral: false, lastUsedAt: this.#now() }),
+    );
     // Pinned or not, it goes back inside its own section.
     const pinnedCount = this.#pinnedCount();
     const [first, last] = closed.pinned ? [0, pinnedCount] : [pinnedCount, this.#order.length];
@@ -388,9 +578,16 @@ export class TabManager {
     return [...this.#closed].reverse();
   }
 
-  /** Every tab in strip order, as the session stores it. */
+  /** Every persistable tab in strip order, as the session stores it. Ephemeral tabs never are (I6). */
   sessionTabs(): readonly SessionTab[] {
-    return this.#order.map((id) => this.#sessionTab(this.#record(id)));
+    const tabs: SessionTab[] = [];
+    for (const id of this.#order) {
+      const record = this.#record(id);
+      if (!record.state.ephemeral) {
+        tabs.push(this.#sessionTab(record));
+      }
+    }
+    return tabs;
   }
 
   /**
@@ -416,7 +613,7 @@ export class TabManager {
       if (this.#records.has(tab.id)) {
         continue; // A duplicate id: keep the first.
       }
-      this.#records.set(tab.id, this.#newRecord(checkedSessionTab(tab)));
+      this.#records.set(tab.id, this.#newRecord({ ...checkedSessionTab(tab), ephemeral: false }));
       this.#order.push(tab.id);
     }
     this.#closed.length = 0;
@@ -436,8 +633,11 @@ export class TabManager {
       return;
     }
     this.#selected = selected;
+    const record = this.#record(selected);
     if (session.loadSelected) {
-      this.#ensureLive(selected);
+      this.#ensureLive(record);
+    } else if (record.state.page.kind === 'web') {
+      record.heldUnloaded = true;
     }
     this.#syncVisibility();
     this.#changed();
@@ -446,8 +646,10 @@ export class TabManager {
   /** Closes every tab without opening a new one. For shutdown only. */
   closeAll(): void {
     for (const [tabId, record] of this.#records) {
+      record.discard = null;
       record.runtime?.destroy();
       record.runtime = undefined;
+      record.runtimeToken = undefined;
       this.#options.onPageGone?.(tabId);
     }
     this.#records.clear();
@@ -462,10 +664,15 @@ export class TabManager {
    * sidebar keeps focus in the sidebar). A tab in HTML fullscreen leaves it first.
    */
   select(tabId: TabId, options: { readonly focus?: boolean } = {}): void {
-    this.#record(tabId);
+    const record = this.#record(tabId);
     if (this.#selected === tabId) {
       // Safe mode leaves the selected tab unloaded: picking it again loads it.
-      this.#ensureLive(tabId);
+      const epoch = record.epoch;
+      this.#wake(record);
+      if (record.epoch !== epoch) {
+        this.#syncVisibility();
+        this.#changed();
+      }
       return;
     }
     this.#setSelected(tabId, options.focus ?? true);
@@ -540,7 +747,7 @@ export class TabManager {
     this.#changed();
   }
 
-  /** A new tab right after the source, loading the same URL. History isn't copied (M3.1 can). */
+  /** A new tab right after the source, loading the same URL. History isn't copied. */
   duplicate(tabId: TabId): TabId {
     const source = this.#record(tabId).state;
     const id = this.create({ afterTabId: tabId });
@@ -573,27 +780,41 @@ export class TabManager {
     } = {},
   ): void {
     const record = this.#record(tabId);
+    if (
+      !this.#readyForUse(record, () => {
+        this.navigate(tabId, url, options);
+      })
+    ) {
+      return;
+    }
     if (record.runtime === undefined) {
-      const token = Symbol(tabId);
-      record.runtimeToken = token;
-      record.runtime = this.#options.createRuntime(tabId, this.#eventsFor(tabId, token));
+      this.#attachRuntime(record);
     }
     record.pendingHistory = null;
+    record.memorySnapshot = null;
+    record.heldUnloaded = false;
     record.nextTransition = options.transition ?? 'link';
     record.focusOnCommit = options.focus ?? true;
     record.credentialsRemovedOnCommit = options.credentialsRemoved ?? false;
-    record.state = {
-      ...record.state,
-      runtime: record.state.runtime === 'live' ? 'live' : 'creating',
-      loading: true,
-    };
-    record.runtime.load(url);
+    if (record.state.runtime === 'unloaded' || record.state.runtime === 'crashed') {
+      this.#transition(record, 'load');
+    }
+    record.state = { ...record.state, loading: true };
+    record.runtime?.load(url);
+    this.#syncVisibility();
     this.#changed();
   }
 
   /** Shows an internal page in a tab. Its web contents (if any) is closed: back can't reach it. */
   showInternal(tabId: TabId, name: InternalPage): void {
     const record = this.#record(tabId);
+    if (
+      !this.#readyForUse(record, () => {
+        this.showInternal(tabId, name);
+      })
+    ) {
+      return;
+    }
     if (this.#fullscreen === tabId) {
       this.#setFullscreen(null);
     }
@@ -602,11 +823,15 @@ export class TabManager {
     record.runtimeToken = undefined;
     record.credentialsRemovedOnCommit = false;
     record.pendingHistory = null;
+    record.memorySnapshot = null;
+    record.lastHistory = null;
+    record.heldUnloaded = false;
+    record.restoringHidden = false;
     this.#options.onPageGone?.(tabId);
     record.findRequestId = undefined;
+    this.#transition(record, 'internalPage');
     record.state = {
       ...record.state,
-      runtime: 'unloaded',
       page: { kind: 'internal', name },
       url: '',
       credentialsRemoved: false,
@@ -624,6 +849,13 @@ export class TabManager {
 
   goBack(tabId: TabId): void {
     const record = this.#record(tabId);
+    if (
+      !this.#readyForUse(record, () => {
+        this.goBack(tabId);
+      })
+    ) {
+      return;
+    }
     if (record.state.canGoBack && record.runtime !== undefined) {
       record.nextTransition = 'back_forward';
       record.runtime.goBack();
@@ -632,22 +864,41 @@ export class TabManager {
 
   goForward(tabId: TabId): void {
     const record = this.#record(tabId);
+    if (
+      !this.#readyForUse(record, () => {
+        this.goForward(tabId);
+      })
+    ) {
+      return;
+    }
     if (record.state.canGoForward && record.runtime !== undefined) {
       record.nextTransition = 'back_forward';
       record.runtime.goForward();
     }
   }
 
-  /** Reloads; for an error page this retries, and for a crashed tab it starts a new renderer. */
+  /**
+   * Reloads; for an error page this retries, for a crashed tab it starts a new renderer, and an
+   * unloaded tab is restored.
+   */
   reload(tabId: TabId, options: { readonly ignoreCache?: boolean } = {}): void {
     const record = this.#record(tabId);
+    if (
+      !this.#readyForUse(record, () => {
+        this.reload(tabId, options);
+      })
+    ) {
+      return;
+    }
     if (record.runtime === undefined) {
-      // An unloaded tab (safe mode leaves the selected one so): Reload loads it.
-      this.#ensureLive(tabId);
+      // An unloaded tab (safe mode leaves the selected one so, a discard others): Reload loads it.
+      this.#ensureLive(record);
+      this.#syncVisibility();
+      this.#changed();
       return;
     }
     if (record.state.runtime === 'crashed') {
-      record.state = { ...record.state, runtime: 'creating' };
+      this.#transition(record, 'load');
       this.#changed();
     }
     record.nextTransition = 'reload';
@@ -744,6 +995,391 @@ export class TabManager {
     this.#setFullscreen(null);
   }
 
+  /**
+   * Discards a tab's page to free its renderer (assessment §4.9): LIVE or FROZEN → UNLOADED. The
+   * tab keeps its back/forward stack, with Chromium's page state in memory for this run, and
+   * selecting it restores the page. Runs on the tab's serial queue and never rejects:
+   *   1. re-validate (not selected, not loading, unprotected, the decision's epoch);
+   *   2. thaw a frozen page, since unload handlers need it running;
+   *   3. probe for unsaved input and flush the page state, within PROBE_TIMEOUT_MS, where no
+   *      answer means "keep the tab";
+   *   4. snapshot the navigation entries, then re-validate once more;
+   *   5. close: with `beforeunload` only for a page the user activated, where an objection keeps
+   *      the tab and teaches it a protection; a plain close otherwise (S3);
+   *   6. once the web contents is gone, the tab is unloaded and the session persists its stack
+   *      without page state.
+   */
+  discard(tabId: TabId, request: DiscardRequest): Promise<DiscardOutcome> {
+    const record = this.#records.get(tabId);
+    if (record === undefined) {
+      return Promise.resolve(skipped('closed'));
+    }
+    return record.queue.run(() => this.#runDiscard(record, request));
+  }
+
+  /**
+   * Freezes a hidden live tab (experimental, off by default; assessment §4.3): its page stops
+   * running but keeps its memory. Selecting the tab, or discarding it, thaws it first.
+   */
+  freeze(tabId: TabId): Promise<FreezeOutcome> {
+    const record = this.#records.get(tabId);
+    if (record === undefined) {
+      return Promise.resolve({ outcome: 'skipped', why: 'closed' });
+    }
+    return record.queue.run(() => this.#runFreeze(record));
+  }
+
+  async #runDiscard(record: TabRecord, request: DiscardRequest): Promise<DiscardOutcome> {
+    const tabId = record.state.id;
+    if (this.#records.get(tabId) !== record) {
+      return skipped('closed');
+    }
+    const refusal =
+      this.#refusal(record, request.epoch) ??
+      this.#protected(record, 'discard', request, request.origin !== 'user');
+    if (refusal !== null) {
+      return refusal;
+    }
+    const runtime = record.runtime;
+    if (runtime === undefined) {
+      return skipped('not-live');
+    }
+    const progress: DiscardProgress = { closing: false, revive: false, deferred: [], result: null };
+    record.discard = progress;
+    if (record.state.runtime === 'frozen') {
+      runtime.thaw(); // Unload handlers need a running page.
+    }
+    this.#transition(record, 'discard');
+    const epoch = record.epoch;
+    this.#changed();
+
+    // 3. Probe and flush. A probe that throws at once counts as one that never answered.
+    const answer = await withDeadline(
+      Promise.resolve().then(() => runtime.probe()),
+      PROBE_TIMEOUT_MS,
+      this.#timers,
+    );
+    const interrupted = this.#interrupted(record, progress, epoch);
+    if (interrupted !== null) {
+      return interrupted;
+    }
+    const verdict = judgeProbe(answer.kind === 'value' ? parseProbeReading(answer.value) : null, {
+      overrideSoft: request.overrideSoft ?? false,
+    });
+    if (verdict.kind === 'keep') {
+      if (verdict.reason !== 'probe-unanswered') {
+        this.#learn(record, verdict.reason);
+      }
+      return this.#discardKept(record, progress, blocked(verdict.reason));
+    }
+
+    // 4. Snapshot, then the last checks before the irreversible step.
+    const snapshot = readSnapshot(runtime);
+    const lastCheck =
+      this.#refusal(record, undefined, { discarding: true }) ??
+      this.#protected(record, 'discard', request, false);
+    if (lastCheck !== null) {
+      return this.#discardKept(record, progress, lastCheck);
+    }
+    if (snapshot === null) {
+      return this.#discardKept(record, progress, skipped('no-history'));
+    }
+
+    // 5. Close. From here the page decides.
+    progress.closing = true;
+    const closing = Promise.resolve().then(() => runtime.closeForDiscard(verdict.mode));
+    const closed = await withDeadline(closing, CLOSE_TIMEOUT_MS, this.#timers);
+    if (progress.result !== null) {
+      return progress.result;
+    }
+    if (this.#records.get(tabId) !== record || record.discard !== progress) {
+      return skipped('closed');
+    }
+    if (closed.kind === 'value' && closed.value === 'closed') {
+      // 6. The web contents is gone.
+      this.#completeDiscard(record, progress, snapshot);
+      return DISCARDED;
+    }
+    // The page objected, or didn't close in time: it lives on, and is protected (S3).
+    this.#learn(record, 'page-unsaved-changes');
+    if (closed.kind === 'timedOut') {
+      record.lateCloseSnapshot = snapshot;
+    }
+    return this.#discardKept(record, progress, blocked('page-unsaved-changes'));
+  }
+
+  async #runFreeze(record: TabRecord): Promise<FreezeOutcome> {
+    const tabId = record.state.id;
+    if (this.#records.get(tabId) !== record) {
+      return { outcome: 'skipped', why: 'closed' };
+    }
+    if (record.state.runtime !== 'live') {
+      return { outcome: 'skipped', why: 'not-live' };
+    }
+    const refusal =
+      this.#refusal(record, undefined) ??
+      this.#protected(record, 'freeze', { origin: 'automation' }, true);
+    if (refusal !== null) {
+      return refusal.outcome === 'blocked'
+        ? { outcome: 'blocked', reason: refusal.reason }
+        : { outcome: 'skipped', why: refusal.outcome === 'skipped' ? refusal.why : 'not-live' };
+    }
+    const runtime = record.runtime;
+    if (runtime === undefined) {
+      return { outcome: 'skipped', why: 'not-live' };
+    }
+    this.#transition(record, 'freeze');
+    const epoch = record.epoch;
+    this.#changed();
+    const frozen = await withDeadline(
+      Promise.resolve().then(() => runtime.freeze()),
+      FREEZE_TIMEOUT_MS,
+      this.#timers,
+    );
+    if (this.#records.get(tabId) !== record) {
+      return { outcome: 'skipped', why: 'closed' };
+    }
+    if (record.epoch !== epoch) {
+      return { outcome: 'skipped', why: 'cancelled' }; // Thawed, crashed or discarded meanwhile.
+    }
+    if (frozen.kind !== 'value') {
+      this.#thaw(record);
+      this.#changed();
+      return { outcome: 'failed' };
+    }
+    return { outcome: 'frozen' };
+  }
+
+  /**
+   * Why a lifecycle operation may not act on a tab now, or null. `epoch` is the decision's, if it
+   * carries one (I5). While discarding, the tab is expected to be in the middle of it.
+   */
+  #refusal(
+    record: TabRecord,
+    epoch: number | undefined,
+    options: { readonly discarding?: boolean } = {},
+  ): DiscardOutcome | null {
+    const { state } = record;
+    if (this.#records.get(state.id) !== record) {
+      return skipped('closed');
+    }
+    const expected = options.discarding === true ? ['discarding'] : ['live', 'frozen'];
+    if (record.runtime === undefined || !expected.includes(state.runtime)) {
+      return skipped('not-live');
+    }
+    if (state.page.kind !== 'web') {
+      return skipped('not-web');
+    }
+    if (this.#selected === state.id) {
+      return skipped('selected');
+    }
+    if (state.loading) {
+      return skipped('loading');
+    }
+    if (epoch !== undefined && epoch !== record.epoch) {
+      return skipped('stale');
+    }
+    return null;
+  }
+
+  /**
+   * The protection that blocks `action` on this tab, as an outcome, or null: the monitor's, and
+   * (for automation) what a discard learned recently. An explicit request asks the page again.
+   */
+  #protected(
+    record: TabRecord,
+    action: 'discard' | 'freeze',
+    request: DiscardRequest,
+    useLearned: boolean,
+  ): DiscardOutcome | null {
+    const protections: Protection[] = [...(this.#options.protections?.(record.state.id) ?? [])];
+    if (useLearned) {
+      protections.push(...this.#freshLearned(record));
+    }
+    const protection = blockingProtection(protections, action, {
+      overrideSoft: request.overrideSoft ?? false,
+    });
+    return protection === null ? null : blocked(protection.reason);
+  }
+
+  #freshLearned(record: TabRecord): Protection[] {
+    const now = this.#now();
+    return [...record.learned]
+      .filter(([, at]) => now - at < LEARNED_RECHECK_MS && now >= at)
+      .sort(([, a], [, b]) => b - a)
+      .map(([reason]) => protectionFor(reason));
+  }
+
+  #learn(record: TabRecord, reason: ProtectionReason): void {
+    record.learned.set(reason, this.#now());
+  }
+
+  /**
+   * After an await in a discard: the outcome if the discard can't go on — the renderer died or
+   * the web contents went (it ended as a discard), the tab closed, or the user picked it.
+   */
+  #interrupted(record: TabRecord, progress: DiscardProgress, epoch: number): DiscardOutcome | null {
+    if (progress.result !== null) {
+      return progress.result;
+    }
+    if (this.#records.get(record.state.id) !== record) {
+      return skipped('closed');
+    }
+    if (record.discard !== progress || record.epoch !== epoch) {
+      return skipped('cancelled');
+    }
+    return null;
+  }
+
+  /** The discard stops and the page lives on. */
+  #discardKept(
+    record: TabRecord,
+    progress: DiscardProgress,
+    outcome: DiscardOutcome,
+  ): DiscardOutcome {
+    record.discard = null;
+    progress.result = outcome;
+    // A tab selected while it was closing is creating; it is live again now.
+    this.#transition(record, progress.revive ? 'ready' : 'discardBlocked');
+    if (progress.revive) {
+      record.state = { ...record.state, loading: false };
+    }
+    this.#syncVisibility();
+    this.#changed();
+    this.#runDeferred(progress);
+    return outcome;
+  }
+
+  /**
+   * Ends a discard whose web contents is gone (closed, or its renderer died): the tab keeps the
+   * snapshot and is unloaded — or, if it was selected while closing, restores right away.
+   */
+  #completeDiscard(
+    record: TabRecord,
+    progress: DiscardProgress,
+    snapshot: NavigationSnapshot | null,
+  ): void {
+    const tabId = record.state.id;
+    record.discard = null;
+    progress.result = DISCARDED;
+    const runtime = record.runtime;
+    record.runtime = undefined;
+    record.runtimeToken = undefined;
+    runtime?.destroy();
+    record.memorySnapshot = snapshot;
+    record.pendingHistory =
+      snapshot === null
+        ? (sanitizeHistory(record.lastHistory) ??
+          singleEntryHistory(record.state.url, record.state.title))
+        : withoutPageState(snapshot);
+    record.lastHistory = null;
+    record.findRequestId = undefined;
+    record.restoringHidden = false;
+    this.#options.onPageGone?.(tabId);
+    record.state = {
+      ...record.state,
+      loading: false,
+      find: null,
+      canGoBack: false,
+      canGoForward: false,
+    };
+    if (progress.revive) {
+      // Still creating: a new web contents takes over from the one that closed.
+      this.#startRestore(record, 'load');
+    } else {
+      this.#transition(record, 'discarded');
+    }
+    this.#syncVisibility();
+    this.#changed();
+    this.#runDeferred(progress);
+  }
+
+  #runDeferred(progress: DiscardProgress): void {
+    for (const action of progress.deferred.splice(0)) {
+      action();
+    }
+  }
+
+  /**
+   * Readies a tab's runtime for something done to its page. A discard yields: before its close it
+   * simply stops; during its close, `action` waits until the close settles (false is returned).
+   * A frozen page is thawed.
+   */
+  #readyForUse(record: TabRecord, action: () => void): boolean {
+    const progress = record.discard;
+    if (progress !== null) {
+      if (progress.closing) {
+        const tabId = record.state.id;
+        progress.deferred.push(() => {
+          if (this.#records.get(tabId) === record) {
+            action();
+          }
+        });
+        return false;
+      }
+      this.#stopDiscard(record, progress);
+    }
+    if (record.state.runtime === 'frozen') {
+      this.#thaw(record);
+    }
+    return true;
+  }
+
+  /** A discard that hasn't closed anything yet stops; its operation sees that and returns. */
+  #stopDiscard(record: TabRecord, progress: DiscardProgress): void {
+    record.discard = null;
+    progress.result = skipped('cancelled');
+    this.#transition(record, 'discardBlocked');
+    this.#runDeferred(progress);
+  }
+
+  /**
+   * I2: the selected tab is creating, live or crashed. A frozen page thaws; a discard stops, or,
+   * if its close was sent, the tab comes back once it settles; an unloaded tab restores.
+   */
+  #wake(record: TabRecord): void {
+    switch (record.state.runtime) {
+      case 'frozen':
+        this.#thaw(record);
+        break;
+      case 'discarding': {
+        const progress = record.discard;
+        if (progress === null) {
+          throw new Error(`Tab ${record.state.id} is discarding with no discard under way.`);
+        }
+        if (!progress.closing) {
+          this.#stopDiscard(record, progress);
+        } else if (!progress.revive) {
+          progress.revive = true;
+          this.#transition(record, 'revive');
+          record.state = { ...record.state, loading: true };
+        }
+        break;
+      }
+      case 'unloaded':
+        this.#ensureLive(record);
+        break;
+      default:
+        break;
+    }
+  }
+
+  #thaw(record: TabRecord): void {
+    record.runtime?.thaw();
+    this.#transition(record, 'thaw');
+  }
+
+  /** Applies a runtime transition (core/lifecycle/runtime-machine.ts) and bumps the epoch. */
+  #transition(record: TabRecord, event: RuntimeEvent): void {
+    const from = record.state.runtime;
+    const to = nextRuntime(from, event);
+    record.epoch += 1;
+    if (to !== from) {
+      record.state = { ...record.state, runtime: to };
+    }
+    this.#options.onTransition?.({ tabId: record.state.id, from, to, event, epoch: record.epoch });
+  }
+
   #now(): number {
     return (this.#options.now ?? Date.now)();
   }
@@ -752,6 +1388,7 @@ export class TabManager {
   #newRecord(tab: {
     readonly id: TabId;
     readonly pinned: boolean;
+    readonly ephemeral: boolean;
     readonly createdAt: number;
     readonly lastUsedAt: number;
     readonly url?: string;
@@ -764,6 +1401,7 @@ export class TabManager {
         id: tab.id,
         pinned: tab.pinned,
         placement: 'strip',
+        ephemeral: tab.ephemeral,
         runtime: 'unloaded',
         page: web ? { kind: 'web' } : NEW_TAB_PAGE,
         url: web ? (tab.url ?? '') : '',
@@ -778,6 +1416,15 @@ export class TabManager {
       },
       runtime: undefined,
       runtimeToken: undefined,
+      epoch: 0,
+      queue: new SerialQueue(),
+      discard: null,
+      memorySnapshot: null,
+      lateCloseSnapshot: null,
+      lastHistory: null,
+      learned: new Map(),
+      heldUnloaded: false,
+      restoringHidden: false,
       focusOnCommit: false,
       credentialsRemovedOnCommit: false,
       findRequestId: undefined,
@@ -789,37 +1436,59 @@ export class TabManager {
     };
   }
 
+  /** A new runtime for a tab that has none. */
+  #attachRuntime(record: TabRecord): TabRuntime {
+    const tabId = record.state.id;
+    const token = Symbol(tabId);
+    record.runtimeToken = token;
+    const runtime = this.#options.createRuntime(tabId, this.#eventsFor(tabId, token));
+    record.runtime = runtime;
+    return runtime;
+  }
+
   /**
    * Brings an unloaded web tab to life: a new runtime, attached, then `restore()` with its stack
    * (S2: a brand-new web contents, attached before restoring). A tab with only an address
    * restores a one-entry stack; one whose address can't be restored becomes a new-tab page.
    */
-  #ensureLive(tabId: TabId): void {
-    const record = this.#record(tabId);
+  #ensureLive(record: TabRecord): void {
     if (record.runtime !== undefined || record.state.page.kind !== 'web') {
       return;
     }
+    this.#startRestore(record, 'ensureLive');
+  }
+
+  #startRestore(record: TabRecord, event: 'ensureLive' | 'load'): void {
+    const tabId = record.state.id;
+    record.heldUnloaded = false;
     const history =
       record.pendingHistory ?? singleEntryHistory(record.state.url, record.state.title);
     // Kept until the first commit: a flush before then must not replace the saved stack.
     record.pendingHistory = history;
+    // The discard's page state, if it belongs to this very stack. Used once.
+    const memory = record.memorySnapshot;
+    record.memorySnapshot = null;
     if (history === null) {
       this.showInternal(tabId, 'new-tab');
       return;
     }
-    const token = Symbol(tabId);
-    record.runtimeToken = token;
-    record.runtime = this.#options.createRuntime(tabId, this.#eventsFor(tabId, token));
-    record.state = { ...record.state, runtime: 'creating', loading: true };
+    const restoring = memory !== null && sameStack(memory, history) ? memory : history;
+    const runtime = this.#attachRuntime(record);
+    this.#transition(record, event);
+    record.state = { ...record.state, loading: true };
     record.nextTransition = 'restore';
+    // Attached before restoring (S2): shown if selected, else invisibly until it has loaded.
+    record.restoringHidden = this.#selected !== tabId;
     this.#syncVisibility();
-    record.runtime.restore(history);
-    this.#changed();
+    runtime.restore(restoring);
   }
 
   /** What the session stores for a tab: a live tab's current stack, else its pending one. */
   #sessionTab(record: TabRecord): SessionTab {
     const { state } = record;
+    if (state.ephemeral) {
+      throw new Error('I6: an ephemeral tab must never reach persistence.');
+    }
     const base = {
       id: state.id,
       pinned: state.pinned,
@@ -864,8 +1533,9 @@ export class TabManager {
     this.#selected = tabId;
     const record = this.#record(tabId);
     record.lastUsedAt = this.#now();
-    // An unloaded tab (restored at startup, or reopened) is restored when it is selected.
-    this.#ensureLive(tabId);
+    // I2: an unloaded tab (restored at startup, reopened, discarded) is restored when selected; a
+    // frozen one thaws; a discard under way gives way.
+    this.#wake(record);
     this.#syncVisibility();
     if (focus && record.state.page.kind === 'web') {
       record.runtime?.focus();
@@ -899,7 +1569,11 @@ export class TabManager {
     }
   }
 
-  /** Invariant 3: only the selected tab's runtime is shown, and only for web content. */
+  /**
+   * Only the selected tab's runtime is shown, and only for web content. A web contents being
+   * closed for a discard is never shown; one being restored in the background stays attached,
+   * invisibly, until its page has loaded (S2).
+   */
   #syncVisibility(): void {
     for (const [id, record] of this.#records) {
       if (record.runtime === undefined) {
@@ -908,9 +1582,13 @@ export class TabManager {
       const visible =
         id === this.#selected &&
         record.state.page.kind === 'web' &&
-        record.state.runtime !== 'crashed';
+        record.state.runtime !== 'crashed' &&
+        record.discard?.closing !== true;
       if (visible) {
+        record.restoringHidden = false;
         record.runtime.show();
+      } else if (record.restoringHidden) {
+        record.runtime.showHidden();
       } else {
         record.runtime.hide();
       }
@@ -944,6 +1622,24 @@ export class TabManager {
       record.credentialsRemovedOnCommit = false;
       return removed;
     };
+    /** The page shows something now: a restore or load that was under way is done. */
+    const pageReady = (record: TabRecord): void => {
+      if (record.state.runtime === 'creating') {
+        this.#transition(record, 'ready');
+      } else if (record.state.runtime === 'frozen') {
+        this.#thaw(record);
+      }
+    };
+    /** A background restore's page has loaded (or failed): it can be detached now. */
+    const restored = (record: TabRecord): void => {
+      if (record.restoringHidden) {
+        record.restoringHidden = false;
+        this.#syncVisibility();
+      }
+    };
+    const memory = this.#options.history;
+    const remember = (record: TabRecord): TabHistoryObserver | undefined =>
+      record.state.ephemeral ? undefined : memory;
 
     return {
       committed: ({ url, sameDocument, canGoBack, canGoForward }) => {
@@ -953,10 +1649,15 @@ export class TabManager {
         }
         // The runtime has a stack of its own now.
         record.pendingHistory = null;
+        record.memorySnapshot = null;
+        record.lastHistory = record.runtime?.history() ?? null;
         const transition = record.nextTransition ?? 'link';
         record.nextTransition = null;
         const leavingInternalPage = record.state.page.kind !== 'web';
         if (!sameDocument) {
+          // A new document: what a discard learned about the old one no longer applies.
+          record.learned.clear();
+          record.lateCloseSnapshot = null;
           // A new document closes the find bar, as in Chrome; Ctrl+F reopens it with the same
           // text, searched on the new page. Stopping also resets Chromium's find state, which
           // otherwise carried over: the first search on a new page with 2 matches reported
@@ -967,16 +1668,16 @@ export class TabManager {
           }
           this.#options.onPageGone?.(tabId);
         }
+        pageReady(record);
         update(
           sameDocument
-            ? { url, canGoBack, canGoForward, runtime: 'live' }
+            ? { url, canGoBack, canGoForward }
             : // A new document: the old site's favicon no longer applies.
               {
                 url,
                 credentialsRemoved: takeCredentialsRemoved(record),
                 canGoBack,
                 canGoForward,
-                runtime: 'live',
                 page: { kind: 'web' },
                 favicon: null,
                 find: null,
@@ -991,20 +1692,20 @@ export class TabManager {
           record.focusOnCommit = false;
           record.runtime?.focus();
         }
-        this.#options.history?.committed(tabId, { url, sameDocument, transition });
+        remember(record)?.committed(tabId, { url, sameDocument, transition });
       },
       titleChanged: (title) => {
         const record = current();
         update({ title: sanitizeTitle(title) });
         if (record?.state.page.kind === 'web') {
-          this.#options.history?.titleChanged(tabId, record.state.title);
+          remember(record)?.titleChanged(tabId, record.state.title);
         }
       },
       faviconChanged: (favicon) => {
         const record = current();
         update({ favicon });
         if (favicon !== null && record?.state.page.kind === 'web') {
-          this.#options.history?.faviconChanged(tabId, favicon);
+          remember(record)?.faviconChanged(tabId, favicon);
         }
       },
       loadingChanged: (loading) => {
@@ -1015,6 +1716,9 @@ export class TabManager {
           record.nextTransition = null;
         }
         update({ loading });
+        if (!loading && record !== undefined) {
+          restored(record);
+        }
       },
       loadFailed: ({ code, name, url, canGoBack, canGoForward }) => {
         const record = current();
@@ -1023,10 +1727,12 @@ export class TabManager {
         }
         record.findRequestId = undefined;
         record.nextTransition = null;
+        record.lastHistory = record.runtime?.history() ?? null;
         if (this.#fullscreen === tabId) {
           this.#setFullscreen(null);
         }
         this.#options.onPageGone?.(tabId);
+        pageReady(record);
         update(
           {
             // A certificate or client-certificate failure gets its own page, with no way past it.
@@ -1036,7 +1742,6 @@ export class TabManager {
             // The previous page's title and icon belong to a page that is no longer shown.
             title: '',
             favicon: null,
-            runtime: 'live',
             loading: false,
             find: null,
             ...(canGoBack === undefined ? {} : { canGoBack }),
@@ -1044,21 +1749,37 @@ export class TabManager {
           },
           { visibility: true },
         );
+        restored(record);
       },
       crashed: ({ code, name }) => {
         const record = current();
         if (record === undefined) {
           return;
         }
+        if (record.discard !== null) {
+          // §4.11: a renderer that dies mid-discard counts as discarded, with the entries
+          // Chromium still has (the browser side keeps them), else the last ones reported.
+          const snapshot = record.runtime === undefined ? null : readSnapshot(record.runtime);
+          this.#completeDiscard(record, record.discard, snapshot);
+          return;
+        }
         record.findRequestId = undefined;
+        record.restoringHidden = false;
         if (this.#fullscreen === tabId) {
           this.#setFullscreen(null);
         }
         this.#options.onPageGone?.(tabId);
+        if (record.state.runtime === 'frozen') {
+          // The freeze belonged to the dead page: release it, so the next page isn't frozen
+          // (found by the model-based tests).
+          record.runtime?.thaw();
+        }
+        if (record.state.runtime !== 'crashed') {
+          this.#transition(record, 'rendererGone');
+        }
         update(
           {
             page: { kind: 'internal', name: 'crashed', error: { code, name } },
-            runtime: 'crashed',
             loading: false,
             find: null,
           },
@@ -1107,14 +1828,81 @@ export class TabManager {
         record.runtime?.destroy();
         record.runtime = undefined;
         record.runtimeToken = undefined;
+        record.restoringHidden = false;
+        if (record.state.runtime === 'creating') {
+          this.#transition(record, 'creationFailed');
+        }
         this.navigate(tabId, record.state.url, {
           focus: this.#selected === tabId,
           transition: 'restore',
         });
-        // The replacement is attached now: its commit attaches nothing, the page being 'web'.
+      },
+      gone: () => {
+        const record = current();
+        if (record === undefined) {
+          return;
+        }
+        const progress = record.discard;
+        if (progress !== null) {
+          if (!progress.closing) {
+            // Gone mid-probe: it ends as a discard, with the last stack reported.
+            this.#completeDiscard(record, progress, null);
+          }
+          // A discard's own close: the discard sees the result and finishes it.
+          return;
+        }
+        // A close that finished after the discard stopped waiting, or something else closed it:
+        // the tab keeps what is known of its stack and is unloaded, like a discarded tab.
+        record.runtime = undefined;
+        record.runtimeToken = undefined;
+        record.restoringHidden = false;
+        record.memorySnapshot = record.lateCloseSnapshot;
+        record.lateCloseSnapshot = null;
+        record.pendingHistory =
+          record.memorySnapshot === null
+            ? (sanitizeHistory(record.lastHistory) ??
+              record.pendingHistory ??
+              singleEntryHistory(record.state.url, record.state.title))
+            : withoutPageState(record.memorySnapshot);
+        record.lastHistory = null;
+        record.findRequestId = undefined;
+        if (this.#fullscreen === tabId) {
+          this.#setFullscreen(null);
+        }
+        this.#options.onPageGone?.(tabId);
+        // A tab showing an internal page (an error page) goes back to a plain web page.
+        this.#transition(record, 'gone');
+        record.state = {
+          ...record.state,
+          page: record.state.url === '' ? NEW_TAB_PAGE : { kind: 'web' },
+          loading: false,
+          find: null,
+          canGoBack: false,
+          canGoForward: false,
+        };
+        if (this.#selected === tabId) {
+          this.#ensureLive(record); // I2.
+        }
         this.#syncVisibility();
+        this.#changed();
+      },
+      thawed: () => {
+        const record = current();
+        if (record?.state.runtime === 'frozen') {
+          this.#transition(record, 'thaw');
+          this.#changed();
+        }
       },
     };
+  }
+}
+
+/** A runtime's navigation entries, checked; null if it has none or can't tell. */
+function readSnapshot(runtime: TabRuntime): NavigationSnapshot | null {
+  try {
+    return restorableSnapshot(runtime.snapshot());
+  } catch {
+    return null;
   }
 }
 

@@ -68,8 +68,11 @@ const tabSnapshot = z.strictObject({
   loading: z.boolean(),
   canGoBack: z.boolean(),
   canGoForward: z.boolean(),
-  /** ADR-0003's runtime dimension. Placement is always the strip until Phase 3. */
-  runtime: z.enum(['unloaded', 'creating', 'live', 'crashed']),
+  /**
+   * ADR-0003's runtime dimension (core/lifecycle/runtime-machine.ts). `frozen` is an experiment,
+   * off by default; `discarding` lasts while a discard probes and closes the page (M3.1).
+   */
+  runtime: z.enum(['unloaded', 'creating', 'live', 'frozen', 'discarding', 'crashed']),
   page: z.discriminatedUnion('kind', [
     z.strictObject({ kind: z.literal('web') }),
     z.strictObject({

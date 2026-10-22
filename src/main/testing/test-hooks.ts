@@ -6,6 +6,7 @@ import { webContents } from 'electron';
 import type { WebContentsView } from 'electron';
 
 import type { Rect } from '../../core/layout/rect';
+import type { DiscardOutcome, DiscardRequest } from '../../core/lifecycle/discard';
 import { isDataMethod } from '../../shared/contracts/data-rpc';
 import type { ContextMenus } from '../menus/context-menu';
 import type { MenuEntry, MenuItemId, MenuParams } from '../menus/context-menu-model';
@@ -17,7 +18,14 @@ import { holdDataWorker } from './data-hold';
 import type { Worker } from 'node:worker_threads';
 import type { TabMenuEntry, TabMenuItemId } from '../menus/tab-menu-model';
 import { setSearchTemplate } from '../navigation/search-engine';
-import type { TabId, TabManager, TabState } from '../tabs/tab-manager';
+import type {
+  FreezeOutcome,
+  LifecycleFacts,
+  RuntimeTransition,
+  TabId,
+  TabManager,
+  TabState,
+} from '../tabs/tab-manager';
 import { createViewWithRole, roleOf } from '../web/roles';
 import type { WebContentsRole } from '../web/web-contents-role';
 import { TAB_WEB_PREFERENCES } from '../web/web-preferences';
@@ -27,6 +35,7 @@ import type { LayoutManager } from '../windows/layout-manager';
 import type { MainWindow } from '../windows/main-window';
 import type { PopupWindowInfo, PopupWindows } from '../windows/popup-windows';
 import { recordedExternalLaunches } from './external-launches';
+import { recordedRuntimeTransitions } from './runtime-transitions';
 import { recordedFileActions, testDownloadsFolder } from './test-files';
 
 export const TEST_HOOKS_MARKER = '__veltrivaTest';
@@ -120,6 +129,17 @@ export interface VeltrivaTestHooks {
   notices(): AppNotice[];
   /** Raises a notice as main does after a recovery, and returns its id. */
   showNotice(notice: NewAppNotice): string;
+  /**
+   * Discards a tab as the scheduler will (M3.1, assessment §4.9). The request defaults to an
+   * explicit one (`origin: 'user'`), which asks the page again whatever a discard learned.
+   */
+  discardTab(tabId: TabId, request?: Partial<DiscardRequest>): Promise<DiscardOutcome>;
+  /** Freezes a tab (the experiment, off by default in the app). */
+  freezeTab(tabId: TabId): Promise<FreezeOutcome>;
+  /** What the lifecycle knows about a tab: its epoch, operations, learned protections. */
+  lifecycleFacts(tabId: TabId): LifecycleFacts;
+  /** Every runtime transition so far (the newest 2,000), optionally of one tab. */
+  runtimeTransitions(tabId?: TabId): RuntimeTransition[];
 }
 
 declare global {
@@ -331,6 +351,23 @@ export function installTestHooks({
 
     showNotice(notice) {
       return notices.show(notice);
+    },
+
+    discardTab(tabId, request = {}) {
+      return tabs.discard(tabId, { origin: 'user', ...request });
+    },
+
+    freezeTab(tabId) {
+      return tabs.freeze(tabId);
+    },
+
+    lifecycleFacts(tabId) {
+      return tabs.lifecycleFacts(tabId);
+    },
+
+    runtimeTransitions(tabId) {
+      const all = recordedRuntimeTransitions();
+      return tabId === undefined ? all : all.filter((transition) => transition.tabId === tabId);
     },
   };
 

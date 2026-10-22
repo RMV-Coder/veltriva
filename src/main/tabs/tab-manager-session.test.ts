@@ -87,6 +87,25 @@ class FakeRuntime implements TabRuntime {
   history(): TabHistory | null {
     return this.historyValue;
   }
+  // The discard and freeze of M3.1 (tab-manager-model.test.ts covers them): never used here.
+  showHidden(): void {
+    this.calls.push('showHidden');
+  }
+  probe(): Promise<unknown> {
+    return Promise.reject(new Error('not used in these tests'));
+  }
+  snapshot(): null {
+    return null;
+  }
+  closeForDiscard(): Promise<'closed'> {
+    return Promise.reject(new Error('not used in these tests'));
+  }
+  freeze(): Promise<void> {
+    return Promise.reject(new Error('not used in these tests'));
+  }
+  thaw(): void {
+    this.calls.push('thaw');
+  }
   private assertAlive(): void {
     if (this.destroyed) {
       throw new Error(`runtime of ${this.tabId} used after destroy()`);

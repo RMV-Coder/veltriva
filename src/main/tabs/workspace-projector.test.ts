@@ -18,6 +18,7 @@ const base: TabState = {
   id: ID,
   pinned: false,
   placement: 'strip',
+  ephemeral: false,
   runtime: 'live',
   page: { kind: 'web' },
   url: 'https://user:pw@example.com/a',

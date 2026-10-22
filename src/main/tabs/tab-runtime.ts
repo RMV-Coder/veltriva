@@ -10,6 +10,17 @@
 // M1.4: `input-event` feeds the user-activation tracker, and the window-open handler is the popup
 // policy (src/main/popups/popup-policy.ts), set before the view loads anything.
 // `did-start-navigation` is deliberately unused (see TabRuntimeEvents in ./tab-manager.ts).
+//
+// M3.1, the discard and restore of assessment §4.9 (spikes S2 and S3):
+//   dom-ready (main frame)       → install the trusted-input tracker in our isolated world
+//   probe()                      → the probe and page-state flush, in the same world; the
+//                                  same-document commit the flush causes is dropped
+//   closeForDiscard('beforeunload') → close({ waitForBeforeUnload: true }); `will-prevent-unload`
+//                                  (never preventDefault'ed, so the page stays) means `prevented`
+//   closeForDiscard('plain')     → close()
+//   destroyed                    → settles every close; `gone` unless destroy() asked for it
+//   freeze() / thaw()            → CDP Page.setWebLifecycleState through webContents.debugger
+//                                  (experimental, off by default; a detach means thawed)
 import type { ContextMenuParams, Event, Input, WebContentsView } from 'electron';
 
 import { isActivationInput } from '../../core/input/user-activation';
@@ -20,12 +31,15 @@ import type { WindowOpenHandler, WindowOpenSource } from '../popups/popup-policy
 import { createViewWithRole } from '../web/roles';
 import { TAB_WEB_PREFERENCES } from '../web/web-preferences';
 import type { FaviconService } from './favicons';
-import type { TabId, TabRuntime, TabRuntimeFactory } from './tab-manager';
+import { BROWSER_WORLD_ID, EXIT_FULLSCREEN, INSTALL_INPUT_TRACKER, PROBE } from './page-scripts';
+import type { CloseResult, TabId, TabRuntime, TabRuntimeFactory } from './tab-manager';
 
 /** Where a tab's view is shown: the LayoutManager's content area. */
 export interface ContentHost {
   showContent(view: WebContentsView): void;
   hideContent(view: WebContentsView): void;
+  /** Attached, invisible and under everything: for a restore in the background (S2). */
+  attachHidden(view: WebContentsView): void;
 }
 
 /** What other parts of main need from a tab's input (src/main/input, src/main/menus). */
@@ -39,13 +53,13 @@ export interface TabInputHandlers {
 const ERR_ABORTED = -3;
 /** How long after a load stops a document's own favicon candidates may still arrive. */
 const SAME_FAVICON_GRACE_MS = 1000;
-
 /**
- * An isolated world of our own (the page can't touch its globals) for the one script main runs in
- * a page: leaving fullscreen. World 0 is the page's own and 999 is Electron's.
+ * How long the same-document commit of the probe's flush may take to arrive, before or after the
+ * probe's answer (S2: the flush itself takes 4–11 ms).
  */
-const BROWSER_WORLD_ID = 1001;
-const EXIT_FULLSCREEN = 'document.fullscreenElement ? document.exitFullscreen() : undefined';
+const FLUSH_COMMIT_WINDOW_MS = 2000;
+/** The DevTools protocol version the freeze experiment speaks. */
+const DEBUGGER_PROTOCOL = '1.3';
 
 export interface TabRuntimes {
   readonly factory: TabRuntimeFactory;
@@ -67,8 +81,17 @@ export function createTabRuntimes(options: {
   const factory: TabRuntimeFactory = (tabId, events) => {
     const view = createViewWithRole('tab', { webPreferences: { ...TAB_WEB_PREFERENCES } });
     const contents = view.webContents;
+    // Read once: a destroyed web contents can't be asked any more.
+    const contentsId = contents.id;
     views.set(tabId, view);
+    /** destroy() was called, or the web contents is gone: nothing more is reported. */
     let destroyed = false;
+    /** The pending discard closes, settled when the web contents is destroyed. */
+    const closeWaiters = new Set<() => void>();
+    /** The same-document commit the probe's page-state flush causes, which is not a navigation. */
+    let flushCommit: { readonly url: string; until: number } | null = null;
+    /** The freeze experiment holds the debugger while the page is frozen. */
+    let frozenByDebugger = false;
     /** Increases with each cross-document commit; stale favicon lookups are dropped. */
     let document = 0;
     /**
@@ -121,8 +144,50 @@ export function createTabRuntimes(options: {
       events.committed({ url, sameDocument: false, ...history() });
     });
     contents.on('did-navigate-in-page', (_event, url, isMainFrame) => {
-      if (!destroyed && isMainFrame) {
-        events.committed({ url, sameDocument: true, ...history() });
+      if (destroyed || !isMainFrame) {
+        return;
+      }
+      // The probe's flush (S2): neither a navigation nor engagement.
+      if (flushCommit !== null && url === flushCommit.url && Date.now() <= flushCommit.until) {
+        flushCommit = null;
+        return;
+      }
+      events.committed({ url, sameDocument: true, ...history() });
+    });
+    // The trusted-input tracker, in each new document (S3). Never with a user gesture.
+    contents.on('dom-ready', () => {
+      if (!destroyed) {
+        contents
+          .executeJavaScriptInIsolatedWorld(
+            BROWSER_WORLD_ID,
+            [{ code: INSTALL_INPUT_TRACKER }],
+            false,
+          )
+          .catch(() => undefined);
+      }
+    });
+    contents.once('destroyed', () => {
+      for (const settle of [...closeWaiters]) {
+        settle();
+      }
+      if (destroyed) {
+        return;
+      }
+      // Closed for a discard, or by something else: either way it is gone.
+      destroyed = true;
+      options.activation.forget(contentsId);
+      if (views.get(tabId) === view) {
+        views.delete(tabId);
+      }
+      events.gone();
+    });
+    contents.debugger.on('detach', () => {
+      if (frozenByDebugger) {
+        // DevTools took the debugger, or it detached by itself: the page runs again.
+        frozenByDebugger = false;
+        if (!destroyed) {
+          events.thawed();
+        }
       }
     });
     contents.on('did-fail-load', (_event, code, name, url, isMainFrame) => {
@@ -261,13 +326,20 @@ export function createTabRuntimes(options: {
           return;
         }
         // In our own world, so a page that replaced document.exitFullscreen can't trap the user.
+        // Leaving fullscreen needs no user activation, and granting it would tell the discard
+        // that the user had been on the page (S3).
         contents
-          .executeJavaScriptInIsolatedWorld(BROWSER_WORLD_ID, [{ code: EXIT_FULLSCREEN }], true)
+          .executeJavaScriptInIsolatedWorld(BROWSER_WORLD_ID, [{ code: EXIT_FULLSCREEN }], false)
           .catch(() => undefined);
       },
       show() {
         if (!destroyed) {
           options.host.showContent(view);
+        }
+      },
+      showHidden() {
+        if (!destroyed) {
+          options.host.attachHidden(view);
         }
       },
       hide() {
@@ -305,8 +377,11 @@ export function createTabRuntimes(options: {
         try {
           restoring = contents.navigationHistory.restore({
             index: history.index,
-            // URLs and titles only: page state is never persisted, and '' would be rejected.
-            entries: history.entries.map(({ url, title }) => ({ url, title })),
+            // Page state only from a discard in this run (never persisted); '' would be rejected,
+            // and core/lifecycle/snapshot.ts never keeps one.
+            entries: history.entries.map(({ url, title, pageState }) =>
+              pageState === undefined ? { url, title } : { url, title, pageState },
+            ),
           });
         } catch {
           done();
@@ -333,6 +408,103 @@ export function createTabRuntimes(options: {
           entries: entries.map(({ url, title }) => ({ url, title })),
         };
       },
+      probe() {
+        if (destroyed) {
+          return Promise.reject(new Error('The tab is gone.'));
+        }
+        const url = contents.getURL();
+        flushCommit = { url, until: Date.now() + FLUSH_COMMIT_WINDOW_MS };
+        return contents
+          .executeJavaScriptInIsolatedWorld(BROWSER_WORLD_ID, [{ code: PROBE }], false)
+          .then((reading: unknown) => {
+            const flushed =
+              typeof reading === 'object' &&
+              reading !== null &&
+              (reading as { flushed?: unknown }).flushed === true;
+            if (!flushed) {
+              flushCommit = null;
+            } else if (flushCommit !== null) {
+              // The commit may come just after the answer.
+              flushCommit.until = Date.now() + FLUSH_COMMIT_WINDOW_MS;
+            }
+            return reading;
+          });
+      },
+      snapshot() {
+        if (destroyed || contents.isDestroyed()) {
+          return null;
+        }
+        const entries = contents.navigationHistory.getAllEntries();
+        if (entries.length === 0) {
+          return null;
+        }
+        return { index: contents.navigationHistory.getActiveIndex(), entries };
+      },
+      closeForDiscard(mode) {
+        if (destroyed || contents.isDestroyed()) {
+          return Promise.resolve<CloseResult>('closed');
+        }
+        return new Promise<CloseResult>((resolve) => {
+          let settled = false;
+          const settle = (result: CloseResult): void => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            // S3: a listener left from one attempt must not answer for the next.
+            contents.off('will-prevent-unload', onPreventUnload);
+            closeWaiters.delete(onClosed);
+            resolve(result);
+          };
+          // Never preventDefault(): that would close the page anyway (S3). Without it, Electron
+          // silently cancels the close and the page lives on, with no dialog.
+          const onPreventUnload = (): void => {
+            settle('prevented');
+          };
+          const onClosed = (): void => {
+            settle('closed');
+          };
+          closeWaiters.add(onClosed);
+          // ADR-0002 §2: detach first.
+          options.host.hideContent(view);
+          if (contents.isDevToolsOpened()) {
+            contents.closeDevTools();
+          }
+          if (mode === 'beforeunload') {
+            contents.on('will-prevent-unload', onPreventUnload);
+            contents.close({ waitForBeforeUnload: true });
+          } else {
+            contents.close();
+          }
+        });
+      },
+      async freeze() {
+        if (destroyed) {
+          throw new Error('The tab is gone.');
+        }
+        if (!contents.debugger.isAttached()) {
+          contents.debugger.attach(DEBUGGER_PROTOCOL);
+        }
+        frozenByDebugger = true;
+        await contents.debugger.sendCommand('Page.setWebLifecycleState', { state: 'frozen' });
+      },
+      thaw() {
+        if (!frozenByDebugger) {
+          return;
+        }
+        frozenByDebugger = false;
+        if (destroyed || contents.isDestroyed() || !contents.debugger.isAttached()) {
+          return;
+        }
+        contents.debugger
+          .sendCommand('Page.setWebLifecycleState', { state: 'active' })
+          .catch(() => undefined)
+          .finally(() => {
+            if (!contents.isDestroyed() && contents.debugger.isAttached()) {
+              contents.debugger.detach();
+            }
+          });
+      },
       destroy() {
         if (destroyed) {
           return;
@@ -340,12 +512,16 @@ export function createTabRuntimes(options: {
         destroyed = true;
         // ADR-0002 §2: detach, close, drop every reference.
         options.host.hideContent(view);
-        if (contents.isDevToolsOpened()) {
-          contents.closeDevTools();
+        options.activation.forget(contentsId);
+        if (!contents.isDestroyed()) {
+          if (contents.isDevToolsOpened()) {
+            contents.closeDevTools();
+          }
+          contents.close();
         }
-        options.activation.forget(contents.id);
-        contents.close();
-        views.delete(tabId);
+        if (views.get(tabId) === view) {
+          views.delete(tabId);
+        }
       },
     };
     return runtime;

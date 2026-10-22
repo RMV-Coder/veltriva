@@ -27,6 +27,12 @@ function setup() {
     destroy: () => undefined,
     restore: () => undefined,
     history: () => null,
+    showHidden: () => undefined,
+    probe: () => Promise.reject(new Error('not used in these tests')),
+    snapshot: () => null,
+    closeForDiscard: () => Promise.reject(new Error('not used in these tests')),
+    freeze: () => Promise.reject(new Error('not used in these tests')),
+    thaw: () => undefined,
   };
   let next = 0;
   /** How each commit was reached, as the memory is told. */

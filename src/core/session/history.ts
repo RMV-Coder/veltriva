@@ -90,19 +90,32 @@ export function restorableUrl(raw: string): string | null {
 export function sanitizeHistory(
   raw: { readonly index: number; readonly entries: readonly unknown[] } | null,
 ): TabHistory | null {
+  return sanitizeEntries(raw, (entry) => entry);
+}
+
+/**
+ * `sanitizeHistory`, with a hook that builds each kept entry: it gets the clean entry, the raw
+ * one, and whether the URL came through unchanged. The in-memory discard snapshot uses it to keep
+ * an entry's page state only when its URL is exactly the one Chromium stored (core/lifecycle).
+ */
+export function sanitizeEntries<E extends HistoryEntry>(
+  raw: { readonly index: number; readonly entries: readonly unknown[] } | null,
+  build: (entry: HistoryEntry, raw: Readonly<Record<string, unknown>>, unchanged: boolean) => E,
+): { readonly index: number; readonly entries: readonly E[] } | null {
   if (raw === null || !Number.isInteger(raw.index)) {
     return null;
   }
-  const kept: { entry: HistoryEntry; from: number }[] = [];
+  const kept: { entry: E; from: number }[] = [];
   raw.entries.forEach((candidate, from) => {
     if (typeof candidate !== 'object' || candidate === null) {
       return;
     }
-    const { url, title } = candidate as { url?: unknown; title?: unknown };
+    const record = candidate as Readonly<Record<string, unknown>>;
+    const { url, title } = record;
     const clean = typeof url === 'string' ? restorableUrl(url) : null;
     if (clean !== null) {
       const text = typeof title === 'string' ? title.slice(0, MAX_HISTORY_TITLE) : '';
-      kept.push({ entry: { url: clean, title: text }, from });
+      kept.push({ entry: build({ url: clean, title: text }, record, clean === url), from });
     }
   });
   if (kept.length === 0) {

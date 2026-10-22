@@ -18,6 +18,12 @@ export class LayoutManager {
   readonly #shell: WebContentsView;
   #insets: Insets = DEFAULT_INSETS;
   #content: WebContentsView | undefined;
+  /**
+   * Tab views attached but invisible, at the bottom of the stack: a tab restoring in the
+   * background (M3.1). Restoring into a detached view puts the scroll position off by the
+   * display's scale factor; attached and invisible, it is exact (spike S2).
+   */
+  readonly #hidden = new Set<WebContentsView>();
   #fullscreen = false;
   #shellRaised = false;
 
@@ -56,6 +62,9 @@ export class LayoutManager {
     if (this.#content === view || this.#window.isDestroyed()) {
       return;
     }
+    if (this.#hidden.delete(view)) {
+      view.setVisible(true);
+    }
     if (this.#content !== undefined) {
       this.#window.contentView.removeChildView(this.#content);
     }
@@ -73,6 +82,13 @@ export class LayoutManager {
    * detach from: touching the window would throw "Object has been destroyed".
    */
   hideContent(view: WebContentsView): void {
+    if (this.#hidden.delete(view)) {
+      if (!this.#window.isDestroyed()) {
+        this.#window.contentView.removeChildView(view);
+      }
+      view.setVisible(true);
+      return;
+    }
     if (this.#content !== view) {
       return;
     }
@@ -80,6 +96,27 @@ export class LayoutManager {
     if (!this.#window.isDestroyed()) {
       this.#window.contentView.removeChildView(view);
     }
+  }
+
+  /**
+   * Attaches a tab's view where nothing shows it: invisible, under every other view, sized like
+   * the content area. For a restore while the tab isn't selected (spike S2). `showContent` makes
+   * it the content; `hideContent` detaches it.
+   */
+  attachHidden(view: WebContentsView): void {
+    if (this.#window.isDestroyed() || this.#hidden.has(view)) {
+      return;
+    }
+    if (this.#content === view) {
+      this.#content = undefined;
+      view.setVisible(false);
+      this.#hidden.add(view);
+      return;
+    }
+    view.setVisible(false);
+    this.#window.contentView.addChildView(view, 0);
+    view.setBounds(this.contentRect());
+    this.#hidden.add(view);
   }
 
   /**
@@ -114,5 +151,8 @@ export class LayoutManager {
     const { width, height } = this.#window.getContentBounds();
     this.#shell.setBounds(fillRect({ width, height }));
     this.#content?.setBounds(this.contentRect());
+    for (const view of this.#hidden) {
+      view.setBounds(this.contentRect());
+    }
   }
 }
