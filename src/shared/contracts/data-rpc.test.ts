@@ -53,6 +53,7 @@ describe('the history, favicon and maintenance methods', () => {
     for (const method of [
       'history.recordVisit',
       'history.updatePage',
+      'history.page',
       'history.pages',
       'history.visits',
       'favicons.put',
@@ -72,6 +73,7 @@ describe('the history, favicon and maintenance methods', () => {
     expect(names.sort()).toEqual([
       'favicons.get',
       'favicons.put',
+      'history.page',
       'history.pages',
       'history.recordVisit',
       'history.updatePage',
@@ -85,6 +87,7 @@ describe('the history, favicon and maintenance methods', () => {
     for (const method of [
       'history.recordVisit',
       'history.updatePage',
+      'history.page',
       'history.pages',
       'history.visits',
       'favicons.put',
@@ -94,6 +97,7 @@ describe('the history, favicon and maintenance methods', () => {
       const base: Record<string, unknown> = {
         'history.recordVisit': recordVisit,
         'history.updatePage': { pageId: 1, title: 'x' },
+        'history.page': { pageId: 1 },
         'history.pages': { limit: 5 },
         'history.visits': { pageId: 1, limit: 5 },
         'favicons.put': { bytes: PNG_BASE64, mime: 'image/png', at: T0 },
