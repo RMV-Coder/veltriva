@@ -3,8 +3,10 @@
 // critical. They are derived on every evaluation, never stored as a tab "state".
 //
 // M3.1 has the reasons the discard procedure itself learns (§4.9): the probe found unsaved input,
-// the page objected to unloading, or the probe saw a focused editor or a sensitive page. The
-// protection monitor (M3.4) adds the other signals of the table through the same shape.
+// the page objected to unloading, or the probe saw a focused editor or a sensitive page. M3.2,
+// which starts automation, adds the signals it must never override: audio, capture, DevTools, an
+// open popup, and the recent-interaction guard. The protection monitor (M3.4) adds the rest of
+// the table through the same shape.
 
 export const LIFECYCLE_ACTIONS = ['freeze', 'discard', 'shelve', 'archive'] as const;
 export type LifecycleActionKind = (typeof LIFECYCLE_ACTIONS)[number];
@@ -17,7 +19,17 @@ export type ProtectionReason =
   /** A focused `contenteditable`: a plain click sets it, so it is only soft (S3). */
   | 'editing'
   /** Password or payment fields on the page. */
-  | 'sensitive-page';
+  | 'sensitive-page'
+  /** Playing audio, or did in the last 2 minutes (muted playback counts, S1). */
+  | 'audio'
+  /** The page captures the camera, microphone or screen. */
+  | 'capture'
+  /** Its DevTools are open. */
+  | 'devtools'
+  /** It opened a popup window that is still open (a sign-in, a payment). */
+  | 'open-popup'
+  /** The user interacted with it within the preset's guard (wall clock). */
+  | 'recent-interaction';
 
 export interface Protection {
   readonly reason: ProtectionReason;
@@ -34,6 +46,15 @@ const PROTECTIONS: Readonly<Record<ProtectionReason, Protection>> = {
   },
   editing: { reason: 'editing', hard: false, blocks: ['discard', 'archive'] },
   'sensitive-page': { reason: 'sensitive-page', hard: false, blocks: ['discard'] },
+  audio: { reason: 'audio', hard: true, blocks: ['freeze', 'discard', 'shelve'] },
+  capture: { reason: 'capture', hard: true, blocks: ['freeze', 'discard', 'shelve', 'archive'] },
+  devtools: { reason: 'devtools', hard: true, blocks: ['discard'] },
+  'open-popup': { reason: 'open-popup', hard: true, blocks: ['discard', 'archive'] },
+  'recent-interaction': {
+    reason: 'recent-interaction',
+    hard: false,
+    blocks: ['discard', 'shelve', 'archive'],
+  },
 };
 
 export function protectionFor(reason: ProtectionReason): Protection {

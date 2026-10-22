@@ -65,6 +65,8 @@ const SAME_FAVICON_GRACE_MS = 1000;
  * probe's answer (S2: the flush itself takes 4–11 ms).
  */
 const FLUSH_COMMIT_WINDOW_MS = 2000;
+/** The recent-interaction guard needs minutes, not every mouse move. */
+const INTERACTION_REPORT_MS = 1000;
 /** The DevTools protocol version the freeze experiment speaks. */
 const DEBUGGER_PROTOCOL = '1.3';
 
@@ -131,9 +133,19 @@ export function createTabRuntimes(options: {
     contents.setWindowOpenHandler(
       options.windowOpenHandler({ contents, tabId: () => tabId, fromPopupWindow: false }),
     );
+    /** When the last `interacted` was reported: at most one a second (§4.10's guard). */
+    let interactionReportedAt = 0;
     contents.on('input-event', (_event, input) => {
-      if (!destroyed && isActivationInput(input)) {
-        options.activation.record(contents.id, Date.now());
+      if (destroyed) {
+        return;
+      }
+      const now = Date.now();
+      if (isActivationInput(input)) {
+        options.activation.record(contents.id, now);
+      }
+      if (now - interactionReportedAt >= INTERACTION_REPORT_MS || now < interactionReportedAt) {
+        interactionReportedAt = now;
+        events.interacted?.();
       }
     });
 

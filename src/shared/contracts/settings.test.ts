@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_SEARCH_TEMPLATE } from '../../core/url/omnibox';
 import {
   DEFAULT_HISTORY_RETENTION_DAYS,
+  DEFAULT_LIFECYCLE_DOCUMENT,
   DEFAULT_SETTINGS,
   parseSettings,
   settingsSchema,
@@ -11,10 +12,17 @@ import {
 const CUSTOM_TEMPLATE = 'https://search.example/?q={searchTerms}';
 
 describe('the defaults', () => {
-  it('are DuckDuckGo and a year of history', () => {
+  it('are DuckDuckGo, a year of history, and the Balanced lifecycle preset', () => {
     expect(DEFAULT_SETTINGS).toEqual({
       search: { template: 'https://duckduckgo.com/?q={searchTerms}' },
       history: { retentionDays: 365 },
+      lifecycle: {
+        preset: 'balanced',
+        autoArchive: true,
+        freeze: false,
+        paused: false,
+        overrides: {},
+      },
     });
     expect(DEFAULT_SEARCH_TEMPLATE).toBe(DEFAULT_SETTINGS.search.template);
     expect(DEFAULT_HISTORY_RETENTION_DAYS).toBe(365);
@@ -61,6 +69,7 @@ describe('parseSettings: a good document', () => {
     ).toEqual({
       search: { template: CUSTOM_TEMPLATE },
       history: { retentionDays: 90 },
+      lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
 
@@ -68,10 +77,12 @@ describe('parseSettings: a good document', () => {
     expect(parseSettings({ history: { retentionDays: 30 } })).toEqual({
       search: DEFAULT_SETTINGS.search,
       history: { retentionDays: 30 },
+      lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
     expect(parseSettings({ search: { template: CUSTOM_TEMPLATE } })).toEqual({
       search: { template: CUSTOM_TEMPLATE },
       history: DEFAULT_SETTINGS.history,
+      lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
 
@@ -85,6 +96,7 @@ describe('parseSettings: a good document', () => {
     expect(parsed).toEqual({
       search: { template: CUSTOM_TEMPLATE },
       history: { retentionDays: 30 },
+      lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
     expect(parsed).not.toHaveProperty('futureFeature');
   });
@@ -106,6 +118,7 @@ describe('parseSettings: each field falls back alone', () => {
     ).toEqual({
       search: { template: CUSTOM_TEMPLATE },
       history: { retentionDays: 365 },
+      lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
 
@@ -115,6 +128,7 @@ describe('parseSettings: each field falls back alone', () => {
     ).toEqual({
       search: { template: DEFAULT_SEARCH_TEMPLATE },
       history: { retentionDays: 14 },
+      lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
 
@@ -127,6 +141,7 @@ describe('parseSettings: each field falls back alone', () => {
     expect(parseSettings({ search, history: { retentionDays: 14 } })).toEqual({
       search: DEFAULT_SETTINGS.search,
       history: { retentionDays: 14 },
+      lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
 
@@ -139,6 +154,7 @@ describe('parseSettings: each field falls back alone', () => {
     expect(parseSettings({ search: { template: CUSTOM_TEMPLATE }, history })).toEqual({
       search: { template: CUSTOM_TEMPLATE },
       history: DEFAULT_SETTINGS.history,
+      lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
 
@@ -234,5 +250,62 @@ describe('parseSettings: retentionDays', () => {
 
   it('takes a whole number written as a float, which JSON does not tell apart', () => {
     expect(retention(30.0)).toBe(30);
+  });
+});
+
+describe('parseSettings: lifecycle (M3.2)', () => {
+  const lifecycle = (section: unknown) => parseSettings({ lifecycle: section }).lifecycle;
+
+  it('keeps what it holds', () => {
+    expect(
+      lifecycle({
+        preset: 'aggressive',
+        autoArchive: false,
+        freeze: true,
+        paused: true,
+        overrides: { stripCap: 20, discardAfterMs: 30 * 60 * 1000, discardPinned: true },
+      }),
+    ).toEqual({
+      preset: 'aggressive',
+      autoArchive: false,
+      freeze: true,
+      paused: true,
+      overrides: { stripCap: 20, discardAfterMs: 30 * 60 * 1000, discardPinned: true },
+    });
+  });
+
+  it.each([
+    ['null', null],
+    ['a string', 'aggressive'],
+    ['an array', ['gentle']],
+    ['a number', 3],
+  ])('is the default section for %s', (_what, section) => {
+    expect(lifecycle(section)).toEqual(DEFAULT_LIFECYCLE_DOCUMENT);
+  });
+
+  it('takes the default for each field alone: an unknown preset keeps the switches', () => {
+    expect(lifecycle({ preset: 'turbo', autoArchive: false, freeze: 'yes' })).toEqual({
+      ...DEFAULT_LIFECYCLE_DOCUMENT,
+      autoArchive: false,
+    });
+  });
+
+  it('drops an override out of its range alone, keeping the others', () => {
+    expect(
+      lifecycle({
+        overrides: {
+          stripCap: 0,
+          discardAfterMs: 1000,
+          shelveAfterEngagedMs: 2 * 60 * 60 * 1000,
+          archiveAfterActiveDays: 400,
+          interactionGuardMs: -1,
+          discardPinned: 'no',
+        },
+      }).overrides,
+    ).toEqual({ shelveAfterEngagedMs: 2 * 60 * 60 * 1000 });
+  });
+
+  it('takes no overrides when they are not an object', () => {
+    expect(lifecycle({ overrides: 'none' }).overrides).toEqual({});
   });
 });

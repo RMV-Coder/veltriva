@@ -7,6 +7,15 @@ import type { WebContentsView } from 'electron';
 
 import type { Rect } from '../../core/layout/rect';
 import type { DiscardOutcome, DiscardRequest } from '../../core/lifecycle/discard';
+import type {
+  LifecycleAction,
+  LifecycleClock,
+  LifecycleSettingsInput,
+  MemoryPressure,
+} from '../../core/lifecycle/policy';
+import type { ActionRecord, LifecycleScheduler } from '../lifecycle/scheduler';
+import { advanceTestClock, setTestMemoryPressure } from './test-clock';
+import type { TestClockAdjustment } from './test-clock';
 import { isDataMethod } from '../../shared/contracts/data-rpc';
 import type { ContextMenus } from '../menus/context-menu';
 import type { MenuEntry, MenuItemId, MenuParams } from '../menus/context-menu-model';
@@ -140,6 +149,27 @@ export interface VeltrivaTestHooks {
   lifecycleFacts(tabId: TabId): LifecycleFacts;
   /** Every runtime transition so far (the newest 2,000), optionally of one tab. */
   runtimeTransitions(tabId?: TabId): RuntimeTransition[];
+  /**
+   * Fast-forwards the lifecycle's clock (M3.2, assessment §4.8): wall-clock time, engaged time and
+   * active days, as seen by the policy, TabManager's activity and the protections. Returns the
+   * total so far.
+   */
+  advanceLifecycleClock(by: Partial<TestClockAdjustment>): TestClockAdjustment;
+  /** The lifecycle's clock now (with the fast-forward). */
+  lifecycleClock(): LifecycleClock;
+  /** What the policy plans now, without doing anything. */
+  lifecyclePlan(): LifecycleAction[];
+  /**
+   * Evaluates now, whatever the timer and the quiet start, and resolves once every operation it
+   * started has settled, with the actions it logged.
+   */
+  lifecycleEvaluate(): Promise<ActionRecord[]>;
+  /** Every action the scheduler logged (the newest 500). */
+  lifecycleLog(): ActionRecord[];
+  /** Overrides the memory pressure the scheduler sees; null goes back to the real monitor. */
+  setMemoryPressure(level: MemoryPressure | null): void;
+  /** Replaces the lifecycle settings (as the Phase 5 settings page will), merged on the current. */
+  setLifecycleSettings(settings: Partial<LifecycleSettingsInput>): void;
 }
 
 declare global {
@@ -159,6 +189,11 @@ export interface TestHookContext {
   readonly dataWorker: Worker;
   readonly dataLifecycle: DataLifecycle;
   readonly notices: AppNotices;
+  readonly lifecycle: {
+    readonly scheduler: LifecycleScheduler;
+    readonly clock: () => LifecycleClock;
+    readonly setSettings: (settings: Partial<LifecycleSettingsInput>) => void;
+  };
 }
 
 /** A plain right-click on the page, at the top-left corner of the view. */
@@ -195,6 +230,7 @@ export function installTestHooks({
   data,
   dataWorker,
   notices,
+  lifecycle,
 }: TestHookContext): void {
   const testTabs = new Set<WebContentsView>();
   const paramsFrom = (params: Partial<MenuParams> = {}): MenuParams => ({
@@ -368,6 +404,36 @@ export function installTestHooks({
     runtimeTransitions(tabId) {
       const all = recordedRuntimeTransitions();
       return tabId === undefined ? all : all.filter((transition) => transition.tabId === tabId);
+    },
+
+    advanceLifecycleClock(by) {
+      return advanceTestClock(by);
+    },
+
+    lifecycleClock() {
+      return lifecycle.clock();
+    },
+
+    lifecyclePlan() {
+      return lifecycle.scheduler.plan();
+    },
+
+    async lifecycleEvaluate() {
+      const before = lifecycle.scheduler.log().length;
+      await lifecycle.scheduler.evaluate();
+      return lifecycle.scheduler.log().slice(before);
+    },
+
+    lifecycleLog() {
+      return [...lifecycle.scheduler.log()];
+    },
+
+    setMemoryPressure(level) {
+      setTestMemoryPressure(level);
+    },
+
+    setLifecycleSettings(settings) {
+      lifecycle.setSettings(settings);
     },
   };
 

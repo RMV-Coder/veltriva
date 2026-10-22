@@ -77,6 +77,9 @@ function toSessionTab(row: TabRow): SessionTab {
     history: row.restoreState === null ? null : sanitizeHistory(row.restoreState),
     createdAt: row.createdAt,
     lastUsedAt: row.lastUsedAt,
+    // Phase 2 wrote 0 for both: unknown, which TabManager reads as "now".
+    ...(row.lastUsedEngaged > 0 ? { lastUsedEngaged: row.lastUsedEngaged } : {}),
+    ...(row.lastUsedActiveDay > 0 ? { lastUsedActiveDay: row.lastUsedActiveDay } : {}),
   };
 }
 

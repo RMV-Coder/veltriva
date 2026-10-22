@@ -54,6 +54,8 @@ interface PopupWindow {
   readonly contents: WebContents;
   readonly bar: WebContentsView;
   state: PopupBarState;
+  /** The tab that opened it: an open popup protects its tab from discards (M3.2, §4.10). */
+  readonly openerTabId: TabId;
 }
 
 export interface PopupWindowsOptions {
@@ -107,7 +109,7 @@ export class PopupWindows implements PopupHost {
     const barContents = bar.webContents;
     window.contentView.addChildView(page);
     window.contentView.addChildView(bar);
-    const entry: PopupWindow = { window, page, contents, bar, state: BLANK };
+    const entry: PopupWindow = { window, page, contents, bar, state: BLANK, openerTabId };
     this.#popups.add(entry);
 
     const layout = (): void => {
@@ -206,6 +208,16 @@ export class PopupWindows implements PopupHost {
     });
 
     return contents;
+  }
+
+  /** Whether a popup window that `tabId` opened is still open. */
+  hasOpenPopupFor(tabId: TabId): boolean {
+    for (const popup of this.#popups) {
+      if (popup.openerTabId === tabId && !popup.window.isDestroyed()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** The main window closed: the app is quitting, and popups go with it. */

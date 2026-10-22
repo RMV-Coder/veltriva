@@ -198,6 +198,7 @@ describe('readStoredState: what it reads', () => {
     expect(state.settings).toEqual({
       search: { template: 'https://search.example/?q={searchTerms}' },
       history: { retentionDays: 30 },
+      lifecycle: DEFAULT_SETTINGS.lifecycle,
     });
   });
 
@@ -213,6 +214,7 @@ describe('readStoredState: what it reads', () => {
     expect(state.settings).toEqual({
       search: DEFAULT_SETTINGS.search,
       history: { retentionDays: 14 },
+      lifecycle: DEFAULT_SETTINGS.lifecycle,
     });
   });
 

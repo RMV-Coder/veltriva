@@ -45,6 +45,8 @@ function tab(n: number, overrides: Partial<SessionTab> = {}): SessionTab {
     history: { index: 0, entries: [{ url, title: `Tab ${String(n)}` }] },
     createdAt: T0,
     lastUsedAt: T0 + 10,
+    // Day 1 is the engagement clock's first (M3.2); Phase 2 rows held 0, rewritten once.
+    lastUsedActiveDay: 1,
     ...overrides,
   };
 }
@@ -602,7 +604,7 @@ describe('SessionStore', () => {
         createdAt: T0,
         lastUsedAt: T0 + 10,
         lastUsedEngaged: 0,
-        lastUsedActiveDay: 0,
+        lastUsedActiveDay: 1,
         placementChangedAt: T0,
         archivedAt: null,
         archiveReason: null,

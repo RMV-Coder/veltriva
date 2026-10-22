@@ -14,6 +14,12 @@ const TABLE: Readonly<
   'page-unsaved-changes': { hard: true, blocks: ['discard', 'archive'] },
   editing: { hard: false, blocks: ['discard', 'archive'] },
   'sensitive-page': { hard: false, blocks: ['discard'] },
+  // M3.2: the signals automation must respect from its start (§4.10's rows).
+  audio: { hard: true, blocks: ['freeze', 'discard', 'shelve'] },
+  capture: { hard: true, blocks: ['freeze', 'discard', 'shelve', 'archive'] },
+  devtools: { hard: true, blocks: ['discard'] },
+  'open-popup': { hard: true, blocks: ['discard', 'archive'] },
+  'recent-interaction': { hard: false, blocks: ['discard', 'shelve', 'archive'] },
 };
 const REASONS = Object.keys(TABLE) as ProtectionReason[];
 /** Every real protection, in the order of TABLE. */
@@ -46,36 +52,57 @@ describe('protectionFor', () => {
     ['page-unsaved-changes', 'hard'],
     ['editing', 'soft'],
     ['sensitive-page', 'soft'],
+    ['audio', 'hard'],
+    ['capture', 'hard'],
+    ['devtools', 'hard'],
+    ['open-popup', 'hard'],
+    ['recent-interaction', 'soft'],
   ] as const)('makes %s %s (assessment §4.10)', (reason, strength) => {
     expect(protectionFor(reason).hard).toBe(strength === 'hard');
   });
 
-  it('has a hard reason for each thing that is certainly unsaved, and a soft one for each guess', () => {
-    // §4.10: the unsaved-input heuristic and `beforeunload` are hard; a focused contenteditable and
-    // a sensitive page are soft (S3: a plain click sets focus).
+  it('is hard for what is certain and soft for each guess', () => {
+    // §4.10: unsaved input, `beforeunload`, audio, capture, DevTools and an open popup are hard; a
+    // focused contenteditable, a sensitive page and a recent interaction are soft.
     const hard = REASONS.filter((reason) => protectionFor(reason).hard);
 
-    expect(hard.sort()).toEqual(['page-unsaved-changes', 'unsaved-input']);
+    expect(hard.sort()).toEqual([
+      'audio',
+      'capture',
+      'devtools',
+      'open-popup',
+      'page-unsaved-changes',
+      'unsaved-input',
+    ]);
   });
 
-  it('blocks discard for every reason, because every reason is learned during a discard', () => {
+  it('blocks discard for every reason', () => {
     for (const reason of REASONS) {
       expect(protectionFor(reason).blocks).toContain('discard');
     }
   });
 
-  it('blocks archive for all but sensitive-page, which only blocks discard', () => {
+  it('blocks archive for the reasons that would lose work or a live page, not for audio or DevTools', () => {
     expect(
       REASONS.filter((reason) => protectionFor(reason).blocks.includes('archive')).sort(),
-    ).toEqual(['editing', 'page-unsaved-changes', 'unsaved-input']);
+    ).toEqual([
+      'capture',
+      'editing',
+      'open-popup',
+      'page-unsaved-changes',
+      'recent-interaction',
+      'unsaved-input',
+    ]);
     expect(protectionFor('sensitive-page').blocks).toEqual(['discard']);
   });
 
-  it('blocks neither freeze nor shelve: M3.1 has no reason that does', () => {
-    for (const reason of REASONS) {
-      expect(protectionFor(reason).blocks).not.toContain('freeze');
-      expect(protectionFor(reason).blocks).not.toContain('shelve');
-    }
+  it('blocks freeze only for audio and capture, and shelve for those and a recent interaction', () => {
+    expect(
+      REASONS.filter((reason) => protectionFor(reason).blocks.includes('freeze')).sort(),
+    ).toEqual(['audio', 'capture']);
+    expect(
+      REASONS.filter((reason) => protectionFor(reason).blocks.includes('shelve')).sort(),
+    ).toEqual(['audio', 'capture', 'recent-interaction']);
   });
 
   it('blocks only actions that exist, each once', () => {
@@ -279,9 +306,8 @@ describe('blockingProtection', () => {
   describe('with the real reasons', () => {
     it('is blocked from discarding by the first hard reason, wherever it sits', () => {
       expect(blockingProtection(ALL, 'discard')?.reason).toBe('unsaved-input');
-      expect(blockingProtection([...ALL].reverse(), 'discard')?.reason).toBe(
-        'page-unsaved-changes',
-      );
+      // Reversed, the first hard reason is the table's last hard one.
+      expect(blockingProtection([...ALL].reverse(), 'discard')?.reason).toBe('open-popup');
     });
 
     it('is blocked from archiving by the same reasons, and sensitive-page is no part of it', () => {
@@ -289,9 +315,9 @@ describe('blockingProtection', () => {
       expect(blockingProtection([sensitive], 'archive')).toBeNull();
     });
 
-    it('is never blocked from freezing or shelving', () => {
-      expect(blockingProtection(ALL, 'freeze')).toBeNull();
-      expect(blockingProtection(ALL, 'shelve')).toBeNull();
+    it('is blocked from freezing and shelving by audio first, in table order', () => {
+      expect(blockingProtection(ALL, 'freeze')?.reason).toBe('audio');
+      expect(blockingProtection(ALL, 'shelve')?.reason).toBe('audio');
     });
 
     it('is blocked by only the soft reasons for a discard, until critical pressure lifts them', () => {

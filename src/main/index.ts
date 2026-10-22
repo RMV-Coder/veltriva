@@ -2,9 +2,16 @@ import { getRandomValues } from 'node:crypto';
 import { join } from 'node:path';
 
 import { app, Menu, nativeTheme, powerMonitor, session } from 'electron';
+import { performance } from 'node:perf_hooks';
 import type { WebContents } from 'electron';
 
 import { uuidv7 } from '../core/id/uuidv7';
+import { resolveLifecycleSettings } from '../core/lifecycle/policy';
+import type {
+  LifecycleClock,
+  LifecycleSettings,
+  LifecycleSettingsInput,
+} from '../core/lifecycle/policy';
 import { ActivationTracker } from '../core/input/user-activation';
 import { ClientHintOptIns } from '../core/net/client-hints';
 import { PermissionDecisions } from '../core/permissions/permission-decisions';
@@ -21,6 +28,15 @@ import { systemLauncher } from './external/launcher';
 import { ExternalProtocolGuard } from './external/protocol-guard';
 import { FocusManager } from './focus/focus-manager';
 import { HistoryRecorder } from './history/history-recorder';
+import {
+  EngagementSampler,
+  engagementWriter,
+  readStoredEngagement,
+} from './lifecycle/engagement-sampler';
+import { MemoryPressureMonitor } from './lifecycle/memory-pressure';
+import { ProtectionSignals } from './lifecycle/protection-signals';
+import { LifecycleScheduler } from './lifecycle/scheduler';
+import { SYSTEM_TIMERS } from './platform/timers';
 import { installPageMenu } from './input/page-menu';
 import { createShortcutHandler } from './input/shortcuts';
 import { createCommandHandlers } from './ipc/commands';
@@ -55,6 +71,7 @@ import { createTabRuntimes } from './tabs/tab-runtime';
 import { createWorkspaceProjector } from './tabs/workspace-projector';
 import { recordExternalLaunch } from './testing/external-launches';
 import { recordRuntimeTransition } from './testing/runtime-transitions';
+import { testClockAdjustment, testMemoryPressure } from './testing/test-clock';
 import { exitOnUncaughtException } from './testing/fail-fast';
 import { recordingFileActions, testDownloadsFolder } from './testing/test-files';
 import { LIFECYCLE_SCENARIO_ENV, runLifecycleScenario } from './testing/lifecycle-scenarios';
@@ -176,6 +193,9 @@ async function start(): Promise<void> {
       ? EMPTY_STORED_STATE
       : await readStoredState(data, consoleLogger, { downloads: MAX_LISTED_DOWNLOADS });
   settings = stored.settings;
+  // The engagement clock (assessment §4.6), from where it stopped. A new profile starts at zero.
+  const storedEngagement =
+    startup === null ? null : await readStoredEngagement(data, consoleLogger);
   setSearchTemplate(settings.search.template);
   const writeDecision = decisionWriters(data, consoleLogger);
 
@@ -375,6 +395,76 @@ async function start(): Promise<void> {
     logger: consoleLogger,
   });
   dataLifecycle.addFlush(() => historyRecorder.flush());
+  // Lifecycle automation (M3.2, assessment §4.6–§4.8): the engagement clock, memory pressure, the
+  // protections it must respect, and the scheduler, created below once the session is restored.
+  // Test builds can fast-forward the clock and set the pressure (src/main/testing/test-clock.ts).
+  const engagement = new EngagementSampler({
+    system: {
+      idleState: (threshold) => powerMonitor.getSystemIdleState(threshold),
+      on: (event, listener) => {
+        // One literal per call: Electron's overloads take no union of event names.
+        switch (event) {
+          case 'suspend':
+            powerMonitor.on('suspend', listener);
+            break;
+          case 'resume':
+            powerMonitor.on('resume', listener);
+            break;
+          case 'lock-screen':
+            powerMonitor.on('lock-screen', listener);
+            break;
+          case 'unlock-screen':
+            powerMonitor.on('unlock-screen', listener);
+            break;
+        }
+      },
+    },
+    monotonic: () => performance.now(),
+    wall: Date.now,
+    timezoneOffset: (wallMs) => new Date(wallMs).getTimezoneOffset(),
+    timers: SYSTEM_TIMERS,
+    stored: storedEngagement,
+    persist: engagementWriter(data),
+    onResume: () => {
+      automation.scheduler?.trigger();
+    },
+    logger: consoleLogger,
+  });
+  dataLifecycle.addFlush(() => engagement.flush());
+  const lifecycleClock = (): LifecycleClock => {
+    const adjust =
+      import.meta.env.MODE === 'test'
+        ? testClockAdjustment()
+        : { wallMs: 0, engagedMs: 0, activeDays: 0 };
+    const now = engagement.now();
+    return {
+      wallNow: Date.now() + adjust.wallMs,
+      engagedNow: now.engagedMs + adjust.engagedMs,
+      activeDay: now.activeDay + adjust.activeDays,
+    };
+  };
+  let lifecycleDocument: LifecycleSettingsInput = settings.lifecycle;
+  let lifecycleSettings: LifecycleSettings = resolveLifecycleSettings(lifecycleDocument);
+  const pressure = new MemoryPressureMonitor({
+    read: () => process.getSystemMemoryInfo(),
+    timers: SYSTEM_TIMERS,
+    monotonic: () => performance.now(),
+    onChange: () => {
+      automation.scheduler?.trigger();
+    },
+  });
+  app.on('render-process-gone', (_event, _contents, details) => {
+    pressure.rendererGone(details.reason);
+  });
+  const signals = new ProtectionSignals({
+    contentsOf: (tabId) => runtimes.views.get(tabId)?.webContents,
+    hasOpenPopup: (tabId) => popupWindows.hasOpenPopupFor(tabId),
+    now: () => lifecycleClock().wallNow,
+  });
+  /** The scheduler, created once the session is restored; until then nothing is automated. */
+  const automation: { scheduler?: LifecycleScheduler } = {};
+  /** The selected tab as of the last change: a switch hides one, which may call for action. */
+  let lastSelected: string | null = null;
   const tabs = new TabManager({
     createRuntime: runtimes.factory,
     newId: () => uuidv7(Date.now(), getRandomValues(new Uint8Array(10))),
@@ -382,7 +472,14 @@ async function start(): Promise<void> {
       showPromptsOf();
       projector.markDirty();
       sessionStore?.changed();
+      const selected = tabs.selectedTabId();
+      if (selected !== lastSelected) {
+        lastSelected = selected;
+        automation.scheduler?.trigger();
+      }
     },
+    activityClock: lifecycleClock,
+    protections: (tabId) => signals.protectionsOf(tabId),
     onFullscreenChange: (tabId) => {
       fullscreen.update(tabId);
     },
@@ -504,6 +601,21 @@ async function start(): Promise<void> {
     main.window.on('unmaximize', saveWindow);
   }
 
+  // Automation starts after the restore, quietly for its first 2 minutes (§4.8).
+  const lifecycle = new LifecycleScheduler({
+    tabs,
+    settings: () => lifecycleSettings,
+    clock: lifecycleClock,
+    pressure: () =>
+      (import.meta.env.MODE === 'test' ? testMemoryPressure() : null) ?? pressure.level(),
+    timers: SYSTEM_TIMERS,
+    logger: consoleLogger,
+  });
+  automation.scheduler = lifecycle;
+  engagement.start();
+  pressure.start();
+  lifecycle.start();
+
   installIpcRouter({
     handlers: createCommandHandlers({
       tabs,
@@ -540,6 +652,10 @@ async function start(): Promise<void> {
     prompts.dispose();
     popupWindows.closeAll();
     // Before the tabs go: closing them all here is shutdown, not the user closing tabs.
+    // Automation stops first (§4.11 item 5): nothing new starts while the tabs go.
+    lifecycle.stop();
+    pressure.stop();
+    engagement.stop();
     sessionStore?.freeze();
     tabs.closeAll();
     main.shell.webContents.close();
@@ -559,6 +675,15 @@ async function start(): Promise<void> {
       dataWorker,
       dataLifecycle,
       notices,
+      lifecycle: {
+        scheduler: lifecycle,
+        clock: lifecycleClock,
+        setSettings: (changes) => {
+          lifecycleDocument = { ...lifecycleDocument, ...changes };
+          lifecycleSettings = resolveLifecycleSettings(lifecycleDocument);
+          lifecycle.trigger();
+        },
+      },
     });
     const scenario = process.env[LIFECYCLE_SCENARIO_ENV];
     if (scenario !== undefined && scenario !== '') {

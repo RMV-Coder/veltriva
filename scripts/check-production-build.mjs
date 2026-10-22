@@ -38,6 +38,17 @@ const MARKERS = [
   'discardTab',
   'freezeTab',
   'runtimeTransitions',
+  'advanceLifecycleClock',
+  'lifecyclePlan',
+  'lifecycleEvaluate',
+  'lifecycleLog',
+  'setMemoryPressure',
+  'setLifecycleSettings',
+  // src/main/testing/test-clock.ts: the accelerated lifecycle clock (M3.2)
+  'testClockAdjustment',
+  'advanceTestClock',
+  'testMemoryPressure',
+  'setTestMemoryPressure',
   // src/main/testing/runtime-transitions.ts
   'recordRuntimeTransition',
   'recordedRuntimeTransitions',

@@ -196,6 +196,9 @@ function savedTab(id: string, overrides: Partial<SessionTab> = {}): SessionTab {
     },
     createdAt: 1000,
     lastUsedAt: 2000,
+    // The engagement clock's values (M3.2); without an activity clock, engaged 0 on day 1.
+    lastUsedEngaged: 0,
+    lastUsedActiveDay: 1,
     ...overrides,
   };
 }
@@ -1406,6 +1409,8 @@ describe('TabManager session', () => {
           history: null,
           createdAt: 10_000,
           lastUsedAt: 10_000,
+          lastUsedEngaged: 0,
+          lastUsedActiveDay: 1,
         },
       ]);
     });
@@ -1445,7 +1450,7 @@ describe('TabManager session', () => {
   });
 
   describe('lastUsedAt', () => {
-    it('moves to now when a tab is selected', () => {
+    it('moves to now when a tab is selected, and when it is left (in use until then, M3.2)', () => {
       const { manager, clock } = setup();
       manager.restoreSession(
         session({
@@ -1459,7 +1464,7 @@ describe('TabManager session', () => {
       manager.select('b');
 
       expect(manager.sessionTabs().map((tab) => [tab.id, tab.lastUsedAt])).toEqual([
-        ['a', 100],
+        ['a', 5000],
         ['b', 5000],
       ]);
     });
@@ -1498,10 +1503,10 @@ describe('TabManager session', () => {
       clock.now = 7000;
       manager.close('b');
 
-      // `c` took the place of `b` and was selected.
+      // `c` took the place of `b` and was selected; `a` was in use until `b` was selected.
       expect(manager.selectedTabId()).toBe('c');
       expect(manager.sessionTabs().map((tab) => [tab.id, tab.lastUsedAt])).toEqual([
-        ['a', 100],
+        ['a', 6000],
         ['c', 7000],
       ]);
     });

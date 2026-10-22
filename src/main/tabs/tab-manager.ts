@@ -59,6 +59,7 @@ import type { RuntimeEvent, RuntimeState } from '../../core/lifecycle/runtime-ma
 import { SerialQueue } from '../../core/lifecycle/serial-queue';
 import { restorableSnapshot, sameStack, withoutPageState } from '../../core/lifecycle/snapshot';
 import type { NavigationSnapshot } from '../../core/lifecycle/snapshot';
+import type { LifecycleClock, TabFacts } from '../../core/lifecycle/policy';
 import { restorableUrl, sanitizeHistory, singleEntryHistory } from '../../core/session/history';
 import type { TabHistory } from '../../core/session/history';
 import { errorPageFor } from '../../core/net/error-pages';
@@ -243,6 +244,11 @@ export interface TabRuntimeEvents {
   gone(): void;
   /** A frozen page runs again without TabManager asking (its debugger detached). */
   thawed(): void;
+  /**
+   * The user gave the page input (any kind: keys, clicks, wheel, mouse moves). The runtime
+   * reports it at most once a second; it feeds the recent-interaction guard (§4.10).
+   */
+  interacted?(): void;
 }
 
 export type TabRuntimeFactory = (tabId: TabId, events: TabRuntimeEvents) => TabRuntime;
@@ -280,6 +286,11 @@ export interface TabManagerOptions {
   readonly protections?: (tabId: TabId) => Iterable<Protection>;
   /** Every runtime transition, after it happened. */
   readonly onTransition?: (transition: RuntimeTransition) => void;
+  /**
+   * The engagement clock (§4.6) with the wall clock, for each tab's last use. Without it, last
+   * use is wall-clock only (engaged 0, active day 1).
+   */
+  readonly activityClock?: () => LifecycleClock;
 }
 
 /** A tab's page changes, as the memory needs them. Never called for internal pages. */
@@ -343,6 +354,10 @@ export interface SessionTab {
   readonly history: TabHistory | null;
   readonly createdAt: number;
   readonly lastUsedAt: number;
+  /** The engagement clock at its last use (§4.6); absent from older rows, then "now". */
+  readonly lastUsedEngaged?: number;
+  /** The active day of its last use (§4.6); absent from older rows, then "today". */
+  readonly lastUsedActiveDay?: number;
 }
 
 export interface ClosedTab extends SessionTab {
@@ -415,7 +430,14 @@ interface TabRecord {
    */
   nextTransition: VisitTransition | null;
   readonly createdAt: number;
+  /** Its last use: when it was last selected, or left (§4.2's activity). */
   lastUsedAt: number;
+  lastUsedEngaged: number;
+  lastUsedActiveDay: number;
+  /** Wall-clock time it stopped being shown; null while it is the selected tab. */
+  hiddenSince: number | null;
+  /** Wall-clock time of the user's last input in its page. */
+  lastInteractionAt: number | null;
 }
 
 const NEW_TAB_PAGE: TabPage = { kind: 'internal', name: 'new-tab' };
@@ -471,6 +493,36 @@ export class TabManager {
       heldUnloaded: record.heldUnloaded,
       pageStateInMemory: record.memorySnapshot !== null,
     };
+  }
+
+  /**
+   * What the policy (core/lifecycle/policy.ts) needs about every tab, in strip order: activity,
+   * runtime, and its protections (the monitor's and what discards learned).
+   */
+  lifecycleTabs(): TabFacts[] {
+    const clock = this.#clock();
+    return this.#order.map((id) => {
+      const record = this.#record(id);
+      const { state } = record;
+      const selected = this.#selected === id;
+      return {
+        id,
+        placement: state.placement,
+        runtime: state.runtime,
+        pinned: state.pinned,
+        selected,
+        webPage: state.page.kind === 'web',
+        loading: state.loading,
+        busy: record.queue.pending > 0 || record.discard !== null,
+        epoch: record.epoch,
+        hiddenSince: selected ? null : record.hiddenSince,
+        lastUsedAt: selected ? clock.wallNow : record.lastUsedAt,
+        lastUsedEngaged: selected ? clock.engagedNow : record.lastUsedEngaged,
+        lastUsedActiveDay: selected ? clock.activeDay : record.lastUsedActiveDay,
+        lastInteractionAt: record.lastInteractionAt,
+        protections: [...(this.#options.protections?.(id) ?? []), ...this.#freshLearned(record)],
+      };
+    });
   }
 
   /**
@@ -1416,11 +1468,14 @@ export class TabManager {
     readonly ephemeral: boolean;
     readonly createdAt: number;
     readonly lastUsedAt: number;
+    readonly lastUsedEngaged?: number;
+    readonly lastUsedActiveDay?: number;
     readonly url?: string;
     readonly title?: string;
     readonly history?: TabHistory | null;
   }): TabRecord {
     const web = tab.url !== undefined && tab.url !== '';
+    const clock = this.#clock();
     return {
       state: {
         id: tab.id,
@@ -1458,7 +1513,29 @@ export class TabManager {
       nextTransition: null,
       createdAt: tab.createdAt,
       lastUsedAt: tab.lastUsedAt,
+      // A stored value from the future (another clock, a damaged file) or none at all counts as
+      // now: an upgraded profile must never look unused since the beginning of time.
+      lastUsedEngaged: Math.min(tab.lastUsedEngaged ?? clock.engagedNow, clock.engagedNow),
+      lastUsedActiveDay:
+        tab.lastUsedActiveDay !== undefined && tab.lastUsedActiveDay >= 1
+          ? Math.min(tab.lastUsedActiveDay, clock.activeDay)
+          : clock.activeDay,
+      hiddenSince: clock.wallNow,
+      lastInteractionAt: null,
     };
+  }
+
+  /** The wall clock with the engagement clock (§4.6). */
+  #clock(): LifecycleClock {
+    return this.#options.activityClock?.() ?? { wallNow: this.#now(), engagedNow: 0, activeDay: 1 };
+  }
+
+  /** The tab is in use now: its last use is now, by every clock. */
+  #stampUse(record: TabRecord): void {
+    const clock = this.#clock();
+    record.lastUsedAt = clock.wallNow;
+    record.lastUsedEngaged = clock.engagedNow;
+    record.lastUsedActiveDay = clock.activeDay;
   }
 
   /** A new runtime for a tab that has none. */
@@ -1514,11 +1591,15 @@ export class TabManager {
     if (state.ephemeral) {
       throw new Error('I6: an ephemeral tab must never reach persistence.');
     }
+    // As stamped when it was last selected or left: reading "now" for the selected tab would
+    // rewrite its row on every flush.
     const base = {
       id: state.id,
       pinned: state.pinned,
       createdAt: record.createdAt,
       lastUsedAt: record.lastUsedAt,
+      lastUsedEngaged: record.lastUsedEngaged,
+      lastUsedActiveDay: record.lastUsedActiveDay,
     };
     if (state.url === '') {
       return { ...base, url: SESSION_NEW_TAB_URL, title: '', history: null };
@@ -1555,9 +1636,16 @@ export class TabManager {
     if (this.#fullscreen !== null && this.#fullscreen !== tabId) {
       this.exitFullscreen();
     }
+    const previous = this.#selected === null ? undefined : this.#records.get(this.#selected);
+    if (previous !== undefined && previous.state.id !== tabId) {
+      // In use until now; hidden from now on.
+      this.#stampUse(previous);
+      previous.hiddenSince = this.#clock().wallNow;
+    }
     this.#selected = tabId;
     const record = this.#record(tabId);
-    record.lastUsedAt = this.#now();
+    this.#stampUse(record);
+    record.hiddenSince = null;
     // I2: an unloaded tab (restored at startup, reopened, discarded) is restored when selected; a
     // frozen one thaws; a discard under way gives way.
     this.#wake(record);
@@ -1921,6 +2009,13 @@ export class TabManager {
         if (record?.state.runtime === 'frozen') {
           this.#transition(record, 'thaw');
           this.#changed();
+        }
+      },
+      interacted: () => {
+        const record = current();
+        if (record !== undefined) {
+          // A stamp only: no change any view shows.
+          record.lastInteractionAt = this.#clock().wallNow;
         }
       },
     };
