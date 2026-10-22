@@ -10,6 +10,13 @@ import type { AppNotices } from '../notices/app-notices';
 import type { DataClient } from '../persistence/data-client';
 import type { StartupSession } from '../session/session-startup';
 import { holdDataWorker } from './data-hold';
+import {
+  backgroundRestoreScroll,
+  discardBeforeUnloadHidden,
+  discardRealInputKept,
+  discardRestoresPageState,
+  freezeExperiment,
+} from './discard-scenarios';
 import { reportSession, sessionChurn } from './session-scenarios';
 import type { TabId, TabManager } from '../tabs/tab-manager';
 import type { FullscreenController } from '../windows/fullscreen';
@@ -198,6 +205,12 @@ const SCENARIOS: ReadonlyMap<string, Scenario> = new Map([
   // Ends only when the test kills it (tests/lifecycle/hard-kill.test.ts).
   ['session-churn', { run: sessionChurn }],
   ['report-session', { run: reportSession, endsByClosingWindow: true }],
+  // M3.1: the discard and restore (./discard-scenarios.ts).
+  ['discard-restores-page-state', { run: discardRestoresPageState }],
+  ['discard-beforeunload-hidden', { run: discardBeforeUnloadHidden }],
+  ['discard-real-input-kept', { run: discardRealInputKept }],
+  ['background-restore-scroll', { run: backgroundRestoreScroll }],
+  ['freeze-experiment', { run: freezeExperiment }],
 ]);
 
 export function runLifecycleScenario(name: string, context: ScenarioContext): void {

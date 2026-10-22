@@ -18,9 +18,13 @@
   <body>
     <h1 id="heading">Lifecycle form</h1>
     <p>Form fields for the discard probe and in-run page-state restore (M3.1, spikes S2 and S3).</p>
-    <form id="form" onsubmit="return false">
-      <p><label>Text <input id="text" name="text" value="initial" /></label></p>
-      <p><label>Area <textarea id="area" name="area">initial area</textarea></label></p>
+    <form id="form" onsubmit="return false;">
+      <p>
+        <label>Text <input id="text" name="text" value="initial" /></label>
+      </p>
+      <p>
+        <label>Area <textarea id="area" name="area">initial area</textarea></label>
+      </p>
       <p>
         <label
           >Select
@@ -30,8 +34,12 @@
           </select>
         </label>
       </p>
-      <p><label>Check <input id="chk" name="chk" type="checkbox" /></label></p>
-      <p><label>React-style input <input id="reactish" name="reactish" value="" /></label></p>
+      <p>
+        <label>Check <input id="chk" name="chk" type="checkbox" /></label>
+      </p>
+      <p>
+        <label>React-style input <input id="reactish" name="reactish" value="" /></label>
+      </p>
     </form>
     <div id="ce" contenteditable="true">editable region</div>
     <div id="tall">Tall content for scroll restoration.</div>

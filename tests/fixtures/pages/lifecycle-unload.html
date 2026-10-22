@@ -7,24 +7,48 @@
   <body>
     <h1>beforeunload</h1>
     <p>
-      <code>?mode=always</code> objects to every unload, <code>dirty</code> only after typing,
+      <code>?mode=always</code> objects to every unload, <code>dirty</code> only after typing in the
+      field below, <code>keys</code> only after a key press anywhere on the page (no field changes,
+      so the discard probe finds nothing and only <code>beforeunload</code> can keep the tab),
       <code>never</code> registers a handler that never objects (M3.1, spike S3).
     </p>
     <input id="text" placeholder="type here to make the page dirty" />
     <button id="button" type="button">A button to click</button>
     <script>
-      const mode = new URLSearchParams(location.search).get('mode') ?? 'always';
+      const query = new URLSearchParams(location.search);
+      const mode = query.get('mode') ?? 'always';
+      // With ?tag=..., every beforeunload also reports itself to the fixture server, which logs
+      // the request whatever its answer: a spec can then tell a close that ran the handler (the
+      // beforeunload path) from one that did not (a plain close, S3), after the page is gone.
+      const tag = query.get('tag');
       let dirty = false;
       document.getElementById('text').addEventListener('input', () => {
         dirty = true;
       });
-      window.__veltrivaUnload = { beforeunload: 0, objected: 0 };
+      window.__veltrivaUnload = { beforeunload: 0, objected: 0, keys: 0 };
+      document.addEventListener('keydown', (event) => {
+        if (event.isTrusted) {
+          window.__veltrivaUnload.keys += 1;
+          if (mode === 'keys') {
+            dirty = true;
+          }
+        }
+      });
       window.addEventListener('beforeunload', (event) => {
         window.__veltrivaUnload.beforeunload += 1;
-        if (mode === 'always' || (mode === 'dirty' && dirty)) {
+        const objects = mode === 'always' || ((mode === 'dirty' || mode === 'keys') && dirty);
+        if (objects) {
           window.__veltrivaUnload.objected += 1;
           event.preventDefault();
           event.returnValue = '';
+        }
+        if (tag !== null) {
+          navigator.sendBeacon(
+            '/lifecycle-beacon?tag=' +
+              encodeURIComponent(tag) +
+              '&event=beforeunload&objected=' +
+              String(objects),
+          );
         }
       });
     </script>

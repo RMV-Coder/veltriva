@@ -180,8 +180,10 @@ export function createTabRuntimes(options: {
       if (destroyed) {
         return;
       }
-      // Closed for a discard, or by something else: either way it is gone.
+      // Closed for a discard, or by something else: either way it is gone, and no view of it may
+      // stay in the window.
       destroyed = true;
+      options.host.hideContent(view);
       options.activation.forget(contentsId);
       if (views.get(tabId) === view) {
         views.delete(tabId);
