@@ -14,7 +14,7 @@ Veltriva is a local-first Windows browser built on Chromium (through Electron 45
 - **First start.** A welcome page asks three things: which search engine to use, how much Veltriva should tidy for you (the preset), and whether automation should show its moves first before making them. You can change all three later in Settings.
 - **Your data.** Your profile is `%APPDATA%\Veltriva`: tabs, history, settings, site data and the log file.
 - **Update.** Run a newer installer. It replaces the app, keeps your profile and asks nothing. Veltriva does not update itself; it can tell you when a newer version exists (see [About and the update notice](#about-and-the-update-notice)).
-- **Uninstall.** Open Settings ▸ Apps ▸ Installed apps ▸ Veltriva Browser ▸ Uninstall. It confirms ("Are you sure you want to uninstall Veltriva Browser?"), then asks **"Also remove your Veltriva data from this computer?"** No is the default: it keeps your profile for a later install. Yes deletes `%APPDATA%\Veltriva`. A silent uninstall (`"%LOCALAPPDATA%\Programs\veltriva\Uninstall Veltriva.exe" /currentuser /S`) keeps the profile too; add `--delete-app-data` to remove it.
+- **Uninstall.** Open Settings ▸ Apps ▸ Installed apps ▸ Veltriva Browser 0.1.0 (the entry carries the version) ▸ Uninstall. It confirms ("Are you sure you want to uninstall Veltriva Browser?"), then asks **"Also remove your Veltriva data from this computer?"** No is the default: it keeps your profile for a later install. Yes deletes `%APPDATA%\Veltriva`. A silent uninstall (`"%LOCALAPPDATA%\Programs\veltriva\Uninstall Veltriva.exe" /currentuser /S`) keeps the profile too; add `--delete-app-data` to remove it.
 
 ## What it does
 
@@ -170,6 +170,7 @@ Stated plainly, as the assessment's §6.7 asks:
 
 ## Documentation
 
+- [Architecture overview](docs/architecture/overview.md): how v0.1.0 works, as built
 - [Technical assessment and architecture proposal](docs/architecture/technical-assessment.md)
 - [Architecture decision records](docs/adr/README.md)
 - [Phase 0 spike reports](docs/spikes/README.md)
