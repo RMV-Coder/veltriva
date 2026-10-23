@@ -28,6 +28,7 @@
     "package:dir": "node scripts/verify-sqlite-binary.mjs && electron-vite build && node scripts/check-production-build.mjs && node scripts/check-data-isolation.mjs && node scripts/third-party-notices.mjs --check && electron-builder --win --x64 --dir && node scripts/check-packaged-app.mjs"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.64.1",
     "@tailwindcss/vite": "4.3.3",
