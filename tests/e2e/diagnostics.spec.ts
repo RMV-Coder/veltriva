@@ -14,6 +14,7 @@ import { dataValue, test } from './session-ui';
 import {
   internalPage,
   loadInNewTab,
+  omnibox,
   openTabAt,
   tabElement,
   typeAddress,
@@ -157,6 +158,9 @@ test.describe('the diagnostics page (M5.3)', () => {
       .toBe(true);
 
     await showTab(electronApp, shell, tab);
+    // The address bar takes the selected tab's address a moment after the selection: typing before
+    // that appended to it (seen once under load).
+    await expect(omnibox(shell)).toHaveValue(UNREACHABLE);
     await typeAddress(shell, UNREACHABLE);
     await expect
       .poll(() =>
