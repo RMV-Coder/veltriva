@@ -3,8 +3,10 @@
 // local-network-access checks (which pages are denied). Without this, any web page could make
 // main send requests into the user's local network or to services on this machine. Pure.
 //
-// Names are classified as written: a public name that resolves to a private address (DNS
-// rebinding) is not caught here. That residual risk is recorded under T5 in the assessment.
+// Names are classified as written. A public name that resolves to a private address is caught by
+// the resolved-address check below (M6.1), which main runs before each request with the browsing
+// session's own resolver. What stays open is true DNS rebinding: a name whose answer changes
+// between that check and the request's own lookup. That residual risk is recorded under T5.
 
 /**
  * - `loopback`: this machine (127.0.0.0/8, 0.0.0.0/8, ::1, ::, localhost and *.localhost).
@@ -48,12 +50,18 @@ export function classifyHost(host: string): HostClass {
 }
 
 /**
- * Whether main may fetch `faviconUrl` for the page at `pageUrl`. Inline `data:` favicons need no
- * request. A favicon on a public host is fine. A favicon on a local host is allowed only for a
- * page whose own host is in the same class (a router's admin page may show its own icon), so a
- * public page can never use one to reach into the local network.
+ * Whether main may fetch `faviconUrl` for the page at `pageUrl`, judging its host as written.
+ * Inline `data:` favicons need no request. A favicon on a public host is fine. A favicon on a
+ * local host is allowed only for a page whose own host is in the same class (a router's admin
+ * page may show its own icon), so a public page can never use one to reach into the local
+ * network. With `pageAddresses`, what the page's host resolved to widens that as `addressReach`
+ * says (M6.1). Main also checks what the favicon's host resolves to (`areAddressesWithinReach`).
  */
-export function isFaviconUrlAllowed(faviconUrl: string, pageUrl: string): boolean {
+export function isFaviconUrlAllowed(
+  faviconUrl: string,
+  pageUrl: string,
+  pageAddresses: readonly string[] = [],
+): boolean {
   const favicon = tryParse(faviconUrl);
   if (favicon === undefined) {
     return false;
@@ -64,12 +72,57 @@ export function isFaviconUrlAllowed(faviconUrl: string, pageUrl: string): boolea
   if (favicon.protocol !== 'http:' && favicon.protocol !== 'https:') {
     return false;
   }
-  const target = classifyHost(favicon.hostname);
-  if (target === 'public') {
-    return true;
+  return addressReach(pageUrl, pageAddresses).has(classifyHost(favicon.hostname));
+}
+
+/**
+ * The host of the page at `pageUrl` (the creator's for a `blob:` page), as the URL parser writes
+ * it, or undefined for a page with no web host.
+ */
+export function pageHost(pageUrl: string): string | undefined {
+  return webOrigin(pageUrl)?.hostname;
+}
+
+/** A host as a resolver takes it: an IPv6 literal without its brackets. */
+export function resolvableHost(hostname: string): string {
+  return hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
+}
+
+/**
+ * The classes of address main may reach on behalf of the page at `pageUrl` (M6.1): public ones,
+ * the class of the page's host as written, and the classes its host resolved to
+ * (`pageAddresses`) if none of them is public. So an intranet page whose public-looking name
+ * resolves to 10.0.0.5 may use an icon there, while a name with both a public and a private
+ * record opens nothing local.
+ */
+export function addressReach(
+  pageUrl: string,
+  pageAddresses: readonly string[],
+): ReadonlySet<HostClass> {
+  const reach = new Set<HostClass>(['public']);
+  const host = pageHost(pageUrl);
+  if (host === undefined) {
+    return reach;
   }
-  const page = webOrigin(pageUrl);
-  return page !== undefined && classifyHost(page.hostname) === target;
+  reach.add(classifyHost(host));
+  const resolved = pageAddresses.map(classifyHost);
+  if (!resolved.includes('public')) {
+    for (const kind of resolved) {
+      reach.add(kind);
+    }
+  }
+  return reach;
+}
+
+/**
+ * Whether every address a host resolved to is within `reach` (M6.1). No addresses (the name
+ * didn't resolve) means no: the request would fail anyway, and nothing is sent.
+ */
+export function areAddressesWithinReach(
+  addresses: readonly string[],
+  reach: ReadonlySet<HostClass>,
+): boolean {
+  return addresses.length > 0 && addresses.every((address) => reach.has(classifyHost(address)));
 }
 
 /** The http(s) URL a page's host comes from: its own, or the creator's for a blob: page. */

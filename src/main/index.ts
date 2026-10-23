@@ -101,6 +101,7 @@ import { parseDevServerUrl } from './shell/dev-server';
 import { registerShellScheme } from './shell/protocol';
 import { createShellSession } from './shell/shell-session';
 import { SettingsService } from './settings/settings-service';
+import { faviconRequest, sessionResolver } from './tabs/favicon-request';
 import { createFaviconService } from './tabs/favicons';
 import { TabManager } from './tabs/tab-manager';
 import { createTabRuntimes } from './tabs/tab-runtime';
@@ -301,9 +302,11 @@ async function start(): Promise<void> {
   const layout = new LayoutManager(main.window, main.shell);
   const events = createShellEvents(() => main.shell.webContents);
 
-  // Favicons are fetched through the tabs' own session, then validated (threat T5).
+  // Favicons are fetched through the tabs' own session, every hop checked against the addresses
+  // its host resolves to, then validated (threat T5).
   const favicons = createFaviconService(
-    (url, init) => browsing.fetch(url, { signal: init.signal }),
+    faviconRequest(browsing),
+    sessionResolver(browsing),
     logger,
   );
   // The parts below refer to each other through closures that run only after start() returns:

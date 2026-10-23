@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { classifyHost, isFaviconUrlAllowed } from './local-network';
+import {
+  addressReach,
+  areAddressesWithinReach,
+  classifyHost,
+  isFaviconUrlAllowed,
+  pageHost,
+  resolvableHost,
+} from './local-network';
 import type { HostClass } from './local-network';
 
 describe('classifyHost', () => {
@@ -120,5 +127,80 @@ describe('isFaviconUrlAllowed', () => {
     ['not a url', publicPage, false],
   ])('%s on %s: %s', (favicon, page, expected) => {
     expect(isFaviconUrlAllowed(favicon, page)).toBe(expected);
+  });
+});
+
+describe('addressReach and areAddressesWithinReach (M6.1, T5)', () => {
+  const sorted = (reach: ReadonlySet<HostClass>): HostClass[] => [...reach].sort();
+
+  it('lets a public page reach public addresses only', () => {
+    const reach = addressReach('https://example.com/', ['93.184.216.34']);
+    expect(sorted(reach)).toEqual(['public']);
+    expect(areAddressesWithinReach(['93.184.216.34', '2606:2800:220:1::1'], reach)).toBe(true);
+    for (const local of ['127.0.0.1', '::1', '10.0.0.1', '192.168.1.1', '169.254.169.254']) {
+      expect(areAddressesWithinReach([local], reach)).toBe(false);
+      // One local address among public ones is enough to refuse.
+      expect(areAddressesWithinReach(['93.184.216.34', local], reach)).toBe(false);
+    }
+  });
+
+  it('adds the class of the page host as written', () => {
+    expect(sorted(addressReach('http://127.0.0.1:3000/', []))).toEqual(['loopback', 'public']);
+    expect(sorted(addressReach('http://router/', []))).toEqual(['local-name', 'public']);
+    expect(sorted(addressReach('blob:http://192.168.1.1/0b8a', []))).toEqual(['private', 'public']);
+  });
+
+  it('adds what the page host resolved to, only when none of it is public', () => {
+    expect(sorted(addressReach('https://intranet.corp.example/', ['10.0.0.5']))).toEqual([
+      'private',
+      'public',
+    ]);
+    expect(sorted(addressReach('https://mixed.example/', ['93.184.216.34', '10.0.0.5']))).toEqual([
+      'public',
+    ]);
+    expect(sorted(addressReach('http://router/', ['192.168.1.1']))).toEqual([
+      'local-name',
+      'private',
+      'public',
+    ]);
+  });
+
+  it('gives a page with no web host public addresses only', () => {
+    for (const page of ['file:///C:/page.html', 'about:blank', 'not a url']) {
+      expect(sorted(addressReach(page, ['127.0.0.1']))).toEqual(['public']);
+    }
+  });
+
+  it('refuses when the name resolved to nothing', () => {
+    expect(areAddressesWithinReach([], new Set<HostClass>(['public']))).toBe(false);
+  });
+
+  it('never counts an address it cannot parse as public', () => {
+    const reach = new Set<HostClass>(['public']);
+    expect(areAddressesWithinReach(['fe80::1%12'], reach)).toBe(false);
+    expect(areAddressesWithinReach(['not an address'], reach)).toBe(false);
+  });
+
+  it('widens the favicon rule with what the page resolved to', () => {
+    const intranet = 'https://intranet.corp.example/';
+    expect(isFaviconUrlAllowed('http://10.0.0.6/icon.png', intranet)).toBe(false);
+    expect(isFaviconUrlAllowed('http://10.0.0.6/icon.png', intranet, ['10.0.0.5'])).toBe(true);
+    expect(
+      isFaviconUrlAllowed('http://10.0.0.6/icon.png', intranet, ['93.184.216.34', '10.0.0.5']),
+    ).toBe(false);
+  });
+});
+
+describe('pageHost and resolvableHost', () => {
+  it('names the page host, the creator for a blob: page', () => {
+    expect(pageHost('https://Example.COM/a')).toBe('example.com');
+    expect(pageHost('blob:https://a.example/0b8a')).toBe('a.example');
+    expect(pageHost('http://[::1]:3000/')).toBe('[::1]');
+    expect(pageHost('about:blank')).toBeUndefined();
+  });
+
+  it('drops the brackets of an IPv6 literal for the resolver', () => {
+    expect(resolvableHost('[::1]')).toBe('::1');
+    expect(resolvableHost('example.com')).toBe('example.com');
   });
 });
