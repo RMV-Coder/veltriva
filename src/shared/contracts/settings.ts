@@ -110,6 +110,11 @@ export const strictSettingsSchema = z.strictObject({
   /** "Pause memory" (§6.6): while on, no page or visit is recorded. */
   memory: z.strictObject({ paused: z.boolean() }),
   /**
+   * Diagnostic logging (§6.6, M5.3): while on, the log file also holds the addresses of the pages
+   * an event concerns, for reporting a problem. Off by default.
+   */
+  diagnostics: z.strictObject({ logging: z.boolean() }),
+  /**
    * Tab lifecycle (assessment §4.7, M3.2): a preset, the switches, and advanced overrides of the
    * preset's values (core/lifecycle/policy.ts applies them) and of the pressure thresholds.
    */
@@ -145,6 +150,7 @@ export const DEFAULT_SETTINGS: Settings = {
   history: { retentionDays: DEFAULT_HISTORY_RETENTION_DAYS },
   startup: 'restore',
   memory: { paused: false },
+  diagnostics: { logging: false },
   lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
 };
 
@@ -197,6 +203,7 @@ export const settingsSchema = z.object({
     .catch({ retentionDays: DEFAULT_HISTORY_RETENTION_DAYS }),
   startup: z.enum(STARTUP_BEHAVIORS).catch('restore'),
   memory: z.object({ paused: z.boolean().catch(false) }).catch({ paused: false }),
+  diagnostics: z.object({ logging: z.boolean().catch(false) }).catch({ logging: false }),
   lifecycle: lenientLifecycle.catch(DEFAULT_LIFECYCLE_DOCUMENT),
 });
 
@@ -222,6 +229,7 @@ export const settingsChangeSchema = z.strictObject({
   history: z.strictObject({ retentionDays }).optional(),
   startup: z.enum(STARTUP_BEHAVIORS).optional(),
   memory: z.strictObject({ paused: z.boolean() }).optional(),
+  diagnostics: z.strictObject({ logging: z.boolean() }).optional(),
   lifecycle: z
     .strictObject({
       preset: z.enum(PRESETS).optional(),
@@ -268,6 +276,7 @@ export function applySettingsChange(current: Settings, change: SettingsChange): 
     history: change.history ?? current.history,
     startup: change.startup ?? current.startup,
     memory: change.memory ?? current.memory,
+    diagnostics: change.diagnostics ?? current.diagnostics,
     lifecycle: { ...current.lifecycle, ...Object.fromEntries(switches), overrides },
   };
   const checked = strictSettingsSchema.safeParse(next);

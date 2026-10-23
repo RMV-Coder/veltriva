@@ -83,6 +83,11 @@ Veltriva is a local-first, Chromium-powered desktop browser that intelligently m
     - **Shift+Delete** in the memory palette forgets one result.
     - **Site permissions:** what you allowed or blocked, the apps a site's links open, and the browser details it asked for. Change any of them, or remove one so the site asks again.
     - **How long pages are kept:** 365 days unless you choose otherwise.
+  - Milestone 5.3 makes it all visible:
+    - **The diagnostics page** (`veltriva://diagnostics`) shows each tab's memory, what automation did in the last day, every change of memory pressure, the database's size and last backup, and the log.
+    - **Export diagnostics** saves it as a file for a problem report, with no page title and no address unless you ask for them.
+    - **A log file** in your profile, errors only, rotated at 5 × 5 MB. **Diagnostic logging** in Settings adds the addresses of the pages concerned, for as long as you leave it on.
+    - **Tabs come back where you had scrolled** after a restart, except pages with a password or payment field.
 
 ## Why
 

@@ -1,7 +1,9 @@
 import { getRandomValues } from 'node:crypto';
+import { mkdirSync, statSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { app, Menu, nativeTheme, powerMonitor, session } from 'electron';
+import { app, dialog, Menu, nativeTheme, powerMonitor, session, shell } from 'electron';
 import { performance } from 'node:perf_hooks';
 import type { WebContents } from 'electron';
 
@@ -15,7 +17,7 @@ import {
 } from '../core/lifecycle/policy';
 import type { LifecycleClock, LifecycleSettings, MemoryPressure } from '../core/lifecycle/policy';
 import { originOf } from '../core/permissions/permission-policy';
-import { SEARCH_ENGINES } from '../core/url/search-engines';
+import { SEARCH_ENGINES, searchEngineFor } from '../core/url/search-engines';
 import { siteFromInput, siteOf } from '../core/url/site';
 import { ActivationTracker } from '../core/input/user-activation';
 import { ClientHintOptIns } from '../core/net/client-hints';
@@ -46,6 +48,11 @@ import {
 } from './lifecycle/engagement-sampler';
 import { ActivityLog, activityWriter, readStoredActivity } from './lifecycle/activity-log';
 import { MemoryPressureMonitor } from './lifecycle/memory-pressure';
+import { PressureHistory } from './lifecycle/pressure-history';
+import { buildDiagnosticsExport } from './diagnostics/diagnostics-export';
+import { ScrollKeeper, SCROLL_DOCUMENT } from './session/scroll-keeper';
+import { BROWSER_WORLD_ID } from './tabs/page-scripts';
+import { recordDiagnosticsExport, recordOpenedPath } from './testing/diagnostics-exports';
 import { createPlacementActions } from './lifecycle/placement-actions';
 import { readStoredRegret, RegretTracker, regretWriter } from './lifecycle/regret';
 import { ProtectionSignals } from './lifecycle/protection-signals';
@@ -74,7 +81,9 @@ import {
 } from './persistence/stored-state';
 import { readSessionAtStartup } from './session/session-startup';
 import { SessionStore } from './session/session-store';
+import { FileLogger, redactAddresses, teeLogger } from './platform/file-logger';
 import { consoleLogger } from './platform/logger';
+import type { Logger } from './platform/logger';
 import { BlockedPopups } from './popups/blocked-popups';
 import { createWindowOpenHandler } from './popups/popup-policy';
 import type { WindowOpenHandler, WindowOpenSource } from './popups/popup-policy';
@@ -185,13 +194,21 @@ async function start(): Promise<void> {
   const notices = new AppNotices();
   /** The settings document (M2.2b); its defaults until it has been read. */
   let settings: Settings = DEFAULT_SETTINGS;
-  const { client: data, worker: dataWorker } = startDataWorker(
-    app.getPath('userData'),
-    consoleLogger,
+  // M5.3: the log file (§6.6), next to the console. It holds tab ids and error codes; addresses
+  // only while the user has diagnostic logging on. Rotated at 5 × 5 MB.
+  const logFolder = join(app.getPath('userData'), 'logs');
+  const fileLogger = new FileLogger({
+    folder: logFolder,
+    includeAddresses: () => settings.diagnostics.logging,
+  });
+  const logger: Logger = teeLogger(
+    redactAddresses(consoleLogger, () => settings.diagnostics.logging),
+    fileLogger,
   );
+  const { client: data, worker: dataWorker } = startDataWorker(app.getPath('userData'), logger);
   const dataLifecycle = new DataLifecycle({
     client: data,
-    logger: consoleLogger,
+    logger: logger,
     idleSeconds: () => powerMonitor.getSystemIdleTime(),
     visitRetentionDays: () => settings.history.retentionDays,
     onRecovered: (recovery) => {
@@ -206,23 +223,23 @@ async function start(): Promise<void> {
       );
     },
   });
-  closeDataOnQuit(dataLifecycle, consoleLogger);
+  closeDataOnQuit(dataLifecycle, logger);
   // The saved session decides where the window opens and which tabs it has, so it is read first
   // (bounded; without it the app starts as new, and writes nothing over what was saved).
-  const startup = await readSessionAtStartup(data, consoleLogger);
+  const startup = await readSessionAtStartup(data, logger);
   // Then the rest of what was kept: settings, decisions, opt-ins, download history. Without the
   // database (startup failed), everything starts empty, as before Phase 2.
   const stored =
     startup === null
       ? EMPTY_STORED_STATE
-      : await readStoredState(data, consoleLogger, { downloads: MAX_LISTED_DOWNLOADS });
+      : await readStoredState(data, logger, { downloads: MAX_LISTED_DOWNLOADS });
   settings = stored.settings;
   // M5.1: the settings document's one writer, and the user's site rules. A change applies at once
   // (applySettings, below, once everything it reaches exists; nothing calls it before then).
   const settingsService = new SettingsService({
     initial: settings,
     data,
-    logger: consoleLogger,
+    logger: logger,
     onChange: (next, previous) => {
       settings = next;
       applySettings(next, previous);
@@ -230,7 +247,7 @@ async function start(): Promise<void> {
   });
   const siteRules = new SiteRules({
     data,
-    logger: consoleLogger,
+    logger: logger,
     stored: stored.siteRules,
     // Automation looks again (a protected or excluded site changes what it may do), and so does
     // the "why" of each tab.
@@ -240,14 +257,21 @@ async function start(): Promise<void> {
     },
   });
   // The engagement clock (assessment §4.6), from where it stopped. A new profile starts at zero.
-  const storedEngagement =
-    startup === null ? null : await readStoredEngagement(data, consoleLogger);
+  const storedEngagement = startup === null ? null : await readStoredEngagement(data, logger);
   // What automation did, and why (M3.3): the local activity log.
-  const storedActivity = startup === null ? [] : await readStoredActivity(data, consoleLogger);
+  const storedActivity = startup === null ? [] : await readStoredActivity(data, logger);
   // The regret metric's totals (M3.4, §4.13), for the local diagnostics page.
-  const storedRegret = startup === null ? null : await readStoredRegret(data, consoleLogger);
+  const storedRegret = startup === null ? null : await readStoredRegret(data, logger);
+  // M5.3: where each tab was scrolled when Veltriva last ran.
+  const storedScroll =
+    startup === null
+      ? null
+      : await data.call('appState.get', { key: SCROLL_DOCUMENT }, { timeoutMs: 1000 }).then(
+          ({ value }) => value,
+          () => null,
+        );
   setSearchTemplate(settings.search.template);
-  const writeDecision = decisionWriters(data, consoleLogger);
+  const writeDecision = decisionWriters(data, logger);
 
   // Created lazily by Electron; harden them explicitly too (hardenSession is idempotent).
   hardenSession(session.defaultSession);
@@ -275,7 +299,7 @@ async function start(): Promise<void> {
   // Favicons are fetched through the tabs' own session, then validated (threat T5).
   const favicons = createFaviconService(
     (url, init) => browsing.fetch(url, { signal: init.signal }),
-    consoleLogger,
+    logger,
   );
   // The parts below refer to each other through closures that run only after start() returns:
   // TabManager notifies the projector and the fullscreen controller, which read it back.
@@ -304,7 +328,7 @@ async function start(): Promise<void> {
     appNameFor: (url) => app.getApplicationNameForProtocol(url),
     // Test builds never launch a real app.
     launch: import.meta.env.MODE === 'test' ? recordExternalLaunch : systemLauncher,
-    logger: consoleLogger,
+    logger: logger,
     alwaysAllowed: stored.alwaysAllowed,
     onAlwaysAllowed: writeDecision.alwaysAllow,
   });
@@ -326,14 +350,14 @@ async function start(): Promise<void> {
     prompts,
     decisions,
     tabIdOf,
-    logger: consoleLogger,
+    logger: logger,
     // M3.4: a page granted the camera or microphone may be capturing (§4.10).
     onMediaGranted: (contents) => {
       signals.mediaGranted(contents);
     },
   });
   // HTTP authentication: a sign-in question in the strip, never stored (src/main/auth).
-  setLoginHandler(createLoginHandler({ prompts, tabIdOf, logger: consoleLogger }));
+  setLoginHandler(createLoginHandler({ prompts, tabIdOf, logger: logger }));
   // Downloads (M1.4b): the browsing session, the only one a page can download from: tabs and
   // popup windows use it, the shell has its own session, and DevTools save files without a
   // download. The default session keeps the baseline's deny-all, so the surface stays small.
@@ -345,9 +369,9 @@ async function start(): Promise<void> {
     onChange: () => {
       projector.markDirty();
     },
-    logger: consoleLogger,
+    logger: logger,
     // The history (M2.2b): every change is written through; ids are the rows' keys.
-    store: createDownloadStore({ data, logger: consoleLogger }),
+    store: createDownloadStore({ data, logger: logger }),
     newId: () => uuidv7(Date.now(), getRandomValues(new Uint8Array(10))),
   });
   allowManagedDownloads(browsing);
@@ -357,7 +381,7 @@ async function start(): Promise<void> {
   // Firefox user agent for accounts.google.com (manual check M1), so that host gets one.
   const clientHintsWriter = new ClientHintsWriter({
     data,
-    logger: consoleLogger,
+    logger: logger,
     document: () => optIns.toDocument(),
   });
   const optIns = new ClientHintOptIns({
@@ -367,7 +391,7 @@ async function start(): Promise<void> {
     },
   });
   dataLifecycle.addFlush(() => clientHintsWriter.flush());
-  const clientHints = new ClientHints(consoleLogger, optIns);
+  const clientHints = new ClientHints(logger, optIns);
   installRequestHeaders(browsing, { clientHints });
   main.shell.webContents.once('did-finish-load', () => {
     void clientHints.readFrom(main.shell.webContents);
@@ -376,7 +400,7 @@ async function start(): Promise<void> {
     const tabId = tabIdOf(contents);
     if (tabId === undefined) {
       // Popup windows don't open other apps (their prompt would have nowhere trusted to go).
-      consoleLogger.warn('external.fromPopupRefused');
+      logger.warn('external.fromPopupRefused');
       return;
     }
     void external.request({
@@ -395,7 +419,7 @@ async function start(): Promise<void> {
         blocked: blockedPopups,
         external,
         popupWindows: () => popupWindows,
-        logger: consoleLogger,
+        logger: logger,
       },
       source,
     );
@@ -410,13 +434,13 @@ async function start(): Promise<void> {
     windowOpenHandler,
     tabFor: (openerTabId) =>
       tabs.has(openerTabId) ? openerTabId : (tabs.selectedTabId() ?? undefined),
-    logger: consoleLogger,
+    logger: logger,
   });
 
   const runtimes = createTabRuntimes({
     host: layout,
     favicons,
-    logger: consoleLogger,
+    logger: logger,
     input: {
       beforeInput: (tabId, event, input) => {
         handleShortcut({ tabId }, event, input);
@@ -428,8 +452,12 @@ async function start(): Promise<void> {
     activation,
     windowOpenHandler,
     // The protection monitor watches each tab's page from its first moment (M3.4).
-    onContentsCreated: (_tabId, contents) => {
+    onContentsCreated: (tabId, contents) => {
       signals.attach(contents);
+      // M5.3: a restored tab goes back where it was scrolled, after its first load.
+      contents.on('did-finish-load', () => {
+        scrollKeeper.loaded(tabId, contents);
+      });
     },
   });
   const projector = createWorkspaceProjector({
@@ -474,6 +502,25 @@ async function start(): Promise<void> {
   // onChange, which marks the projector dirty, so the projector must exist first (an E2E restart
   // after a download found the start aborting). No tab exists yet, so nothing has downloaded.
   downloads.restore(stored.downloads);
+  // M5.3: scroll positions across restarts, read when a tab is hidden and every 15 s for the
+  // selected one, so a quit loses at most that.
+  const scrollKeeper = new ScrollKeeper({
+    data: startup === null ? null : data,
+    logger,
+    worldId: BROWSER_WORLD_ID,
+    stored: storedScroll,
+    liveTabIds: () => new Set([...tabs.tabs(), ...tabs.sleepingTabs()].map((tab) => tab.id)),
+  });
+  const captureScroll = (tabId: string): void => {
+    void scrollKeeper.capture(tabId, runtimes.views.get(tabId)?.webContents);
+  };
+  const scrollTimer = setInterval(() => {
+    const selected = tabs.selectedTabId();
+    if (selected !== null) {
+      captureScroll(selected);
+    }
+  }, 15_000);
+  dataLifecycle.addFlush(() => scrollKeeper.flush());
   // Created once the session is restored, below; until then TabManager's changes are its own.
   let sessionStore: SessionStore | undefined;
   /** The workspace the session loaded (M4.2: the Archive list's rows); null without data. */
@@ -481,7 +528,7 @@ async function start(): Promise<void> {
   // The memory (§5.5): visits, titles and icons, as tabs commit them.
   const historyRecorder = new HistoryRecorder({
     data,
-    logger: consoleLogger,
+    logger: logger,
     // "Pause memory" (M5.1): nothing is recorded while it is on.
     recording: () => !settings.memory.paused,
   });
@@ -519,7 +566,7 @@ async function start(): Promise<void> {
     onResume: () => {
       automation.scheduler?.trigger();
     },
-    logger: consoleLogger,
+    logger: logger,
   });
   dataLifecycle.addFlush(() => engagement.flush());
   const lifecycleClock = (): LifecycleClock => {
@@ -568,7 +615,7 @@ async function start(): Promise<void> {
     persist: regretWriter(data),
     clock: lifecycleClock,
     timers: SYSTEM_TIMERS,
-    logger: consoleLogger,
+    logger: logger,
   });
   dataLifecycle.addFlush(() => regret.flush());
   const pressure = new MemoryPressureMonitor({
@@ -580,11 +627,14 @@ async function start(): Promise<void> {
     },
     timers: SYSTEM_TIMERS,
     monotonic: () => performance.now(),
-    onChange: () => {
+    onChange: (level) => {
+      pressureHistory.record(level);
       projector.markDirty();
       automation.scheduler?.trigger();
     },
   });
+  /** M5.3: each change of the pressure level this run, for the diagnostics page. */
+  const pressureHistory = new PressureHistory();
   /** The pressure automation acts on: the monitor's, or what a test set. */
   const pressureLevel = (): MemoryPressure =>
     (import.meta.env.MODE === 'test' ? testMemoryPressure() : null) ?? pressure.level();
@@ -621,6 +671,10 @@ async function start(): Promise<void> {
       sessionStore?.changed();
       const selected = tabs.selectedTabId();
       if (selected !== lastSelected) {
+        // The tab left behind is hidden now: where it was scrolled is kept (M5.3).
+        if (lastSelected !== null && tabs.has(lastSelected)) {
+          captureScroll(lastSelected);
+        }
         lastSelected = selected;
         automation.scheduler?.trigger();
       }
@@ -673,7 +727,7 @@ async function start(): Promise<void> {
     stored: storedActivity,
     persist: activityWriter(data),
     timers: SYSTEM_TIMERS,
-    logger: consoleLogger,
+    logger: logger,
     // The open log view refreshes on the snapshot's activityVersion.
     onChange: () => {
       projector.markDirty();
@@ -726,6 +780,165 @@ async function start(): Promise<void> {
       { ephemeral: tab.ephemeral },
     );
   };
+  /**
+   * What the diagnostics page adds in M5.3: each tab's renderer memory (`getAppMetrics`; private
+   * bytes on Windows, S8), Veltriva's other processes, automation's counts from the activity log,
+   * the pressure history, the database's size and upkeep, and the log file.
+   */
+  const diagnosticsExtras = async () => {
+    const metrics = app.getAppMetrics();
+    const kbOf = (pid: number): number | null => {
+      const metric = metrics.find((entry) => entry.pid === pid);
+      return metric === undefined
+        ? null
+        : Math.round(metric.memory.privateBytes ?? metric.memory.workingSetSize);
+    };
+    const listed = [
+      ...tabs.tabs().map((tab) => ({ tab, placement: 'strip' as const })),
+      ...tabs.sleepingTabs().map((tab) => ({ tab, placement: 'shelf' as const })),
+    ].map(({ tab, placement }) => {
+      const contents = runtimes.views.get(tab.id)?.webContents;
+      const pid = contents === undefined || contents.isDestroyed() ? 0 : contents.getOSProcessId();
+      return { tab, placement, pid };
+    });
+    const tabPids = new Set(listed.map((entry) => entry.pid).filter((pid) => pid > 0));
+    const sumOf = (pick: (type: string, pid: number) => boolean): number =>
+      Math.round(
+        metrics
+          .filter((entry) => pick(entry.type, entry.pid))
+          .reduce(
+            (total, entry) => total + (entry.memory.privateBytes ?? entry.memory.workingSetSize),
+            0,
+          ),
+      );
+    const dayAgo = lifecycleClock().wallNow - 24 * 60 * 60 * 1000;
+    const counts = (entries: readonly { readonly action: string }[]) => {
+      const tally = { discard: 0, freeze: 0, shelve: 0, archive: 0, undo: 0 };
+      for (const { action } of entries) {
+        if (action in tally) {
+          tally[action as keyof typeof tally] += 1;
+        }
+      }
+      return tally;
+    };
+    const entries = activity.entries();
+    const fileSize = (path: string): number => {
+      try {
+        return statSync(path).size;
+      } catch {
+        return 0;
+      }
+    };
+    const dbFile = join(app.getPath('userData'), 'veltriva.db');
+    const status =
+      startup === null
+        ? null
+        : await data.call('maintenance.status', {}, { timeoutMs: 1000 }).catch(() => null);
+    return {
+      tabs: listed.map(({ tab, placement, pid }) => ({
+        tabId: tab.id,
+        title: tab.title.slice(0, 1024),
+        placement,
+        runtime: tab.runtime,
+        privateKb: pid > 0 ? kbOf(pid) : null,
+        sharedWith: pid > 0 ? listed.filter((other) => other.pid === pid).length - 1 : 0,
+      })),
+      processes: {
+        browserKb: sumOf((type) => type === 'Browser'),
+        gpuKb: sumOf((type) => type === 'GPU'),
+        otherKb: sumOf((type, pid) => type !== 'Browser' && type !== 'GPU' && !tabPids.has(pid)),
+      },
+      automation: {
+        lastDay: counts(entries.filter((entry) => entry.at >= dayAgo)),
+        kept: counts(entries),
+      },
+      pressureHistory: pressureHistory.changes(),
+      database:
+        startup === null
+          ? null
+          : {
+              sizeBytes: fileSize(dbFile),
+              walBytes: fileSize(`${dbFile}-wal`),
+              lastBackupAt: status?.lastBackupAt ?? null,
+              lastCheckAt: status?.lastCheckAt ?? null,
+              lastCheckOk: status?.lastCheckOk ?? null,
+            },
+      logging: { enabled: settings.diagnostics.logging, file: fileLogger.file },
+    };
+  };
+  /**
+   * "Export diagnostics" (M5.3): what the page shows, as JSON, through the save dialog. No title
+   * and no address unless the user asks for addresses (main/diagnostics/diagnostics-export.ts).
+   */
+  const exportDiagnostics = async (includeAddresses: boolean): Promise<boolean> => {
+    const shown = await lifecycleCommands.diagnostics();
+    const document = buildDiagnosticsExport(
+      {
+        exportedAt: Date.now(),
+        app: {
+          version: app.getVersion(),
+          electron: process.versions.electron,
+          chrome: process.versions.chrome,
+          node: process.versions.node,
+          platform: process.platform,
+          arch: process.arch,
+        },
+        settings: {
+          preset: settings.lifecycle.preset,
+          automationPaused: settings.lifecycle.paused,
+          previewActive: previewActive(),
+          autoArchive: settings.lifecycle.autoArchive,
+          freeze: settings.lifecycle.freeze,
+          overrides: settings.lifecycle.overrides,
+          startup: settings.startup,
+          memoryPaused: settings.memory.paused,
+          retentionDays: settings.history.retentionDays,
+          diagnosticLogging: settings.diagnostics.logging,
+          // A named engine's name; a custom engine's address is not said.
+          searchEngine: searchEngineFor(settings.search.template)?.name ?? 'custom',
+          siteRules: siteRules.list().length,
+        },
+        regret: shown.regret,
+        automation: shown.automation,
+        pressure: { level: shown.pressure, history: shown.pressureHistory },
+        memory: { ...shown.memory, processes: shown.processes },
+        tabs: shown.tabs.map(({ tabId, placement, runtime, privateKb, sharedWith }) => ({
+          placement,
+          runtime,
+          privateKb,
+          sharedWith,
+          address: tabs.has(tabId) ? tabs.get(tabId).url : '',
+        })),
+        database: shown.database ?? {},
+      },
+      { includeAddresses },
+    );
+    const json = `${JSON.stringify(document, null, 2)}\n`;
+    if (import.meta.env.MODE === 'test') {
+      recordDiagnosticsExport(json);
+      return true;
+    }
+    const day = new Date().toISOString().slice(0, 10);
+    const choice = await dialog.showSaveDialog(main.window, {
+      title: 'Export diagnostics',
+      defaultPath: join(app.getPath('downloads'), `veltriva-diagnostics-${day}.json`),
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (choice.canceled || choice.filePath === '') {
+      return false;
+    }
+    await writeFile(choice.filePath, json, 'utf8');
+    return true;
+  };
+  /** Shows the log file's folder (M5.3); test builds record it instead. */
+  const openLogFolder = (): void => {
+    if (import.meta.env.MODE === 'test') {
+      recordOpenedPath(logFolder);
+      return;
+    }
+    mkdirSync(logFolder, { recursive: true });
+    void shell.openPath(logFolder);
+  };
   const lifecycleCommands: LifecycleCommands = {
     undo: (batchId) => {
       const offer = undo.current();
@@ -771,11 +984,14 @@ async function start(): Promise<void> {
       const site = siteOf(tabs.get(tabId).url);
       return site !== null && siteRules.set(site, { protect: on }) ? site : null;
     },
-    diagnostics: () => {
+    exportDiagnostics: exportDiagnostics,
+    openLogFolder: openLogFolder,
+    diagnostics: async () => {
       const state = regret.state();
       const engaged = engagement.now();
       const memory = process.getSystemMemoryInfo();
       return {
+        ...(await diagnosticsExtras()),
         regret: { since: state.since, ...state.counts, events: [...state.events] },
         engagement: { activeDay: engaged.activeDay, engagedMs: engaged.engagedMs },
         settings: {
@@ -842,7 +1058,7 @@ async function start(): Promise<void> {
     protocols: external,
     clientHints: optIns,
     data,
-    logger: consoleLogger,
+    logger: logger,
   });
   const clearData = new ClearData({
     data,
@@ -863,7 +1079,7 @@ async function start(): Promise<void> {
     },
     workspaceId: () => workspaceId,
     now: Date.now,
-    logger: consoleLogger,
+    logger: logger,
     forgetSitePermissions: (site) => {
       sitePermissions.forgetSite(site);
     },
@@ -1028,7 +1244,7 @@ async function start(): Promise<void> {
       source: tabs,
       data,
       workspaceId: loaded.workspaceId,
-      logger: consoleLogger,
+      logger: logger,
       loaded: loaded.rows,
     });
     sessionStore = store;
@@ -1052,7 +1268,7 @@ async function start(): Promise<void> {
     clock: lifecycleClock,
     pressure: pressureLevel,
     timers: SYSTEM_TIMERS,
-    logger: consoleLogger,
+    logger: logger,
     onAction: logAction,
     onBatch: (batch) => {
       undo.offer(batch, { automated: true });
@@ -1097,7 +1313,7 @@ async function start(): Promise<void> {
     allowedOrigins: new Set(
       devServer === undefined ? [SHELL_ORIGIN] : [SHELL_ORIGIN, devServer.origin],
     ),
-    logger: consoleLogger,
+    logger: logger,
   });
 
   const onThemeUpdated = (): void => {
@@ -1110,6 +1326,7 @@ async function start(): Promise<void> {
   // A BaseWindow never destroys its views' web contents (ADR-0002 §2): close them explicitly.
   main.window.on('closed', () => {
     nativeTheme.off('updated', onThemeUpdated);
+    clearInterval(scrollTimer);
     projector.dispose();
     fullscreen.dispose();
     prompts.dispose();
@@ -1149,6 +1366,9 @@ async function start(): Promise<void> {
         },
         undo,
         activity,
+        testPressureSet: (level) => {
+          pressureHistory.record(level ?? pressure.level());
+        },
       },
     });
     const scenario = process.env[LIFECYCLE_SCENARIO_ENV];

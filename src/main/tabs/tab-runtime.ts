@@ -249,6 +249,8 @@ export function createTabRuntimes(options: {
     contents.on('did-fail-load', (_event, code, name, url, isMainFrame) => {
       if (!destroyed && isMainFrame && code !== ERR_ABORTED) {
         failedSinceCommit = true;
+        // The address is written only while diagnostic logging is on (M5.3, file-logger.ts).
+        options.logger.warn('tab.loadFailed', { code, name, url });
         // History may have moved (a failed navigation can still add an entry): report it.
         events.loadFailed({ code, name, url, ...history() });
       }
@@ -287,7 +289,7 @@ export function createTabRuntimes(options: {
     });
     contents.on('render-process-gone', (_event, details) => {
       if (!destroyed) {
-        options.logger.warn('tab.rendererGone', { reason: details.reason });
+        options.logger.warn('tab.rendererGone', { reason: details.reason, url: contents.getURL() });
         events.crashed({ code: details.exitCode, name: details.reason });
       }
     });

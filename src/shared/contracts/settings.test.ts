@@ -25,6 +25,7 @@ describe('the defaults', () => {
       history: { retentionDays: 365 },
       startup: 'restore',
       memory: { paused: false },
+      diagnostics: { logging: false },
       lifecycle: {
         preset: 'balanced',
         autoArchive: true,
@@ -85,6 +86,7 @@ describe('parseSettings: a good document', () => {
       history: { retentionDays: 90 },
       startup: 'restore',
       memory: { paused: false },
+      diagnostics: { logging: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -95,6 +97,7 @@ describe('parseSettings: a good document', () => {
       history: { retentionDays: 30 },
       startup: 'restore',
       memory: { paused: false },
+      diagnostics: { logging: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
     expect(parseSettings({ search: { template: CUSTOM_TEMPLATE } })).toEqual({
@@ -102,6 +105,7 @@ describe('parseSettings: a good document', () => {
       history: DEFAULT_SETTINGS.history,
       startup: 'restore',
       memory: { paused: false },
+      diagnostics: { logging: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -118,6 +122,7 @@ describe('parseSettings: a good document', () => {
       history: { retentionDays: 30 },
       startup: 'restore',
       memory: { paused: false },
+      diagnostics: { logging: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
     expect(parsed).not.toHaveProperty('futureFeature');
@@ -142,6 +147,7 @@ describe('parseSettings: each field falls back alone', () => {
       history: { retentionDays: 365 },
       startup: 'restore',
       memory: { paused: false },
+      diagnostics: { logging: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -154,6 +160,7 @@ describe('parseSettings: each field falls back alone', () => {
       history: { retentionDays: 14 },
       startup: 'restore',
       memory: { paused: false },
+      diagnostics: { logging: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -169,6 +176,7 @@ describe('parseSettings: each field falls back alone', () => {
       history: { retentionDays: 14 },
       startup: 'restore',
       memory: { paused: false },
+      diagnostics: { logging: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -184,6 +192,7 @@ describe('parseSettings: each field falls back alone', () => {
       history: DEFAULT_SETTINGS.history,
       startup: 'restore',
       memory: { paused: false },
+      diagnostics: { logging: false },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -513,6 +522,7 @@ describe('settingsChangeSchema: what main accepts from the settings page (M5.1)'
     ['a custom template', { search: { template: CUSTOM_TEMPLATE } }],
     ['startup', { startup: 'new-tab' }],
     ['Pause memory', { memory: { paused: true } }],
+    ['diagnostic logging (M5.3)', { diagnostics: { logging: true } }],
     ['a preset', { lifecycle: { preset: 'gentle' } }],
     ['the switches', { lifecycle: { autoArchive: false, freeze: true, paused: true } }],
     ['preview mode', { lifecycle: { preview: 'off' } }],
@@ -576,6 +586,8 @@ describe('settingsChangeSchema: what main accepts from the settings page (M5.1)'
       ['an unknown startup', { startup: 'blank' }],
       ['a startup of the wrong type', { startup: 1 }],
       ['Pause memory as a string', { memory: { paused: 'yes' } }],
+      ['diagnostic logging as a string', { diagnostics: { logging: 'on' } }],
+      ['an unknown diagnostics field', { diagnostics: { logging: true, upload: true } }],
       ['an unknown preset', { lifecycle: { preset: 'turbo' } }],
       ['a switch as a number', { lifecycle: { autoArchive: 0 } }],
       ['an unknown preview mode', { lifecycle: { preview: 'on' } }],

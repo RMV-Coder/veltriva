@@ -111,6 +111,18 @@ The tab lifecycle mixes asynchronous Chromium events, user commands, a scheduler
      - **`memory.remove`:** one entry, from the palette's Shift+Delete: a page id, and the archived tab showing it when that is the entry. Main passes the tab on, and the worker removes only an archived or closed tab.
      - **`permissions.list` / `permissions.change`:** the stored answers, and one change or revocation (`not_found` when there was nothing to revoke).
    - **Every one answers with what it did:** counts for a clear, the list for a permission change. The shell shows that, never its own idea of the result.
+16. **As built in M5.3 (diagnostics):**
+   - **`lifecycle.diagnostics` is now async, and gains:**
+     - each tab's renderer memory, from `app.getAppMetrics` (private bytes on Windows, spike S8), with how many other tabs share the renderer;
+     - Veltriva's other processes;
+     - automation's counts from the activity log;
+     - the pressure history of this run;
+     - the database's size, last backup and check;
+     - the log file and whether diagnostic logging is on.
+   - **New commands:**
+     - **`diagnostics.export`:** `{ includeAddresses }` gives `{ saved }`, false when the user cancelled the save dialog.
+     - **`diagnostics.openLogFolder`.**
+   - **The settings document gains `diagnostics.logging`** (off by default).
 
 ## Consequences
 

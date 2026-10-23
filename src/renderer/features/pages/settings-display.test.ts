@@ -28,6 +28,7 @@ function view(overrides: Partial<SettingsView['settings']['lifecycle']> = {}): S
       history: { retentionDays: 365 },
       startup: 'restore',
       memory: { paused: false },
+      diagnostics: { logging: false },
       lifecycle: {
         preset: 'balanced',
         autoArchive: true,

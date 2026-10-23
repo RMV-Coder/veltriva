@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  automationText,
+  backupText,
+  fileSizeText,
+  megabytesText,
+  pressureHistoryViews,
+  tabMemoryViews,
   actionText,
   countText,
   dateText,
@@ -50,6 +56,15 @@ const diagnostics: Diagnostics = {
   settings: { preset: 'balanced', paused: false, preview: true, protectedSites: ['example.com'] },
   pressure: 'moderate',
   memory: { totalMb: 16_128, availableMb: 6_432 },
+  tabs: [],
+  processes: { browserKb: 0, gpuKb: 0, otherKb: 0 },
+  automation: {
+    lastDay: { discard: 0, freeze: 0, shelve: 0, archive: 0, undo: 0 },
+    kept: { discard: 0, freeze: 0, shelve: 0, archive: 0, undo: 0 },
+  },
+  pressureHistory: [],
+  database: null,
+  logging: { enabled: false, file: 'C:\\profile\\logs\\veltriva.log' },
 };
 
 describe('countText', () => {
@@ -282,6 +297,16 @@ describe('diagnosticsView', () => {
       protectedSites: ['example.com'],
       pressure: 'Low',
       memory: '6,432 of 16,128 MB',
+      tabs: [],
+      browserMemory: 'Under 1 MB',
+      gpuMemory: 'Under 1 MB',
+      otherMemory: 'Under 1 MB',
+      automationLastDay: 'Nothing',
+      automationKept: 'Nothing',
+      pressureHistory: [],
+      database: null,
+      logging: 'Off: no page addresses',
+      logFile: 'C:\\profile\\logs\\veltriva.log',
     });
   });
 
@@ -292,6 +317,15 @@ describe('diagnosticsView', () => {
       settings: { preset: 'balanced', paused: true, preview: false, protectedSites: [] },
       pressure: 'none',
       memory: { totalMb: 0, availableMb: 0 },
+      tabs: [],
+      processes: { browserKb: 0, gpuKb: 0, otherKb: 0 },
+      automation: {
+        lastDay: { discard: 0, freeze: 0, shelve: 0, archive: 0, undo: 0 },
+        kept: { discard: 0, freeze: 0, shelve: 0, archive: 0, undo: 0 },
+      },
+      pressureHistory: [],
+      database: null,
+      logging: { enabled: false, file: 'C:\\profile\\logs\\veltriva.log' },
     };
     expect(diagnosticsView(fresh, NOW)).toEqual({
       since: null,
@@ -306,6 +340,91 @@ describe('diagnosticsView', () => {
       protectedSites: [],
       pressure: 'Normal',
       memory: 'Unknown',
+      tabs: [],
+      browserMemory: 'Under 1 MB',
+      gpuMemory: 'Under 1 MB',
+      otherMemory: 'Under 1 MB',
+      automationLastDay: 'Nothing',
+      automationKept: 'Nothing',
+      pressureHistory: [],
+      database: null,
+      logging: 'Off: no page addresses',
+      logFile: 'C:\\profile\\logs\\veltriva.log',
     });
+  });
+});
+
+describe('the M5.3 additions', () => {
+  it('says memory in megabytes, and a file in megabytes with a decimal', () => {
+    expect(megabytesText(120_832)).toBe('118 MB');
+    expect(megabytesText(512)).toBe('Under 1 MB');
+    expect(megabytesText(-1)).toBe('Unknown');
+    expect(fileSizeText(13_002_342)).toBe('12.4 MB');
+  });
+
+  it('lists the tabs heaviest first; an unloaded one says so, and a shared renderer is named', () => {
+    const rows = tabMemoryViews([
+      {
+        tabId: 'a',
+        title: 'Light',
+        placement: 'strip',
+        runtime: 'live',
+        privateKb: 40_000,
+        sharedWith: 0,
+      },
+      {
+        tabId: 'b',
+        title: '',
+        placement: 'shelf',
+        runtime: 'unloaded',
+        privateKb: null,
+        sharedWith: 0,
+      },
+      {
+        tabId: 'c',
+        title: 'Heavy\u202e',
+        placement: 'strip',
+        runtime: 'live',
+        privateKb: 300_000,
+        sharedWith: 1,
+      },
+    ]);
+
+    expect(rows).toEqual([
+      {
+        tabId: 'c',
+        title: 'Heavy',
+        where: 'Tabs',
+        state: 'Loaded',
+        memory: '293 MB',
+        shared: 'Shared with 1 other tab',
+      },
+      { tabId: 'a', title: 'Light', where: 'Tabs', state: 'Loaded', memory: '39 MB', shared: null },
+      {
+        tabId: 'b',
+        title: 'Untitled',
+        where: 'Sleeping',
+        state: 'Unloaded',
+        memory: '—',
+        shared: null,
+      },
+    ]);
+  });
+
+  it('says what automation did, or nothing', () => {
+    expect(automationText({ discard: 3, freeze: 0, shelve: 1, archive: 2, undo: 1 })).toBe(
+      '3 unloads, 1 move to Sleeping, 2 archives, 1 undo',
+    );
+    expect(automationText({ discard: 0, freeze: 0, shelve: 0, archive: 0, undo: 0 })).toBe(
+      'Nothing',
+    );
+  });
+
+  it('names each pressure change, and when the last backup was', () => {
+    const [change] = pressureHistoryViews([{ at: NOW - 60_000, level: 'critical' }], NOW);
+    expect(change?.level).toBe('Very low');
+    expect(change?.time).not.toBe('');
+    expect(backupText(null)).toBe('Not yet');
+    expect(backupText(local(2026, 10, 21, 3, 0))).toBe('21 Oct 2026');
   });
 });

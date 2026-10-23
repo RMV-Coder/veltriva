@@ -72,6 +72,8 @@ export const COMMAND_NAMES = [
   'memory.remove',
   'permissions.list',
   'permissions.change',
+  'diagnostics.export',
+  'diagnostics.openLogFolder',
 ] as const;
 export type CommandName = (typeof COMMAND_NAMES)[number];
 

@@ -191,6 +191,14 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
       - a deleted page's unique word is in neither file's raw bytes once the deletion has checkpointed.
     - **For a site, the worker also returns the origins of what it deleted**, so main can clear their storage in Chromium (ADR-0002 item 13).
 
+15. **As built in M5.3** (no migration):
+    - **The app_state document `scroll`:** `{ tabs: { [tabId]: { url, x, y } } }`, where each tab was scrolled (`main/session/scroll-keeper.ts`).
+      - **When it is read:** from the page's isolated world, never its own (ADR-0002), when a tab is hidden, and every 15 s for the selected tab, so a quit loses at most that.
+      - **What is never kept:** a page with a password or payment field, and a page at the top.
+      - **What is stored:** only tabs that still exist, at most 500. It is written 5 s after a change and at quit.
+      - **How it comes back:** once, after a restored tab's first load, and only on the address it was read on. Chromium's own page state stays out of the database (item 4); this is two numbers.
+    - **The diagnostics page reads the database's size and upkeep:** the file and WAL sizes from disk, and `maintenance.status` for the last backup and check.
+
 ## Consequences
 
 - **Positive:** the UI thread stays responsive regardless of query cost, persistence is crash-safe, and the data layer is testable on plain Node. S5 measured it: while the worker ran a 1.09 s query, main-thread timers drifted by at most 15 ms. The same query run on the main thread stalled it for 1,489 ms.

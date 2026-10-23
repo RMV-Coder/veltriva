@@ -522,3 +522,19 @@ export async function changePermission(
   const result = await run('permissions.change', () => window.veltriva.permissions.change(change));
   return result.ok ? result.value : undefined;
 }
+
+// ── Diagnostics (M5.3) ───────────────────────────────────────────────────────────────────────────
+
+/** Saves the diagnostics as JSON through the save dialog: true if saved, false if not. */
+export async function exportDiagnostics(includeAddresses: boolean): Promise<boolean | undefined> {
+  const result = await run('diagnostics.export', () =>
+    window.veltriva.diagnostics.export({ includeAddresses }),
+  );
+  return result.ok ? result.value.saved : undefined;
+}
+
+/** Shows the log file's folder. */
+export async function openLogFolder(): Promise<boolean> {
+  return (await run('diagnostics.openLogFolder', () => window.veltriva.diagnostics.openLogFolder()))
+    .ok;
+}

@@ -142,6 +142,15 @@ export const permissionsViewSchema = z.strictObject({
 });
 export type PermissionsView = z.infer<typeof permissionsViewSchema>;
 
+/** How many of each automatic action (M5.3, the diagnostics page). */
+const activityCounts = z.strictObject({
+  discard: z.number().int().nonnegative(),
+  freeze: z.number().int().nonnegative(),
+  shelve: z.number().int().nonnegative(),
+  archive: z.number().int().nonnegative(),
+  undo: z.number().int().nonnegative(),
+});
+
 /** The palette's filters (M4.2, §7.3): Tab steps through them. */
 export const MEMORY_SCOPES = ['all', 'open', 'sleeping', 'archived', 'today', 'week'] as const;
 export type MemoryScope = (typeof MEMORY_SCOPES)[number];
@@ -602,8 +611,66 @@ export const commandSchemas = {
         totalMb: z.number().nonnegative(),
         availableMb: z.number().nonnegative(),
       }),
+      // M5.3: what each tab costs, what automation did, pressure, the database, the log.
+      /** Per tab in Tabs and Sleeping: its renderer's private memory (null when unloaded). */
+      tabs: z
+        .array(
+          z.strictObject({
+            tabId,
+            title: z.string().max(1024),
+            placement: z.enum(['strip', 'shelf']),
+            runtime: z.enum(['unloaded', 'creating', 'live', 'frozen', 'discarding', 'crashed']),
+            privateKb: z.number().int().nonnegative().nullable(),
+            /** Other tabs sharing that renderer (Chromium groups a site's tabs). */
+            sharedWith: z.number().int().nonnegative(),
+          }),
+        )
+        .max(5000),
+      /** Veltriva's own processes, in kB: the browser process, the GPU, and the rest. */
+      processes: z.strictObject({
+        browserKb: z.number().int().nonnegative(),
+        gpuKb: z.number().int().nonnegative(),
+        otherKb: z.number().int().nonnegative(),
+      }),
+      /** What automation did, from the activity log: the last 24 hours, and all it keeps. */
+      automation: z.strictObject({
+        lastDay: activityCounts,
+        kept: activityCounts,
+      }),
+      /** Each change of the pressure level this run, newest first. */
+      pressureHistory: z
+        .array(
+          z.strictObject({
+            at: z.number().int().nonnegative(),
+            level: z.enum(['none', 'moderate', 'critical']),
+          }),
+        )
+        .max(50),
+      /** Null without a database. */
+      database: z
+        .strictObject({
+          sizeBytes: z.number().int().nonnegative(),
+          walBytes: z.number().int().nonnegative(),
+          lastBackupAt: z.number().int().nonnegative().nullable(),
+          lastCheckAt: z.number().int().nonnegative().nullable(),
+          lastCheckOk: z.boolean().nullable(),
+        })
+        .nullable(),
+      /** Diagnostic logging (§6.6): whether addresses are logged, and where the log is. */
+      logging: z.strictObject({ enabled: z.boolean(), file: z.string().min(1).max(4096) }),
     }),
   },
+  /**
+   * Saves a JSON document of what the diagnostics page shows (M5.3), through the save dialog. It
+   * holds no page address unless `includeAddresses`, and never a title. `saved` is false when the
+   * user cancelled.
+   */
+  'diagnostics.export': {
+    input: z.strictObject({ includeAddresses: z.boolean() }),
+    output: z.strictObject({ saved: z.boolean() }),
+  },
+  /** Shows the log file's folder in Explorer (M5.3). */
+  'diagnostics.openLogFolder': { input: nothing, output: nothing },
   /**
    * Searches the memory (M4.2, assessment §5.4, §7.3): the palette and the address bar. The words
    * go to the data worker as typed; main reads a `site:<domain>` word out of them, which, like

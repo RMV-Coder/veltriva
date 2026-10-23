@@ -124,6 +124,7 @@ export function SettingsPage() {
           <SiteRulesSection view={view} onView={setView} />
           <ClearDataSection />
           <SitePermissionsSection />
+          <DiagnosticsSection view={view} apply={apply} />
         </>
       )}
     </div>
@@ -954,5 +955,36 @@ function RetentionSetting({ days, apply }: { readonly days: number; readonly app
         {problem}
       </p>
     </div>
+  );
+}
+
+/** Diagnostic logging (§6.6, M5.3): addresses in the log only while the user wants them there. */
+function DiagnosticsSection({
+  view,
+  apply,
+}: {
+  readonly view: SettingsView;
+  readonly apply: Apply;
+}) {
+  return (
+    <Section
+      id="diagnostics"
+      title="Diagnostics"
+      note={
+        <>
+          Veltriva keeps a log of errors on this device, by tab and code. The diagnostics page,{' '}
+          <code className="text-xs">veltriva://diagnostics</code>, shows what automation measured
+          and can export it for a problem report.
+        </>
+      }
+    >
+      <Toggle
+        setting="diagnostic-logging"
+        label="Diagnostic logging"
+        description="Also writes the address of the page each logged event is about, to help find a problem. Turn it off again once it's reported."
+        checked={view.settings.diagnostics.logging}
+        onChange={(logging) => apply({ diagnostics: { logging } })}
+      />
+    </Section>
   );
 }

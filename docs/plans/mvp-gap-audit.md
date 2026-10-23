@@ -86,9 +86,9 @@ The table names a file or a test as evidence. The last column is the milestone t
 | Item | Status | Evidence | Closed by |
 |---|---|---|---|
 | HTTP-auth prompt | done | `tests/e2e/sign-in.spec.ts` | — |
-| Scroll position restored across restarts (non-sensitive pages) | partial | Within a run, a discarded tab comes back where it was (Chromium's page state, M3.1). Across a restart a tab reloads at the top. ADR-0004 item 4 keeps Chromium's page state out of the database, so this needs a scroll offset of our own per tab, kept only for pages not marked sensitive. | M5.3 |
+| Scroll position restored across restarts (non-sensitive pages) | **done** (M5.3) | Within a run, Chromium's page state (M3.1). Across a restart, the app_state document `scroll` (`main/session/scroll-keeper.ts`, ADR-0004 item 15): never for a page with a password or payment field (`tests/e2e/diagnostics.spec.ts`) | M5.3 |
 | "Pause memory" toggle | **done** (M5.1) | Settings; the history recorder sends nothing while it is on (`history-recorder.test.ts`, `settings.spec.ts`) | M5.1 |
-| Per-tab memory display | missing | The memory benchmark reads each process's private bytes (S8), but nothing shows them. | M5.3 |
+| Per-tab memory display | **done** (M5.3) | `veltriva://diagnostics`: each tab's renderer memory (private bytes, S8), and what it shares | M5.3 |
 | Dark theme | done | follows Windows' setting (`nativeTheme`, the `app.themeChanged` event), light and dark throughout the shell. A choice in Settings is M5.1's, optionally. | — |
 | First-run onboarding (search engine, preset, preview mode) | **done** (M5.1) | `veltriva://welcome` on a new profile (`settings.spec.ts`) | M5.1 |
 | The freeze experiment behind a flag | done | `lifecycle.freeze`, off by default (M3.1), switched in Settings (M5.1) | — |
@@ -102,7 +102,7 @@ The table names a file or a test as evidence. The last column is the milestone t
 | Retention of visits, configurable (default 365 days) | **done** (M5.2): pruned while idle (M2.2b); the number is in Settings | M5.2 |
 | Clear data: one entry, forget a site, time ranges; secure delete and file shrink | **done** (M5.2) | M5.2 |
 | Managing stored permission decisions | **done** (M5.2): Settings lists, changes and revokes decisions, apps' "always open" and client-hint opt-ins | M5.2 |
-| Diagnostic logging opt-in, URLs only when on, 5 × 5 MB rotation | missing | M5.3 |
+| Diagnostic logging opt-in, URLs only when on, 5 × 5 MB rotation | **done** (M5.3): `main/platform/file-logger.ts`; the switch is in Settings | M5.3 |
 
 ## The JS-dialog decision (for review)
 

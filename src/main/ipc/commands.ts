@@ -98,8 +98,12 @@ export interface LifecycleCommands {
   endPreview(): void;
   /** Protects a tab's site, or stops; the site, or null when the tab's page has none. */
   setSiteProtected(tabId: TabId, on: boolean): string | null;
-  /** What the local diagnostics page shows (M3.4). */
-  diagnostics(): CommandOutput<'lifecycle.diagnostics'>;
+  /** What the local diagnostics page shows (M3.4; M5.3 adds memory, the database, the log). */
+  diagnostics(): Promise<CommandOutput<'lifecycle.diagnostics'>>;
+  /** Saves the diagnostics as JSON (M5.3); false when the user cancelled. */
+  exportDiagnostics(includeAddresses: boolean): Promise<boolean>;
+  /** Shows the log file's folder (M5.3). */
+  openLogFolder(): void;
 }
 
 export function createCommandHandlers({
@@ -366,6 +370,14 @@ export function createCommandHandlers({
         return { site };
       }),
     'lifecycle.diagnostics': () => lifecycle.diagnostics(),
+    // M5.3: the diagnostics page's export and the log folder.
+    'diagnostics.export': async ({ includeAddresses }) => ({
+      saved: await lifecycle.exportDiagnostics(includeAddresses),
+    }),
+    'diagnostics.openLogFolder': () => {
+      lifecycle.openLogFolder();
+      return done;
+    },
 
     'memory.search': (input) => memory.search(input),
     'memory.open': async (input) => ({ tabId: await memory.open(input) }),

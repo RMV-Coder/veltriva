@@ -224,6 +224,16 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - **Forgetting a site:** its cookies are matched by their domain on any host of the site. Its storage and cached files are cleared for the site's origins Veltriva knows: those of its deleted pages and tabs, plus the site and `www.`, over http and https. A file it loaded from another server stays cached, and the page says that too.
    - **Stored answers** can be listed, changed and revoked per site: permission decisions (Allow or Block, or removed so the site asks again), an app's "always open", and the client-hint opt-ins. A revoked decision is deleted from `permission_decisions`, along with its dismissal embargo. "Forget this site" can revoke all of the site's own.
 
+14. **The log and what leaves the machine** (Phase 5, M5.3; assessment §6.6).
+   - **The log file:** `<profile>/logs/veltriva.log`, one JSON line per warning or error, rotated at 5 MB with 5 files kept (`main/platform/file-logger.ts`).
+   - **What it holds:** tab ids and error codes. A field that holds an address (`url`, `address`, or a name ending in `Url`) is written as `[hidden]` unless the user turned **diagnostic logging** on in Settings.
+     - The same rule hides it from the console.
+     - With logging on, a failed main-frame load and a renderer that died name their page.
+   - **"Export diagnostics"** writes what the diagnostics page shows to a JSON file the user chooses (`main/diagnostics/diagnostics-export.ts`).
+     - **Never in it:** a page title, or a custom search engine's address (only "custom").
+     - **Opt-in:** open tabs' addresses only when the user ticks "Include the addresses of open tabs".
+   - **Nothing is sent anywhere.** The export is a file the user saves, and test builds record it instead of showing the dialog.
+
 ## Consequences
 
 - **Positive:** web pages can't reach any Veltriva API by construction, and privileged UI never lives inside the tab system.

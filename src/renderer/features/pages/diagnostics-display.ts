@@ -190,6 +190,103 @@ export function memoryText(memory: Diagnostics['memory']): string {
   return `${countText(memory.availableMb)} of ${countText(memory.totalMb)} MB`;
 }
 
+/** Kilobytes as megabytes, rounded: "118 MB"; under 1 MB says so. */
+export function megabytesText(kb: number): string {
+  if (!Number.isFinite(kb) || kb < 0) {
+    return 'Unknown';
+  }
+  return kb < 1024 ? 'Under 1 MB' : `${countText(Math.round(kb / 1024))} MB`;
+}
+
+/** Bytes as megabytes with one decimal: "12.4 MB". */
+export function fileSizeText(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return 'Unknown';
+  }
+  return `${String(Math.round((bytes / (1024 * 1024)) * 10) / 10)} MB`;
+}
+
+/** A tab's row in the memory table (M5.3). */
+export interface TabMemoryView {
+  readonly tabId: string;
+  /** The page's title, cleaned, or "Untitled". */
+  readonly title: string;
+  /** "Tabs" or "Sleeping". */
+  readonly where: string;
+  /** "Loaded", "Unloaded", "Frozen", … */
+  readonly state: string;
+  /** "118 MB", or "—" when the tab holds no renderer. */
+  readonly memory: string;
+  /** "Shared with 2 other tabs", or null. */
+  readonly shared: string | null;
+}
+
+const RUNTIME_TEXT: Readonly<Record<Diagnostics['tabs'][number]['runtime'], string>> = {
+  unloaded: 'Unloaded',
+  creating: 'Loading',
+  live: 'Loaded',
+  frozen: 'Frozen',
+  discarding: 'Unloading',
+  crashed: 'Crashed',
+};
+
+/** The memory table: heaviest first, then by place in the sidebar. */
+export function tabMemoryViews(tabs: Diagnostics['tabs']): TabMemoryView[] {
+  return tabs
+    .map((tab, index) => ({ tab, index }))
+    .sort((a, b) => (b.tab.privateKb ?? -1) - (a.tab.privateKb ?? -1) || a.index - b.index)
+    .map(({ tab }) => ({
+      tabId: tab.tabId,
+      title: cleanText(tab.title) || 'Untitled',
+      where: tab.placement === 'strip' ? 'Tabs' : 'Sleeping',
+      state: RUNTIME_TEXT[tab.runtime],
+      memory: tab.privateKb === null ? '—' : megabytesText(tab.privateKb),
+      shared:
+        tab.sharedWith > 0
+          ? `Shared with ${countText(tab.sharedWith)} other ${tab.sharedWith === 1 ? 'tab' : 'tabs'}`
+          : null,
+    }));
+}
+
+/** What automation did: "3 unloads, 2 moves to Sleeping, 1 archive", or "Nothing". */
+export function automationText(counts: Diagnostics['automation']['lastDay']): string {
+  const parts = [
+    [counts.discard, 'unload', 'unloads'],
+    [counts.freeze, 'freeze', 'freezes'],
+    [counts.shelve, 'move to Sleeping', 'moves to Sleeping'],
+    [counts.archive, 'archive', 'archives'],
+    [counts.undo, 'undo', 'undos'],
+  ] as const;
+  const said = parts
+    .filter(([n]) => n > 0)
+    .map(([n, one, many]) => `${countText(n)} ${n === 1 ? one : many}`);
+  return said.length === 0 ? 'Nothing' : said.join(', ');
+}
+
+/** One change of the pressure level, read against `now`. */
+export interface PressureChangeView {
+  readonly time: string;
+  readonly level: string;
+}
+
+export function pressureHistoryViews(
+  history: Diagnostics['pressureHistory'],
+  now: number,
+): PressureChangeView[] {
+  return history.map(({ at, level }) => ({
+    time: activityTimeText(at, now),
+    level: pressureText(level),
+  }));
+}
+
+/** When the last backup was taken: "21 Oct 2026", or "Not yet". */
+export function backupText(lastBackupAt: number | null): string {
+  if (lastBackupAt === null || !(lastBackupAt > 0)) {
+    return 'Not yet';
+  }
+  return dateText(lastBackupAt) ?? 'Not yet';
+}
+
 /** The protected sites as they are drawn: cleaned, and without any that nothing is left of. */
 export function protectedSitesText(sites: readonly string[]): string[] {
   return sites.map(cleanText).filter((site) => site !== '');
@@ -215,6 +312,24 @@ export interface DiagnosticsView {
   readonly protectedSites: readonly string[];
   readonly pressure: string;
   readonly memory: string;
+  // M5.3
+  readonly tabs: readonly TabMemoryView[];
+  /** "120 MB": the browser process, the GPU, and the rest of Veltriva's own. */
+  readonly browserMemory: string;
+  readonly gpuMemory: string;
+  readonly otherMemory: string;
+  readonly automationLastDay: string;
+  readonly automationKept: string;
+  readonly pressureHistory: readonly PressureChangeView[];
+  /** Null without a database. */
+  readonly database: {
+    readonly size: string;
+    readonly log: string;
+    readonly lastBackup: string;
+    readonly check: string;
+  } | null;
+  readonly logging: string;
+  readonly logFile: string;
 }
 
 /** Everything the page shows, worked out at `now`. */
@@ -233,6 +348,29 @@ export function diagnosticsView(data: Diagnostics, now: number): DiagnosticsView
     protectedSites: protectedSitesText(settings.protectedSites),
     pressure: pressureText(data.pressure),
     memory: memoryText(data.memory),
+    tabs: tabMemoryViews(data.tabs),
+    browserMemory: megabytesText(data.processes.browserKb),
+    gpuMemory: megabytesText(data.processes.gpuKb),
+    otherMemory: megabytesText(data.processes.otherKb),
+    automationLastDay: automationText(data.automation.lastDay),
+    automationKept: automationText(data.automation.kept),
+    pressureHistory: pressureHistoryViews(data.pressureHistory, now),
+    database:
+      data.database === null
+        ? null
+        : {
+            size: fileSizeText(data.database.sizeBytes),
+            log: fileSizeText(data.database.walBytes),
+            lastBackup: backupText(data.database.lastBackupAt),
+            check:
+              data.database.lastCheckOk === null
+                ? 'Not yet'
+                : data.database.lastCheckOk
+                  ? 'Passed'
+                  : 'Found damage',
+          },
+    logging: data.logging.enabled ? 'On: page addresses are logged' : 'Off: no page addresses',
+    logFile: data.logging.file,
   };
 }
 

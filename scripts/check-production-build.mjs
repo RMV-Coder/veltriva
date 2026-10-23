@@ -119,6 +119,9 @@ const MARKERS = [
   'recordPrintRequest',
   'recordedPrintRequests',
   'testFirstRun',
+  'recordDiagnosticsExport',
+  'recordedDiagnosticsExports',
+  'recordOpenedPath',
   'VELTRIVA_TEST_FIRST_RUN',
   // src/main/testing/fail-fast.ts
   'exitOnUncaughtException',

@@ -783,6 +783,31 @@ describe('the commands of M3.4', () => {
       },
       pressure: 'none',
       memory: { totalMb: 16_384, availableMb: 8_000.25 },
+      // M5.3
+      tabs: [
+        {
+          tabId: TAB_ID,
+          title: 'Example',
+          placement: 'strip',
+          runtime: 'live',
+          privateKb: 120_000,
+          sharedWith: 0,
+        },
+      ],
+      processes: { browserKb: 90_000, gpuKb: 60_000, otherKb: 30_000 },
+      automation: {
+        lastDay: { discard: 1, freeze: 0, shelve: 2, archive: 0, undo: 1 },
+        kept: { discard: 9, freeze: 0, shelve: 4, archive: 3, undo: 1 },
+      },
+      pressureHistory: [{ at: 1_700_000_000_000, level: 'moderate' }],
+      database: {
+        sizeBytes: 1_000_000,
+        walBytes: 0,
+        lastBackupAt: null,
+        lastCheckAt: 1_700_000_000_000,
+        lastCheckOk: true,
+      },
+      logging: { enabled: false, file: 'C:\\profile\\logs\\veltriva.log' },
       ...overrides,
     });
     const accepts = (value: unknown): boolean => output.safeParse(value).success;
@@ -813,6 +838,40 @@ describe('the commands of M3.4', () => {
         expect(accepts(withoutKey(diagnostics(), key))).toBe(false);
       },
     );
+
+    it('takes a tab without a renderer, no database, and an empty history (M5.3)', () => {
+      expect(
+        accepts(
+          diagnostics({
+            tabs: [
+              {
+                tabId: TAB_ID,
+                title: '',
+                placement: 'shelf',
+                runtime: 'unloaded',
+                privateKb: null,
+                sharedWith: 0,
+              },
+            ],
+            pressureHistory: [],
+            database: null,
+          }),
+        ),
+      ).toBe(true);
+    });
+
+    it('refuses an unknown runtime, a fractional memory, or a history of more than 50 (M5.3)', () => {
+      const tab = diagnostics().tabs[0];
+      expect(accepts(diagnostics({ tabs: [{ ...tab, runtime: 'sleeping' }] }))).toBe(false);
+      expect(accepts(diagnostics({ tabs: [{ ...tab, privateKb: 1.5 }] }))).toBe(false);
+      expect(
+        accepts(
+          diagnostics({
+            pressureHistory: Array.from({ length: 51 }, () => ({ at: 1, level: 'none' })),
+          }),
+        ),
+      ).toBe(false);
+    });
 
     it('refuses a key it does not know, at every level', () => {
       expect(accepts({ ...diagnostics(), extra: 1 })).toBe(false);

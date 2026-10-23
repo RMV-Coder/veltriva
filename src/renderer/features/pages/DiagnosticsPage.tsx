@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { FOCUS_RING } from '@/lib/focus';
 import { cn } from '@/lib/utils';
 
-import { fetchDiagnostics } from '../../state/commands';
+import { exportDiagnostics, fetchDiagnostics, openLogFolder } from '../../state/commands';
 import { diagnosticsView, updatedText } from './diagnostics-display';
 import type { Diagnostics, DiagnosticsView, MetricView } from './diagnostics-display';
 
@@ -207,7 +207,221 @@ function DiagnosticsSections({ view }: { readonly view: DiagnosticsView }) {
         </Fields>
         <ProtectedSites sites={view.protectedSites} />
       </Section>
+
+      <Section
+        title="Memory per tab"
+        note="Each loaded tab's renderer, as Windows counts its private memory. Chromium may put a site's tabs in one renderer: they then share the number."
+      >
+        <TabMemoryTable tabs={view.tabs} />
+        <Fields>
+          <Field
+            name="Veltriva itself (browser process)"
+            field="browser-memory"
+            value={view.browserMemory}
+          />
+          <Field name="Graphics (GPU process)" field="gpu-memory" value={view.gpuMemory} />
+          <Field name="Other processes" field="other-memory" value={view.otherMemory} />
+        </Fields>
+      </Section>
+
+      <div className="grid gap-6 sm:grid-cols-2">
+        <Section title="Automation" note="From the activity log, which keeps the last 500 actions.">
+          <Fields>
+            <Field name="Last 24 hours" field="automation-day" value={view.automationLastDay} />
+            <Field name="In the log" field="automation-kept" value={view.automationKept} />
+          </Fields>
+        </Section>
+
+        <Section title="Memory pressure" note="Each change of level since Veltriva started.">
+          {view.pressureHistory.length === 0 ? (
+            <p data-diagnostics-field="pressure-history" className="text-sm font-medium">
+              No change yet
+            </p>
+          ) : (
+            <ul
+              data-diagnostics-field="pressure-history"
+              className="flex max-w-md flex-col gap-0.5 text-sm"
+            >
+              {view.pressureHistory.map((change, index) => (
+                // Changes have no id; the list is newest first and only ever replaced as a whole.
+                <li key={index} className="flex justify-between gap-4">
+                  <span className="text-foreground/70 tabular-nums">{change.time}</span>
+                  <span className="font-medium">{change.level}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+      </div>
+
+      <div className="grid gap-6 sm:grid-cols-2">
+        <Section title="Database">
+          {view.database === null ? (
+            <p data-diagnostics-field="database" className="text-sm">
+              Not open: Veltriva is running without its database.
+            </p>
+          ) : (
+            <Fields>
+              <Field name="Size" field="database-size" value={view.database.size} />
+              <Field name="Write-ahead log" field="database-log" value={view.database.log} />
+              <Field name="Last backup" field="database-backup" value={view.database.lastBackup} />
+              <Field name="Last check" field="database-check" value={view.database.check} />
+            </Fields>
+          )}
+        </Section>
+
+        <Section
+          title="Log"
+          note="Errors and warnings, by tab and code. Page addresses only while diagnostic logging is on in Settings."
+        >
+          <Fields>
+            <Field name="Diagnostic logging" field="logging" value={view.logging} />
+          </Fields>
+          <p
+            data-diagnostics-field="log-file"
+            className="max-w-md truncate text-xs text-foreground/70"
+            title={view.logFile}
+          >
+            <bdi dir="ltr">{view.logFile}</bdi>
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            data-diagnostics-open-log=""
+            onClick={() => void openLogFolder()}
+            className={cn('w-fit', FOCUS_RING)}
+          >
+            Show the log folder
+          </Button>
+        </Section>
+      </div>
+
+      <ExportSection />
     </>
+  );
+}
+
+function TabMemoryTable({ tabs }: { readonly tabs: DiagnosticsView['tabs'] }) {
+  if (tabs.length === 0) {
+    return (
+      <p data-diagnostics-message="no-tabs" className="text-sm text-foreground/70">
+        No tabs.
+      </p>
+    );
+  }
+  return (
+    <div
+      role="region"
+      aria-label="Memory per tab"
+      tabIndex={0}
+      className={cn('max-h-96 overflow-auto rounded-xl border bg-card', FOCUS_RING)}
+    >
+      <table data-diagnostics-tabs="" className="w-full min-w-xl text-left text-sm">
+        <thead className="sticky top-0 bg-card text-xs text-foreground/70">
+          <tr>
+            <th scope="col" className="px-3 py-2 font-medium">
+              Tab
+            </th>
+            <th scope="col" className="px-3 py-2 font-medium">
+              Where
+            </th>
+            <th scope="col" className="px-3 py-2 font-medium">
+              State
+            </th>
+            <th scope="col" className="px-3 py-2 text-right font-medium">
+              Memory
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {tabs.map((row) => (
+            <tr key={row.tabId} data-tab-memory={row.tabId} className="border-t">
+              <th scope="row" className="max-w-64 truncate px-3 py-2 font-medium" title={row.title}>
+                <bdi>{row.title}</bdi>
+              </th>
+              <td className="px-3 py-2">{row.where}</td>
+              <td className="px-3 py-2">{row.state}</td>
+              <td
+                data-tab-memory-field="memory"
+                className="px-3 py-2 text-right whitespace-nowrap tabular-nums"
+                title={row.shared ?? undefined}
+              >
+                {row.memory}
+                {row.shared === null ? null : <span className="sr-only">, {row.shared}</span>}
+                {row.shared === null ? null : (
+                  <span aria-hidden="true" className="ml-1 text-foreground/60">
+                    *
+                  </span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** "Export diagnostics": a JSON file to attach to a report. No addresses unless asked. */
+function ExportSection() {
+  const [addresses, setAddresses] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const noteId = useId();
+  return (
+    <Section
+      title="Export"
+      note="Saves what this page shows as a JSON file, to attach to a problem report. It never holds a page's title."
+    >
+      <label className="flex max-w-xl items-start gap-3 text-sm">
+        <input
+          type="checkbox"
+          data-diagnostics-include-addresses=""
+          checked={addresses}
+          aria-describedby={noteId}
+          onChange={(event) => {
+            setAddresses(event.target.checked);
+          }}
+          className={cn('mt-0.5 size-4 shrink-0 accent-foreground', FOCUS_RING)}
+        />
+        <span className="flex flex-col gap-0.5">
+          <span className="font-medium">Include the addresses of open tabs</span>
+          <span id={noteId} className="text-foreground/70">
+            Off, the file holds no address of a page you visited.
+          </span>
+        </span>
+      </label>
+      <div className="flex items-center gap-3">
+        <Button
+          variant="outline"
+          data-diagnostics-export=""
+          aria-disabled={busy}
+          onClick={() => {
+            if (busy) {
+              return;
+            }
+            setBusy(true);
+            setOutcome(null);
+            void exportDiagnostics(addresses).then((saved) => {
+              setBusy(false);
+              setOutcome(
+                saved === undefined
+                  ? 'The file could not be saved.'
+                  : saved
+                    ? 'Saved.'
+                    : 'Not saved.',
+              );
+            });
+          }}
+          className={cn('w-fit', FOCUS_RING)}
+        >
+          Export diagnostics…
+        </Button>
+        <p role="status" data-diagnostics-exported="" className="text-sm">
+          {outcome}
+        </p>
+      </div>
+    </Section>
   );
 }
 

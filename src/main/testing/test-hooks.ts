@@ -50,6 +50,7 @@ import {
   recordedNetworkRequests,
 } from './network-log';
 import type { NetworkRequestEntry } from './network-log';
+import { recordedDiagnosticsExports, recordedOpenedPaths } from './diagnostics-exports';
 import { recordedPrintRequests } from './print-requests';
 import { recordedRuntimeTransitions } from './runtime-transitions';
 import { recordedFileActions, testDownloadsFolder } from './test-files';
@@ -120,6 +121,9 @@ export interface VeltrivaTestHooks {
   clearNetworkRequests(): void;
   /** The tabs whose page was asked to print (M5.0: Ctrl+P, the context menu), oldest first. */
   printRequests(): TabId[];
+  /** "Export diagnostics" documents and "Open the log folder" paths, recorded (M5.3). */
+  diagnosticsExports(): string[];
+  openedPaths(): string[];
   /** The open popup windows, with what their address bar shows and their layout. */
   popupWindows(): PopupWindowInfo[];
   /** Whether main knows Chromium's client-hint values, so navigations carry the hints. */
@@ -232,6 +236,8 @@ export interface TestHookContext {
     readonly setSettings: (settings: Partial<LifecycleSettingsDocument>) => void;
     readonly undo: UndoManager;
     readonly activity: ActivityLog;
+    /** A level a test set (M5.3): the diagnostics page's history records it as the monitor's. */
+    readonly testPressureSet?: (level: MemoryPressure | null) => void;
   };
 }
 
@@ -391,6 +397,14 @@ export function installTestHooks({
       clearNetworkRequests();
     },
 
+    diagnosticsExports() {
+      return recordedDiagnosticsExports();
+    },
+
+    openedPaths() {
+      return recordedOpenedPaths();
+    },
+
     printRequests() {
       return recordedPrintRequests();
     },
@@ -489,6 +503,7 @@ export function installTestHooks({
 
     setMemoryPressure(level) {
       setTestMemoryPressure(level);
+      lifecycle.testPressureSet?.(level);
     },
 
     setLifecycleSettings(settings) {
