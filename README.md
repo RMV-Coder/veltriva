@@ -20,7 +20,10 @@ Veltriva is a local-first Windows browser built on Chromium (through Electron 45
 
 ### Tabs and the sidebar
 
-![The Veltriva Browser window: the toolbar and address bar on top, the vertical tab sidebar on the left with its Tabs, Sleeping and Archive sections, and a web page](docs/images/main-window.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/main-window-dark.png">
+  <img alt="The Veltriva Browser window: the address bar on top; on the left the sidebar with Search memory, two pinned tabs, the open tabs, and the Sleeping and Archive sections; on the right a web page" src="docs/images/main-window.png">
+</picture>
 
 - **A vertical sidebar** lists your tabs, pinned ones first. Reorder them by dragging, or with Alt+Shift+Up and Alt+Shift+Down. A tab's menu (right-click, or Shift+F10) offers Duplicate, Pin, Move to Sleeping, Archive, Protect from automation and Close other tabs, among others.
 - **The address bar** has back, forward and reload. Type an address or a search. It searches with DuckDuckGo unless you choose another engine.
@@ -30,7 +33,7 @@ Veltriva is a local-first Windows browser built on Chromium (through Electron 45
 
 ### Tabs that look after themselves
 
-![The sidebar with open tabs, a Sleeping section and an Archive section, and the Undo toast at its foot](docs/images/sleeping-archive.png)
+![A tab moves from the open tabs to Sleeping, a "Moved to Sleeping" toast with Undo appears at the foot of the sidebar, and Undo puts the tab back](docs/images/sleeping-undo.gif)
 
 - **Unloading:** a tab hidden for an hour (the Balanced preset) is unloaded to free its memory. It stays in the sidebar, and comes back when you select it, with its back and forward history, where you had scrolled and, within the same run, what you typed in plain fields.
 - **Sleeping, then the Archive:** past your 10 most recent unpinned tabs, a tab you have not used for 2 hours of use moves to Sleeping, under the tab list. After 3 days of use there, it moves to the Archive. One click brings a tab back next to the one you are on. These times count your use of the computer, so a weekend away changes nothing.
@@ -43,7 +46,7 @@ Veltriva is a local-first Windows browser built on Chromium (through Electron 45
 
 ### The memory and search
 
-![The memory palette over a page, with a search for a few partial words and results marked Open, Sleeping and Archived](docs/images/memory-palette.png)
+![The memory palette opens over a page; typing "film" finds an archived page, and Enter brings it back as an open tab](docs/images/memory-palette.gif)
 
 - **Every page you visit is remembered,** with its title and icon, in your profile only. Left out: sign-in callbacks, addresses with a password in them, and parameters that carry a token or a signature. Tracking parameters (`utm_*`, `fbclid` and the like) do not make a page count twice. Veltriva searches titles, addresses and sites, not the text of pages.
 - **The memory palette, Ctrl+Shift+K** (or **Search memory…** in the sidebar): type a few partial words of a title, an address or a site. Enter switches to the tab, or brings it back from Sleeping or the Archive; Ctrl+Enter opens it in a new tab. Tab steps through All, Open, Sleeping, Archived, Today and This week, and `site:example.com` keeps to one site. Shift+Delete forgets the selected result. The page underneath stays live.
@@ -77,7 +80,7 @@ Veltriva is a local-first Windows browser built on Chromium (through Electron 45
 
 ### Settings, privacy and your data
 
-![Veltriva's Settings page, with the search engine, startup, tabs and automation, and memory sections](docs/images/settings.png)
+![Veltriva's Settings page, open in a tab: the search engine, what happens when Veltriva starts, and the start of Tabs and automation](docs/images/settings.png)
 
 Open Settings with the gear at the foot of the sidebar, or `veltriva://settings`. Every change applies at once.
 
