@@ -13,6 +13,8 @@ export const INTERNAL_PAGES = [
   'settings',
   /** First-run onboarding (M5.1, §7.2): search engine, preset and preview mode. */
   'welcome',
+  /** About (M6.3, §7.2): versions, the license, the third-party notices, the update check. */
+  'about',
 ] as const;
 export type InternalPage = (typeof INTERNAL_PAGES)[number];
 
@@ -25,6 +27,7 @@ export const TYPEABLE_INTERNAL_PAGES: ReadonlyMap<string, InternalPage> = new Ma
   ['diagnostics', 'diagnostics'],
   ['settings', 'settings'],
   ['welcome', 'welcome'],
+  ['about', 'about'],
 ]);
 
 export const INTERNAL_SCHEME = 'veltriva';

@@ -6,7 +6,14 @@ import { Button } from '@/components/ui/button';
 import { FOCUS_RING } from '@/lib/focus';
 import { cn } from '@/lib/utils';
 
-import { fetchSettings, setSiteRule, updateSettings } from '../../state/commands';
+import {
+  checkForUpdates,
+  fetchSettings,
+  fetchUpdateStatus,
+  openAbout,
+  setSiteRule,
+  updateSettings,
+} from '../../state/commands';
 import type { SettingsAnswer, SettingsChange, SettingsView } from '../../state/commands';
 import { useAutomation } from '../../state/workspace-store';
 import { ClearDataSection, SitePermissionsSection } from './PrivacySections';
@@ -29,6 +36,8 @@ import {
   templateProblem,
 } from './settings-display';
 import type { NumericField, Preset } from './settings-display';
+import { FEED_REFUSED, feedProblem, updateStatusText } from './update-display';
+import type { UpdateView } from './update-display';
 
 type Apply = (change: SettingsChange) => Promise<SettingsAnswer>;
 
@@ -125,6 +134,7 @@ export function SettingsPage() {
           <ClearDataSection />
           <SitePermissionsSection />
           <DiagnosticsSection view={view} apply={apply} />
+          <UpdatesSection view={view} apply={apply} />
         </>
       )}
     </div>
@@ -985,6 +995,129 @@ function DiagnosticsSection({
         checked={view.settings.diagnostics.logging}
         onChange={(logging) => apply({ diagnostics: { logging } })}
       />
+    </Section>
+  );
+}
+
+/**
+ * The update-available notice (M6.3, ADR-0007 item 4): off by default, and nothing is contacted
+ * while it is off. On, Veltriva asks the release feed once a day; it never downloads anything.
+ */
+function UpdatesSection({ view, apply }: { readonly view: SettingsView; readonly apply: Apply }) {
+  const [status, setStatus] = useState<UpdateView | null>(null);
+  const [feed, setFeed] = useState(view.settings.updates.feedUrl);
+  const [problem, setProblem] = useState<string | null>(null);
+  const feedId = useId();
+  const problemId = useId();
+  const { check } = view.settings.updates;
+
+  useEffect(() => {
+    let current = true;
+    void fetchUpdateStatus().then((value) => {
+      if (current && value !== undefined) {
+        setStatus(value);
+      }
+    });
+    return () => {
+      current = false;
+    };
+  }, [check, view.settings.updates.feedUrl]);
+
+  const saveFeed = async (): Promise<void> => {
+    const found = feedProblem(feed);
+    if (found !== null) {
+      setProblem(found);
+      return;
+    }
+    const answer = await apply({ updates: { feedUrl: feed.trim() } });
+    setProblem(answer.ok ? null : answer.invalid ? FEED_REFUSED : 'The change could not be saved.');
+  };
+
+  const checkNow = async (): Promise<void> => {
+    if (status !== null) {
+      setStatus({ ...status, checking: true });
+    }
+    const answer = await checkForUpdates();
+    if (answer !== undefined) {
+      setStatus(answer);
+    }
+  };
+
+  return (
+    <Section
+      id="updates"
+      title="Updates"
+      note="Veltriva can tell you when a newer version is out. It never downloads or installs anything by itself."
+    >
+      <Toggle
+        setting="update-check"
+        label="Check for new versions"
+        description="Once a day, Veltriva asks the release feed below for the newest version, and shows a notice when there is one. Off, Veltriva never contacts it."
+        checked={check}
+        onChange={(on) => apply({ updates: { check: on } })}
+      />
+      <form
+        className="flex flex-col gap-1.5"
+        onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
+          event.preventDefault();
+          void saveFeed();
+        }}
+      >
+        <label htmlFor={feedId} className="text-sm font-medium">
+          Release feed
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            id={feedId}
+            type="text"
+            data-setting="update-feed"
+            spellCheck={false}
+            autoComplete="off"
+            maxLength={2048}
+            value={feed}
+            aria-invalid={problem !== null}
+            aria-describedby={problemId}
+            onChange={(event) => {
+              setFeed(event.target.value);
+            }}
+            className={cn(TEXT_FIELD, 'w-full max-w-md flex-1')}
+          />
+          <Button type="submit" variant="outline" data-setting="use-feed" className={FOCUS_RING}>
+            Use it
+          </Button>
+        </div>
+        <p id={problemId} data-settings-error="feed" aria-live="polite" className={ERROR_TEXT}>
+          {problem}
+        </p>
+      </form>
+      <div className="flex flex-wrap items-center gap-3">
+        <p data-update-status="" role="status" className="text-sm">
+          {status === null ? 'Loading…' : updateStatusText(status)}
+        </p>
+        {check ? (
+          <Button
+            variant="outline"
+            data-setting="check-now"
+            disabled={status?.checking === true}
+            onClick={() => {
+              void checkNow();
+            }}
+            className={FOCUS_RING}
+          >
+            Check now
+          </Button>
+        ) : null}
+        <Button
+          variant="outline"
+          data-setting="open-about"
+          onClick={() => {
+            void openAbout();
+          }}
+          className={FOCUS_RING}
+        >
+          About Veltriva
+        </Button>
+      </div>
     </Section>
   );
 }

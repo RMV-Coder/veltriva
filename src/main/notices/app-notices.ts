@@ -16,7 +16,12 @@ export type AppNotice =
   /** The last run ended without closing; its tabs are back (M2.2a, assessment §5.9). */
   | { readonly id: string; readonly kind: 'session-recovered' }
   /** Two quick crashes in a row: the tabs are back, but none loaded (§5.9's safe mode). */
-  | { readonly id: string; readonly kind: 'safe-mode' };
+  | { readonly id: string; readonly kind: 'safe-mode' }
+  /**
+   * The update check found a newer version (M6.3). Its release page stays in main
+   * (UpdateChecker), so the shell's "View release" names no address.
+   */
+  | { readonly id: string; readonly kind: 'update-available'; readonly version: string };
 
 type WithoutId<T> = T extends unknown ? Omit<T, 'id'> : never;
 export type NewAppNotice = WithoutId<AppNotice>;

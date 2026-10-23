@@ -10,11 +10,12 @@ interface DisplayableTab {
   readonly page: { readonly kind: 'web' } | { readonly kind: 'internal'; readonly name: string };
 }
 
-/** The labels of the shell's own pages that have one (M5.1 adds Settings and Welcome). */
+/** The labels of the shell's own pages that have one (M5.1 adds Settings and Welcome, M6.3 About). */
 const INTERNAL_PAGE_LABELS: ReadonlyMap<string, string> = new Map([
   ['new-tab', 'New Tab'],
   ['settings', 'Settings'],
   ['welcome', 'Welcome to Veltriva'],
+  ['about', 'About Veltriva'],
 ]);
 
 /** The tab's label: its title, else the label of the shell's own page, else its address, else "Untitled". */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { DEFAULT_FEED_URL } from '../../core/updates/release-feed';
 import { DEFAULT_SEARCH_TEMPLATE } from '../../core/url/omnibox';
 import {
   applySettingsChange,
@@ -26,6 +27,7 @@ describe('the defaults', () => {
       startup: 'restore',
       memory: { paused: false },
       diagnostics: { logging: false },
+      updates: { check: false, feedUrl: DEFAULT_FEED_URL },
       lifecycle: {
         preset: 'balanced',
         autoArchive: true,
@@ -87,6 +89,7 @@ describe('parseSettings: a good document', () => {
       startup: 'restore',
       memory: { paused: false },
       diagnostics: { logging: false },
+      updates: { check: false, feedUrl: DEFAULT_FEED_URL },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -98,6 +101,7 @@ describe('parseSettings: a good document', () => {
       startup: 'restore',
       memory: { paused: false },
       diagnostics: { logging: false },
+      updates: { check: false, feedUrl: DEFAULT_FEED_URL },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
     expect(parseSettings({ search: { template: CUSTOM_TEMPLATE } })).toEqual({
@@ -106,6 +110,7 @@ describe('parseSettings: a good document', () => {
       startup: 'restore',
       memory: { paused: false },
       diagnostics: { logging: false },
+      updates: { check: false, feedUrl: DEFAULT_FEED_URL },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -123,6 +128,7 @@ describe('parseSettings: a good document', () => {
       startup: 'restore',
       memory: { paused: false },
       diagnostics: { logging: false },
+      updates: { check: false, feedUrl: DEFAULT_FEED_URL },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
     expect(parsed).not.toHaveProperty('futureFeature');
@@ -148,6 +154,7 @@ describe('parseSettings: each field falls back alone', () => {
       startup: 'restore',
       memory: { paused: false },
       diagnostics: { logging: false },
+      updates: { check: false, feedUrl: DEFAULT_FEED_URL },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -161,6 +168,7 @@ describe('parseSettings: each field falls back alone', () => {
       startup: 'restore',
       memory: { paused: false },
       diagnostics: { logging: false },
+      updates: { check: false, feedUrl: DEFAULT_FEED_URL },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -177,6 +185,7 @@ describe('parseSettings: each field falls back alone', () => {
       startup: 'restore',
       memory: { paused: false },
       diagnostics: { logging: false },
+      updates: { check: false, feedUrl: DEFAULT_FEED_URL },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -193,6 +202,7 @@ describe('parseSettings: each field falls back alone', () => {
       startup: 'restore',
       memory: { paused: false },
       diagnostics: { logging: false },
+      updates: { check: false, feedUrl: DEFAULT_FEED_URL },
       lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
     });
   });
@@ -730,5 +740,52 @@ describe('applySettingsChange: the document a change makes (M5.1)', () => {
         ),
       ).toBeNull();
     });
+  });
+});
+
+describe('the update check setting (M6.3)', () => {
+  it('is off by default, with the project feed', () => {
+    expect(DEFAULT_SETTINGS.updates).toEqual({ check: false, feedUrl: DEFAULT_FEED_URL });
+  });
+
+  it('reads leniently: a bad value falls back alone, a missing section is the default', () => {
+    expect(
+      parseSettings({ updates: { check: 'yes', feedUrl: 'http://example.com/feed' } }).updates,
+    ).toEqual({
+      check: false,
+      feedUrl: DEFAULT_FEED_URL,
+    });
+    expect(parseSettings({ updates: { check: true } }).updates).toEqual({
+      check: true,
+      feedUrl: DEFAULT_FEED_URL,
+    });
+    expect(parseSettings({}).updates).toEqual(DEFAULT_SETTINGS.updates);
+  });
+
+  it('applies a change of one field, keeping the other', () => {
+    const on = applySettingsChange(DEFAULT_SETTINGS, { updates: { check: true } });
+    expect(on?.updates).toEqual({ check: true, feedUrl: DEFAULT_FEED_URL });
+    const feed = 'https://example.com/releases.json';
+    expect(
+      applySettingsChange(on ?? DEFAULT_SETTINGS, { updates: { feedUrl: feed } })?.updates,
+    ).toEqual({
+      check: true,
+      feedUrl: feed,
+    });
+  });
+
+  it.each([
+    ['http to another machine', 'http://example.com/feed'],
+    ['credentials', 'https://user:pass@example.com/feed'],
+    ['a file', 'file:///C:/feed.json'],
+    ['not an address', 'feed'],
+  ])('refuses a feed with %s', (_what, feedUrl) => {
+    expect(settingsChangeSchema.safeParse({ updates: { feedUrl } }).success).toBe(false);
+  });
+
+  it('refuses an unknown field in the change', () => {
+    expect(
+      settingsChangeSchema.safeParse({ updates: { check: true, download: true } }).success,
+    ).toBe(false);
   });
 });

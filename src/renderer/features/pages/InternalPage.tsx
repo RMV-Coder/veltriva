@@ -1,4 +1,5 @@
 import type { TabSnapshot } from '../../../shared/contracts/schemas';
+import { AboutPage } from './AboutPage';
 import { CertificateErrorPage } from './CertificateErrorPage';
 import { ClientCertificatePage } from './ClientCertificatePage';
 import { CrashedPage } from './CrashedPage';
@@ -47,5 +48,7 @@ export function InternalPage({ tab }: { readonly tab: TabSnapshot }) {
       return <SettingsPage />;
     case 'welcome':
       return <WelcomePage tabId={tab.id} />;
+    case 'about':
+      return <AboutPage />;
   }
 }

@@ -29,6 +29,10 @@ function view(overrides: Partial<SettingsView['settings']['lifecycle']> = {}): S
       startup: 'restore',
       memory: { paused: false },
       diagnostics: { logging: false },
+      updates: {
+        check: false,
+        feedUrl: 'https://api.github.com/repos/RMV-Coder/veltriva/releases/latest',
+      },
       lifecycle: {
         preset: 'balanced',
         autoArchive: true,

@@ -53,6 +53,21 @@ export interface CommandContext {
   readonly settings: SettingsCommands;
   /** Clearing data and the stored answers to sites (M5.2). */
   readonly privacy: PrivacyCommands;
+  /** About, the licenses and the update check (M6.3). */
+  readonly about: AboutCommands;
+}
+
+/** M6.3: what the About page and the update check need from main. */
+export interface AboutCommands {
+  /** Veltriva's license and THIRD_PARTY_NOTICES.txt, as shipped. */
+  licenses(): Promise<CommandOutput<'app.licenses'>>;
+  /** Selects the About tab, or opens one. */
+  open(): void;
+  updateStatus(): CommandOutput<'updates.status'>;
+  checkForUpdates(): Promise<CommandOutput<'updates.check'>>;
+  skipVersion(version: string): Promise<void>;
+  /** Opens the release page the update check found, in a new tab; false when there is none. */
+  openRelease(): boolean;
 }
 
 type ClearResult = CommandOutput<'privacy.clear'>;
@@ -124,6 +139,7 @@ export function createCommandHandlers({
   memory,
   settings,
   privacy,
+  about,
 }: CommandContext): CommandHandlers {
   /** Runs `action` on an existing tab, or answers `not_found`. */
   const onTab = <T>(tabId: TabId, action: () => T): T => {
@@ -153,8 +169,14 @@ export function createCommandHandlers({
         electron: process.versions.electron,
         chrome: process.versions.chrome,
         node: process.versions.node,
+        v8: process.versions.v8,
       },
     }),
+    'app.licenses': () => about.licenses(),
+    'app.openAbout': () => {
+      about.open();
+      return done;
+    },
     'workspace.getSnapshot': () => projector.snapshot(),
 
     'tabs.create': () => ({ tabId: tabs.create() }),
@@ -423,6 +445,19 @@ export function createCommandHandlers({
     },
     'settings.open': () => {
       settings.open();
+      return done;
+    },
+    // M6.3: the update check. Nothing here contacts the feed unless the user turned checks on.
+    'updates.status': () => about.updateStatus(),
+    'updates.check': () => about.checkForUpdates(),
+    'updates.skip': async ({ version }) => {
+      await about.skipVersion(version);
+      return done;
+    },
+    'updates.openRelease': () => {
+      if (!about.openRelease()) {
+        throw new CommandError('not_found');
+      }
       return done;
     },
 

@@ -82,6 +82,26 @@ test.describe('accessibility of the shell (M6.2, axe-core, WCAG 2.2 AA)', () => 
     await scan(shell, 'Diagnostics');
   });
 
+  test('About, with the third-party notices open (M6.3)', async ({ shell }) => {
+    await openTabAt(shell, 'veltriva://about');
+    const about = internalPage(shell, 'about');
+    await expect(about).toHaveAttribute('data-about-state', 'ready', { timeout: SLOW_TIMEOUT_MS });
+    await about.locator('summary', { hasText: 'Third-party notices' }).click();
+    await expect(about.locator('[data-about-notices]')).toBeVisible();
+    await scan(shell, 'About');
+  });
+
+  test('the update notice (M6.3)', async ({ electronApp, shell }) => {
+    // The notice itself, as main shows it for a newer version; no feed is contacted.
+    await electronApp.evaluate(() => {
+      globalThis.__veltrivaTest?.showNotice({ kind: 'update-available', version: '99.0.0' });
+    });
+    await expect(shell.locator('[data-notice-kind="update-available"]')).toBeVisible({
+      timeout: SLOW_TIMEOUT_MS,
+    });
+    await scan(shell, 'the update notice');
+  });
+
   test('the memory palette', async ({ shell }) => {
     await searchMemoryButton(shell).click();
     await expect(palette(shell)).toBeVisible();

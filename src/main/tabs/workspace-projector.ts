@@ -164,6 +164,8 @@ export function projectNotice(notice: AppNotice): NoticeSnapshot {
     case 'session-recovered':
     case 'safe-mode':
       return { id: notice.id, kind: notice.kind };
+    case 'update-available':
+      return { id: notice.id, kind: notice.kind, version: notice.version };
   }
 }
 

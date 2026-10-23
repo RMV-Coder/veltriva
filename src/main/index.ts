@@ -103,6 +103,9 @@ import { createShellSession } from './shell/shell-session';
 import { SettingsService } from './settings/settings-service';
 import { faviconRequest, sessionResolver } from './tabs/favicon-request';
 import { createFaviconService } from './tabs/favicons';
+import { fetchReleaseFeed } from './updates/feed-request';
+import { parseUpdateState, UPDATES_DOCUMENT, UpdateChecker } from './updates/update-checker';
+import { readLicenses } from './app/licenses';
 import { TabManager } from './tabs/tab-manager';
 import { createTabRuntimes } from './tabs/tab-runtime';
 import { createWorkspaceProjector } from './tabs/workspace-projector';
@@ -606,9 +609,40 @@ async function start(): Promise<void> {
    * (and an evaluation with them), the pressure thresholds (read at the next poll), Pause memory
    * (read at the next commit). The shell sees it in the next snapshot.
    */
+  // M6.3: the update-available notice. Off by default: while off it schedules nothing and sends
+  // nothing. On, it asks the release feed once a day and shows a notice for a newer version.
+  const updateChecker = new UpdateChecker({
+    enabled: () => settings.updates.check,
+    feedUrl: () => settings.updates.feedUrl,
+    currentVersion: app.getVersion(),
+    fetchFeed: fetchReleaseFeed,
+    load: () =>
+      data
+        .call('appState.get', { key: UPDATES_DOCUMENT }, { timeoutMs: 1000 })
+        .then(({ value }) => parseUpdateState(value)),
+    save: async (state) => {
+      await data.call('appState.set', {
+        key: UPDATES_DOCUMENT,
+        value: {
+          lastCheckedAt: state.lastCheckedAt,
+          lastStatus: state.lastStatus,
+          latest: state.latest === null ? null : { ...state.latest },
+          skipped: state.skipped,
+        },
+      });
+    },
+    onAvailable: (release) => {
+      notices.show({ kind: 'update-available', version: release.version });
+    },
+    onChange: () => undefined,
+    logger: logger,
+  });
   const applySettings = (next: Settings, previous: Settings): void => {
     if (next.search.template !== previous.search.template) {
       setSearchTemplate(next.search.template);
+    }
+    if (next.updates !== previous.updates) {
+      updateChecker.reschedule();
     }
     if (next.lifecycle !== previous.lifecycle) {
       lifecycleDocument = next.lifecycle;
@@ -1287,6 +1321,9 @@ async function start(): Promise<void> {
   engagement.start();
   pressure.start();
   lifecycle.start();
+  void updateChecker.start().catch(() => {
+    logger.warn('updates.startFailed');
+  });
 
   installIpcRouter({
     handlers: createCommandHandlers({
@@ -1313,6 +1350,33 @@ async function start(): Promise<void> {
       }),
       settings: settingsCommands,
       privacy: privacyCommands,
+      about: {
+        licenses: readLicenses,
+        // About is one page, like Settings: its open tab is selected, else a new tab shows it.
+        open: () => {
+          const open = tabs
+            .tabs()
+            .find((tab) => tab.page.kind === 'internal' && tab.page.name === 'about');
+          if (open !== undefined) {
+            tabs.select(open.id);
+            return;
+          }
+          tabs.showInternal(tabs.create(), 'about');
+        },
+        updateStatus: () => updateChecker.view(),
+        checkForUpdates: () => updateChecker.checkNow(),
+        skipVersion: (version) => updateChecker.skip(version),
+        // The page main read from the feed (https only, parseReleaseFeed), never one the shell names.
+        openRelease: () => {
+          const release = updateChecker.view().available;
+          if (release === null) {
+            return false;
+          }
+          const tabId = tabs.create();
+          tabs.navigate(tabId, release.url);
+          return true;
+        },
+      },
     }),
     allowedOrigins: new Set(
       devServer === undefined ? [SHELL_ORIGIN] : [SHELL_ORIGIN, devServer.origin],

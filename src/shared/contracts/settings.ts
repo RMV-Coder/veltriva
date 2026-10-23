@@ -10,6 +10,7 @@
 import { z } from 'zod';
 
 import { PRESETS } from '../../core/lifecycle/policy';
+import { DEFAULT_FEED_URL, isFeedUrlAllowed } from '../../core/updates/release-feed';
 import { DEFAULT_SEARCH_TEMPLATE, isValidSearchTemplate } from '../../core/url/omnibox';
 
 /** §5.7: a year of visits. */
@@ -87,6 +88,9 @@ export function pressurePercent(overrides: Overrides): { moderate: number; criti
   };
 }
 
+/** The update check's release feed (M6.3): https, or http to this machine, no credentials. */
+const feedUrl = z.string().max(2048).refine(isFeedUrlAllowed, 'release feed');
+
 /** Critical pressure means less memory available than moderate does. */
 function pressureInOrder(overrides: Overrides): boolean {
   const { moderate, critical } = pressurePercent(overrides);
@@ -114,6 +118,11 @@ export const strictSettingsSchema = z.strictObject({
    * an event concerns, for reporting a problem. Off by default.
    */
   diagnostics: z.strictObject({ logging: z.boolean() }),
+  /**
+   * The update-available notice (M6.3, ADR-0007 item 4): off by default, and while off nothing
+   * contacts the feed. On, main asks `feedUrl` once a day for the newest version.
+   */
+  updates: z.strictObject({ check: z.boolean(), feedUrl }),
   /**
    * Tab lifecycle (assessment §4.7, M3.2): a preset, the switches, and advanced overrides of the
    * preset's values (core/lifecycle/policy.ts applies them) and of the pressure thresholds.
@@ -151,6 +160,7 @@ export const DEFAULT_SETTINGS: Settings = {
   startup: 'restore',
   memory: { paused: false },
   diagnostics: { logging: false },
+  updates: { check: false, feedUrl: DEFAULT_FEED_URL },
   lifecycle: DEFAULT_LIFECYCLE_DOCUMENT,
 };
 
@@ -204,6 +214,9 @@ export const settingsSchema = z.object({
   startup: z.enum(STARTUP_BEHAVIORS).catch('restore'),
   memory: z.object({ paused: z.boolean().catch(false) }).catch({ paused: false }),
   diagnostics: z.object({ logging: z.boolean().catch(false) }).catch({ logging: false }),
+  updates: z
+    .object({ check: z.boolean().catch(false), feedUrl: feedUrl.catch(DEFAULT_FEED_URL) })
+    .catch({ check: false, feedUrl: DEFAULT_FEED_URL }),
   lifecycle: lenientLifecycle.catch(DEFAULT_LIFECYCLE_DOCUMENT),
 });
 
@@ -230,6 +243,10 @@ export const settingsChangeSchema = z.strictObject({
   startup: z.enum(STARTUP_BEHAVIORS).optional(),
   memory: z.strictObject({ paused: z.boolean() }).optional(),
   diagnostics: z.strictObject({ logging: z.boolean() }).optional(),
+  /** M6.3: the update check, and its feed. */
+  updates: z
+    .strictObject({ check: z.boolean().optional(), feedUrl: feedUrl.optional() })
+    .optional(),
   lifecycle: z
     .strictObject({
       preset: z.enum(PRESETS).optional(),
@@ -277,6 +294,7 @@ export function applySettingsChange(current: Settings, change: SettingsChange): 
     startup: change.startup ?? current.startup,
     memory: change.memory ?? current.memory,
     diagnostics: change.diagnostics ?? current.diagnostics,
+    updates: { ...current.updates, ...Object.fromEntries(given(change.updates ?? {})) },
     lifecycle: { ...current.lifecycle, ...Object.fromEntries(switches), overrides },
   };
   const checked = strictSettingsSchema.safeParse(next);

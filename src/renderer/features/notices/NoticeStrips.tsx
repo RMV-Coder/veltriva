@@ -1,4 +1,4 @@
-import { DatabaseBackup, History, ShieldAlert, TriangleAlert } from 'lucide-react';
+import { CircleArrowUp, DatabaseBackup, History, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { Fragment, useRef } from 'react';
 import type { FocusEvent } from 'react';
 
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { FOCUS_RING } from '@/lib/focus';
 import { cn } from '@/lib/utils';
 
+import { openReleasePage, skipUpdate } from '../../state/commands';
 import { useWorkspaceStore } from '../../state/workspace-store';
 import { DISMISS_LABEL } from '../prompts/prompt-display';
 import { dismissNotice } from './dismiss-notice';
@@ -21,6 +22,7 @@ const NOTICE_ICONS = {
   'database-reset': TriangleAlert,
   'session-recovered': History,
   'safe-mode': ShieldAlert,
+  'update-available': CircleArrowUp,
 } as const satisfies Record<Notice['kind'], unknown>;
 
 function useNotices(): readonly Notice[] {
@@ -127,6 +129,44 @@ function NoticeStrip({
       >
         <Parts parts={noticeSentence(notice)} />
       </p>
+      {notice.kind === 'update-available' ? (
+        <>
+          {/* Main opens the release page it read from the feed: the shell never names a URL. */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-notice-action="view-release"
+            aria-describedby={textId}
+            onClick={() => {
+              void openReleasePage();
+            }}
+            className={cn(
+              'shrink-0 rounded-full px-3.5 focus-visible:border-transparent',
+              FOCUS_RING,
+            )}
+          >
+            View release
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-notice-action="skip-version"
+            aria-describedby={textId}
+            onClick={(event) => {
+              void skipUpdate(notice.version);
+              onDismiss(notice.id, event.currentTarget);
+            }}
+            className={cn(
+              'shrink-0 rounded-full px-3.5 focus-visible:border-transparent',
+              FOCUS_RING,
+            )}
+          >
+            Skip this version
+          </Button>
+        </>
+      ) : null}
       <Button
         type="button"
         variant="outline"
