@@ -1,7 +1,7 @@
 // The schema's history, newest last (assessment §5.6). Each file runs once, inside
 // BEGIN IMMEDIATE … COMMIT, and moves PRAGMA user_version to its number. Released files are never
 // edited: a change is a new file, plus a fixture database at the previous version for the
-// migration tests (src/data/migrations/migrations.test.ts).
+// migration tests (src/data/database.test.ts, with the fixtures in migrations/fixtures/).
 import init from './0001_init.sql?raw';
 import faviconBytes from './0002_favicon_bytes.sql?raw';
 import siteRules from './0003_site_rules.sql?raw';
