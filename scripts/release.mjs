@@ -96,12 +96,14 @@ if (current !== version) {
 
 // 3. The tests, attested on the release commit.
 if (!skipTests) {
-  // Node itself, not npx: Veyra starts the command without a shell, and npx is a .cmd script.
+  // Veyra joins the words after `--` with spaces and runs the line with `sh -c` (Git's bash on
+  // Windows), so every word must survive the shell: `node` from PATH, not process.execPath,
+  // whose "Program Files" and backslashes it splits and eats; and not npx, a .cmd script.
   run('veyra', [
     'attest',
     'run',
     '--',
-    process.execPath,
+    'node',
     'node_modules/vitest/vitest.mjs',
     'run',
     '--maxWorkers=2',
