@@ -1,5 +1,7 @@
-# Every push to main and every pull request (ADR-0008 §8, assessment §9.4).
-# Third-party actions are pinned to full commit SHAs; the comment names the release.
+# Every push to main and every pull request (ADR-0008 §8, assessment §9.4). Each step runs the
+# same npm script as the local gates, so a green run here means the same as a green run on a
+# laptop (M6.3, docs/distribution/releasing.md). Third-party actions are pinned to full commit SHAs; the
+# comment names the release.
 name: CI
 
 on:
@@ -19,7 +21,7 @@ jobs:
   verify:
     name: Verify (Windows x64)
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,13 +34,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      # Dependency install scripts never run (.npmrc says so too); the one binary we need,
-      # Electron's, is downloaded explicitly and checked against its published checksums.
+      # `npm ci` with install scripts off (.npmrc), then Electron's binary, downloaded explicitly
+      # and checked against its published checksums, then better-sqlite3's prebuilt binary
+      # against the reviewed hash (scripts/sqlite-pin.mjs).
       - name: Install dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Download the Electron binary
-        run: node node_modules/electron/install.js
+        run: npm run setup
 
       - name: Typecheck
         run: npm run typecheck
@@ -52,26 +52,37 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      - name: Build
-        run: npm run build
-
-      # A production build must not contain the E2E test hooks (ADR-0008 §4).
-      - name: Check the production build
-        run: node scripts/check-production-build.mjs
-
-      # Every package the build bundled has an allowed license, and THIRD_PARTY_NOTICES.txt
-      # lists it (M6.1, assessment §9.4).
-      - name: License check
-        run: node scripts/third-party-notices.mjs --check
+      # The production build, then its checks: no test hooks (ADR-0008 §4), only the data worker
+      # loads SQLite, and THIRD_PARTY_NOTICES.txt lists every bundled package under an allowed
+      # license (M6.1).
+      - name: Build and check the release build
+        run: npm run build:release
 
       # Builds the test variant (--mode test) itself, then runs Playwright.
       - name: E2E tests
         run: npm run test:e2e
 
-      # Hidden-tab visibility and throttling, and shutdown with live tabs, measured without
+      # Hidden-tab visibility and throttling, shutdown, crash recovery, measured without
       # Playwright, which masks them (ADR-0008 4a). Builds the test variant itself.
       - name: Lifecycle tests
         run: npm run test:lifecycle
+
+      # main only: the unsigned installer, with the packaged-app checks (fuses read back, the
+      # pinned SQLite binary, the licenses), kept as an artifact for a week.
+      - name: Build the installer
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: npm run package:installer
+
+      - name: Upload the installer
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: installer
+          path: |
+            release/*.exe
+            release/*.blockmap
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload Playwright report
         if: failure()

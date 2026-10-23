@@ -1,0 +1,63 @@
+# A draft GitHub release from a version tag (assessment §9.4 "Releases": tag → build → sign, once
+# available → draft; M6.3). Runs only when a v* tag is pushed, which `npm run release` never does:
+# pushing the tag is the user's decision. It creates a DRAFT release; publishing it is a click on
+# GitHub, never automatic. Actions are pinned to full commit SHAs; the comment names the release.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+jobs:
+  draft:
+    name: Draft release (Windows x64)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm run setup
+
+      - name: Unit tests
+        run: npm test
+
+      # Every packaging check runs inside (fuses read back, licenses, the SQLite pin). Unsigned
+      # until signing is set up (docs/distribution/signing.md).
+      - name: Build the installer
+        run: npm run package:installer
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem release -Filter 'Veltriva-Browser-Setup-*.exe' | Select-Object -First 1
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Set-Content -Encoding ascii release/SHA256SUMS.txt
+
+      - name: Create the draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          $notes = "docs/releases/$env:TAG.md"
+          $ghArgs = @('release', 'create', $env:TAG, '--draft', '--verify-tag', '--title', "Veltriva Browser $env:TAG")
+          if (Test-Path $notes) { $ghArgs += @('--notes-file', $notes) } else { $ghArgs += @('--notes', "Veltriva Browser $env:TAG") }
+          $ghArgs += (Get-ChildItem release -Filter 'Veltriva-Browser-Setup-*.exe').FullName
+          $ghArgs += (Get-ChildItem release -Filter 'Veltriva-Browser-Setup-*.exe.blockmap').FullName
+          $ghArgs += 'release/SHA256SUMS.txt'
+          gh @ghArgs
