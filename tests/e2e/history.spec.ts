@@ -440,6 +440,13 @@ function hygieneUrls(server: FixtureServer) {
       '/page-a.html?case=hygiene-hash-route#/cb?code=HCODE-SECRET-10&state=HSTATE-SECRET-11',
     ),
     idToken: server.url('/page-a.html?case=hygiene-idtoken&id_token=IDTOKEN-SECRET-12'),
+    // A callback page with no title. Chromium gives its history entry the address as the title,
+    // fragment and all, and it stays in the tab's back stack: a session that kept that title would
+    // hold the code in every save. (A page with a title has the same title while it loads, which a
+    // hard kill used to catch now and then: the cause of this file's hard-kill flake, found in M5.3.)
+    untitledHashRoute: server.url(
+      '/untitled.html?case=hygiene-untitled#/cb?code=UCODE-SECRET-14&state=USTATE-SECRET-15',
+    ),
     // Typed with a user name and a password: the address bar removes them before it navigates.
     typedCredentials:
       server.origin.replace('http://', 'http://alice:PASS-SECRET-13@') +
@@ -466,6 +473,8 @@ const HYGIENE_SECRETS = [
   'HSTATE-SECRET-11',
   'IDTOKEN-SECRET-12',
   'PASS-SECRET-13',
+  'UCODE-SECRET-14',
+  'USTATE-SECRET-15',
   'alice',
   'X-Amz-Signature',
   'api_key',
@@ -474,10 +483,19 @@ const HYGIENE_SECRETS = [
 
 /**
  * The secrets the session cuts as well (a token in the fragment, credentials in the address): the
- * whole file, with the session in it, must not hold these either. The others (a `?token=` in the
- * query) the session keeps on purpose, so that a tab restores to the page it was on.
+ * whole file, with the session in it, must not hold these either, not even in a title. The others
+ * (a `?token=` in the query) the session keeps on purpose, so that a tab restores to the page it
+ * was on.
  */
-const SESSION_CUTS = ['ACCESS-SECRET-9', 'HCODE-SECRET-10', 'PASS-SECRET-13', 'alice'] as const;
+const SESSION_CUTS = [
+  'ACCESS-SECRET-9',
+  'HCODE-SECRET-10',
+  'HSTATE-SECRET-11',
+  'PASS-SECRET-13',
+  'UCODE-SECRET-14',
+  'USTATE-SECRET-15',
+  'alice',
+] as const;
 
 /** Visits every address in `hygieneUrls` in one tab, then the control page. */
 async function browseForHygiene(
@@ -498,6 +516,7 @@ async function browseForHygiene(
     urls.callback,
     urls.implicit,
     urls.hashRoute,
+    urls.untitledHashRoute,
     urls.idToken,
   ]) {
     await typeAddress(shell, url);
@@ -591,6 +610,17 @@ test.describe('URL hygiene, in the real file', () => {
     await expect
       .poll(async () => summarize((await readMemory(first.app)).pages), { timeout: 15_000 })
       .toEqual(expectedHygienePages(urls));
+    // The session on disk has the tab on the control page, so the relaunch loads that page again.
+    // (Killed before that save, the relaunch loaded the page before it: the test's own race.)
+    await expect
+      .poll(
+        () =>
+          readProfileDb(userDataDir, "SELECT url FROM tabs WHERE placement = 'strip'").map(
+            (row) => row.url,
+          ),
+        { timeout: 15_000 },
+      )
+      .toContain(urls.control);
     // Nothing is flushed: whatever the file holds now is what the worker had committed.
     await launcher.kill(first);
 

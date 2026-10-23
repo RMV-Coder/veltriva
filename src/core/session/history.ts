@@ -7,7 +7,8 @@
 //     local drive paths); everything else is dropped, so a restore can never load veltriva:,
 //     javascript:, data: or another app's link;
 //   - fragments that carry tokens are cut, as in `#access_token=…` after an OAuth sign-in;
-//   - titles are plain strings of at most 1,024 characters;
+//   - titles are plain strings of at most 1,024 characters, and never carry what the address
+//     lost (`keptTitle`);
 //   - at most 50 entries, kept around the active one.
 /** The data contract's limits (src/shared/contracts/data-rpc.ts), which a test keeps in step. */
 export const MAX_HISTORY_URL = 65_536;
@@ -55,6 +56,23 @@ export function stripTokenFragment(raw: string): string {
   return TOKEN_FRAGMENT.test(fragment) || TOKEN_FRAGMENT.test(decoded) ? raw.slice(0, hash) : raw;
 }
 
+/**
+ * The title a session may keep for an address it cleaned from `rawUrl` to `cleanUrl`, or ''.
+ *
+ * Chromium gives an entry with no title of its own (a page without one, or one still loading) its
+ * address as the title, fragment and all. Measured on Electron 45: `navigationHistory` reports
+ * `127.0.0.1:…/untitled?case=a#/cb?code=…&state=…`. A save in that moment wrote the code into the
+ * file, which a hard kill then kept in the write-ahead log. So the title goes when cleaning the
+ * address cut something, or when the title itself holds a token-bearing fragment (one saved before
+ * this rule, read back from the database).
+ */
+export function keptTitle(title: string, rawUrl: string, cleanUrl: string): string {
+  if (cleanUrl !== rawUrl || stripTokenFragment(title) !== title) {
+    return '';
+  }
+  return title.slice(0, MAX_HISTORY_TITLE);
+}
+
 /** The URL a restore may load, cleaned; null if a tab must not restore it. */
 export function restorableUrl(raw: string): string | null {
   if (raw.length === 0 || raw.length > MAX_HISTORY_URL) {
@@ -84,8 +102,8 @@ export function restorableUrl(raw: string): string | null {
 /**
  * A history that is safe to persist and to restore, or null when nothing in it is. Entries that
  * fail are dropped; if the active one goes, the nearest earlier entry (else the next later one)
- * becomes active. Unknown input shapes are refused, never trusted: this also runs on what the
- * database returns.
+ * becomes active. A title that could carry what its address lost goes (`keptTitle`). Unknown
+ * input shapes are refused, never trusted: this also runs on what the database returns.
  */
 export function sanitizeHistory(
   raw: { readonly index: number; readonly entries: readonly unknown[] } | null,
@@ -94,8 +112,8 @@ export function sanitizeHistory(
 }
 
 /**
- * `sanitizeHistory`, with a hook that builds each kept entry: it gets the clean entry, the raw
- * one, and whether the URL came through unchanged. The in-memory discard snapshot uses it to keep
+ * `sanitizeHistory`, with a hook that builds each kept entry: it gets the clean entry (its title
+ * already through `keptTitle`), the raw one, and whether the URL came through unchanged. The in-memory discard snapshot uses it to keep
  * an entry's page state only when its URL is exactly the one Chromium stored (core/lifecycle).
  */
 export function sanitizeEntries<E extends HistoryEntry>(
@@ -112,9 +130,12 @@ export function sanitizeEntries<E extends HistoryEntry>(
     }
     const record = candidate as Readonly<Record<string, unknown>>;
     const { url, title } = record;
-    const clean = typeof url === 'string' ? restorableUrl(url) : null;
+    if (typeof url !== 'string') {
+      return;
+    }
+    const clean = restorableUrl(url);
     if (clean !== null) {
-      const text = typeof title === 'string' ? title.slice(0, MAX_HISTORY_TITLE) : '';
+      const text = typeof title === 'string' ? keptTitle(title, url, clean) : '';
       kept.push({ entry: build({ url: clean, title: text }, record, clean === url), from });
     }
   });

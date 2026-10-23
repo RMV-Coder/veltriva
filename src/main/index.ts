@@ -8,7 +8,7 @@ import { performance } from 'node:perf_hooks';
 import type { WebContents } from 'electron';
 
 import { uuidv7 } from '../core/id/uuidv7';
-import { displayUrl, originLabel } from '../core/url/display';
+import { originLabel } from '../core/url/display';
 import {
   isPreviewActive,
   PRESET_VALUES,
@@ -46,7 +46,12 @@ import {
   engagementWriter,
   readStoredEngagement,
 } from './lifecycle/engagement-sampler';
-import { ActivityLog, activityWriter, readStoredActivity } from './lifecycle/activity-log';
+import {
+  ActivityLog,
+  activityWriter,
+  loggedTab,
+  readStoredActivity,
+} from './lifecycle/activity-log';
 import { MemoryPressureMonitor } from './lifecycle/memory-pressure';
 import { PressureHistory } from './lifecycle/pressure-history';
 import { buildDiagnosticsExport } from './diagnostics/diagnostics-export';
@@ -740,16 +745,12 @@ async function start(): Promise<void> {
   ): { title: string; address: string; ephemeral: boolean } | null => {
     if (tabs.has(tabId)) {
       const tab = tabs.get(tabId);
-      return {
-        title: tab.title,
-        address: tab.url === '' ? '' : displayUrl(tab.url).text,
-        ephemeral: tab.ephemeral,
-      };
+      return { ...loggedTab(tab.url, tab.title), ephemeral: tab.ephemeral };
     }
     const archived = tabs.archivedTabs().find((tab) => tab.id === tabId);
     return archived === undefined
       ? null
-      : { title: archived.title, address: displayUrl(archived.url).text, ephemeral: false };
+      : { ...loggedTab(archived.url, archived.title), ephemeral: false };
   };
   /** Logs what an automated action changed (§4.12): skips, blocks and limits change nothing. */
   const logAction = (record: ActionRecord): void => {

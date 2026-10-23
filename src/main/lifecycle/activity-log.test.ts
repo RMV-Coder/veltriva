@@ -23,6 +23,7 @@ import {
   ACTIVITY_WRITE_DELAY_MS,
   ActivityLog,
   activityWriter,
+  loggedTab,
   parseActivity,
   readStoredActivity,
 } from './activity-log';
@@ -888,5 +889,45 @@ describe('activityWriter', () => {
       logger,
     });
     expect(restarted.add(entry()).id).toBe(3);
+  });
+});
+
+describe('loggedTab: what the log keeps of a tab (§5.7)', () => {
+  it.each([
+    [
+      'https://site.example/app?x=1#/cb?code=CODE-SECRET&state=STATE-SECRET',
+      'site.example/app?x=1',
+    ],
+    [
+      'https://site.example/app?x=1#access_token=ACCESS-SECRET&token_type=bearer',
+      'site.example/app?x=1',
+    ],
+    ['https://site.example/app?x=1#id_token=ID-SECRET', 'site.example/app?x=1'],
+    ['https://alice:PASS-SECRET@site.example/p', 'site.example/p'],
+  ])('keeps %s without its secret, and without the title Chromium made from it', (url, shown) => {
+    const kept = loggedTab(url, url.slice('https://'.length));
+
+    expect(kept.title).toBe('');
+    expect(kept.address).toContain(shown);
+    expect(JSON.stringify(kept)).not.toMatch(/SECRET/u);
+  });
+
+  it('keeps the title and address of a tab that needed no cleaning', () => {
+    const kept = loggedTab('https://site.example/a?q=1#section', 'Article');
+
+    expect(kept.title).toBe('Article');
+    expect(kept.address).toContain('site.example/a?q=1#section');
+  });
+
+  it('keeps an internal page as it is, and an empty address as empty', () => {
+    expect(loggedTab('veltriva://settings', 'Settings').title).toBe('Settings');
+    expect(loggedTab('veltriva://settings', 'Settings').address).toContain('settings');
+    expect(loggedTab('', 'New tab')).toEqual({ title: 'New tab', address: '' });
+  });
+
+  it('cuts a token fragment even from an address a tab may not restore', () => {
+    const kept = loggedTab('data:text/html,hi#access_token=SECRET', 'T');
+
+    expect(JSON.stringify(kept)).not.toMatch(/SECRET/u);
   });
 });

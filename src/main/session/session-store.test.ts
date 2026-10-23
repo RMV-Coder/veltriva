@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { uuidv7 } from '../../core/id/uuidv7';
 import type { SavedWindow } from '../../core/layout/window-bounds';
+import { sanitizeHistory } from '../../core/session/history';
 import type { TabHistory } from '../../core/session/history';
 import { DATA_METHODS, MAX_BATCH, tabRowSchema } from '../../shared/contracts/data-rpc';
 import type { DataInput, TabRow } from '../../shared/contracts/data-rpc';
@@ -733,6 +734,33 @@ describe('SessionStore', () => {
         expect(await urlSaved('https://site1.example/#/cb?code=SECRET')).toBe(
           'https://site1.example/',
         );
+      });
+
+      it.each([
+        'https://site1.example/app#/cb?code=SECRET&state=1',
+        'https://site1.example/cb#access_token=SECRET&token_type=bearer',
+        'https://site1.example/cb#id_token=SECRET',
+        'https://user:SECRET@site1.example/p',
+      ])('saves no title for %s, whose address it cut', async (url) => {
+        // Chromium gives a page with no title (or one still loading) its address as the title.
+        const shown = url.slice('https://'.length);
+        const harness = setup({
+          tabs: [
+            tab(1, {
+              url,
+              title: shown,
+              history: sanitizeHistory({ index: 0, entries: [{ url, title: shown }] }),
+            }),
+          ],
+          selected: id(1),
+        });
+
+        await harness.store.flush();
+
+        expect(harness.data.saves[0]?.tabs[0]?.title).toBe('');
+        expect(harness.data.saves[0]?.tabs[0]?.restoreState?.entries[0]?.title).toBe('');
+        expect(JSON.stringify(harness.data.saves)).not.toContain('SECRET');
+        checkContract(harness.data);
       });
 
       it('has both removed together', async () => {
@@ -1645,7 +1673,7 @@ describe('SessionStore', () => {
       expect(data.saves[0]?.deleteIds).toEqual([]);
     });
 
-    it('never writes a credential or token from what a page committed or its history holds', async () => {
+    it('never writes a credential or token from what a page committed or its history holds, nor their titles', async () => {
       const { runtimes, data } = await restart();
       await vi.advanceTimersByTimeAsync(FLUSH_DELAY_MS);
       data.calls.length = 0;
@@ -1673,15 +1701,16 @@ describe('SessionStore', () => {
       await vi.advanceTimersByTimeAsync(FLUSH_DELAY_MS);
 
       const row = rowsById(data.saves).get(id(1));
+      // A title of an address it cut goes too: Chromium may have made it from that address.
       expect(row).toMatchObject({
         url: 'https://site1.example/cb',
-        title: 'Callback',
+        title: '',
         restoreState: {
           v: 1,
           index: 1,
           entries: [
-            { url: 'https://site1.example/a', title: 'A' },
-            { url: 'https://site1.example/cb', title: 'Callback' },
+            { url: 'https://site1.example/a', title: '' },
+            { url: 'https://site1.example/cb', title: '' },
           ],
         },
       });

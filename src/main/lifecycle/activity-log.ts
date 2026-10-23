@@ -6,6 +6,8 @@
 import { z } from 'zod';
 
 import type { Timers } from '../../core/lifecycle/discard';
+import { keptTitle, restorableUrl, stripTokenFragment } from '../../core/session/history';
+import { displayUrl } from '../../core/url/display';
 import {
   activityEntrySchema,
   MAX_ACTIVITY_ADDRESS,
@@ -26,6 +28,23 @@ const ACTIVITY_READ_TIMEOUT_MS = 2000;
 // than costing the log. Each entry is still checked field by field.
 const storedSchema = z.object({ entries: z.array(z.unknown()) });
 const storedEntrySchema = z.object(activityEntrySchema.shape);
+
+/**
+ * What the log keeps of a tab: its address as the session keeps it, without credentials or a
+ * token-bearing fragment (§5.7), and its title unless that could carry what the address lost
+ * (`keptTitle`). An address a tab may not restore (`veltriva:`) is shown as it is, minus such a
+ * fragment.
+ */
+export function loggedTab(
+  url: string,
+  title: string,
+): { readonly title: string; readonly address: string } {
+  if (url === '') {
+    return { title: keptTitle(title, url, url), address: '' };
+  }
+  const clean = restorableUrl(url) ?? stripTokenFragment(url);
+  return { title: keptTitle(title, url, clean), address: displayUrl(clean).text };
+}
 
 /** What an entry says before it has an id. */
 export type NewActivityEntry = Omit<ActivityEntry, 'id'>;

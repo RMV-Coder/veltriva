@@ -76,6 +76,23 @@ export const test = base.extend<{ launcher: Launcher }>({
       /** What each launch printed (the app logs its own warnings), kept for a failed test. */
       const outputs: string[][] = [];
 
+      /** Kills an app's whole process tree, and waits until its profile lock is gone. */
+      const killApp = async (app: ElectronApplication): Promise<void> => {
+        running.delete(app);
+        const child = app.process();
+        const ended = processEnded(child);
+        const killed = killProcessTree(child.pid);
+        await Promise.race([ended, delay(15_000)]);
+        await waitUntilGone(killed);
+        // Chromium's lock file goes when its handle closes, which Windows finishes a moment
+        // after the process is gone. Until then a new launch finds "Access is denied" creating
+        // it, takes the lock for another instance's and quits at once.
+        await waitUntilMissing(join(userDataDir, 'lockfile'));
+        // Playwright learns of the death from the closed connection. Its own `close()` may wait
+        // for an event that has already fired, so it gets a short time and no more.
+        await Promise.race([app.close().catch(() => undefined), delay(3_000)]);
+      };
+
       const launcher: Launcher = {
         async launch() {
           const app = await launchApp(userDataDir);
@@ -102,23 +119,12 @@ export const test = base.extend<{ launcher: Launcher }>({
         },
 
         async kill({ app }) {
-          running.delete(app);
-          const child = app.process();
-          const ended = processEnded(child);
-          const killed = killProcessTree(child.pid);
-          await Promise.race([ended, delay(15_000)]);
-          await waitUntilGone(killed);
-          // Chromium's lock file goes when its handle closes, which Windows finishes a moment
-          // after the process is gone. Until then a new launch finds "Access is denied" creating
-          // it, takes the lock for another instance's and quits at once.
-          await waitUntilMissing(join(userDataDir, 'lockfile'));
-          // Playwright learns of the death from the closed connection. Its own `close()` may wait
-          // for an event that has already fired, so it gets a short time and no more.
-          await Promise.race([app.close().catch(() => undefined), delay(3_000)]);
+          await killApp(app);
         },
 
         async launchAfterKill() {
           for (let attempt = 1; ; attempt += 1) {
+            const before = new Set(running);
             let problem: string;
             try {
               const run = await launcher.launch();
@@ -134,6 +140,12 @@ export const test = base.extend<{ launcher: Launcher }>({
             } catch (error) {
               const message = error instanceof Error ? error.message : String(error);
               problem = `the app did not start (${message.split(/\r?\n/u)[0] ?? ''})`;
+            }
+            // A launch that failed part way (its window never loaded) can still be running, holding
+            // the profile's lock: every later attempt would find it and quit at once (seen in
+            // M5.3). It goes first.
+            for (const left of [...running].filter((app) => !before.has(app))) {
+              await killApp(left);
             }
             const description = `Launch ${String(attempt)} after a hard kill failed: ${problem}.`;
             testInfo.annotations.push({ type: 'launch-retried-after-kill', description });

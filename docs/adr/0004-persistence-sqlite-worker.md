@@ -199,6 +199,24 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
       - **How it comes back:** once, after a restored tab's first load, and only on the address it was read on. Chromium's own page state stays out of the database (item 4); this is two numbers.
     - **The diagnostics page reads the database's size and upkeep:** the file and WAL sizes from disk, and `maintenance.status` for the last backup and check.
 
+16. **No title or address-bearing document keeps what URL hygiene cut** (a privacy fix in M5.3; no migration).
+    - **The leak:** Chromium gives a history entry with no title of its own its address as the title, fragment and all. That covers a page without a `<title>`, for good, and any page while it loads. Measured on Electron 45: `navigationHistory.getAllEntries()` reported `127.0.0.1:…/untitled?case=a#/cb?code=…&state=…` as the title, and no `page-title-updated` fired.
+      - **Where it went:** the session cleaned each entry's address but kept that title. So a save mid-load wrote an OAuth callback's `code` into `tabs.restore_state`; a later save replaced it, and a hard kill kept the old WAL frame. That was `history.spec.ts`'s hard-kill flake (mode a), which predates Phase 5.
+      - **For a page with no title, the leak was permanent,** even after a clean quit.
+    - **The rule, `keptTitle` (`core/session/history.ts`):** a title goes (it becomes `''`) when cleaning its address cut something (credentials or a token-bearing fragment), or when the title itself holds a token-bearing fragment.
+      - **Why both checks:** the second also catches a title saved before the rule, read back from the database. The first doesn't depend on how Chromium formats a title, so it holds even where the title doesn't show the fragment as the address has it.
+      - **Where it applies:** every cleaned stack (`sanitizeEntries`: the session's `restore_state` and the in-memory discard snapshot), the tab row's `title`, and the activity log's entries (`loggedTab`).
+      - **What it costs:** a real title on such an address isn't kept in the session; the tab shows its address until the page loads.
+    - **Two more writers kept the live address:**
+      - **The activity log** (the app_state document `activity`, M3.3) now keeps each address as the session does.
+      - **ScrollKeeper** keeps no position for an address the session would cut, and refuses one in a stored document.
+    - **The tests:**
+      - `history.spec.ts` visits a callback page with no title.
+        - Without the rule, the clean-quit and hard-kill tests both fail every time, finding its code and state in the file.
+        - With it, they pass. The hard-kill test also waits for the session save before the kill, which was its own race (mode b).
+        - `launchAfterKill` kills a launch that hung before it tries again. Such a launch kept the profile's lock, so every retry quit at once (seen once in 15 runs).
+      - Unit tests cover the hash-route forms `#/cb?code=…&state=…`, `#access_token=…` and `#id_token=…`.
+
 ## Consequences
 
 - **Positive:** the UI thread stays responsive regardless of query cost, persistence is crash-safe, and the data layer is testable on plain Node. S5 measured it: while the worker ran a 1.09 s query, main-thread timers drifted by at most 15 ms. The same query run on the main thread stalled it for 1,489 ms.

@@ -1031,6 +1031,7 @@ Every target is met. The 25 ms tightening of the 50k p95 is supported by that ev
   - *Secret stripping* (`pages.url`, used for display and search): drop query parameters that look like credentials (`token`, `access_token`, `id_token`, `password`, `sig`, `signature`, `X-Amz-*`, `code` when paired with `state`, …) and any fragment containing tokens.
   - *OAuth callback URLs* aren't recorded as visits.
   - `tabs.url` keeps the exact URL needed to restore the tab, as every browser does, minus token-bearing fragments.
+  - *Titles* never carry what an address lost. Chromium titles an untitled or loading entry with its address, fragment and all, so a session title goes when its address was cut (M5.3, ADR-0004 item 16).
 - **No encryption at rest.** The database file isn't encrypted, which matches mainstream browsers' history databases. We document this and rely on Windows account security and BitLocker. SQLCipher is revisited only if a real threat model calls for it.
 
 ### 5.8 Designed-for extensions (not built in the MVP)

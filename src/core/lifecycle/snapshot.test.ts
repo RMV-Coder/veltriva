@@ -407,7 +407,8 @@ describe('restorableSnapshot', () => {
           entries: [{ url, title: 'T', pageState: 'AAAA' }],
         });
 
-        expect(result).toStrictEqual({ index: 0, entries: [{ url: clean, title: 'T' }] });
+        // Its title goes too, as in a persisted stack: Chromium may have made it from the address.
+        expect(result).toStrictEqual({ index: 0, entries: [{ url: clean, title: '' }] });
       },
     );
 
@@ -441,7 +442,7 @@ describe('restorableSnapshot', () => {
 
       expect(result?.entries).toStrictEqual([
         withState(0, 'A'),
-        { url: 'https://site.example/1', title: 'one' },
+        { url: 'https://site.example/1', title: '' },
         withState(2, 'C'),
       ]);
     });

@@ -6,7 +6,7 @@
 // Shutdown: the window's `closed` handler freezes the store before TabManager closes every tab
 // (otherwise that would look like the user closing them all), and DataLifecycle's flush writes
 // the frozen state within the 3 s cap.
-import { restorableUrl } from '../../core/session/history';
+import { keptTitle, restorableUrl } from '../../core/session/history';
 import type { SavedWindow } from '../../core/layout/window-bounds';
 import type { DataInput, TabRow } from '../../shared/contracts/data-rpc';
 import { MAX_BATCH } from '../../shared/contracts/data-rpc';
@@ -307,7 +307,7 @@ export class SessionStore {
       userProtected: tab.userProtected ?? false,
       pageId: null,
       url: url ?? SESSION_NEW_TAB_URL,
-      title: restorable ? tab.title : '',
+      title: restorable ? keptTitle(tab.title, tab.url, url) : '',
       faviconId: null,
       restoreState:
         !restorable || tab.history === null

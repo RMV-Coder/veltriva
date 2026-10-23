@@ -3,7 +3,8 @@
 // in memory for the run and is never persisted; what the session stores is `withoutPageState`.
 //
 // The snapshot passes the same checks as a persisted stack (core/session/history.ts): only http,
-// https and file entries, no credentials, no token fragments, at most 50 entries. An entry keeps
+// https and file entries, no credentials, no token fragments, no title that could carry what its
+// address lost, at most 50 entries. An entry keeps
 // its page state only if its URL came through those checks unchanged, because the state belongs
 // to that exact document. `restore()` rejects an empty page state, so one is dropped (S2).
 

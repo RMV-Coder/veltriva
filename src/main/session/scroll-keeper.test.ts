@@ -84,6 +84,27 @@ describe('ScrollKeeper (M5.3)', () => {
     expect(keeper.position('a')).toBeUndefined();
   });
 
+  it.each([
+    'https://example.com/app#/cb?code=CODE-SECRET&state=STATE-SECRET',
+    'https://example.com/app#access_token=ACCESS-SECRET&token_type=bearer',
+    'https://example.com/app#id_token=ID-SECRET',
+    'https://alice:PASS-SECRET@example.com/article',
+  ])('never keeps %s, an address the session cuts, and forgets what it had', async (url) => {
+    const { keeper, writes } = setup();
+    await keeper.capture('a', contentsAt(PAGE, [0, 900]));
+    await vi.advanceTimersByTimeAsync(SCROLL_WRITE_DELAY_MS);
+
+    const page = contentsAt(url, [0, 1200]);
+    await keeper.capture('a', page);
+    await vi.advanceTimersByTimeAsync(SCROLL_WRITE_DELAY_MS);
+
+    expect(keeper.position('a')).toBeUndefined();
+    // Not even asked: nothing is read from such a page.
+    expect(page.scripts).toEqual([]);
+    expect(writes.at(-1)).toEqual({ key: SCROLL_DOCUMENT, value: { tabs: {} } });
+    expect(JSON.stringify(writes)).not.toMatch(/SECRET/u);
+  });
+
   it('reads only web pages, and leaves what it had when the page cannot answer', async () => {
     const { keeper } = setup();
     await keeper.capture('a', contentsAt(PAGE, [0, 300]));
@@ -159,6 +180,9 @@ describe('parseScrollDocument', () => {
         negative: { url: PAGE, x: -1, y: 0 },
         noUrl: { x: 0, y: 0 },
         text: 'nope',
+        // A document from before the rule, or a damaged one: an address the session would cut.
+        token: { url: 'https://example.com/app#access_token=SECRET', x: 0, y: 10 },
+        credentials: { url: 'https://alice:pw@example.com/', x: 0, y: 10 },
       },
     });
 

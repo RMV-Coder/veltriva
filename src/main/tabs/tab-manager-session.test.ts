@@ -1348,8 +1348,9 @@ describe('TabManager session', () => {
         index: 3,
         entries: [
           { url: 'https://a.example/login', title: 'Login' },
-          { url: 'https://a.example/cb', title: 'Callback' },
-          { url: 'https://a.example/page', title: 'Page' },
+          // The title of an address it cut goes too: Chromium may have made it from that address.
+          { url: 'https://a.example/cb', title: '' },
+          { url: 'https://a.example/page', title: '' },
           { url: 'https://a.example/done', title: 'Done' },
         ],
       });

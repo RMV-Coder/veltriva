@@ -2,12 +2,15 @@
 // scrolled, unless its page is sensitive.
 //   - Read from the page's isolated world (never its own; ADR-0002) when its tab is hidden, and for
 //     the selected tab when Veltriva quits. A page with a password or payment field gives nothing.
+//   - Never kept for an address the session would cut (a token in its fragment, credentials;
+//     §5.7): the document holds the address as it is.
 //   - Kept in the app_state document `scroll`: per tab, the address it was read on and x, y. Only
 //     tabs that still exist are kept, at most MAX_SCROLL_TABS, written a few seconds after a change
 //     and at quit.
 //   - Put back once, after the first load of a restored tab, and only on that same address.
 // Within a run, a discarded tab already comes back where it was (Chromium's page state, M3.1);
 // this is for the restart, where that page state is not kept (ADR-0004 item 4).
+import { restorableUrl } from '../../core/session/history';
 import type { DataClient } from '../persistence/data-client';
 import type { Logger } from '../platform/logger';
 import type { TabId } from '../tabs/tab-manager';
@@ -85,7 +88,7 @@ export function parseScrollDocument(stored: unknown): Map<TabId, ScrollPosition>
     const { url, x, y } = value as Record<string, unknown>;
     const whole = (n: unknown): n is number =>
       typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= 10_000_000;
-    if (typeof url === 'string' && url.length > 0 && url.length <= 65_536 && whole(x) && whole(y)) {
+    if (typeof url === 'string' && restorableUrl(url) === url && whole(x) && whole(y)) {
       positions.set(tabId, { url, x, y });
     }
   }
@@ -119,6 +122,13 @@ export class ScrollKeeper {
     }
     const url = contents.getURL();
     if (!/^https?:/.test(url)) {
+      return;
+    }
+    if (restorableUrl(url) !== url) {
+      // The session cuts this address, so it is never written whole here either.
+      if (this.#positions.delete(tabId)) {
+        this.#changed();
+      }
       return;
     }
     let reading: unknown;

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MAX_STORED_TITLE, MAX_STORED_URL } from '../../shared/contracts/data-rpc';
 import {
+  keptTitle,
   MAX_HISTORY_ENTRIES,
   MAX_HISTORY_TITLE,
   MAX_HISTORY_URL,
@@ -120,6 +121,60 @@ describe('stripTokenFragment', () => {
   it('returns text that is not a URL unchanged unless it has a token fragment', () => {
     expect(stripTokenFragment('not a url')).toBe('not a url');
     expect(stripTokenFragment('not a url#access_token=abc')).toBe('not a url');
+  });
+});
+
+/** OAuth's callbacks with the credential in the fragment: a hash route, the implicit flow, OIDC. */
+const HASH_ROUTE_FORMS = [
+  'https://site.example/app?x=1#/cb?code=CODE-SECRET&state=STATE-SECRET',
+  'https://site.example/app?x=1#access_token=ACCESS-SECRET&token_type=bearer',
+  'https://site.example/app?x=1#id_token=ID-SECRET',
+] as const;
+
+describe('keptTitle', () => {
+  it.each(HASH_ROUTE_FORMS)('drops the title Chromium makes from %s', (raw) => {
+    const clean = restorableUrl(raw) ?? '';
+
+    expect(clean).toBe('https://site.example/app?x=1');
+    // Measured on Electron 45: the address without its scheme, fragment and all.
+    expect(keptTitle(raw.slice('https://'.length), raw, clean)).toBe('');
+    expect(keptTitle(raw, raw, clean)).toBe('');
+  });
+
+  it.each(HASH_ROUTE_FORMS)(
+    'drops even a real title when the address %s was cut: it cannot tell them apart',
+    (raw) => {
+      expect(keptTitle('Signed in', raw, restorableUrl(raw) ?? '')).toBe('');
+    },
+  );
+
+  it('drops the title of an address whose credentials were removed', () => {
+    const raw = 'https://alice:PASS@site.example/p';
+
+    expect(keptTitle('Private page', raw, restorableUrl(raw) ?? '')).toBe('');
+  });
+
+  it('drops a title that holds a token fragment even when the address was clean', () => {
+    const url = 'https://site.example/app?x=1';
+
+    expect(keptTitle('site.example/app?x=1#/cb?code=SECRET', url, url)).toBe('');
+    expect(keptTitle('site.example/#access_token=SECRET', url, url)).toBe('');
+  });
+
+  it('keeps the title of an address that needed no cleaning, a plain # included', () => {
+    const url = 'https://site.example/issues/42#comments';
+
+    expect(keptTitle('Issue #42 · comments', url, url)).toBe('Issue #42 · comments');
+    expect(keptTitle('site.example/issues/42#comments', url, url)).toBe(
+      'site.example/issues/42#comments',
+    );
+    expect(keptTitle('', url, url)).toBe('');
+  });
+
+  it('cuts a long title to the limit', () => {
+    const url = 'https://site.example/';
+
+    expect(keptTitle('x'.repeat(2000), url, url)).toHaveLength(MAX_HISTORY_TITLE);
   });
 });
 
@@ -312,7 +367,7 @@ describe('sanitizeHistory', () => {
     ]);
   });
 
-  it('cleans each URL: credentials removed, token fragments cut', () => {
+  it('cleans each URL (credentials removed, token fragments cut), and drops the title of one it cut', () => {
     const result = sanitizeHistory({
       index: 1,
       entries: [
@@ -325,11 +380,48 @@ describe('sanitizeHistory', () => {
     expect(result).toEqual({
       index: 1,
       entries: [
-        { url: 'https://site.example/a', title: 'A' },
-        { url: 'https://site.example/b', title: 'B' },
+        { url: 'https://site.example/a', title: '' },
+        { url: 'https://site.example/b', title: '' },
         { url: 'https://site.example/c#section', title: 'C' },
       ],
     });
+  });
+
+  it.each(HASH_ROUTE_FORMS)(
+    'keeps no trace of %s when the title is the address, as Chromium gives a page with none',
+    (raw) => {
+      const result = sanitizeHistory({
+        index: 1,
+        entries: [
+          { url: 'https://site.example/', title: 'Home' },
+          { url: raw, title: raw.slice('https://'.length) },
+        ],
+      });
+
+      expect(result).toEqual({
+        index: 1,
+        entries: [
+          { url: 'https://site.example/', title: 'Home' },
+          { url: 'https://site.example/app?x=1', title: '' },
+        ],
+      });
+      expect(JSON.stringify(result)).not.toMatch(/SECRET/u);
+    },
+  );
+
+  it('drops a title that holds a token fragment when read back with a clean address', () => {
+    // A save from before keptTitle: the address was cut, the title Chromium made was not.
+    expect(
+      sanitizeHistory({
+        index: 0,
+        entries: [
+          {
+            url: 'https://site.example/app?x=1',
+            title: 'site.example/app?x=1#/cb?code=SECRET&state=S',
+          },
+        ],
+      }),
+    ).toEqual({ index: 0, entries: [{ url: 'https://site.example/app?x=1', title: '' }] });
   });
 
   it('keeps only url and title of an entry', () => {
@@ -557,10 +649,10 @@ describe('singleEntryHistory', () => {
     });
   });
 
-  it('cleans the address like any history entry', () => {
+  it('cleans the address like any history entry, and drops the title of one it cut', () => {
     expect(singleEntryHistory('https://user:pw@site.example/a#id_token=x', 'A')).toEqual({
       index: 0,
-      entries: [{ url: 'https://site.example/a', title: 'A' }],
+      entries: [{ url: 'https://site.example/a', title: '' }],
     });
   });
 
@@ -754,7 +846,7 @@ describe('sanitizeEntries', () => {
         index: 1,
         entries: [
           { url: 'https://site.example/a', title: 'A', tag: 'first', unchanged: true },
-          { url: 'https://site.example/b', title: 'B', tag: 'second', unchanged: false },
+          { url: 'https://site.example/b', title: '', tag: 'second', unchanged: false },
         ],
       });
     });
