@@ -25,7 +25,9 @@
     "bench:memory": "npm run build:test && vitest run --config vitest.benchmark.config.mts memory",
     "bench:search": "npm run build:test && vitest run --config vitest.benchmark.config.mts search",
     "licenses": "electron-vite build && node scripts/third-party-notices.mjs",
-    "package:dir": "node scripts/verify-sqlite-binary.mjs && electron-vite build && node scripts/check-production-build.mjs && node scripts/check-data-isolation.mjs && node scripts/third-party-notices.mjs --check && electron-builder --win --x64 --dir && node scripts/check-packaged-app.mjs"
+    "build:release": "node scripts/verify-sqlite-binary.mjs && electron-vite build && node scripts/check-production-build.mjs && node scripts/check-data-isolation.mjs && node scripts/third-party-notices.mjs --check",
+    "package:dir": "npm run build:release && electron-builder --win --x64 --dir && node scripts/check-packaged-app.mjs",
+    "package:installer": "npm run build:release && electron-builder --win --x64 && node scripts/check-packaged-app.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

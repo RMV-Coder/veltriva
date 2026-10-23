@@ -1,7 +1,7 @@
 # electron-builder 26 (ADR-0007). `npm run package:dir` builds only the unpacked app in
-# release/win-unpacked/. The per-user NSIS installer below is configured but not built yet.
-# The identity values are one-way doors; src/main/app/identity.test.ts keeps them in sync with
-# src/shared/constants/app-identity.ts.
+# release/win-unpacked/; `npm run package:installer` builds the per-user NSIS installer below
+# (M6.3). The identity values are one-way doors; src/main/app/identity.test.ts keeps them in sync
+# with src/shared/constants/app-identity.ts.
 appId: io.github.rmv-coder.veltriva
 productName: Veltriva Browser
 executableName: Veltriva
@@ -57,13 +57,29 @@ electronFuses:
   grantFileProtocolExtraPrivileges: false
   loadBrowserProcessSpecificV8Snapshot: false
 
+# The icon (M6.3) is drawn by scripts/make-icon.mjs; build/ is electron-builder's resources folder
+# and is never packaged into the app.
 win:
+  icon: build/icon.ico
   target:
     - target: nsis
       arch:
         - x64
 
-# Per-user installer that needs no admin rights (ADR-0007 §2).
+# Per-user installer that needs no admin rights (ADR-0007 §2), as built in M6.3:
+# - One click: it installs into %LOCALAPPDATA%\Programs\Veltriva Browser and starts the app.
+# - A Start-menu shortcut and a desktop shortcut, both stamped with the AppUserModelID (appId),
+#   which the app also sets for itself, so taskbar pins and notifications group under one icon.
+# - The uninstaller asks whether to remove the profile, %APPDATA%\Veltriva (build/installer.nsh);
+#   an update or a silent uninstall never removes it.
+# - Unsigned: code signing is the user's decision (docs/distribution/signing.md).
 nsis:
   oneClick: true
   perMachine: false
+  createStartMenuShortcut: true
+  createDesktopShortcut: true
+  shortcutName: Veltriva Browser
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  include: build/installer.nsh
+  artifactName: Veltriva-Browser-Setup-${version}.${ext}
