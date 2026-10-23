@@ -982,9 +982,9 @@ function DiagnosticsSection({
       title="Diagnostics"
       note={
         <>
-          Veltriva keeps a log of errors on this device, by tab and code. The diagnostics page,{' '}
-          <code className="text-xs">veltriva://diagnostics</code>, shows what automation measured
-          and can export it for a problem report.
+          Veltriva keeps a log of warnings and errors on this device, by tab and code. The
+          diagnostics page, <code className="text-xs">veltriva://diagnostics</code>, shows what
+          automation measured and can export it for a problem report.
         </>
       }
     >

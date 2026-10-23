@@ -1213,7 +1213,7 @@ A *hostile fixture page* in the E2E suite tries to reach `window.veltriva`, `req
 ### 6.6 Privacy posture
 
 - No telemetry, no analytics SDKs, no crash uploads. Crash dumps, if enabled, stay local.
-- **Network activity is limited to** the user's own browsing and the search engine on submit, plus update checks once they exist, which can be turned off. There is no suggestion service.
+- **Network activity is limited to** the user's own browsing and the search engine on submit, plus the update check, which is off by default (M6.3: no request, DNS lookup or timer until the user turns it on). There is no suggestion service.
 - **Background traffic from bare Electron** (S7: 20 s capture on a fresh profile). It made **no external HTTP requests**. It did two network-level things, which we disclose rather than suppress:
   - **WPAD lookups:** Windows proxy auto-detection. Disabling it would break users behind proxies.
   - **One UDP connect to `2001:4860:4860::8888`:** Chromium's IPv6 reachability probe, which sends no request data.
