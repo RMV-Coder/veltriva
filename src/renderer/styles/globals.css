@@ -73,13 +73,18 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  /* M6.2: 0.5, not shadcn's 0.556 (4.3:1 on the sidebar), so muted text passes WCAG AA (4.5:1)
+     on every light surface, the sidebar's hover color included (4.7:1). The shell's own text
+     doesn't use it today; shadcn's components do. */
+  --muted-foreground: oklch(0.5 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* M6.2: a focus ring needs 3:1 against what it sits on (WCAG 1.4.11): 4.7:1 here, 4.3:1 on
+     the sidebar. shadcn's 0.708 was 2.6:1. */
+  --ring: oklch(0.556 0 0);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -92,7 +97,7 @@
   --sidebar-accent: oklch(0.915 0 0);
   --sidebar-accent-foreground: oklch(0.145 0 0);
   --sidebar-border: oklch(0.88 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 .dark {
@@ -131,7 +136,9 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    /* The browser's own focus outline, where a control has no ring of its own: full strength,
+       since half-transparent it was 1.5:1 (M6.2). */
+    @apply border-border outline-ring;
   }
   body {
     @apply bg-background text-foreground;
