@@ -70,6 +70,39 @@ describe('FileLogger (M5.3, §6.6)', () => {
     expect(opted).toMatchObject({ url: 'https://secret.example/a', code: -105 });
   });
 
+  it('hides addresses inside every other string field too, unless diagnostic logging is on (M6.1)', () => {
+    const on = { value: false };
+    const logger = new FileLogger({ folder, includeAddresses: () => on.value, now: () => NOW });
+    const fields = {
+      scheme: 'mailto',
+      message: 'Failed to open mailto:alice@example.com',
+      detail: "open 'file:///C:/Users/me/Downloads/report.pdf'",
+      reason: 'redirected to https://secret.example/next?token=1',
+      method: 'session.save',
+      code: 'SQLITE_BUSY',
+      tabId: 7,
+    };
+
+    logger.warn('external.launchFailed', fields);
+    on.value = true;
+    logger.warn('external.launchFailed', fields);
+
+    const [off, opted] = lines();
+    expect(off).toMatchObject({
+      scheme: 'mailto',
+      message: 'Failed to open [hidden]',
+      detail: "open '[hidden]'",
+      reason: 'redirected to [hidden]',
+      method: 'session.save',
+      code: 'SQLITE_BUSY',
+      tabId: 7,
+    });
+    for (const secret of ['alice', 'example.com', 'report.pdf', 'secret.example', 'token']) {
+      expect(JSON.stringify(off)).not.toContain(secret);
+    }
+    expect(opted).toMatchObject(fields);
+  });
+
   it('knows which fields are addresses', () => {
     for (const name of ['url', 'address', 'pageUrl', 'requestUrl']) {
       expect(isAddressField(name)).toBe(true);
@@ -178,6 +211,23 @@ describe('redactAddresses', () => {
     expect(inner.error).toHaveBeenCalledWith('tab.loadFailed', {
       url: 'https://secret.example/',
       code: -105,
+    });
+  });
+
+  it('hides addresses inside other string fields from another logger too (M6.1)', () => {
+    const inner = { warn: vi.fn(), error: vi.fn() };
+    const logger = redactAddresses(inner, () => false);
+
+    logger.warn('external.launchFailed', {
+      scheme: 'https',
+      message: 'Failed to open https://secret.example/',
+      missing: undefined,
+    });
+
+    expect(inner.warn).toHaveBeenCalledWith('external.launchFailed', {
+      scheme: 'https',
+      message: `Failed to open ${HIDDEN}`,
+      missing: undefined,
     });
   });
 });

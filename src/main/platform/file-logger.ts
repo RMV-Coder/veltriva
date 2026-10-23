@@ -1,25 +1,40 @@
 // The log file (assessment §2.2, §6.6, M5.3): one JSON line per event in
 // `<profile>/logs/veltriva.log`, rotated at 5 MB, keeping 5 files (veltriva.log, then .1 to .4,
-// the oldest dropped). Logs name tab ids and error codes, never what the user browsed: a field that
-// holds an address (`url`, `address`, or a name ending in `Url`) is written as "[hidden]" unless the
-// user turned diagnostic logging on, for reporting a problem. Writing never throws into the app: a
-// log that can't be written is given up on for the run.
+// the oldest dropped). Logs name tab ids and error codes, never what the user browsed. Unless the
+// user turned diagnostic logging on, for reporting a problem:
+// - a field that holds an address (`url`, `address`, or a name ending in `Url`) is written as
+//   "[hidden]";
+// - every other string field has its address-like words hidden (M6.1, ./log-redaction.ts), since
+//   an error message can name an address too.
+// Writing never throws into the app: a log that can't be written is given up on for the run.
 import { appendFileSync, existsSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { HIDDEN, scrubAddresses } from './log-redaction';
 import type { LogFields, Logger } from './logger';
+
+export { HIDDEN } from './log-redaction';
 
 /** A file is rotated once it reaches this size. */
 export const LOG_FILE_BYTES = 5 * 1024 * 1024;
 /** Files kept: the current one and four older. */
 export const LOG_FILES = 5;
 export const LOG_FILE_NAME = 'veltriva.log';
-/** What an address is written as while diagnostic logging is off. */
-export const HIDDEN = '[hidden]';
 
 /** Whether a field holds an address (and so is hidden unless diagnostic logging is on). */
 export function isAddressField(name: string): boolean {
   return name === 'url' || name === 'address' || name.endsWith('Url');
+}
+
+/** A field's value as written while diagnostic logging is off. */
+export function redactedValue(
+  name: string,
+  value: string | number | boolean,
+): string | number | boolean {
+  if (isAddressField(name)) {
+    return HIDDEN;
+  }
+  return typeof value === 'string' ? scrubAddresses(value) : value;
 }
 
 export interface FileLoggerOptions {
@@ -68,7 +83,7 @@ export class FileLogger implements Logger {
     };
     for (const [name, value] of Object.entries(fields ?? {})) {
       if (value !== undefined && name !== 'at' && name !== 'level' && name !== 'event') {
-        entry[name] = isAddressField(name) && !addresses ? HIDDEN : value;
+        entry[name] = addresses ? value : redactedValue(name, value);
       }
     }
     const line = `${JSON.stringify(entry)}\n`;
@@ -102,14 +117,17 @@ export class FileLogger implements Logger {
   }
 }
 
-/** A logger that hides address fields, as the file does, unless addresses are wanted. */
+/** A logger that hides addresses, as the file does, unless addresses are wanted. */
 export function redactAddresses(logger: Logger, includeAddresses: () => boolean): Logger {
   const redact = (fields: LogFields | undefined): LogFields | undefined => {
     if (fields === undefined || includeAddresses()) {
       return fields;
     }
     return Object.fromEntries(
-      Object.entries(fields).map(([name, value]) => [name, isAddressField(name) ? HIDDEN : value]),
+      Object.entries(fields).map(([name, value]) => [
+        name,
+        value === undefined ? value : redactedValue(name, value),
+      ]),
     );
   };
   return {
