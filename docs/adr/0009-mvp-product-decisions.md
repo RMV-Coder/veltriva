@@ -29,6 +29,13 @@
    - **What it asks:** the search engine (DuckDuckGo chosen), the preset (Balanced) and whether automation shows its moves first (preview mode, §4.13). "Start browsing" sends the choices in one change and opens the new-tab page.
    - **Settings offers the rest:** DuckDuckGo, Google, Bing, Brave Search, Ecosia and Startpage, or another engine's address with `{searchTerms}`, which main checks (https, or http to this machine).
 
+6. **The sidebar's semantics, as built (M6.2).** Assessment §7.3 named the ARIA `tree` pattern for the sidebar. It is built from patterns that say more precisely what each part does, and stays that way:
+   - **The open tabs are a vertical `tablist`.** Each row is a `tab` that is `selected` when its page shows, and `controls` the content area. That is what a row does: choosing it shows its page, and only one shows at a time. A screen reader announces a tab, its position and whether it is selected, as for the tab strips of Chrome and Edge, whose vertical tabs are a tab list too.
+     - **The keys:** Up, Down, Home and End move focus without switching; Enter or Space switches; Delete closes; Alt+Shift+Up/Down moves the tab; Shift+F10 opens its menu.
+   - **Sleeping and Archive are disclosure sections.** A heading button says `expanded` or `collapsed` and the count, over a list of rows that restore their tab. A row there doesn't show a page in place, so it isn't a `tab`.
+   - **Why not a tree:** a tree would announce every tab as an item "at level 2" of a section, lose "selected" for the page that shows, and present restoring a row as expanding a node. Nothing in the sidebar nests deeper than one level.
+   - **Reaching it:** F6 cycles the address bar, the sidebar's selected tab, and the page (M6.2).
+
 ## Consequences
 
 - **Positive:** a focused MVP whose central idea (Tabs, Sleeping, Archive) is visible on screen.

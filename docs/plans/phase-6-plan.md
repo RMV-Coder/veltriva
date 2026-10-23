@@ -45,3 +45,19 @@ See [docs/security/security-review.md](../security/security-review.md) for the f
 - **Unchanged decisions:** native JS dialogs (no Electron API yet); Electron 45.0.0 (no newer 45.x on 2026-10-23).
 - **Residual, stated:** DNS rebinding between main's lookup and the request.
 - **Deviations from the brief:** none. `veyra analyze`'s only findings across the history are a Postgres-only index rule on SQLite migrations and the rename already accepted in M2.2b.
+
+### M6.2
+
+Most of §7.3 was already built in earlier phases: a roving-tabindex tab list with arrow keys, Home and End, Enter, Delete and Alt+Shift moves; `aria-describedby` state text for every icon; `motion-reduce` variants on every animation; live regions for the palette, the Undo toast, the prompts and the notices. M6.2 measured it and filled the gaps:
+- **axe-core** (`@axe-core/playwright` 4.13.0, dev-only) scans 10 shell states in both themes against WCAG 2.2 A and AA (`tests/e2e/accessibility.spec.ts`). It found nothing on the code as built. A negative control (faint sidebar text injected) made it fail in both themes, so the scans aren't vacuous; each scan also asserts that `color-contrast` was checked.
+- **What axe can't see, fixed by measurement:**
+  - **Focus rings:** the Button's `ring-ring/50` measured 1.5:1, and the browser's own outline color the same. Both now use the full ring color at 4.7:1 (3:1 is required).
+  - **The light theme's `--ring`** went from 0.708 (2.6:1) to 0.556.
+  - **The popup bar's muted text** went from 4.4:1 to 5.4:1.
+  - **`--muted-foreground`** went from 4.3:1 to 5.5:1 on the sidebar. No shell text uses it yet; shadcn's components do.
+- **Keyboard:** F6 now cycles the address bar, the sidebar's selected tab and the page. Before, it alternated between the address bar and the page.
+- **Screen readers:**
+  - The address bar announces how many suggestions appeared.
+  - The palette's announcement names the filter, since Tab changes it while the field keeps focus.
+- **Deviation, recorded in ADR-0009 item 6:** the sidebar stays a vertical `tablist` plus disclosure sections, not the `tree` §7.3 named.
+- **The user's checks:** `docs/testing/accessibility.md` (Narrator, keyboard only, contrast themes, text size, reduced motion).

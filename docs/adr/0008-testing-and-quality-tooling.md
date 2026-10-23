@@ -112,6 +112,9 @@
    - navigation guards;
    - the protocol blocklist.
 7. **Accessibility:** `@axe-core/playwright` on shell views, plus a keyboard-only walkthrough.
+   - **As built in M6.2:** `@axe-core/playwright` 4.13.0 (with axe-core 4.13.0), a dev dependency only. It is MPL-2.0, which is fine for a test tool that never ships; the license check covers what ships. 4.14.0 was eight days old, so the previous minor was taken.
+   - **`tests/e2e/accessibility.spec.ts`** scans the shell page with WCAG 2.2 A and AA rules, in the light and the dark theme (`emulateMedia({ colorScheme })`), in each state a user reaches: the new-tab page with the toolbar and sidebar, Settings, Diagnostics, Welcome, the palette, the address bar's suggestions, a permission prompt, the downloads panel and an error page. Any violation fails the test with every node axe named.
+   - **The keyboard-only walkthrough and the screen-reader checks** are the user's, in `docs/testing/accessibility.md` (Narrator).
 8. **CI (GitHub Actions, `windows-latest`).**
    - Every PR: typecheck, lint, unit, integration and E2E tests, plus a license check (`scripts/third-party-notices.mjs --check`, M6.1).
    - `main`: also an unsigned NSIS build artifact.
