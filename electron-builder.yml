@@ -67,7 +67,8 @@ win:
         - x64
 
 # Per-user installer that needs no admin rights (ADR-0007 §2), as built in M6.3:
-# - One click: it installs into %LOCALAPPDATA%\Programs\Veltriva Browser and starts the app.
+# - One click: it installs into %LOCALAPPDATA%\Programs\veltriva (the package name) and starts
+#   the app; the uninstaller there is "Uninstall Veltriva.exe".
 # - A Start-menu shortcut and a desktop shortcut, both stamped with the AppUserModelID (appId),
 #   which the app also sets for itself, so taskbar pins and notifications group under one icon.
 # - The uninstaller asks whether to remove the profile, %APPDATA%\Veltriva (build/installer.nsh);

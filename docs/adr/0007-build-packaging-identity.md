@@ -51,6 +51,7 @@
 8. **As built in M6.3** ([docs/distribution/releasing.md](../distribution/releasing.md)).
    - **The installer** (`npm run package:installer`): one-click and per-user, with Start-menu and desktop shortcuts carrying the AppUserModelID.
      - **The uninstaller asks** whether to remove `%APPDATA%\Veltriva` (`build/installer.nsh`, the `customUnInstall` hook). An update's uninstall step, and a silent uninstall, never remove it.
+     - **The question is decided by the command line, not `${Silent}`.** A one-click uninstaller shows its own "Are you sure?", then turns itself silent for the rest (electron-builder's `un.onInit`). So `${Silent}` is always true by the time the hook runs, and a `/SD` default would answer the question without showing it. The first build had that bug and never asked; the install test on this machine found it.
      - **The icon** is drawn by `scripts/make-icon.mjs`, with no image tool: bitmaps up to 64 px, PNG at 128 and 256.
    - **Signing** stays off, the user's decision; [docs/distribution/signing.md](../distribution/signing.md) says what unsigned means and what to add for each route.
    - **The update notice** (item 4's "update-available notification"): `src/main/updates`, off by default.
