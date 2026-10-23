@@ -152,6 +152,8 @@ Stated plainly, as the assessment's §6.7 asks:
 - **No Safe Browsing** protection against phishing or malware, and **no DRM video** (Widevine).
 - **The database isn't encrypted at rest**, like mainstream browsers' history databases; Windows account security and BitLocker protect it.
 - **Unsaved-work detection is a heuristic**: Veltriva keeps a tab it can see you typed in, or one that asks before leaving, but a page that saves work in other ways may lose it when unloaded.
+- **Site icons are decoded by Veltriva's own interface**, in its sandboxed renderer: only raster images up to 64 KB, checked by their bytes, but not re-encoded yet.
+- **A site's icon request can still be steered by DNS rebinding**: Veltriva checks every address an icon's host resolves to, and every redirect, before asking, but a name whose answer changes between that check and the request itself isn't caught.
 - **Unsigned builds** until code signing is in place, so Windows SmartScreen warns about them.
 - **Chromium security fixes** reach Veltriva with each Electron release, a little after Chrome.
 

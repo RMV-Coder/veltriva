@@ -105,6 +105,7 @@
      - It takes the real path: a page goes fullscreen, the shell draws the notice and asks to be raised, and the page is measured under it.
      - Its first version raised the shell in its normal, opaque state, and the page went `hidden`. That is how we learned that A′ depends on a transparent document root.
 5. **Installer smoke test**, without Playwright: install, launch, read back the fuses, assert that no test hooks exist, uninstall.
+   - **As built in M6.1:** `package:dir` already refuses a build with test hooks (`check-production-build.mjs`). `check-packaged-app.mjs` now also reads the fuse wire back from `Veltriva.exe` (`scripts/fuse-wire.mjs`) and checks that the licenses ship. Installing and uninstalling come with the installer (M6.3).
 6. **Security tests:**
    - a hostile fixture page;
    - malformed payloads for every IPC handler;
@@ -112,7 +113,7 @@
    - the protocol blocklist.
 7. **Accessibility:** `@axe-core/playwright` on shell views, plus a keyboard-only walkthrough.
 8. **CI (GitHub Actions, `windows-latest`).**
-   - Every PR: typecheck, lint, unit, integration and E2E tests, plus a license check.
+   - Every PR: typecheck, lint, unit, integration and E2E tests, plus a license check (`scripts/third-party-notices.mjs --check`, M6.1).
    - `main`: also an unsigned NSIS build artifact.
    - Benchmarks run manually.
    - Releases are manual drafts; nothing is published automatically.

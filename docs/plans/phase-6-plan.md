@@ -1,0 +1,47 @@
+# Phase 6 plan: quality and release
+
+Pre-approved by the user on 2026-10-22, with Phases 2–6 ("make commits and merge when done … finish all phases"). The orchestrator reviews each milestone, re-runs the checks, scans with Veyra and merges. The user runs the manual checks once all phases are done.
+
+**Sources of truth:**
+- ADR-0001 (the Electron upgrade policy), ADR-0002 (trust zones and the web policy), ADR-0007 (build, packaging, signing and identity) and ADR-0008 (testing and tooling).
+- The technical assessment:
+  - Part 6: the security model and threats T1–T15;
+  - §7.2: the Release row (installer, fuses, About, update notification);
+  - §8.2: the Phase 6 acceptance;
+  - Part 9: testing, the §9.3 benchmark method and §9.4 CI.
+
+**Working rules:**
+- One stacked branch per milestone, each started from the previous one's tip.
+- Commits with Veyra (`--assisted-by`), never pushed or merged by the implementer.
+- **Still the user's call:** paid code signing, and anything public. There is no remote, so nothing is pushed and no release is published.
+
+## The milestones as planned
+
+- **M6.1, the security review and hardening** (`claude/m6.1-security`).
+  - Walk Part 6 and T1–T15 against the code; record each item's status and evidence in `docs/security/security-review.md`; fix what's cheap.
+  - **Known items:** log redaction beyond field names; DNS rebinding for favicons (T5); an Electron dialog-handler API; the newest 45.x patch.
+  - **Dependency and license audit:** `npm audit`, runtime vs build-only; every shipped license, MIT-compatible; `THIRD_PARTY_NOTICES` in the packaged app.
+  - **Veyra across the history:** `analyze`, `security scan --rev`, `intent verify`; new intents where an invariant belongs.
+- **M6.2, the accessibility pass** (`claude/m6.2-a11y`): keyboard reach everywhere (the sidebar as an ARIA tree, the palette as a listbox), focus rings, WCAG AA contrast in both themes, `prefers-reduced-motion`, text for state icons; axe-core in E2E for the shell's pages; `docs/testing/accessibility.md` with the Narrator checks.
+- **M6.3, packaging and release** (`claude/m6.3-release`): the NSIS installer (per-user, AppUserModelID, Start-menu shortcut, icon, uninstall keeps or removes the profile), built and exercised on this machine; signing documented, not bought; `veltriva://about`; an update notification, off by default and with no traffic unless enabled; CI that runs exactly the local gates, every step run locally; a release script that tags locally only.
+- **M6.4, the benchmark report and final docs** (`claude/m6.4-docs`): 10, 25, 50 and 100 tabs × the §9.3 modes, with the machine load recorded and the Phase 3 memory measurement retried; the user-facing README; screenshots; v0.1.0 release notes; `docs/testing/final-manual-checklist.md`.
+
+## Phase 6 acceptance (§8.2, adapted)
+
+| Criterion | Status |
+|---|---|
+| A clean install works on this machine; VM checks listed for the user | M6.3 |
+| The benchmark report is reproducible | M6.4 |
+| Known limitations are documented | M6.1 added two (README, §6.7); M6.4 finishes the README |
+| Every CI step passes locally | M6.3 |
+
+## As built
+
+### M6.1
+
+See [docs/security/security-review.md](../security/security-review.md) for the full checklist. In short:
+- **Fixed:** favicon redirects into the local network (measured, now each hop re-checked); public names resolving to local addresses (now resolved and checked); addresses in free-text log fields (now scrubbed); no fuse read-back (now on every `package:dir`).
+- **Added:** `THIRD_PARTY_NOTICES.txt` from what the build actually bundled, shipped in `resources/`, with a license check in `package:dir` and CI.
+- **Unchanged decisions:** native JS dialogs (no Electron API yet); Electron 45.0.0 (no newer 45.x on 2026-10-23).
+- **Residual, stated:** DNS rebinding between main's lookup and the request.
+- **Deviations from the brief:** none. `veyra analyze`'s only findings across the history are a Postgres-only index rule on SQLite migrations and the rename already accepted in M2.2b.

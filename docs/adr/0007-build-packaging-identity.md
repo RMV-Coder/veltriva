@@ -40,7 +40,13 @@
    | AppUserModelID | `io.github.rmv-coder.veltriva` |
    | User data folder | `%APPDATA%\Veltriva`, set with `app.setPath('userData', …)` before `ready` so it doesn't follow the product name |
    | Browsing partition | `persist:browsing` |
-   | License | MIT, after a dependency license review in Phase 6 |
+   | License | MIT, confirmed by the dependency license review in M6.1 (below) |
+
+7. **Licenses, as built in M6.1** ([docs/security/security-review.md](../security/security-review.md#licenses)).
+   - **Every license the app ships is permissive:** MIT, ISC and Apache-2.0, all compatible with shipping an MIT app.
+   - **What ships is recorded by the build.** A Vite plugin (`scripts/bundled-packages.mjs`) writes each bundle's packages to `out/third-party/*.json`, which isn't packaged. `scripts/third-party-notices.mjs` adds the style sheets' packages, the bundlers' helpers, better-sqlite3 and what its binary compiles in, and Electron.
+   - **`THIRD_PARTY_NOTICES.txt`** is generated from that, committed, and shipped in `resources/` beside `LICENSE.txt` (`extraResources`). electron-builder puts `LICENSE.electron.txt` and `LICENSES.chromium.html` (Chromium and Node.js) next to `Veltriva.exe`.
+   - **The license check** (`third-party-notices.mjs --check`, in `package:dir` and CI) fails when the file is stale or a license isn't on the allow-list. `check-packaged-app.mjs` checks that all four files ship, and reads the fuses back from `Veltriva.exe`.
 
 ## Consequences
 

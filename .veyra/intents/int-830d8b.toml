@@ -1,0 +1,25 @@
+# Veyra intent — reviewed like code. See docs/DESIGN.md §5.2.
+id = "int-830d8b"
+title = "Logs hold no addresses unless the user turns diagnostic logging on"
+kind = "security"
+status = "active"
+created = "2026-10-23"
+objective = "While diagnostic logging is off, no field of a log line, in the file or on the console, holds an address, a path or a host."
+solution = "Field-name redaction plus a word-by-word scrub of every string field (src/main/platform/file-logger.ts, log-redaction.ts), applied to the file and to the console (src/main/index.ts), assessment §6.6, ADR-0002 item 14."
+constraints = ["Error messages from Electron and the OS are free text and can name the address they failed on"]
+verification = ["src/main/platform/log-redaction.test.ts"]
+
+[[guard]]
+paths = ["src/main/platform/file-logger.ts"]
+must_contain = "scrubAddresses"
+message = "String fields would reach the log with their addresses (assessment §6.6)"
+
+[[guard]]
+paths = ["src/main/platform/file-logger.ts"]
+must_contain = "isAddressField"
+message = "Address fields (url, address, *Url) would be logged as they are"
+
+[[guard]]
+paths = ["src/main/index.ts"]
+must_contain = "redactAddresses(consoleLogger"
+message = "The console would show addresses the log file hides"

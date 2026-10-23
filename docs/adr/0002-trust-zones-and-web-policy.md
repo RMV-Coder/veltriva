@@ -119,7 +119,7 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - Main refuses favicon URLs on loopback, private and link-local addresses, and on local-only names (single labels, `.local`, `.internal`, `.home.arpa`, `.lan`).
      - The exception is a page whose own host is in the same class.
      - The check parses hosts the way the URL parser does, so `127.1`, hex and decimal IPv4, and IPv4-mapped and NAT64 IPv6 are caught.
-     - DNS rebinding remains (threat T5).
+     - DNS rebinding remains (threat T5). M6.1 added redirect and resolved-address checks (item 15).
    - **Context-menu actions** work on page-controlled data:
      - "Open link/image in new tab" appears, and runs, only for a URL the tab navigation policy would allow. It is checked again when the action runs, so `javascript:`, `data:` and `file:` links get no such item.
      - Copy actions write the clipboard only on the user's click.
@@ -228,13 +228,28 @@ A browser loads hostile content by definition. Electron's defaults assume truste
 
 14. **The log and what leaves the machine** (Phase 5, M5.3; assessment §6.6).
    - **The log file:** `<profile>/logs/veltriva.log`, one JSON line per warning or error, rotated at 5 MB with 5 files kept (`main/platform/file-logger.ts`).
-   - **What it holds:** tab ids and error codes. A field that holds an address (`url`, `address`, or a name ending in `Url`) is written as `[hidden]` unless the user turned **diagnostic logging** on in Settings.
+   - **What it holds:** tab ids and error codes. A field that holds an address (`url`, `address`, or a name ending in `Url`) is written as `[hidden]` unless the user turned **diagnostic logging** on in Settings. Since M6.1, the address-like words of every other string field are hidden too (item 15).
      - The same rule hides it from the console.
      - With logging on, a failed main-frame load and a renderer that died name their page.
    - **"Export diagnostics"** writes what the diagnostics page shows to a JSON file the user chooses (`main/diagnostics/diagnostics-export.ts`).
      - **Never in it:** a page title, or a custom search engine's address (only "custom").
      - **Opt-in:** open tabs' addresses only when the user ticks "Include the addresses of open tabs".
    - **Nothing is sent anywhere.** The export is a file the user saves, and test builds record it instead of showing the dialog.
+
+15. **The security review** (Phase 6, M6.1; [docs/security/security-review.md](../security/security-review.md)). Every item of the assessment's Part 6 and every threat T1–T15 was checked against the code. Four things changed:
+   - **Favicon requests follow no redirect blindly** (threat T5). *Measured* on Electron 45: `session.fetch` followed a favicon's 302 to `127.0.0.2`, so a public page could send main into the local network through its own server. With `redirect: 'manual'`, `session.fetch` fails with "Redirect was cancelled" and gives no target (*measured*).
+     - **Each hop** is now one `net.request` through the browsing session with `redirect: 'manual'` (`src/main/tabs/favicon-request.ts`), checked again before it is sent, with at most 5 redirects.
+     - **What the hop sends:** the session's cookies, as `session.fetch` did (*measured*). An HTTP sign-in request is declined.
+   - **Favicon hosts are checked by what they resolve to** (threat T5).
+     - **Before each request,** main resolves the host with `session.resolveHost`, the same resolver and cache the request uses. It refuses if any address is local where the page isn't (`addressReach` and `areAddressesWithinReach`, `src/core/url/local-network.ts`). So `127.0.0.1.nip.io` and internal names on public domains are caught.
+     - **What a page may reach:** public addresses, the class of its own host as written, and the classes its host resolved to, if none of them is public. An intranet page on a public-looking name may still use icons in its own network; a name with a public and a private record opens nothing local.
+     - **Still open:** true DNS rebinding, an answer that changes between this lookup and the request's own. Chromium can't pin a browser-initiated request to an address.
+   - **The log scrubs every string field** (item 14, assessment §6.6). While diagnostic logging is off, a word that looks like an address, a path or a host is written as `[hidden]` (`src/main/platform/log-redaction.ts`), in the file and on the console.
+     - **Why:** field names weren't enough. An `openExternal` failure's message, Chromium's reasons and a page's scheme are free text.
+     - **What stays:** the data worker's method names and the shell's command names, which look like host names, and Chromium's `net::ERR_*` codes.
+   - **The packaged binary's fuses are read back** on every `package:dir` (`scripts/check-packaged-app.mjs`, `scripts/fuse-wire.mjs`). The check fails on a fuse it doesn't know, so a new Electron fuse forces a decision.
+   - **JS dialogs, re-checked:** no dialog-handler API in Electron 45.0.0, and no 46 build yet. electron/electron#34466 (a `webContents` `dialog` event) was closed unmerged in 2025. The open #54988 covers only the `dialog` module's own boxes and excludes `window.alert()`. Item 12's decision stands.
+   - **`app://shell` and `initiatorOrigin`:** §6.2 says the handler checks the request's initiator. Electron's `protocol.handle` gets a standard `Request`, which has none. The handler exists only on the in-memory shell session, which holds only the shell and the popup address bar, so no page reaches it (`shell-protocol.spec.ts`).
 
 ## Consequences
 

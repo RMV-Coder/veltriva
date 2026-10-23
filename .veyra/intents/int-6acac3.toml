@@ -1,0 +1,30 @@
+# Veyra intent — reviewed like code. See docs/DESIGN.md §5.2.
+id = "int-6acac3"
+title = "Main's favicon requests can't be steered into the local network, and the packaged binary is checked"
+kind = "security"
+status = "active"
+created = "2026-10-23"
+objective = "A page can't make main request an address on this machine or the local network through a favicon: not by its URL, by a name that resolves there, or by a redirect. The packaged binary's fuses are read back on every package."
+solution = "Every hop is a single net.request with redirect: 'manual', checked by name and by every address the browsing session resolves (src/main/tabs/favicons.ts, favicon-request.ts, src/core/url/local-network.ts). scripts/check-packaged-app.mjs reads the fuse wire (scripts/fuse-wire.mjs). Threat T5, assessment §6.2 and §9.2."
+constraints = ["session.fetch follows redirects, and with redirect: 'manual' gives no target (measured on Electron 45)"]
+verification = ["tests/e2e/favicon-network.spec.ts"]
+
+[[guard]]
+paths = ["src/main/tabs/favicon-request.ts"]
+must_contain = "redirect: 'manual'"
+message = "Favicon requests would follow redirects unchecked, into the local network (threat T5)"
+
+[[guard]]
+paths = ["src/main/tabs/favicons.ts"]
+must_contain = "areAddressesWithinReach"
+message = "Favicon hosts would be trusted by name, whatever they resolve to (threat T5)"
+
+[[guard]]
+paths = ["src/main/tabs/favicons.ts"]
+must_contain = "isFaviconUrlAllowed"
+message = "Favicon URLs on local hosts would be fetched for public pages (threat T5)"
+
+[[guard]]
+paths = ["scripts/check-packaged-app.mjs"]
+must_contain = "readFuseWire"
+message = "Packaging would no longer read the fuses back from the binary (assessment §9.2)"
