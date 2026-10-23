@@ -119,6 +119,28 @@ for (const size of sizes) {
   const retries = runs.reduce((sum, run) => sum + (reading(run).discardRetries ?? 0), 0);
   console.log(`- Probes asked again after missing their 100 ms (all runs): ${String(retries)}`);
   console.log(
-    `- Free memory at each run's start: ${stat(attempted.map((run) => run.freeMbAtStart))} MB\n`,
+    `- Free memory at each run's start: ${stat(attempted.map((run) => run.freeMbAtStart))} MB`,
   );
+  printLoad(attempted);
+  console.log('');
+}
+
+/** The machine's load at each run's start, where the raw file has it (since Phase 6). */
+function printLoad(attempted) {
+  const loads = attempted.map((run) => run.loadAtStart).filter((load) => load !== undefined);
+  if (loads.length === 0) {
+    return;
+  }
+  console.log(
+    `- Commit charge at each run's start: ${stat(loads.map((load) => load.commitMb))} MB of ${stat(loads.map((load) => load.commitLimitMb))} MB; processor load ${stat(loads.map((load) => load.cpuPercent))} %`,
+  );
+  const first = attempted.find((run) => run.busiestAtStart !== undefined);
+  if (first !== undefined) {
+    const busiest = first.busiestAtStart
+      .map((process) => `${process.name} ${String(process.workingSetMb)}`)
+      .join(', ');
+    console.log(
+      `- Largest processes at run ${String(first.run)}'s start (working set, MB): ${busiest}`,
+    );
+  }
 }
