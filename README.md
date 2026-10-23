@@ -150,7 +150,10 @@ In the sidebar, Up, Down, Home and End move between tabs, Enter or Space selects
 
 ## Benchmarks
 
-Search is measured, end to end through the app's own data layer, on a synthetic memory. At 50,000 pages the 95th-percentile search took 10.3 ms (median of 3 runs, on the reference laptop, which was under load). The method, the other sizes and the raw data are in [docs/benchmarks/search.md](docs/benchmarks/search.md). The memory benchmark, which compares tabs live, in Sleeping and unloaded, is reported in [docs/benchmarks/memory.md](docs/benchmarks/memory.md); [docs/benchmarks/phase-3-memory.md](docs/benchmarks/phase-3-memory.md) records the earlier attempt. Both can be run again: see [docs/development.md](docs/development.md).
+Both benchmarks ran on the reference laptop (Core i3, 7.9 GB) while it was under load; each report says how loaded it was, and both can be run again (see [docs/development.md](docs/development.md)).
+
+- **Memory** ([docs/benchmarks/memory.md](docs/benchmarks/memory.md)): **unloading frees about 34 MB per tab.** With 100 tabs of a controlled test page, Veltriva held 3,771 MB with every tab live and 383 MB with 99 of them unloaded (median of 5 runs, private bytes of the whole process tree). Moving tabs to Sleeping without unloading them freed nothing. The same holds at 10, 25 and 50 tabs.
+- **Search** ([docs/benchmarks/search.md](docs/benchmarks/search.md)): at 50,000 remembered pages, the 95th-percentile search took 10.3 ms (median of 3 runs), end to end through the app's own data layer.
 
 ## Known limitations
 

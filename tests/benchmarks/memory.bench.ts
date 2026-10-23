@@ -14,7 +14,7 @@
 // those files (tests/benchmarks/summarize-memory.mjs), and nothing else.
 //
 //   npm run bench:memory                     sizes 10, 25 and 50, 5 runs each
-//   BENCH_SIZES=100 npm run bench:memory     100 tabs (about 40 MB each, spike S8: a machine with room)
+//   BENCH_SIZES=100 npm run bench:memory     100 tabs (about 3.8 GB live: docs/benchmarks/memory.md)
 //   BENCH_SIZES=10 BENCH_RUNS=1 npm run bench:memory    a quick check of the harness
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';

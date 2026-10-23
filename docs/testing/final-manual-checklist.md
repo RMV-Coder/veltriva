@@ -142,7 +142,7 @@ The list of source checks that were merged into others (the duplicates) is at th
 - **Narrator** (built into Windows) for section 10.
 - **Node.js and the repository set up on this machine** (`npm run setup`, see `docs/development.md`), for the database reader `vq` below, for section 12 and for building the older installer in 13.6.
 - **Two virtual machines** for section 14: one Windows 10 and one Windows 11, 64-bit (x64), and a way to copy the installer into them.
-- **A quiet machine** for section 12. For the 100-tab size in 12.6, a machine with room: at about 40 MB per tab (spike S8), 100 tabs need about 4 GB for the tab renderers alone, on top of the browser itself. The development laptop (7.9 GB) can't run it.
+- **A quiet machine** for section 12. For the 100-tab size in 12.6, a machine with room: at about 34 MB per tab (`docs/benchmarks/memory.md`), 100 live tabs hold about 3.8 GB in all. The development laptop (7.9 GB) ran it with other programs open, and Windows paged to fit it, which slows the switch and load times but not the memory totals.
 - **Sites:** only well-known public test pages and big mainstream sites. **Nothing here asks for payment details. Don't try any payment flow.**
 
 ### Back up your own profile first
