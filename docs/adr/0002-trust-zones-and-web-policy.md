@@ -211,7 +211,9 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - **Stopping a page:** from the second dialog on, `safeDialogs` (set on every tab) offers "Prevent this app from creating additional dialogs".
    - **`prompt()`** isn't supported by Electron: it returns `null` at once, with nothing shown.
    - **No hook.** Electron 45 has no API to handle these dialogs itself. A DevTools-protocol session with `Page.enable` gets no `Page.javascriptDialogOpening`, and `Page.handleJavaScriptDialog` answers "No dialog is showing" while the native box is up.
-   - **The choice.** Turning dialogs off (`disableDialogs`) would silently break every page's `confirm`. Replacing them would mean a script in every page's own world, which this ADR rules out. So v1.0 keeps the native dialogs, stated as a known limitation; an Electron dialog-handler API is what to watch for.
+   - **The choice.** Turning dialogs off (`disableDialogs`) would silently break every page's `confirm`. Replacing them would mean a script in every page's own world, which this ADR rules out. So v1.0 keeps the native dialogs, stated as a known limitation (accepted on review, 2026-10-23).
+     - **The residual risk** is in the assessment's threat T6. A page's `alert` or `confirm` blocks the window and doesn't name the site. It is bounded: the box takes no input, it never shows a password field, and `safeDialogs` stops a page.
+     - **What to watch:** an Electron dialog-handler API. Phase 6 checks each Electron release for one; the change would be small once it exists.
    - **`<input type="file">`** opens Windows' native Open dialog, modal to the window, as in Chrome.
    - **Printing.**
      - **Already worked:** a page's `window.print()` opened Windows' print dialog.

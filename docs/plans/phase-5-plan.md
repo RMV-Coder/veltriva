@@ -57,11 +57,11 @@ Each milestone's full report (features, decisions, tests run, limitations) is in
 
 ### Deviations from the plan
 
-- **M5.0: JS dialogs stay Electron's native ones, as a decision for review.** Measured on Electron 45:
+- **M5.0: JS dialogs stay Electron's native ones**, recommended in M5.0 and accepted on review (2026-10-23). Measured on Electron 45:
   - `alert` and `confirm` disable the whole window and don't name the site, and `prompt()` returns null.
   - No Electron API replaces them: the DevTools protocol's dialog events never fire.
   - **The alternatives:** turning dialogs off breaks every `confirm`, and an in-page replacement breaks ADR-0002.
-  - **So the limitation is stated:** in the README, ADR-0002 item 12 and the manual checks.
+  - **So the limitation is stated:** in the README, ADR-0002 item 12, the assessment's threat T6 and §6.7, and the manual checks.
 - **M5.0: "Leave page?" covers the user's own navigations, not a link inside the page.** For a link, Electron reports the objection before main hears of any navigation, so there is nothing to repeat; the page's objection stands, as before (measured).
 - **M5.1: site rules moved to the `site_rules` table** (migration 3), out of M3.4's settings list, so protect and exclude live together as §5.3 has them.
 - **M5.1: "Start with a new tab" archives the open tabs** instead of dropping them; pinned tabs stay.
@@ -83,7 +83,11 @@ Each milestone's full report (features, decisions, tests run, limitations) is in
 - **M5.0:** static clean; unit 8,129/8,129; E2E 443/444. The one failure, `history.spec.ts:583`, is a hard-kill flake that predates Phase 5: it fails on main 4 times in 14 runs. Lifecycle 13/13, with the freeze timing test rerun alone after a run with other jobs. Packaging and a packaged launch were clean.
 - **M5.1:** unit 8,312/8,313 and E2E 452/453; each failure was a stale test, fixed in 08cb065 and passing on rerun. Lifecycle 13/13. Packaging clean; the packaged launch ran migration 3.
 - **M5.2:** unit 8,383/8,384 (a timeout, fixed in c2951a1) and E2E 457/459 (two load flakes, 2/2 each on rerun). Lifecycle 13/13. Packaging and a packaged launch were clean.
-- **M5.3:** see its report.
+- **M5.3:** static clean; unit 8,420/8,420; E2E 463/463; lifecycle 13/13. Packaging and a packaged launch were clean.
+
+## For Phase 6
+
+- **Check each Electron release for a dialog-handler API** (ADR-0002 item 12). With one, `alert` and `confirm` could become per-tab questions that name the site.
 
 ## What only a person can check
 

@@ -61,9 +61,13 @@ For each item, tick the box when the result matches **Expected**. If it doesn't,
 
 - [ ] 1. On a page, open DevTools (F12) and run `setTimeout(() => alert('hello'), 5000)` in the console; switch to another tab within 5 seconds.
   - **Expected (a known limitation):** the box appears anyway and blocks the whole window until you press OK. Its title says "Veltriva Browser", and it doesn't name the site. Pressing OK gives the window back.
-- [ ] 2. On a site with a form that warns about unsaved changes (a draft in a web mail, say), type something, then type another address in the address bar and press Enter.
+- [ ] 2. In the same console, run `alert('one'); alert('two')`.
+  - **Expected:** the first box has only OK. The second also has a box to tick, "Prevent this app from creating additional dialogs". Tick it and press OK, then run `alert('three')`: no box appears.
+- [ ] 3. Run `prompt('Your name?')`.
+  - **Expected (a known limitation):** no box appears, and the console shows `null`.
+- [ ] 4. On a site with a form that warns about unsaved changes (a draft in a web mail, say), type something, then type another address in the address bar and press Enter.
   - **Expected:** a "Leave page?" strip in the toolbar. **Stay** keeps the page and your text; **Leave** goes to the new address.
-- [ ] 3. Press Ctrl+P on a page, and choose **Print…** from a page's right-click menu.
+- [ ] 5. Press Ctrl+P on a page, and choose **Print…** from a page's right-click menu.
   - **Expected:** Windows' print dialog both times. Cancel prints nothing.
 - **If it fails, report:** the site, the step, and a screenshot of what appeared.
 

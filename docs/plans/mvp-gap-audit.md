@@ -28,7 +28,7 @@ The table names a file or a test as evidence. The last column is the milestone t
 | HTML fullscreen | done | `tests/e2e/fullscreen.spec.ts` | — |
 | Error pages | done | `tests/e2e/navigation.spec.ts` (network error), `certificates.spec.ts` | — |
 | Crashed-tab page | done | `tests/e2e/crash.spec.ts` | — |
-| **JS dialogs** (alert, confirm, prompt) | **partial** | **Measured:**<br>• `alert` and `confirm` open Electron's native message box. It is owned by the browser window, which it disables, so the whole browser is blocked until it's answered.<br>• A background tab's dialog appears at once too.<br>• The box is titled "Veltriva Browser" and shows the page's text, but not the site asking.<br>• From the second dialog, `safeDialogs` offers "Prevent this app from creating additional dialogs".<br>• `prompt()` returns `null` at once, with no dialog.<br>• Electron 45 has no hook to replace these. A DevTools-protocol session with `Page.enable` gets no `javascriptDialogOpening`, and the native box still shows (measured). | **A decision for review:** see below. It isn't closed by a milestone. |
+| **JS dialogs** (alert, confirm, prompt) | **partial** | **Measured:**<br>• `alert` and `confirm` open Electron's native message box. It is owned by the browser window, which it disables, so the whole browser is blocked until it's answered.<br>• A background tab's dialog appears at once too.<br>• The box is titled "Veltriva Browser" and shows the page's text, but not the site asking.<br>• From the second dialog, `safeDialogs` offers "Prevent this app from creating additional dialogs".<br>• `prompt()` returns `null` at once, with no dialog.<br>• Electron 45 has no hook to replace these. A DevTools-protocol session with `Page.enable` gets no `javascriptDialogOpening`, and the native box still shows (measured). | **Decided:** the native dialogs stay for v1.0, stated as a limitation (accepted on review, 2026-10-23); see below. |
 | **`beforeunload` dialogs** | **done** (M5.0), with one stated limit | **On close:** "Leave page?" since M3.3 (`placement.spec.ts`).<br>**On navigation:** before M5.0, a page with an active handler silently blocked the user's own navigation and reload. Electron cancels them without a dialog (measured), so the address didn't change and nothing said why.<br>**M5.0 asks** "Leave page?" for the user's typed address, reload, back and forward, and Leave does it again (`tests/e2e/leave-page-navigation.spec.ts`).<br>**The limit:** a link inside the page that the page stops gives main no target. The handler runs in the renderer before main hears of any navigation (measured), so the page's objection stands, as before. | M5.0 |
 | File chooser | done | **Measured:** `<input type="file">` opens Windows' native Open dialog. It is modal to the browser window, as Chrome's is. A manual check covers choosing a file. | — |
 | **Print** | **done** (M5.0) | **Measured:** a page's `window.print()` opened Windows' print dialog, but **Ctrl+P did nothing**. M5.0 adds Ctrl+P, which a page may claim first, as with Ctrl+F, and "Print…" in the page's context menu. Both open the system dialog through `webContents.print()` (`tests/e2e/leave-page-navigation.spec.ts`, which records the request in test builds). | M5.0 |
@@ -104,7 +104,7 @@ The table names a file or a test as evidence. The last column is the milestone t
 | Managing stored permission decisions | **done** (M5.2): Settings lists, changes and revokes decisions, apps' "always open" and client-hint opt-ins | M5.2 |
 | Diagnostic logging opt-in, URLs only when on, 5 × 5 MB rotation | **done** (M5.3): `main/platform/file-logger.ts`; the switch is in Settings | M5.3 |
 
-## The JS-dialog decision (for review)
+## The JS-dialog decision: native dialogs for v1.0 (accepted)
 
 Electron 45 runs a page's `alert` and `confirm` through its own dialog manager. It offers no API to replace them, and as measured above it bypasses the DevTools protocol's dialog events.
 
@@ -128,9 +128,9 @@ Electron 45 runs a page's `alert` and `confirm` through its own dialog manager. 
      - it relies on synchronous XHR;
      - it would be the most fragile code in the browser.
 
-**Recommendation: (1) for v1.0, stated plainly.**
-- **Where it's stated:** in the README's known limitations, ADR-0002 and the manual checks.
-- **What to watch:** Electron, for a dialog-handler API; the change would be small once one exists.
+**Decision: (1) for v1.0, stated plainly.** M5.0 recommended it, and it was accepted on review on 2026-10-23. Option (2) silently breaks `confirm()`, and option (3) breaks ADR-0002.
+- **Where it's stated:** the README's known limitations, ADR-0002 item 12, the assessment's threat T6 and §6.7, and the Phase 5 manual checks (B1–B3).
+- **What to watch:** Electron, for a dialog-handler API. Phase 6 checks each Electron release for one; the change would be small once it exists.
 
 The spoofing risk is real but bounded:
 - the box can't take input (`prompt` doesn't work);
