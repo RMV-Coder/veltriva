@@ -13,13 +13,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import Database from 'better-sqlite3/win32-x64';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { backupStamp, dailyBackupName } from './backups';
 import { DataError } from './errors';
 import { NEEDS_CHECK_SUFFIX } from './integrity';
 import { LATEST_VERSION } from './migrations';
-import { startDatabase } from './startup';
+import { OPEN_RETRY_DELAYS_MS, startDatabase } from './startup';
 import type { StartupResult } from './startup';
 import { damageTable, destroyHeader } from './testing/damage';
 
@@ -81,6 +81,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   started.splice(0).forEach(close);
   rmSync(dir, { recursive: true, force: true });
 });
@@ -136,6 +137,44 @@ describe('startDatabase: runs and crashes', () => {
     const error: unknown = await start().catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(DataError);
     expect(error).toMatchObject({ code: 'db_newer' });
+    expect(readdirSync(dir).filter((name) => name.includes('corrupt'))).toEqual([]);
+  });
+});
+
+// Right after a hard kill, Windows can hold the old process's files for a few seconds. A
+// directory in the database's place stands in for that: SQLite can't open it (SQLITE_CANTOPEN).
+describe('startDatabase: files briefly unavailable', () => {
+  it('waits, and opens the database once its file can be opened', async () => {
+    mkdirSync(file);
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    const starting = start();
+    await vi.advanceTimersByTimeAsync((OPEN_RETRY_DELAYS_MS[0] ?? 0) - 1);
+    rmSync(file, { recursive: true });
+    await vi.advanceTimersByTimeAsync(1);
+    const result = await starting;
+    expect(result).toMatchObject({ previousExit: 'none', checked: 'none', recovery: null });
+    expect(result.opened.userVersion).toBe(LATEST_VERSION);
+  });
+
+  it('gives up after the last wait, and leaves the file where it is', async () => {
+    mkdirSync(file);
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    let settled = false;
+    const outcome = start().then(
+      () => 'opened',
+      (error: unknown) => error,
+    );
+    void outcome.finally(() => {
+      settled = true;
+    });
+    const total = OPEN_RETRY_DELAYS_MS.reduce((sum, delay) => sum + delay, 0);
+    await vi.advanceTimersByTimeAsync(total - 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const error = await outcome;
+    expect(error).toBeInstanceOf(DataError);
+    expect(error).toMatchObject({ code: 'open_failed', detail: 'SQLITE_CANTOPEN_ISDIR' });
+    expect(existsSync(file)).toBe(true);
     expect(readdirSync(dir).filter((name) => name.includes('corrupt'))).toEqual([]);
   });
 });

@@ -11,7 +11,19 @@
 ## Decision
 
 1. **Unit tests.** Vitest 5 on Node 24, with `*.test.ts` files next to the code. `src/core` needs at least 90% line and branch coverage.
-   - **As built (v0.1.0): coverage isn't measured.** No coverage provider (such as `@vitest/coverage-v8`) is installed, and CI doesn't check the 90% target. The pure layers are tested heavily (8,576 tests at v0.1.0, with fast-check model and property tests), but the number is unmeasured. Adding the provider and a threshold is a follow-up.
+   - **As built (after v0.1.0): measured and enforced.** At v0.1.0 coverage wasn't measured. Now `npm run test:coverage` runs every unit test with `@vitest/coverage-v8` 5.0.5 (MIT, a dev dependency only; nothing of it ships). It fails below the floors set in `vitest.config.mts`:
+     - `src/core`: 90% of lines and of branches;
+     - `src/data`: 80% of lines and of branches (assessment §9.4).
+     - Every `.ts` source in both folders counts, tested or not. Test helpers and fixtures don't (`src/data/testing/`, `src/data/repos/test-database.ts`, the migration fixtures).
+     - CI's unit-test step runs it in place of `npm test`. On the dev laptop it took 73 s against `npm test`'s 71 s.
+   - **First measurement (8,599 tests):**
+     - `src/core`, 38 files: 98.8% of lines and 96.2% of branches.
+     - `src/data`, 25 files: 94.8% of lines and 90.8% of branches.
+     - That run added tests for two things no unit test reached: the transient-error retry when opening the database (`startup.ts`) and the named search engines (`search-engines.ts`).
+   - **What stays uncovered:**
+     - `src/data/worker.ts` (0%) is the worker thread's entry point. It runs only in the built app, so the E2E and lifecycle tests cover it.
+     - Most of `src/core/url/local-network.ts`'s gap is IPv6 and IPv4 parsing that `classifyHost` never reaches, because the URL parser has already canonicalized or rejected those forms.
+     - The rest are `??` fallbacks, and guards for SQLite misbehaving.
 2. **Model-based tests (fast-check 4).**
    - Random command sequences run against TabManager with fake tab runtimes.
    - Async completions are reordered with `fc.scheduler()` and `scheduledModelRun`.
