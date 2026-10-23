@@ -1208,6 +1208,7 @@ A *hostile fixture page* in the E2E suite tries to reach `window.veltriva`, `req
 | T13 | Tampered binary or update | Modified asar, intercepted update | ASAR integrity fuse, code signing, signed updates | Builds are unsigned until signing is set up |
 | T14 | Stale Chromium | Not shipping updates | Written upgrade policy (§10.1); update notification before any public release; auto-update once signed | Depends on maintainer availability |
 | T15 | Debug surfaces | `--inspect`, remote debugging, `NODE_OPTIONS` | Fuses; no debugging port in production; test hooks compiled out | Low |
+| T16 | Main stalls on pathological input (regular-expression denial of service) | A long page- or server-influenced string reaching a backtracking regex: a log field, a download's name | Patterns on untrusted text are anchored at both ends and run on bounded input; punctuation is peeled by loop; long values are cut first (the log scrubber at 2,048 characters, words at 256; download names at 4,096). An audit times every regex in `src` against adversarial input (M6.2 review, `docs/security/security-review.md`) | Low. A timing audit covers the known shapes, not every possible input |
 
 ### 6.6 Privacy posture
 

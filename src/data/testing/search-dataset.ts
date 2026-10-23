@@ -848,11 +848,21 @@ function ytId(rng: Rng): string {
   ).join('');
 }
 
+/** Without leading and trailing dashes; a loop, since `-+$` is retried from every position. */
+const trimDashes = (text: string): string => {
+  let start = 0;
+  let end = text.length;
+  while (start < end && text.charAt(start) === '-') {
+    start += 1;
+  }
+  while (end > start && text.charAt(end - 1) === '-') {
+    end -= 1;
+  }
+  return text.slice(start, end);
+};
+
 const slugify = (text: string): string =>
-  text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  trimDashes(text.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
 
 const cap = (text: string): string => `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 
