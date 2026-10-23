@@ -4,6 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
 
+import { bundledPackages } from './scripts/bundled-packages.mjs';
+
 export default defineConfig({
   // Two entries, both CommonJS: main itself (out/main/index.js), and the data worker
   // (out/main/data-worker.js), which main starts as a worker thread and never imports (ADR-0004).
@@ -17,6 +19,8 @@ export default defineConfig({
         },
       },
     },
+    // M6.1: which packages each bundle holds, for THIRD_PARTY_NOTICES.txt.
+    plugins: [bundledPackages('main')],
   },
   preload: {
     build: {
@@ -26,6 +30,7 @@ export default defineConfig({
         input: { shell: resolve('src/preload/shell.ts') },
       },
     },
+    plugins: [bundledPackages('preload')],
   },
   renderer: {
     // Root: src/renderer (electron-vite's default). Output: out/renderer. Two pages: the shell,
@@ -41,6 +46,6 @@ export default defineConfig({
     resolve: {
       alias: { '@': resolve('src/renderer') },
     },
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), bundledPackages('renderer')],
   },
 });

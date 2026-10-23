@@ -21,6 +21,17 @@ files:
   - '!node_modules/better-sqlite3/{binding.gyp,README.md}'
   - '!node_modules/better-sqlite3/prebuilds/{darwin-arm64,darwin-x64,linux-arm64,linux-x64,linuxmusl-arm64,linuxmusl-x64,win32-arm64}.node'
   - '!node_modules/node-addon-api/**'
+  # The build's lists of bundled packages (scripts/bundled-packages.mjs): inputs to the notices.
+  - '!out/third-party/**'
+
+# The app's license and every third-party license it ships (M6.1, scripts/third-party-notices.mjs),
+# in resources/. electron-builder puts Electron's (LICENSE.electron.txt) and Chromium's
+# (LICENSES.chromium.html) next to Veltriva.exe itself.
+extraResources:
+  - from: LICENSE
+    to: LICENSE.txt
+  - from: THIRD_PARTY_NOTICES.txt
+    to: THIRD_PARTY_NOTICES.txt
 
 # Only the native binary leaves the archive: Windows can't map a DLL from inside app.asar.
 # Electron redirects the worker's require() of it to app.asar.unpacked. The worker script and

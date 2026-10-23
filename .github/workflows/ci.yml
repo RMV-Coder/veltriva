@@ -59,6 +59,11 @@ jobs:
       - name: Check the production build
         run: node scripts/check-production-build.mjs
 
+      # Every package the build bundled has an allowed license, and THIRD_PARTY_NOTICES.txt
+      # lists it (M6.1, assessment §9.4).
+      - name: License check
+        run: node scripts/third-party-notices.mjs --check
+
       # Builds the test variant (--mode test) itself, then runs Playwright.
       - name: E2E tests
         run: npm run test:e2e

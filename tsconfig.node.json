@@ -9,6 +9,7 @@
   "include": [
     "*.config.ts",
     "*.config.mts",
+    "scripts/*.d.mts",
     "src/**/*.test.ts",
     "src/data/*.d.ts",
     "src/data/repos/test-database.ts",
