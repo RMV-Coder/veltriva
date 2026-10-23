@@ -671,6 +671,8 @@ export const commandSchemas = {
   },
   /** Shows the log file's folder in Explorer (M5.3). */
   'diagnostics.openLogFolder': { input: nothing, output: nothing },
+  /** F6 from the sidebar (M6.2): the selected tab's page gets the keyboard, as F6 from it left. */
+  'focus.page': { input: nothing, output: nothing },
   /**
    * Searches the memory (M4.2, assessment §5.4, §7.3): the palette and the address bar. The words
    * go to the data worker as typed; main reads a `site:<domain>` word out of them, which, like
@@ -823,6 +825,7 @@ export const eventSchemas = {
   'ui.focusAddressBar': nothing,
   'ui.focusFind': nothing,
   'ui.openPalette': nothing,
+  'ui.cycleFocus': nothing,
 } as const satisfies Record<EventName, z.ZodType>;
 
 export type CommandInput<C extends CommandName> = z.input<(typeof commandSchemas)[C]['input']>;

@@ -74,6 +74,7 @@ export const COMMAND_NAMES = [
   'permissions.change',
   'diagnostics.export',
   'diagnostics.openLogFolder',
+  'focus.page',
 ] as const;
 export type CommandName = (typeof COMMAND_NAMES)[number];
 
@@ -81,6 +82,8 @@ export type CommandName = (typeof COMMAND_NAMES)[number];
  * `workspace.changed` carries a versioned, coalesced snapshot: at most one per ~16 ms.
  * `ui.focusAddressBar` and `ui.focusFind` come after main gave the shell keyboard focus (Ctrl+L,
  * Ctrl+F): the shell focuses that field. `ui.openPalette` likewise, for Ctrl+Shift+K (M4.2).
+ * `ui.cycleFocus` is F6 while the shell has the keyboard (M6.2): the shell moves on from the
+ * address bar to the sidebar, or from the sidebar to the page (`focus.page`).
  */
 export const EVENT_NAMES = [
   'app.themeChanged',
@@ -88,6 +91,7 @@ export const EVENT_NAMES = [
   'ui.focusAddressBar',
   'ui.focusFind',
   'ui.openPalette',
+  'ui.cycleFocus',
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 

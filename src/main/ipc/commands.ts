@@ -378,6 +378,11 @@ export function createCommandHandlers({
       lifecycle.openLogFolder();
       return done;
     },
+    // M6.2: F6 from the sidebar.
+    'focus.page': () => {
+      focus.focusSelected();
+      return done;
+    },
 
     'memory.search': (input) => memory.search(input),
     'memory.open': async (input) => ({ tabId: await memory.open(input) }),

@@ -538,3 +538,8 @@ export async function openLogFolder(): Promise<boolean> {
   return (await run('diagnostics.openLogFolder', () => window.veltriva.diagnostics.openLogFolder()))
     .ok;
 }
+
+/** F6 from the sidebar (M6.2): the selected tab's page gets the keyboard. */
+export async function focusPage(): Promise<boolean> {
+  return (await run('focus.page', () => window.veltriva.focus.page())).ok;
+}

@@ -2,6 +2,7 @@ import { useRef } from 'react';
 
 import { DownloadsPanel } from '../features/downloads/DownloadsPanel';
 import { useContentInsets } from '../features/layout/use-content-insets';
+import { useFocusCycle } from '../features/layout/use-focus-cycle';
 import { NoticeStrips } from '../features/notices/NoticeStrips';
 import { ContentArea } from '../features/pages/ContentArea';
 import { PaletteHost } from '../features/palette/PaletteHost';
@@ -30,6 +31,8 @@ export function BrowserShell() {
   const contentRef = useRef<HTMLDivElement>(null);
 
   useContentInsets(contentRef);
+  // M6.2: F6 moves on from the address bar to the sidebar, and from the sidebar to the page.
+  useFocusCycle();
 
   return (
     <div className="grid h-screen grid-cols-[260px_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] overflow-hidden text-foreground">
