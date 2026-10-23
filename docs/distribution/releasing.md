@@ -33,6 +33,19 @@ Afterwards, `check-packaged-app.mjs` checks `release/win-unpacked`:
 
 The uninstaller's question is `build/installer.nsh` (electron-builder's `customUnInstall` hook).
 
+### Testing an installer on this machine
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\installer-test.ps1 -Installer release\Veltriva-Browser-Setup-0.1.0.exe
+```
+
+`scripts/installer-test.ps1` runs the installer end to end and prints what it found at each step:
+- install, launch, uninstall keeping the profile, reinstall, launch;
+- uninstall removing the profile, then `/S` and `/S --delete-app-data`;
+- with `-Upgrade <newer installer>`, an upgrade over the install, which must keep the profile and ask nothing.
+
+It answers the uninstaller's two questions by pressing their buttons, so the interactive path runs. Your own profile is renamed aside first, to `%APPDATA%\Veltriva.installer-test-aside`, and put back at the end. The script refuses to run while Veltriva is running or installed.
+
 ## The update notice
 
 **Off by default, and silent while off.** No request, no DNS lookup and no timer runs until the user turns on **Settings ▸ Updates ▸ Check for new versions** (`src/main/updates/update-checker.ts`).
