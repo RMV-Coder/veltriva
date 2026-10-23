@@ -1,7 +1,7 @@
 {
   "name": "veltriva",
   "productName": "Veltriva Browser",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "A local-first, Chromium-powered desktop browser that manages inactive tabs and keeps a searchable local tab memory.",
   "author": "Raymond Valdepeñas",
