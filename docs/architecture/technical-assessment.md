@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| **Status** | **Approved 2026-10-16**: decisions D1–D8 accepted as recommended, recorded as [ADRs 0001–0009](../adr/README.md). Phase 0 spikes done; Phase 1 done (2026-10-17); Phase 2 done (2026-10-22, Milestone 0.1 reached, see §8.2); Phase 3 done (2026-10-22, see §8.2; the memory measurement still to run on a quiet machine); Phase 4 done (2026-10-23, Electron 45.0.0, see §8.2) |
+| **Status** | **Approved 2026-10-16**: decisions D1–D8 accepted as recommended, recorded as [ADRs 0001–0009](../adr/README.md). Phase 0 spikes done; Phase 1 done (2026-10-17); Phase 2 done (2026-10-22, Milestone 0.1 reached, see §8.2); Phase 3 done (2026-10-22, see §8.2; its memory measurement finished in Phase 6); Phase 4 done (2026-10-23, Electron 45.0.0, see §8.2); Phase 5 done (2026-10-23); Phase 6 done (2026-10-24, v0.1.0 prepared locally, see §8.2). How v0.1.0 works as built: [overview.md](overview.md) |
 | **Date** | 2026-10-16 |
 | **Scope** | MVP for Windows 10/11 x64 |
 | **Identity** | Project *Veltriva* · repo `veltriva` · app *Veltriva Browser* · MIT license (after dependency license review) |
@@ -1371,6 +1371,16 @@ Effort assumes one developer at 15–20 h/week.
 **Progress, 2026-10-22 (Phase 3).** Phase 3 (lifecycle and protection) is done: each acceptance criterion above, with its evidence, is in [the Phase 3 plan's as-built record](../plans/phase-3-plan.md#phase-3-acceptance-assessment-82), and the memory measurement's method and status in [docs/benchmarks/phase-3-memory.md](../benchmarks/phase-3-memory.md): its harness is built, but the reference laptop was too loaded on 2026-10-22 to finish a run, so that criterion is still open. Two parts of later phases came early at the orchestrator's request: the regret metric and its diagnostics page (Phase 5). The hands-on checks are in `docs/testing/phase-3-manual-checks.md`. Phase 4 is next.
 
 **Progress, 2026-10-23 (Phase 4).** Phase 4 (searchable memory) is done, on Electron 45.0.0: each acceptance criterion above, with its evidence, is in [the Phase 4 plan's as-built record](../plans/phase-4-plan.md#phase-4-acceptance-assessment-82). Every §5.4 latency target is met ([docs/benchmarks/search.md](../benchmarks/search.md)); the archive → search → restore E2E and the golden-set tests pass. The hands-on checks are in `docs/testing/phase-4-manual-checks.md`. Phase 5 is next.
+
+**Progress, 2026-10-23 (Phase 5).** Phase 5 (settings, privacy and control) is done: each acceptance criterion above, with its evidence, is in [the Phase 5 plan's as-built record](../plans/phase-5-plan.md). Every automatic action is explainable (the "why", Activity, diagnostics) and reversible (Undo, restore). Deletion is verified down to the file's bytes (`forget.test.ts`). Invalid settings are rejected by the strict schema.
+
+**Progress, 2026-10-24 (Phase 6).** Phase 6 (quality and release) is done, and v0.1.0 is prepared locally: an annotated tag, never pushed, and an unsigned installer with its SHA-256. Each criterion, with its evidence, is in [the Phase 6 plan's as-built record](../plans/phase-6-plan.md#phase-6-acceptance-82-adapted):
+- **Clean install:** met on this machine by `scripts/installer-test.ps1` (install, uninstall both ways, reinstall, upgrade); the Windows 10 and 11 VM installs are the user's, in the final checklist.
+- **A reproducible benchmark report:** [docs/benchmarks/memory.md](../benchmarks/memory.md), 10, 25, 50 and 100 tabs × the three modes, every run finished. Unloading frees about 34 MB per tab; moving tabs out of sight frees nothing. The Phase 3 criterion "memory reduction measured and published with the method" is met with it.
+- **Known limitations documented:** the README.
+- **CI green:** every step ran locally, but CI has never run on GitHub, because there is no remote.
+
+The security review ([docs/security/security-review.md](../security/security-review.md)) and the accessibility pass are recorded in ADR-0002 item 15 and ADR-0008 item 7. The user's remaining checks are one list: `docs/testing/final-manual-checklist.md`.
 
 At 15–20 h/week that's **about 6–8 months**. Add 15–20% contingency for Electron surprises. Daily dogfooding starts around **week 11–16**. Subagent assistance may shorten the *coding* hours, but review, debugging, dogfooding and decisions don't shrink the same way, so I plan against the full estimate and treat any speed-up as buffer.
 
