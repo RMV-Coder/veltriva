@@ -151,6 +151,15 @@ export interface LaunchOptions {
   readonly env?: Readonly<Record<string, string>>;
 }
 
+/**
+ * Switches every launch gets. Chromium's fake camera and microphone: on a machine without them,
+ * such as CI's runner, Chromium refuses `getUserMedia` with NotFoundError before it asks, so the
+ * permission specs would never see their question. The question still comes, and is still
+ * answered by the spec: never `--use-fake-ui-for-media-stream`, which would answer it itself.
+ * It also keeps the specs off a real camera.
+ */
+const DEFAULT_SWITCHES = ['--use-fake-device-for-media-stream'] as const;
+
 export async function launchApp(
   userDataDir: string,
   options: LaunchOptions = {},
@@ -158,7 +167,7 @@ export async function launchApp(
   const { repoRoot, electronBinary } = appPaths();
   const app = await electron.launch({
     executablePath: electronBinary,
-    args: [...(options.switches ?? []), repoRoot],
+    args: [...DEFAULT_SWITCHES, ...(options.switches ?? []), repoRoot],
     cwd: repoRoot,
     env: { ...buildLaunchEnv(userDataDir), ...options.env },
     timeout: LAUNCH_TIMEOUT_MS,
