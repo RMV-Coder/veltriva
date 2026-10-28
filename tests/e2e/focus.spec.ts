@@ -30,6 +30,7 @@ import {
   loadTab,
   mainIds,
   newTabButton,
+  newTabSearchBox,
   omnibox,
   openNewTab,
   tabElement,
@@ -159,7 +160,7 @@ test.describe('focus', () => {
     await expectPageFocused(electronApp, await webContentsIdOf(electronApp, tabId));
   });
 
-  test('F6 goes from the page to the address bar and from the shell to the page; a new-tab page keeps it in the address bar', async ({
+  test('F6 cycles the address bar, the sidebar’s selected tab and the page (M6.2); a new-tab page’s stop is its search box', async ({
     electronApp,
     fixtureServer,
     shell,
@@ -173,15 +174,28 @@ test.describe('focus', () => {
     await expect(omnibox(shell)).toBeFocused();
 
     await sendKey(electronApp, 'focused', 'F6');
+    await expect(tabElement(shell, tab.tabId)).toBeFocused();
+    await expectShellFocused(electronApp);
+
+    await sendKey(electronApp, 'focused', 'F6');
     await expectPageFocused(electronApp, tab.webContentsId);
 
-    // A new-tab page has no page to give the keyboard to: F6 keeps it in the address bar.
+    // A new-tab page is drawn by the shell, so its search box is the page's stop.
     await sendKey(electronApp, 'focused', 'T', ['control']);
     await expectShellFocused(electronApp);
-    await blurAddressBar(shell);
+    await expect(omnibox(shell)).toBeFocused();
+    const newTab = await selectedTabId(electronApp);
+    expect(newTab).not.toBe(tab.tabId);
+    // Main focuses the address bar at once, before the snapshot that selects the new tab reaches
+    // the shell; F6's next stop is the tab the shell shows as selected, so wait for the shell.
+    await expect(tabElement(shell, newTab ?? '')).toHaveAttribute('aria-selected', 'true');
+    await sendKey(electronApp, 'focused', 'F6');
+    await expect(tabElement(shell, newTab ?? '')).toBeFocused();
+    await sendKey(electronApp, 'focused', 'F6');
+    await expect(newTabSearchBox(shell)).toBeFocused();
+    await expectShellFocused(electronApp);
     await sendKey(electronApp, 'focused', 'F6');
     await expect(omnibox(shell)).toBeFocused();
-    await expectShellFocused(electronApp);
   });
 
   test('Ctrl+F from the address bar opens the find bar; Escape there gives the keyboard to the page', async ({

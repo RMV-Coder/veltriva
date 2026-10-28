@@ -201,19 +201,41 @@ const INVISIBLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
 export const MAX_FILE_NAME_LENGTH = 180;
 const FALLBACK_NAME = 'download';
 
+/**
+ * The name without its trailing dots and spaces, which Windows ignores. A loop, not `/[. ]+$/`:
+ * that regex is retried from every position, so a long run of dots and spaces in a name a server
+ * sent (before the name is cut to length) took seconds of main's time (M6.2 review).
+ */
+export function trimTrailingDotsAndSpaces(name: string): string {
+  let end = name.length;
+  while (end > 0 && (name.charAt(end - 1) === '.' || name.charAt(end - 1) === ' ')) {
+    end -= 1;
+  }
+  return name.slice(0, end);
+}
+
 /** The last extension, lowercased, or '' when there is none. */
 export function extensionOf(name: string): string {
   // Windows ignores trailing dots and spaces: "Setup.PIF." is a .pif.
-  const trimmed = name.replace(/[. ]+$/, '');
+  const trimmed = trimTrailingDotsAndSpaces(name);
   const dot = trimmed.lastIndexOf('.');
   return dot <= 0 ? '' : trimmed.slice(dot + 1).toLowerCase();
 }
 
+/**
+ * A raw name longer than this keeps only its start and its end (where the extension is) before
+ * anything else runs: it is cut to MAX_FILE_NAME_LENGTH anyway, and a server chooses it, so the work
+ * on it stays small (M6.2 review).
+ */
+export const MAX_RAW_NAME_LENGTH = 4096;
+
 /** A name that is safe as a single file in the Downloads folder. */
 export function sanitizeFileName(raw: string): string {
-  let name = raw.replace(INVISIBLE, '').replace(FORBIDDEN, '_').replace(/\s+/g, ' ').trim();
+  const half = MAX_RAW_NAME_LENGTH / 2;
+  const bounded = raw.length > MAX_RAW_NAME_LENGTH ? raw.slice(0, half) + raw.slice(-half) : raw;
+  let name = bounded.replace(INVISIBLE, '').replace(FORBIDDEN, '_').replace(/\s+/g, ' ').trim();
   // Windows drops trailing dots and spaces, which would change the extension it sees.
-  name = name.replace(/[. ]+$/, '');
+  name = trimTrailingDotsAndSpaces(name);
   // A leading dot would make a hidden-looking dotfile; ".." can't be a name at all.
   name = name.replace(/^\.+/, '');
   if (name === '') {

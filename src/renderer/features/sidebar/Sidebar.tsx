@@ -36,6 +36,7 @@ export function Sidebar() {
   return (
     <aside
       aria-label="Sidebar"
+      data-sidebar=""
       onKeyDown={onKeyDown}
       className="flex min-h-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground select-none"
     >

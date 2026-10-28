@@ -165,10 +165,18 @@ export function emptyMessage(mode: MemoryMode): string {
   return mode === 'text' ? 'No pages match' : 'Nothing remembered yet';
 }
 
-/** The live region's text: how many results the list has now. */
-export function resultsAnnouncement(count: number, mode: MemoryMode): string {
-  if (count === 0) {
-    return emptyMessage(mode);
-  }
-  return count === 1 ? '1 result' : `${String(count)} results`;
+/**
+ * The live region's text: how many results the list has now. With a filter other than All, it
+ * names the filter first (M6.2): Tab changes the filter while the field keeps the keyboard, so
+ * this is how a screen reader hears which one is on.
+ */
+export function resultsAnnouncement(
+  count: number,
+  mode: MemoryMode,
+  scope: MemoryScope = 'all',
+): string {
+  const text =
+    count === 0 ? emptyMessage(mode) : count === 1 ? '1 result' : `${String(count)} results`;
+  const label = PALETTE_SCOPES.find((entry) => entry.scope === scope)?.label;
+  return scope === 'all' || label === undefined ? text : `${label}: ${text}`;
 }

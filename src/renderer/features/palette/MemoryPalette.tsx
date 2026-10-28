@@ -336,7 +336,7 @@ export function MemoryPalette() {
 
         {/* Always in the page, so assistive technology hears how many results each search found. */}
         <p role="status" className="sr-only" data-palette-status="">
-          {removed ?? (answer === null ? '' : resultsAnnouncement(results.length, mode))}
+          {removed ?? (answer === null ? '' : resultsAnnouncement(results.length, mode, scope))}
         </p>
 
         <div className="min-h-0 flex-1 overflow-y-auto border-t px-2 py-1">

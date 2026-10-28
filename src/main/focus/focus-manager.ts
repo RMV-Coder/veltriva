@@ -7,7 +7,8 @@
 //   - A typed navigation that commits: its page (TabManager, `focusOnCommit`).
 //   - A tab switch by shortcut, or by a click in the sidebar: the new tab's page, or the address
 //     bar for a new tab. A switch by keyboard inside the sidebar keeps focus in the sidebar.
-//   - F6: from the page to the address bar, and from the shell to the page.
+//   - F6: from the page to the address bar; then the shell moves on to the sidebar's selected tab,
+//     and from there back to the page (M6.2, `ui.cycleFocus` and `focus.page`).
 //   - Closing the find bar, or the fullscreen notice: back to the page.
 //   - Ctrl+Shift+K: the shell, which opens the memory palette (M4.2); the palette's overlay keeps
 //     it while open, and closing it without opening anything gives the page its keyboard back.
@@ -72,17 +73,18 @@ export class FocusManager {
     }
   }
 
-  /** F6: the page and the address bar take turns. */
+  /**
+   * F6: the page, the address bar and the sidebar take turns (M6.2). From the page, main focuses
+   * the address bar. With the shell focused, only the shell knows where its focus is, so it moves
+   * on itself: from the address bar to the sidebar, and from the sidebar to the page (`focus.page`,
+   * `focusSelected`).
+   */
   cycle(): void {
     if (!this.shellHasFocus()) {
       this.focusAddressBar();
       return;
     }
-    const tabs = this.#options.tabs();
-    const tabId = tabs.selectedTabId();
-    if (tabId === null || !tabs.focusPage(tabId)) {
-      this.focusAddressBar();
-    }
+    this.#options.events.emit('ui.cycleFocus', {});
   }
 
   #focusShell(): void {

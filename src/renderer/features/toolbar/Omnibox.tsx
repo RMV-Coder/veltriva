@@ -12,6 +12,7 @@ import { suggestionOpenFor } from '../palette/memory-display';
 import { AddressIndicator, CredentialsRemovedIndicator } from './AddressIndicator';
 import { SuggestionDropdown } from './SuggestionDropdown';
 import { ZoomIndicator } from './ZoomIndicator';
+import { suggestionsAnnouncement } from './suggestion-display';
 import { suggestionKeyAction } from './suggestion-keys';
 import { useSuggestions } from './use-suggestions';
 import { isZoomIndicatorVisible } from './zoom-display';
@@ -276,6 +277,10 @@ export function Omnibox() {
           />
         ) : null}
       </form>
+      {/* Always in the page, so a screen reader hears when the list appears and how long it is. */}
+      <p role="status" className="sr-only" data-suggestions-status="">
+        {suggestionsAnnouncement(suggestions.open, suggestions.results.length)}
+      </p>
       {suggestions.open ? (
         <SuggestionDropdown
           listId={suggestions.listId}

@@ -4,7 +4,7 @@
   --bar-bg: #f4f4f5;
   --bar-border: #e4e4e7;
   --text: #18181b;
-  --muted: #71717a;
+  --muted: #63636b; /* M6.2: 5.4:1 on the bar, past WCAG AA; #71717a was 4.4:1 */
   --secure: #15803d;
   --warning: #b45309;
 }

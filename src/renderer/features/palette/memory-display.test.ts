@@ -225,4 +225,11 @@ describe('emptyMessage and resultsAnnouncement', () => {
     expect(resultsAnnouncement(1, 'text')).toBe('1 result');
     expect(resultsAnnouncement(12, 'recent')).toBe('12 results');
   });
+
+  it('names the filter when it is not All (M6.2)', () => {
+    expect(resultsAnnouncement(3, 'text', 'all')).toBe('3 results');
+    expect(resultsAnnouncement(3, 'text', 'open')).toBe('Open: 3 results');
+    expect(resultsAnnouncement(1, 'recent', 'week')).toBe('This week: 1 result');
+    expect(resultsAnnouncement(0, 'text', 'archived')).toBe('Archived: No pages match');
+  });
 });

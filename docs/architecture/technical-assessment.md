@@ -1208,6 +1208,7 @@ A *hostile fixture page* in the E2E suite tries to reach `window.veltriva`, `req
 | T13 | Tampered binary or update | Modified asar, intercepted update | ASAR integrity fuse, code signing, signed updates | Builds are unsigned until signing is set up |
 | T14 | Stale Chromium | Not shipping updates | Written upgrade policy (§10.1); update notification before any public release; auto-update once signed | Depends on maintainer availability |
 | T15 | Debug surfaces | `--inspect`, remote debugging, `NODE_OPTIONS` | Fuses; no debugging port in production; test hooks compiled out | Low |
+| T16 | Main stalls on pathological input (regular-expression denial of service) | A long page- or server-influenced string reaching a backtracking regex: a log field, a download's name | Patterns on untrusted text are anchored at both ends and run on bounded input; punctuation is peeled by loop; long values are cut first (the log scrubber at 2,048 characters, words at 256; download names at 4,096). An audit times every regex in `src` against adversarial input (M6.2 review, `docs/security/security-review.md`) | Low. A timing audit covers the known shapes, not every possible input |
 
 ### 6.6 Privacy posture
 
@@ -1322,10 +1323,11 @@ These are documented in the README's *Known limitations*:
 **Accessibility:**
 
 - Everything is reachable by keyboard.
-- ARIA patterns: `listbox`/`option` for the palette, `tree` for the sidebar.
-- Visible focus rings and WCAG AA contrast.
+- ARIA patterns: `listbox`/`option` for the palette, `tree` for the sidebar. **As built (M6.2, ADR-0009 item 6):** the open tabs are a vertical `tablist` whose tabs control the content area, and Sleeping and Archive are disclosure sections over lists. That says more precisely what each part does than a tree would.
+- Visible focus rings and WCAG AA contrast. **M6.2** darkened the light theme's muted text and focus ring to pass (4.5:1 and 3:1), and axe-core checks every shell state in both themes (`tests/e2e/accessibility.spec.ts`).
 - `prefers-reduced-motion` is respected; there is very little motion to begin with.
 - State icons have text equivalents ("Unloaded", "Playing audio").
+- **F6** cycles the address bar, the sidebar's selected tab and the page (M6.2). The screen-reader checks are in `docs/testing/accessibility.md`.
 
 ### 7.4 MVP acceptance criteria
 

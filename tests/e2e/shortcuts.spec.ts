@@ -42,6 +42,7 @@ import {
   mainIds,
   omnibox,
   palette,
+  tabElement,
   tabElements,
   typeAddress,
   waitForPage,
@@ -380,7 +381,7 @@ test.describe('reserved shortcuts', () => {
     expect(await pageEvents(key.page)).toEqual([]);
   });
 
-  test('F6 moves the keyboard between the page and the address bar', async ({
+  test('F6 moves the keyboard from the page to the address bar, the sidebar and back (M6.2)', async ({
     electronApp,
     fixtureServer,
     shell,
@@ -394,7 +395,12 @@ test.describe('reserved shortcuts', () => {
     await expect(omnibox(shell)).toBeFocused();
     await expect.poll(async () => (await focusedWebContents(electronApp))?.isShell).toBe(true);
 
-    // Address bar to page.
+    // Address bar to the sidebar's selected tab.
+    await sendKey(electronApp, 'shell', 'F6');
+    await expect(tabElement(shell, key.tab.tabId)).toBeFocused();
+    await expect.poll(async () => (await focusedWebContents(electronApp))?.isShell).toBe(true);
+
+    // Sidebar to page.
     await sendKey(electronApp, 'shell', 'F6');
     await expect
       .poll(async () => (await focusedWebContents(electronApp))?.webContentsId)
@@ -735,9 +741,11 @@ test.describe('reserved shortcuts from the shell', () => {
     await sendKey(electronApp, 'shell', 'F5');
     await expect.poll(() => fixtureServer.hits(path)).toBe(2);
 
-    // F6 from the address bar goes to the page.
+    // F6 from the address bar goes to the sidebar's selected tab, and from there to the page (M6.2).
     await sendKey(electronApp, hostile.tab.webContentsId, 'L', ['control']);
     await expect(omnibox(shell)).toBeFocused();
+    await sendKey(electronApp, 'shell', 'F6');
+    await expect(tabElement(shell, hostile.tab.tabId)).toBeFocused();
     await sendKey(electronApp, 'shell', 'F6');
     await expect
       .poll(async () => (await focusedWebContents(electronApp))?.webContentsId)

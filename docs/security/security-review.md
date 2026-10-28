@@ -124,6 +124,32 @@
 | T13 | Tampered binary or update | Holds, partly; residual | ASAR integrity and `OnlyLoadAppFromAsar` (now read back). Residual: unsigned builds (code signing is the user's paid decision); no update channel exists, so there is nothing to sign yet (M6.3) |
 | T14 | Stale Chromium | Holds; open | ADR-0001's upgrade policy. **Open (M6.3):** the update-available notification |
 | T15 | Debug surfaces | Holds | Fuses (now read back); no `remote-debugging-port` or `inspect` switch anywhere in `src/main`; test hooks compiled out and refused by `scripts/check-production-build.mjs` |
+| T16 | Main stalls on pathological input (regular-expression denial of service) | **Fixed in the M6.2 review**; holds | Found by the orchestrator's review of M6.1: the log scrubber peeled trailing punctuation with an unanchored `/[…]+$/u`, which V8 retries from every position. *Measured:* 396 ms at 16,000 characters, 5.3 s at 64,000. A long page-influenced string in any log field would have hung main. The same shape was in download names (`/[. ]+$/`, twice, on a name a server sends, before it is cut to length): 1 s at 20,000 characters. See "Regular expressions on untrusted text" below |
+
+## Regular expressions on untrusted text (T16, the M6.2 review)
+
+**The fixes:**
+- **The log scrubber** (`src/main/platform/log-redaction.ts`):
+  - Wrapping punctuation is now peeled with loops over a character set.
+  - A value is scrubbed up to 2,048 characters, and the cut is marked "…[truncated]". The marker is added after the scrub, so it can't join a cut word and shield it.
+  - A word over 256 characters is hidden without being judged.
+  - Every remaining pattern is anchored at both ends and runs on at most 256 characters.
+  - *Measured after the fix:* a million characters of `)`, `:` or dotted labels scrub in 1–3 ms. Unit tests hold each adversarial case under 100 ms.
+- **Download names** (`src/core/downloads/file-names.ts`):
+  - `trimTrailingDotsAndSpaces` is a loop.
+  - A raw name over 4,096 characters keeps only its first and last 2,048 before anything else runs; the extension is at the end. The name is cut to 180 characters anyway.
+  - Unit tests hold a million characters under 100 ms.
+- **The synthetic search dataset's slug** (`src/data/testing/search-dataset.ts`, test builds only, our own word lists) had `/^-+|-+$/g`. It is a loop now too, with the same output.
+- **The property test** that no generated address survives the scrub now runs on a fixed seed (2,000 cases), plus a smaller random run, each with a 60 s timeout. It had timed out at 5 s about one run in three on the loaded laptop, from generating cases, not from scrubbing.
+
+**The audit of everything else.** Every regular-expression literal in `src` was extracted with the TypeScript parser: 110 in `src/core`, `src/main`, `src/data` and `src/shared`, and 10 in `src/renderer` and `src/preload`. Each was timed against 209 adversarial inputs of about 20,000 characters: runs of every ASCII punctuation character, digits, letters, CJK and a bidi control, alone, in pairs, and followed by a mismatch.
+- **After the fixes,** none takes over 25 ms.
+- **The shapes that can backtrack** (a quantified group, or an unanchored `X+$`) were also listed and reviewed by hand:
+  - **The favicon `data:` parser** (`core/net/favicon-format.ts`): its group is delimited by `;`, so it can't be ambiguous.
+  - **The omnibox's `/:\d*$/`:** each start costs at most its digit run.
+  - Both measured linear: 14 ms and 3 ms at 320,000 characters.
+- **Dynamic `new RegExp`:** only `src/data/backups.ts`, built from constants and anchored, on file names in the profile folder.
+- **What a timing audit can't prove:** that no input exists. It covers the shapes known to backtrack and the inputs that provoke them. New code should keep the rule this fix follows: anchor both ends, bound the input, and peel by loop.
 
 ## §6.6 Privacy posture
 

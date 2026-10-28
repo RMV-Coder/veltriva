@@ -6,6 +6,7 @@ import {
   extensionOf,
   isDangerousFileName,
   sanitizeFileName,
+  trimTrailingDotsAndSpaces,
   uniqueFileName,
 } from './file-names';
 
@@ -173,5 +174,26 @@ describe('the dangerous-type list', () => {
     ]) {
       expect(isDangerousFileName(name), name).toBe(false);
     }
+  });
+});
+
+describe('trimming trailing dots and spaces (M6.2 review: no regex DoS)', () => {
+  it('drops what Windows ignores, and nothing else', () => {
+    expect(trimTrailingDotsAndSpaces('Setup.PIF. . ')).toBe('Setup.PIF');
+    expect(trimTrailingDotsAndSpaces('. .')).toBe('');
+    expect(trimTrailingDotsAndSpaces('report.pdf')).toBe('report.pdf');
+    expect(trimTrailingDotsAndSpaces('')).toBe('');
+  });
+
+  it.each([
+    ['dots and spaces before a letter', `${'. '.repeat(500_000)}x`],
+    ['a long tail of dots', `name${'.'.repeat(1_000_000)}`],
+    ['spaces, then a dot, then text', `${' '.repeat(1_000_000)}.exe x`],
+  ])('handles a million characters of %s in well under 100 ms', (_name, raw) => {
+    const started = performance.now();
+    const name = sanitizeFileName(raw);
+    extensionOf(raw);
+    expect(performance.now() - started).toBeLessThan(100);
+    expect(name.length).toBeLessThanOrEqual(MAX_FILE_NAME_LENGTH);
   });
 });
