@@ -186,6 +186,9 @@ test.describe('focus', () => {
     await expect(omnibox(shell)).toBeFocused();
     const newTab = await selectedTabId(electronApp);
     expect(newTab).not.toBe(tab.tabId);
+    // Main focuses the address bar at once, before the snapshot that selects the new tab reaches
+    // the shell; F6's next stop is the tab the shell shows as selected, so wait for the shell.
+    await expect(tabElement(shell, newTab ?? '')).toHaveAttribute('aria-selected', 'true');
     await sendKey(electronApp, 'focused', 'F6');
     await expect(tabElement(shell, newTab ?? '')).toBeFocused();
     await sendKey(electronApp, 'focused', 'F6');
