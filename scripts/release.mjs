@@ -16,7 +16,7 @@
 // A failure leaves what was done in place; `veyra undo` reverses the commits and the tag.
 import { createHash } from 'node:crypto';
 import console from 'node:console';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -62,14 +62,22 @@ function commit(message) {
   if (trailer !== undefined) {
     lines.push('', trailer);
   }
-  const file = join(tmpdir(), `veltriva-release-${String(process.pid)}.txt`);
-  writeFileSync(file, `${lines.join('\n')}\n`);
-  run('veyra', [
-    'commit',
-    '-F',
-    file,
-    ...(assistedBy === undefined ? [] : ['--assisted-by', assistedBy]),
-  ]);
+  // A folder of its own (mkdtemp: a random name, for this user only), not a predictable name in
+  // the shared temp folder, where another program could put a file first (CodeQL: insecure
+  // temporary file).
+  const dir = mkdtempSync(join(tmpdir(), 'veltriva-release-'));
+  try {
+    const file = join(dir, 'message.txt');
+    writeFileSync(file, `${lines.join('\n')}\n`, { flag: 'wx', mode: 0o600 });
+    run('veyra', [
+      'commit',
+      '-F',
+      file,
+      ...(assistedBy === undefined ? [] : ['--assisted-by', assistedBy]),
+    ]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 // 1. Checks.
