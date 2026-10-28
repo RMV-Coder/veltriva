@@ -67,7 +67,7 @@ It answers the uninstaller's two questions by pressing their buttons, so the int
 | Typecheck | `npm run typecheck` |
 | Lint | `npm run lint` (locally, split as `eslint src/main`, `src/renderer`, … when memory is short) |
 | Check formatting | `npm run format:check` |
-| Unit tests | `npm test` (locally `--maxWorkers=2` on a small machine) |
+| Unit tests, with coverage | `npm run test:coverage` (locally `--maxWorkers=2` on a small machine) |
 | Build and check the release build | `npm run build:release` |
 | E2E tests | `npm run test:e2e` |
 | Lifecycle tests | `npm run test:lifecycle` |

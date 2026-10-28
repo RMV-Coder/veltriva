@@ -98,3 +98,4 @@ Details are in [docs/distribution/releasing.md](../distribution/releasing.md) an
 - **Deviations:**
   - §9.3's real-page corpus and dynamic sites aren't measured; they need pages and accounts the repository doesn't hold. The report says so.
   - Coverage isn't measured: no coverage provider is installed, so ADR-0008's 90% target is unenforced. Recorded in ADR-0008; a follow-up.
+    - **Done after M6.4:** `npm run test:coverage` measures it and fails below the floors, and CI runs it. The first measurement is in ADR-0008 item 1.

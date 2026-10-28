@@ -49,8 +49,11 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
-      - name: Unit tests
-        run: npm test
+      # Every unit test, measured: fails if src/core drops below 90% of lines or branches, or
+      # src/data below 80% (ADR-0008 §1). Measuring costs little: on the dev laptop, with 2
+      # workers, the coverage run took 73 s where `npm test` took 71 s.
+      - name: Unit tests, with coverage
+        run: npm run test:coverage
 
       # The production build, then its checks: no test hooks (ADR-0008 §4), only the data worker
       # loads SQLite, and THIRD_PARTY_NOTICES.txt lists every bundled package under an allowed
