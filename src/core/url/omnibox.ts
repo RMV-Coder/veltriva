@@ -5,6 +5,7 @@ import { parse as parseDomain } from 'tldts';
 
 import { INTERNAL_SCHEME, TYPEABLE_INTERNAL_PAGES } from './internal-pages';
 import type { InternalPage } from './internal-pages';
+import { hasValidAceLabels } from './punycode';
 
 /** Longer input is cut off before classification. */
 export const MAX_OMNIBOX_INPUT = 8192;
@@ -241,6 +242,11 @@ function classifyWithoutScheme(input: string): OmniboxAction {
     return search(input);
   }
   const host = url.hostname;
+  // An `xn--` label that isn't real punycode (`xn--a.com`) makes no host, whatever this runtime's
+  // URL parser accepted: Electron 45's does accept it, older ones don't (punycode.ts).
+  if (!hasValidAceLabels(host)) {
+    return search(input);
+  }
 
   // An IPv4 address counts only when typed exactly as the parser reads it. "1.1", "2130706433"
   // and octal "010.0.0.1" (which the parser reads as 8.0.0.1) are searches.
