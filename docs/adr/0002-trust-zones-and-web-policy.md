@@ -35,6 +35,7 @@ A browser loads hostile content by definition. Electron's defaults assume truste
    - **Destruction is explicit:** `removeChildView` → `webContents.close()` → drop every reference. Spike S1 measured why. Detaching alone frees nothing. Dropping references releases a renderer only if garbage collection happens to run: after two forced collections, 1 of 4 renderers was still alive.
 
 3. **Internal pages** are rendered by the shell in the content area: the new-tab page, settings, memory, error, crashed-tab and "sleeping" pages. Their `veltriva://` identifiers are never loaded into any web contents, and web pages can't navigate to `veltriva:` or `app:` URLs.
+   - **As built (v0.1.0):** nine pages (`src/core/url/internal-pages.ts`): `new-tab`, `network-error`, `certificate-error`, `client-certificate`, `crashed`, `diagnostics`, `settings`, `welcome` and `about`. Five can be typed as `veltriva://…`: newtab, diagnostics, settings, welcome, about. The memory became the palette (an overlay, ADR-0006), and Sleeping and the Archive live in the sidebar, so neither needed a page.
 
 4. **Every unsafe Electron default is overridden:**
    - **Permissions.** Request and check handlers on every session. They work from an allow-list, so anything unlisted is denied. Every session also gets a device-permission handler, a display-media handler and a Bluetooth chooser listener.
@@ -53,7 +54,7 @@ A browser loads hostile content by definition. Electron's defaults assume truste
      - Downloads belong to the session and survive closing, discarding or crashing their tab, so no tab-level protection is needed.
      - Dangerous file types need confirmation, and nothing is auto-opened.
    - **User agent.** Set `app.userAgentFallback` before `ready`, stripping `Electron/x.y.z` and the app-name token. That cleans every session, worker and request header. Client-hint brands never mention Electron, but navigations carry no `Sec-CH-UA*` headers, which may matter for Google sign-in (a pending manual check).
-   - **Spellcheck dictionaries.** `setSpellCheckerDictionaryDownloadURL` points at dictionaries we host. On the test machine, en-US used Windows' own spellchecker; other languages default to `redirector.gvt1.com`.
+   - **Spellcheck dictionaries.** `setSpellCheckerDictionaryDownloadURL` points at dictionaries we host. On the test machine, en-US used Windows' own spellchecker; other languages default to `redirector.gvt1.com`. (As built: no host exists, so the URL is the loopback discard port; see item 6's notes below.)
 
 5. **Hardening.**
    - `app.enableSandbox()`.

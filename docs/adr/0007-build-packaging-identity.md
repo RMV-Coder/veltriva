@@ -27,6 +27,7 @@
    - `EnableEmbeddedAsarIntegrityValidation` on;
    - `OnlyLoadAppFromAsar` on;
    - `GrantFileProtocolExtraPrivileges` off.
+   - **As built:** `electron-builder.yml` also sets `LoadBrowserProcessSpecificV8Snapshot` off (eight in all). `WasmTrapHandlers` stays at Electron 45's default, on. `check-packaged-app.mjs` reads all nine back from `Veltriva.exe` and fails on a fuse it doesn't know, so a new Electron fuse forces a decision (M6.1).
 4. **Updates.**
    - Before any public release: an update-available notification, checked against GitHub Releases.
    - Once builds are signed: silent auto-update through `electron-updater`, with differential (blockmap) downloads.

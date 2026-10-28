@@ -2,108 +2,121 @@
 
 > **Browse freely. Remember effortlessly.**
 
-Veltriva is a local-first, Chromium-powered desktop browser that intelligently manages inactive tabs, preserves browsing context, and makes previously visited pages instantly searchable.
+Veltriva is a local-first Windows browser built on Chromium (through Electron 45). It is for people who keep 50 or 100 tabs open because closing one feels like losing it. Veltriva manages those tabs for you: it unloads the ones you left to free memory, moves the ones you stopped using out of the way, and remembers every page you visit. A few partial words and Ctrl+Shift+K bring any of them back. Everything it remembers stays on your computer.
 
-**Status: Phase 5 (settings, privacy and control) done; Phase 6 (the release) next.** Every page you visited, and every tab wherever it went, is one keystroke away: Ctrl+Shift+K finds it by a few partial words and brings it back. Veltriva manages your tabs for you: it unloads the ones you left to free memory, moves the ones you stopped using to Sleeping and then the Archive, and leaves alone anything that might hold your work. It reached Milestone 0.1, daily dogfooding, in Phase 2: it keeps your tabs, history and choices across restarts and crashes. Phase 0 (architecture and spikes) is done, apart from four manual web-compatibility checks. Phase 1 (the browser foundation) is done:
-- Milestone 1.1 built the project scaffold and CI.
-- Milestone 1.2 built the secure shell. The UI is served from `app://shell` with a strict Content Security Policy. It talks to the main process through a typed, validated IPC contract, and every web page gets a role and a locked-down policy.
-- Milestone 1.3a made it a browser, with tabs in a vertical sidebar (pinned first; reorder by dragging or with Alt+Shift+arrow keys). Its pieces:
-  - **Address bar:** back, forward and reload, with search through DuckDuckGo by default.
-  - **Internal pages:** new-tab, network-error and crashed-tab pages.
-  - **Favicons:** validated before the shell shows them. They are never fetched from your own machine or local network unless the page itself is there.
-- Milestone 1.3b added the everyday browser controls:
-  - **Find in page:** Ctrl+F, with match counts.
-  - **Zoom:** per site, with Chrome's zoom steps and an indicator in the address bar.
-  - **Context menus:** right-click menus for pages, links, images, text fields and spelling, plus a menu for each sidebar tab.
-  - **Fullscreen:** a page that asks for fullscreen gets it, with a notice naming the site.
-  - **DevTools:** F12 opens a page's DevTools in their own window.
-  - **Keyboard shortcuts:** listed under [Keyboard shortcuts](#keyboard-shortcuts).
-- Milestone 1.4a lets pages ask for things, safely:
-  - **Permissions:** a page that wants your camera, microphone, location, notifications or clipboard asks in a strip under the toolbar, naming the site. Your answer is remembered for the session. Everything else is refused.
-  - **Pop-ups:** a pop-up opens only right after you click or press a key in the page; otherwise it's blocked, and the strip offers to open it. Sign-in and payment pop-ups open in a small window with a read-only address bar.
-  - **Other apps:** a link to another app (Zoom, Teams, email) opens it only after you click it and say yes. Dangerous link types are always refused.
-- Milestone 1.4b adds downloads and the remaining safety pages:
-  - **Downloads:** files go to your Downloads folder under safe, unique names, with progress, pause, cancel, Open and Show in folder in a panel under the toolbar. Programs and other risky types stay unrunnable until you choose Keep. Nothing is ever opened for you.
-  - **Certificate errors:** a site whose certificate can't be trusted gets a warning page with no way past it, and so does a site that asks for a client certificate.
-  - **Sign-in:** a site that asks for a password (HTTP authentication) gets a sign-in form in the toolbar strip. The password is sent once and never stored.
-- The Phase 1 wrap-up moved to Electron 44.9.0 (Phase 2 began with the 44.9.1 patch). It also added a checklist for the checks only a person can run, with real sites, real accounts, the keyboard and the packaged build: [docs/testing/phase-1-manual-checks.md](docs/testing/phase-1-manual-checks.md).
-- Phase 2 (persistence and session restore) is done. [Its plan](docs/plans/phase-2-plan.md) records what was built, where it differs from the plan, and the evidence for each Milestone 0.1 criterion. The checks only a person can run (restarts, kills, the window on real screens, a damaged database) are in [docs/testing/phase-2-manual-checks.md](docs/testing/phase-2-manual-checks.md).
-  - Milestone 2.1a adds the local database: SQLite (better-sqlite3), opened in your profile folder by a worker thread, so a slow query never holds up a page.
-  - Milestone 2.1b makes it durable: after a crash the file is checked, a damaged one is set aside and restored from a backup (a notice says so), a backup is taken daily while you're away, and quitting never waits more than 3 seconds for it.
-  - Milestone 2.2a restores your session:
-    - **Your tabs come back** where you left them, pinned ones first, the same one selected, each with its back/forward history. Only the selected tab loads; the others load when you pick them.
-    - **The window** opens where it was.
-    - **Recently closed:** Ctrl+Shift+T brings back a closed tab with its history, even after a restart, for 7 days.
-    - **After a crash** a notice says your tabs are back. After two crashes in a row right after starting, Veltriva opens your tabs without loading any (safe mode).
-    - **Nothing secret is saved:** passwords in addresses, and sign-in tokens after a `#`, are left out.
-    - **One Veltriva at a time:** opening it again brings the open window to the front.
-  - Milestone 2.2b starts the memory, and keeps your choices:
-    - **Every page you visit is remembered**, with its title and icon, in your profile only. Phase 4 makes it searchable.
-    - **What's left out:** sign-in callbacks, addresses with a password in them, and parameters that carry a token or a signature. Tracking parameters (`utm_*`, `fbclid`, …) don't make a page count twice.
-    - **A year of history** is kept, then removed while you're away; closed tabs go after 7 days.
-    - **Your answers are kept:** permissions you allowed or blocked, "always open" for another app's links, and the extra browser details a site asked for. A prompt you dismissed three times still stays quiet only until you restart.
-    - **Downloads** stay listed after a restart; one cut off by a crash shows as interrupted.
-- Phase 3 (the tab lifecycle) is done. [Its plan](docs/plans/phase-3-plan.md) records what was built and the evidence for each acceptance criterion, and [docs/benchmarks/phase-3-memory.md](docs/benchmarks/phase-3-memory.md) the memory measurement's method and where it stands (the laptop was too loaded to finish it; `npm run bench:memory` on a quiet machine does). The checks only a person can run (real pages, real time, this laptop's memory) are in [docs/testing/phase-3-manual-checks.md](docs/testing/phase-3-manual-checks.md).
-  - Milestone 3.1 unloads a background tab to free its memory and brings it back when you select it, with its back/forward history and, in the same run, where you had scrolled and what you had typed in plain fields. A page with unsaved work, or one that asks "Leave site?" after you used it, is never unloaded.
-  - Milestone 3.2 adds automation, timed in *your* use of the computer, so a weekend away changes nothing:
-    - **Presets:** Balanced unloads a tab hidden for an hour; Gentle and Aggressive are slower and faster. Pinned tabs stay loaded in Balanced.
-    - **Memory pressure:** when memory runs low, the tabs left longest go first, one or three at a time, never the one you're using.
-    - **Never touched:** a tab playing sound, using the camera or microphone, with DevTools open, or with a sign-in window open.
-  - Milestone 3.3 moves tabs out of the way, and lets you take them back:
-    - **Sleeping:** past your 10 most recent unpinned tabs, ones you haven't used for 2 hours of use move to Sleeping under the tab list. After 3 days of use there, they go to the Archive. One click brings a tab back next to the one you're on.
-    - **Undo** for every move, yours or automation's, in a toast at the foot of the sidebar; **Activity** lists every automatic action and why.
-    - **Protect from automation** in a tab's menu; **"Leave page?"** when you close a page that warns about unsaved changes.
-    - **Tooltips** say why a tab is unloaded, or what keeps it awake.
-  - Milestone 3.4 completes the protections and makes automation explain itself:
-    - **More reasons to keep a tab:** playing video, full screen, a site you allowed to send notifications, a chat or inbox active in the background, and **Always protect ‹site›** in the tab menu.
-    - **Preview:** for your first 3 days of use, automation only marks the tabs it would move, so you can see what it would do; **Start now** ends it early.
-    - **Pause automation** in the sidebar.
-    - **A local diagnostics page**, `veltriva://diagnostics`, counts how often you took back a tab automation had just moved (the regret rate used to tune the defaults). It never leaves your machine.
-- Phase 4 (search and the memory) is done, on Electron 45. [Its plan](docs/plans/phase-4-plan.md) records what was built and the evidence for each acceptance criterion; [docs/benchmarks/search.md](docs/benchmarks/search.md) the measured search latency (at 50,000 pages, 10 ms at the 95th percentile on this laptop under load). The checks only a person can run (your own history, a screen reader, a quiet machine for the benchmark) are in [docs/testing/phase-4-manual-checks.md](docs/testing/phase-4-manual-checks.md).
-  - Step 0 moved to **Electron 45** (Chromium 156), checked against its published hashes.
-  - Milestone 4.1 makes the memory searchable, all locally:
-    - **A few partial words** of a title, an address or a site find a page; punctuation and search-engine syntax are just ignored.
-    - **What you use comes first:** a page open in a tab, then Sleeping, then archived, and pages you visit often and recently, over a better word match alone.
-  - Milestone 4.2 puts it under your fingers:
-    - **The memory palette, Ctrl+Shift+K** (or **Search memory…** in the sidebar): type, then Enter switches to the tab, or brings it back from Sleeping or the Archive; Ctrl+Enter opens it in a new tab. Tab steps through All, Open, Sleeping, Archived, Today and This week, and `site:example.com` keeps to one site. The page underneath stays live.
-    - **The address bar suggests** pages from your memory as you type, with **Switch to tab** for one already open. Nothing you type leaves your machine.
-    - **The Archive list** shows every archived tab, thousands of them, smoothly.
-- Phase 5 (settings, privacy and control) is done. [Its plan](docs/plans/phase-5-plan.md) records what was built, where it differs from the plan, and the evidence for each acceptance criterion. The checks only a person can run (real sites, a site you're signed in to, a screen reader, the packaged build) are in [docs/testing/phase-5-manual-checks.md](docs/testing/phase-5-manual-checks.md).
-  - Milestone 5.0 checked what the MVP still lacked ([the gap audit](docs/plans/mvp-gap-audit.md)) and added **Print** (Ctrl+P, or **Print…** in a page's menu) and **"Leave page?"** when a page with unsaved changes would stop your own navigation or reload.
-  - Milestone 5.1 adds **Settings** (the gear at the foot of the sidebar, or `veltriva://settings`). Every change applies at once.
-    - **Search engine:** DuckDuckGo, Google, Bing, Brave Search, Ecosia, Startpage, or another engine's address.
-    - **When Veltriva starts:** continue where you left off, or start with a new tab (the tabs you had go to the Archive, and pinned ones stay).
-    - **Tabs and automation:** the presets, described plainly, and every value behind them, including when memory counts as low.
-    - **Pause memory:** stop remembering pages without opening a private window.
-    - **Site rules:** protect a site from automation, or don't remember it at all: its pages are never recorded, its tabs never archived, and closing one keeps no record. Set them here or from a tab's menu.
-    - **A welcome page** on a new profile asks for the search engine, the preset, and whether automation shows its moves first.
-  - Milestone 5.2 lets you take things back:
-    - **Clear data** in Settings: what was recorded in the last hour, day or week, or everything, with the archived and recently closed tabs if you like, and Chromium's cookies, site data and cache. It's deleted for good: the database is rewritten, so the words are gone from the file too. Open and Sleeping tabs stay.
-    - **Forget a site:** its pages, visits and tabs, and if you like its cookies, storage, cached files and permissions.
-    - **Shift+Delete** in the memory palette forgets one result.
-    - **Site permissions:** what you allowed or blocked, the apps a site's links open, and the browser details it asked for. Change any of them, or remove one so the site asks again.
-    - **How long pages are kept:** 365 days unless you choose otherwise.
-  - Milestone 5.3 makes it all visible:
-    - **The diagnostics page** (`veltriva://diagnostics`) shows each tab's memory, what automation did in the last day, every change of memory pressure, the database's size and last backup, and the log.
-    - **Export diagnostics** saves it as a file for a problem report, with no page title and no address unless you ask for them.
-    - **A log file** in your profile, errors only, rotated at 5 × 5 MB. **Diagnostic logging** in Settings adds the addresses of the pages concerned, for as long as you leave it on.
-    - **Tabs come back where you had scrolled** after a restart, except pages with a password or payment field.
+**Status:** version 0.1.0, for Windows 10 and 11 (x64). The builds are unsigned, so Windows SmartScreen warns about them (see [Install, update and uninstall](#install-update-and-uninstall)). It is not published yet: the repository has no remote, and publishing is the owner's decision. Until it is, you build the installer yourself with `npm run package:installer` or the release script (see [Install](#install-update-and-uninstall)). Published releases will be on the project's GitHub releases page.
 
-## Why
+## Install, update and uninstall
 
-Some people keep 50 or 100 tabs open because closing one feels like losing it. Veltriva is built for them. It manages tabs *for* you, and it keeps everything findable:
+- **Get the installer.** There is no download yet. `npm run package:installer` builds `release/Veltriva-Browser-Setup-<version>.exe`, and `npm run release -- <version>` does that and more (setup is in [docs/development.md](docs/development.md); the release steps are in [docs/distribution/releasing.md](docs/distribution/releasing.md)). Once releases are published, each one will come with a `SHA256SUMS.txt` to check the file against.
+- **Install.** Run the installer. It is one click, per user, and needs no administrator rights. It installs into `%LOCALAPPDATA%\Programs\veltriva`, adds Start-menu and desktop shortcuts named "Veltriva Browser", and starts Veltriva when it is done.
+- **SmartScreen.** Because the installer is unsigned, Windows may show "Windows protected your PC" with "Unknown publisher". Choose **More info ▸ Run anyway**. Edge and Chrome may also say the file "isn't commonly downloaded"; choose **Keep**. SmartScreen builds a reputation per file, so each new version shows the warning until enough people have run it. [docs/distribution/signing.md](docs/distribution/signing.md) explains why, and what changes once builds are signed.
+- **First start.** A welcome page asks three things: which search engine to use, how much Veltriva should tidy for you (the preset), and whether automation should show its moves first before making them. You can change all three later in Settings.
+- **Your data.** Your profile is `%APPDATA%\Veltriva`: tabs, history, settings, site data and the log file.
+- **Update.** Run a newer installer. It replaces the app, keeps your profile and asks nothing. Veltriva does not update itself; it can tell you when a newer version exists (see [About and the update notice](#about-and-the-update-notice)).
+- **Uninstall.** Open Settings ▸ Apps ▸ Installed apps ▸ Veltriva Browser 0.1.0 (the entry carries the version) ▸ Uninstall. It confirms ("Are you sure you want to uninstall Veltriva Browser?"), then asks **"Also remove your Veltriva data from this computer?"** No is the default: it keeps your profile for a later install. Yes deletes `%APPDATA%\Veltriva`. A silent uninstall (`"%LOCALAPPDATA%\Programs\veltriva\Uninstall Veltriva.exe" /currentuser /S`) keeps the profile too; add `--delete-app-data` to remove it.
 
-- **Tabs you stop using move out of the way:** Tabs → Sleeping → Archive. Inactivity is measured in *your* browsing time, so a weekend away never empties your workspace.
-- **Inactive pages are unloaded to free memory**, and their back/forward history is kept.
-- **Pages that might hold unsaved work are left alone**, for example ones playing audio, sharing your camera, or declaring unsaved changes.
-- **Every tab stays in a private, local, searchable memory**, one keystroke away (Ctrl+Shift+K).
-- **Nothing leaves your machine:** no telemetry, no cloud, no remote search suggestions.
+## What it does
 
-## Principles
+### Tabs and the sidebar
 
-- **Velocity:** fast browsing with intelligent resource management.
-- **Retrieval:** effortlessly rediscover previously visited websites.
-- **Continuity:** resume browsing sessions without losing context.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/main-window-dark.png">
+  <img alt="The Veltriva Browser window: the address bar on top; on the left the sidebar with Search memory, two pinned tabs, the open tabs, and the Sleeping and Archive sections; on the right a web page" src="docs/images/main-window.png">
+</picture>
+
+- **A vertical sidebar** lists your tabs, pinned ones first. Reorder them by dragging, or with Alt+Shift+Up and Alt+Shift+Down. A tab's menu (right-click, or Shift+F10) offers Duplicate, Pin, Move to Sleeping, Archive, Protect from automation and Close other tabs, among others.
+- **The address bar** has back, forward and reload. Type an address or a search. It searches with DuckDuckGo unless you choose another engine.
+- **Recently closed:** Ctrl+Shift+T brings back a closed tab with its history, even after a restart, for 7 days.
+- **Veltriva's own pages:** a new tab, `veltriva://settings` (also the gear at the foot of the sidebar), `veltriva://diagnostics`, `veltriva://about` and `veltriva://welcome`.
+- **Light and dark** follow Windows' setting.
+
+### Tabs that look after themselves
+
+![A tab moves from the open tabs to Sleeping, a "Moved to Sleeping" toast with Undo appears at the foot of the sidebar, and Undo puts the tab back](docs/images/sleeping-undo.gif)
+
+- **Unloading:** a tab hidden for an hour (the Balanced preset) is unloaded to free its memory. It stays in the sidebar, and comes back when you select it, with its back and forward history, where you had scrolled and, within the same run, what you typed in plain fields.
+- **Sleeping, then the Archive:** past your 10 most recent unpinned tabs, a tab you have not used for 2 hours of use moves to Sleeping, under the tab list. After 3 days of use there, it moves to the Archive. One click brings a tab back next to the one you are on. These times count your use of the computer, so a weekend away changes nothing.
+- **Presets:** Gentle, Balanced and Aggressive set how fast all this happens. Balanced is the default; Gentle is slower and Aggressive faster, and Aggressive also unloads pinned tabs. Settings shows every value behind them.
+- **Memory pressure:** when your computer's memory runs low, the tabs left longest are unloaded first, one at a time when it is moderately low and up to three when it is critical. The tab you are using is never touched. Pressure only unloads tabs; it never moves them in the sidebar.
+- **Tabs it leaves alone:** one that is playing sound or video, using the camera or microphone, in fullscreen, with DevTools open, or with a sign-in or payment window open; one with unsaved work (typed-in fields, or a page that asks "Leave site?"); one you protected, or whose site you protected. Some reasons are softer: a site you allowed to send notifications, a chat or inbox active in the background, a tab you used in the last 15 minutes, an editor in focus, or a page with a password or payment field. When memory is critically low, those can give way.
+- **Preview:** for your first 3 days of use, automation only marks the tabs it would move to Sleeping or the Archive, so you can see what it would do. It still unloads tabs. **Start now** ends the preview early.
+- **Undo and Activity:** every move to Sleeping or the Archive, yours or automation's, has an Undo in a toast at the foot of the sidebar. **Activity** lists every automatic action and the rule behind it. A tab's tooltip says why it is unloaded, or what keeps it awake.
+- **Pause automation** in the sidebar stops all of it, and **Protect from automation** in a tab's menu keeps one tab as it is. **"Leave page?"** asks before you close a page that warns about unsaved changes.
+
+### The memory and search
+
+![The memory palette opens over a page; typing "film" finds an archived page, and Enter brings it back as an open tab](docs/images/memory-palette.gif)
+
+- **Every page you visit is remembered,** with its title and icon, in your profile only. Left out: sign-in callbacks, addresses with a password in them, and parameters that carry a token or a signature. Tracking parameters (`utm_*`, `fbclid` and the like) do not make a page count twice. Veltriva searches titles, addresses and sites, not the text of pages.
+- **The memory palette, Ctrl+Shift+K** (or **Search memory…** in the sidebar): type a few partial words of a title, an address or a site. Enter switches to the tab, or brings it back from Sleeping or the Archive; Ctrl+Enter opens it in a new tab. Tab steps through All, Open, Sleeping, Archived, Today and This week, and `site:example.com` keeps to one site. Shift+Delete forgets the selected result. The page underneath stays live.
+- **What you use comes first:** a page open in a tab, then Sleeping, then archived, and pages you visit often and recently, rank above a better word match alone. Punctuation and search-engine syntax are ignored.
+- **The address bar suggests** pages from your memory as you type, with **Switch to tab** for one that is already open. Nothing you type leaves your machine until you press Enter.
+- **The Archive list** shows every archived tab, thousands of them, smoothly.
+
+### Everyday browsing
+
+- **Find in page:** Ctrl+F, with match counts.
+- **Zoom,** per site, in Chrome's steps, with an indicator in the address bar.
+- **Print:** Ctrl+P, or **Print…** in a page's menu, opens Windows' print dialog.
+- **Downloads** go to your Downloads folder under safe, unique names, with progress, pause, cancel, Open and Show in folder in a panel under the toolbar. Programs and other risky types stay unrunnable until you choose Keep. Nothing is ever opened for you.
+- **Permissions:** a page that wants your camera, microphone, location, notifications or clipboard asks in a strip under the toolbar, naming the site. Your answer is remembered, and you can change it in Settings. Everything else is refused.
+- **Pop-ups** open only right after you click or press a key in the page; otherwise they are blocked, and the strip offers to open them. Sign-in and payment pop-ups open in a small window with a read-only address bar.
+- **Other apps:** a link to another app (Zoom, Teams, email) opens it only after you click it and say yes. Dangerous link types are always refused.
+- **Certificate errors:** a site whose certificate cannot be trusted gets a warning page with no way past it, and so does a site that asks for a client certificate.
+- **Sign-in:** a site that asks for a password (HTTP authentication) gets a sign-in form in the toolbar strip. The password is sent once and never stored.
+- **PDFs** open in Chromium's built-in viewer.
+- **DevTools:** F12 opens a page's DevTools in their own window.
+- **Fullscreen:** a page that asks for fullscreen gets it, with a notice naming the site.
+- **Context menus** for pages, links, images, text fields and spelling, and for each sidebar tab.
+
+### Session restore and crash recovery
+
+- **Your tabs come back** where you left them, pinned ones first, the same one selected, each with its back and forward history. Only the selected tab loads; the others load when you pick them. The window opens where it was, and tabs come back where you had scrolled, except pages with a password or payment field.
+- **After a crash** a notice says your tabs are back. After two crashes in a row right after starting, Veltriva opens your tabs without loading any (safe mode).
+- **Nothing secret is saved:** passwords in addresses, and sign-in tokens after a `#`, are left out.
+- **The database looks after itself:** after a crash the file is checked, and a damaged one is set aside and restored from a backup (a notice says so). A backup is taken daily while you are away, and quitting never waits more than 3 seconds for it.
+- **One Veltriva at a time:** opening it again brings the open window to the front.
+
+### Settings, privacy and your data
+
+![Veltriva's Settings page, open in a tab: the search engine, what happens when Veltriva starts, and the start of Tabs and automation](docs/images/settings.png)
+
+Open Settings with the gear at the foot of the sidebar, or `veltriva://settings`. Every change applies at once.
+
+- **Search engine:** DuckDuckGo, Google, Bing, Brave Search, Ecosia, Startpage, or another engine's address.
+- **When Veltriva starts:** continue where you left off, or start with a new tab (the tabs you had go to the Archive, and pinned ones stay).
+- **Tabs and automation:** the presets, described plainly, and every value behind them, including when memory counts as low.
+- **Pause memory:** stop remembering pages without opening a private window. Your tabs, Sleeping and the Archive work as usual.
+- **Site rules:** protect a site from automation, or do not remember it at all: its pages are never recorded, its tabs are never archived by automation, and closing one keeps no record. Set them here or from a tab's menu.
+- **Clear data:** what was recorded in the last hour, 24 hours or 7 days, or everything, with the archived and recently closed tabs if you like. You can add Chromium's cookies, site data and cached files, but Chromium cannot clear those by time, so they go for all time whatever range you pick. It is deleted for good: the database is rewritten, so the words are gone from the file too. Open and Sleeping tabs stay.
+- **Forget a site:** its pages, visits and tabs, and if you like its cookies, storage, cached files and permissions.
+- **Site permissions:** what you allowed or blocked, the apps a site's links open, and the browser details it asked for. Change any of them, or remove one so the site asks again.
+- **How long pages are kept:** 365 days unless you choose otherwise.
+
+### Diagnostics
+
+- **`veltriva://diagnostics`** shows each tab's memory, what automation did in the last day, every change of memory pressure, how often you took back a tab automation had just moved, the database's size and last backup, and the log. It never leaves your machine.
+- **Export diagnostics…** saves that page as a JSON file for a problem report. It never holds a page's title, and holds no address unless you tick the box.
+- **A log file,** `logs\veltriva.log` in your profile, holds one line per warning or error, rotated at 5 × 5 MB. It names tab ids and error codes, not what you browsed. **Diagnostic logging** in Settings adds the addresses of the pages concerned, for as long as you leave it on. **Show the log folder** on the diagnostics page opens it.
+
+### About and the update notice
+
+- **`veltriva://about`** shows the versions of Veltriva, Electron, Chromium, Node.js and V8, the MIT license and the third-party notices.
+- **The update notice is off by default.** While it is off, Veltriva makes no request, no DNS lookup and runs no timer for it. Turn it on under Settings ▸ Updates ▸ Check for new versions. Then Veltriva asks GitHub's latest-release API for the newest version 2 minutes after it starts and once a day, or when you press **Check now**. A newer version shows a notice with **View release**, **Skip this version** and **Dismiss**. Nothing is downloaded or installed.
+- **Leave it off until releases are published.** The repository has no remote yet, so until a release exists a check finds nothing, or fails and says so.
+
+## Privacy
+
+- **Nothing leaves your machine from Veltriva's own features:** no telemetry, no crash reports, no cloud, no account, no sync and no remote search suggestions. Your pages, tabs, history and settings are stored in your profile only.
+- **The only network traffic Veltriva itself makes** is the pages you visit (and the search engine you chose, when you press Enter on a search), site icons for those pages, and, only if you turn it on, the update check. Icon requests are checked first so a page cannot send Veltriva to your own network (one gap remains, under Known limitations); see [the security review](docs/security/security-review.md).
+- **Spell checking** uses Windows' own spellchecker. Veltriva does not download dictionaries.
+- **You are in control of what is kept:** Pause memory, site rules, Clear data, Forget a site, and the retention period. See [Settings, privacy and your data](#settings-privacy-and-your-data).
+- **Logs hold no addresses** unless you turn on Diagnostic logging.
+
+## Accessibility
+
+Veltriva's own interface (the toolbar, the sidebar, the palette, the prompts and its pages) aims for WCAG 2.2 AA. You can use it with the keyboard alone: F6 cycles the address bar, the sidebar's selected tab and the page, and the sidebar and the palette have their own arrow-key navigation. Screen readers are told how many suggestions and results there are, what the palette's filter is, and when an Undo or a prompt appears. Focused controls get a visible focus ring, and animations stand still when Windows' animation effects are off. An axe-core check runs against the interface in the light and the dark theme as part of the test suite. Veltriva does not paint its own colors for Windows contrast themes. What automated checks cannot judge (Narrator, keyboard order, text size, contrast themes) is checked by hand: see [docs/testing/accessibility.md](docs/testing/accessibility.md).
 
 ## Keyboard shortcuts
 
@@ -117,7 +130,7 @@ The browser keeps these keys for itself, so a page can't block them:
 | Ctrl+Tab, Ctrl+Shift+Tab | Next or previous tab |
 | Ctrl+1 to Ctrl+8, Ctrl+9 | Go to that tab, or to the last one |
 | Ctrl+L, Alt+D | Go to the address bar |
-| F6 | Switch between the address bar and the page |
+| F6 | Move between the address bar, the selected tab in the sidebar and the page, in that order |
 | F5, Ctrl+R | Reload |
 | Shift+F5, Ctrl+F5, Ctrl+Shift+R | Reload without the cache |
 | Alt+Left, Alt+Right | Back or forward |
@@ -136,12 +149,14 @@ A page gets these keys first, and the browser acts only if the page doesn't use 
 
 Esc leaves a page's fullscreen. AltGr combinations always go to the page, because they type characters on many keyboard layouts.
 
-## Documentation
+In the sidebar, Up, Down, Home and End move between tabs, Enter or Space selects one, Alt+Shift+Up and Alt+Shift+Down reorder it, Delete closes it, and Shift+F10 (or the Menu key) opens its menu. In the palette, Enter and Ctrl+Enter open a result, Tab changes the filter, Shift+Delete forgets a result, and Esc closes it.
 
-- [Technical assessment and architecture proposal](docs/architecture/technical-assessment.md)
-- [Architecture decision records](docs/adr/README.md)
-- [Phase 0 spike reports](docs/spikes/README.md)
-- [MVP gap audit](docs/plans/mvp-gap-audit.md): every §7.2 item against what Veltriva does, and where the rest gets done
+## Benchmarks
+
+Both benchmarks ran on the reference laptop (Core i3, 7.9 GB) while it was under load; each report says how loaded it was, and both can be run again (see [docs/development.md](docs/development.md)).
+
+- **Memory** ([docs/benchmarks/memory.md](docs/benchmarks/memory.md)): **unloading frees about 34 MB per tab.** With 100 tabs of a controlled test page, Veltriva held 3,771 MB with every tab live and 383 MB with 99 of them unloaded (median of 5 runs, private bytes of the whole process tree). Moving tabs to Sleeping without unloading them freed nothing. The same holds at 10, 25 and 50 tabs.
+- **Search** ([docs/benchmarks/search.md](docs/benchmarks/search.md)): at 50,000 remembered pages, the 95th-percentile search took 10.3 ms (median of 3 runs), end to end through the app's own data layer.
 
 ## Known limitations
 
@@ -150,85 +165,30 @@ Stated plainly, as the assessment's §6.7 asks:
 - **Pages' `alert` and `confirm` boxes block the whole window** until you answer them, even one from a background tab, and they don't name the site that asks. A page's `prompt()` shows nothing and gets no answer. Electron offers no way to make them per tab yet; the box offers "Prevent this app from creating additional dialogs" from a page's second one.
 - **A link inside a page that asks you to stay doesn't ask you**: the page keeps you. Typing an address, reloading, going back or forward, and closing the tab all ask "Leave page?".
 - **No Safe Browsing** protection against phishing or malware, and **no DRM video** (Widevine).
-- **The database isn't encrypted at rest**, like mainstream browsers' history databases; Windows account security and BitLocker protect it.
+- **The database isn't encrypted at rest**, like mainstream browsers' history databases; Windows account security and BitLocker protect it. Another program running as you can still read it.
 - **Unsaved-work detection is a heuristic**: Veltriva keeps a tab it can see you typed in, or one that asks before leaving, but a page that saves work in other ways may lose it when unloaded.
 - **Site icons are decoded by Veltriva's own interface**, in its sandboxed renderer: only raster images up to 64 KB, checked by their bytes, but not re-encoded yet.
 - **A site's icon request can still be steered by DNS rebinding**: Veltriva checks every address an icon's host resolves to, and every redirect, before asking, but a name whose answer changes between that check and the request itself isn't caught.
 - **Unsigned builds** until code signing is in place, so Windows SmartScreen warns about them.
+- **Not tested on clean Windows 10 and 11 virtual machines yet.** The installer has been run end to end on the development machine only; the clean-machine check is in the final manual checklist.
+- **Left out of this version:** multiple windows and dragging a tab out, private windows, sync, extensions, a password manager and autofill, ad and tracker blocking, and macOS and Linux. There are no bookmarks or history page; search the memory instead.
 - **Chromium security fixes** reach Veltriva with each Electron release, a little after Chrome.
 
-## Platform and stack
+## Documentation
 
-Windows 10/11 x64. Electron 45 (`BaseWindow` + `WebContentsView`), TypeScript 6 (strict), React 19, Tailwind CSS 4 with shadcn/ui, built with electron-vite and packaged with electron-builder. Tested with Vitest and Playwright. SQLite with FTS5 through better-sqlite3 13, in a worker thread (Phase 2).
-
-## Development
-
-### Requirements
-
-Windows 10 or 11 x64, Node.js 24 (24.13 or later in the 24 line; `.nvmrc` names the version CI uses), npm 11 and Git. Setup installs nothing system-wide, and no Python or Visual Studio build tools are needed.
-
-### Setup
-
-```bash
-npm run setup
-npm run dev
-```
-
-`npm run setup` runs `npm ci` and then downloads Electron's binary explicitly with `node node_modules/electron/install.js`. It then checks that better-sqlite3's prebuilt Windows binary, which ships inside its npm package, matches the reviewed hash (`scripts/verify-sqlite-binary.mjs`). The repository's `.npmrc` sets `ignore-scripts=true`, so dependency install scripts never run, and `save-exact=true`, so every dependency is pinned to an exact version.
-
-### Scripts
-
-| Script | What it does |
-|---|---|
-| `npm run dev` | Starts electron-vite, which serves the renderer with hot reload and opens the app window. Changes to main or preload rebuild and restart the app. |
-| `npm run build` | Production build of main, preload and renderer into `out/`. |
-| `npm run build:test` | The same build with the E2E test hooks compiled in (`--mode test`). Never package it. |
-| `npm run typecheck` | `tsc -b` over every target's tsconfig (core, main, preload, renderer and node tooling). |
-| `npm run lint` | ESLint with type-aware typescript-eslint rules and the React hooks rules. |
-| `npm run format` / `npm run format:check` | Prettier writes or checks formatting. Markdown is excluded. |
-| `npm test` | Vitest unit tests on Node. |
-| `npm run test:e2e` | Builds the test variant, then runs the Playwright tests against the built, unpackaged app. They cover the shell, its CSP and protocol, the IPC contract and a hostile page in a tab. They also cover tabs, navigation, the address bar, crashes, PDFs, the clipboard and generated (`data:`, `blob:`) documents. M1.3b adds find, zoom, fullscreen and its notice, DevTools, the keyboard shortcuts (against a page that tries to block them), keyboard focus and the context menus. Every page comes from a local fixture server. |
-| `npm run test:lifecycle` | Builds the test variant, then runs the lifecycle-behavior checks without Playwright (ADR-0008 4a): a background tab is hidden and throttled, closing the window with live tabs quits cleanly, and a page under the fullscreen notice stays visible and live. Phase 2 adds the database across launches (a quit capped at 3 s while a statement runs, recovery from a damaged file) and session restore after 20 hard kills at random moments, which takes a few minutes. Phase 3 adds what a discard does to real hidden tabs: the page state it keeps, the renderer it frees, a page that objects, and the freeze experiment. |
-| `npm run bench:memory` | Builds the test variant, then runs the memory benchmark of assessment §9.3 without Playwright: 10, 25 and 50 tabs of a controlled-cost page, all live, moved to Sleeping, and unloaded, one warm-up and 5 measured runs each. It takes over an hour and writes its raw readings to `docs/benchmarks/data/`. Run it on a quiet machine. |
-| `npm run bench:search` | Builds the test variant, then measures search latency (assessment §5.4) without Playwright: 1,000, 10,000 and 50,000 pages of synthetic memory, 3 runs each, end to end through the app's own data RPC. It takes about 15 minutes and writes its raw data, gzipped, to `docs/benchmarks/data/`; `node tests/benchmarks/summarize-search.mjs <file>` prints the tables. Run it on a quiet machine. |
-| `npm run package:dir` | Checks better-sqlite3's binary, builds, checks that the build contains no test-only code (the test hooks, the lifecycle runner and the test build's crash handler) and that only the data worker loads SQLite, then packages an unpacked app with electron-builder into `release/win-unpacked/` (`Veltriva.exe`), with the production Electron fuses applied. It is unsigned, and no installer is built or installed. Last, it checks that only SQLite's binary was unpacked from `app.asar`. |
-
-### Project layout
-
-```text
-veltriva/
-├─ src/
-│  ├─ core/
-│  ├─ data/
-│  ├─ main/
-│  ├─ preload/
-│  │  └─ shell.ts
-│  ├─ renderer/
-│  └─ shared/
-└─ tests/
-   ├─ e2e/
-   └─ lifecycle/
-```
-
-- `src/core/`: pure TypeScript with no Electron or Node imports, enforced by ESLint and by its own tsconfig.
-- `src/data/`: the data worker, a worker thread that owns the SQLite database. It is the only code that may load SQLite (ESLint); main starts it by file name.
-- `src/main/`: the Electron main process, which owns all state.
-- `src/preload/shell.ts`: the preload for the shell UI. Web pages never get a preload.
-- `src/renderer/`: the React shell UI.
-- `src/shared/`: constants and types shared by several processes. Also pure.
-- `tests/e2e/`: Playwright tests.
-- `tests/lifecycle/`: lifecycle-behavior checks that run the app without Playwright.
-
-The full plan is in [technical assessment §3.8](docs/architecture/technical-assessment.md#38-project-structure).
-
-### Notes
-
-- **E2E runs against the unpackaged app.** Tests launch it through Playwright's `_electron.launch` with `executablePath`. Playwright can't drive a packaged build, because the packaged app turns off the `EnableNodeCliInspectArguments` fuse. See [ADR-0008](docs/adr/0008-testing-and-quality-tooling.md).
-- **`ELECTRON_RUN_AS_NODE` must not be set** when you run `npm run dev`, because it makes Electron run as plain Node. The E2E test removes it from the app's environment and checks that it's gone before launch.
-- **A separate profile for development.** Unpackaged builds (development and E2E) accept `VELTRIVA_USER_DATA_DIR=<absolute path>`. Packaged builds ignore it and always use `%APPDATA%\Veltriva`.
-- **The shell loads from `app://shell`** in builds, and from the Vite dev server (with a development CSP) under `npm run dev`. Commands and events between the shell and main are defined in `src/shared/contracts`; see [ADR-0005](docs/adr/0005-state-ownership-and-ipc.md).
-- **CI.** GitHub Actions on `windows-latest` runs typecheck, lint, the format check, unit tests, the production build with its no-test-hooks check, the E2E tests and the lifecycle checks on every push to `main` and every pull request (`.github/workflows/ci.yml`).
+- [Architecture overview](docs/architecture/overview.md): how v0.1.0 works, as built
+- [Technical assessment and architecture proposal](docs/architecture/technical-assessment.md)
+- [Architecture decision records](docs/adr/README.md)
+- [Phase 0 spike reports](docs/spikes/README.md)
+- [MVP gap audit](docs/plans/mvp-gap-audit.md): every §7.2 item against what Veltriva does, and where the rest gets done
+- [Phase plans](docs/plans/): what each phase built, where it differs from the plan, and the evidence
+- [Development guide](docs/development.md): requirements, setup, scripts, project layout and CI
+- [Releasing](docs/distribution/releasing.md) and [code signing](docs/distribution/signing.md)
+- [Security review](docs/security/security-review.md)
+- [Accessibility checks](docs/testing/accessibility.md)
+- [Final manual checklist](docs/testing/final-manual-checklist.md)
+- [Benchmarks](docs/benchmarks/)
 
 ## License
 
-[MIT](LICENSE). Dependency licenses will be reviewed before the first release.
+[MIT](LICENSE). Third-party licenses are in [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt), which is also shown in `veltriva://about` and ships in the installed app. Chromium's and Node.js's own licenses are in `LICENSES.chromium.html`, next to `Veltriva.exe`.

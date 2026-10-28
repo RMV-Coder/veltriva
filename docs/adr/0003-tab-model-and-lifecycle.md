@@ -165,7 +165,7 @@ Wall-clock timers would also archive a user's workspace after a weekend away.
     - **Restore** (item 6) now also restores a discarded tab, with its page state.
       - A tab restored while not selected (Reload on an unloaded tab) is attached invisibly, under every view and sized like the content area, until its page stops loading. That avoids S2's scale-factor error. LayoutManager calls this `attachHidden`.
     - **Leaving fullscreen no longer passes `userGesture`.** It needs none, and the activation it granted would have told the discard that the user had been on the page (S3).
-    - **Freezing** (experimental, off: nothing triggers it but a test hook) sends `Page.setWebLifecycleState` through `webContents.debugger`. A detach, such as DevTools taking the debugger, counts as thawed. A frozen tab that crashes is thawed first, so the next page isn't frozen. The model-based tests found that.
+    - **Freezing** (experimental and off by default; the policy's `freeze-hidden` rule, added in M3.2, runs it once "Freeze hidden tabs (experiment)" is turned on in Settings, a switch since M5.1; a test hook can too) sends `Page.setWebLifecycleState` through `webContents.debugger`. A detach, such as DevTools taking the debugger, counts as thawed. A frozen tab that crashes is thawed first, so the next page isn't frozen. The model-based tests found that.
     - **Invariants as built.**
       - I2 allows `unloaded` for a selected tab that shows an internal page, and in safe mode until the user picks the tab (`lifecycleFacts().heldUnloaded`).
       - I1, I3 and I8 hold trivially until M3.3 adds the other placements.

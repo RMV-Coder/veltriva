@@ -1,6 +1,8 @@
 # Phase 3 memory measurement (assessment §9.3)
 
-**Status: not yet measured to the protocol.** The harness is built and checked, but on 2026-10-22 the reference laptop was too loaded for a clean run: every attempt at the 10-tab size failed inside its first measured run, under heavy paging. This page says what was built, what was attempted, and the only readings that finished, labelled for what they are. **None of them is the §9.3 result**, and nothing here is estimated. The protocol run is `npm run bench:memory` on a quiet machine; its raw files go to `data/`, and `tests/benchmarks/summarize-memory.mjs` turns them into the tables this page will then hold.
+> **Superseded.** The measurement was retried in Phase 6 and finished: **[memory.md](memory.md)** (2026-10-24, 10, 25 and 50 tabs, every run). This page stays as the record of the Phase 3 attempts and of the method.
+
+**Status (2026-10-22): not yet measured to the protocol.** The harness is built and checked, but on 2026-10-22 the reference laptop was too loaded for a clean run: every attempt at the 10-tab size failed inside its first measured run, under heavy paging. This page says what was built, what was attempted, and the only readings that finished, labelled for what they are. **None of them is the §9.3 result**, and nothing here is estimated. The protocol run is `npm run bench:memory` on a quiet machine; its raw files go to `data/`, and `tests/benchmarks/summarize-memory.mjs` turns them into the tables this page will then hold.
 
 ## The method, as built
 

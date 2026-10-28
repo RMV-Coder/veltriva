@@ -30,10 +30,10 @@ Pre-approved by the user on 2026-10-22, with Phases 2–6 ("make commits and mer
 
 | Criterion | Status |
 |---|---|
-| A clean install works on this machine; VM checks listed for the user | M6.3 |
-| The benchmark report is reproducible | M6.4 |
-| Known limitations are documented | M6.1 added two (README, §6.7); M6.4 finishes the README |
-| Every CI step passes locally | M6.3 |
+| A clean install works on this machine; VM checks listed for the user | **Met on this machine (M6.3)**: install, uninstall both ways, reinstall and upgrade, by `scripts/installer-test.ps1`. Clean Windows 10 and 11 VMs are in the final manual checklist |
+| The benchmark report is reproducible | **Met (M6.4)**: [docs/benchmarks/memory.md](../benchmarks/memory.md), 10, 25, 50 and 100 tabs × the three modes, 20 of 20 measured runs; the raw files and the commands that reproduce them are committed, and the machine's load at each run's start is recorded. A quiet-machine run is in the final manual checklist |
+| Known limitations are documented | **Met (M6.4)**: the README's known limitations, with M6.1's two, what this version leaves out, and the clean-VM check still to come |
+| Every CI step passes locally | **Met (M6.3)**: every `ci.yml` step, in a fresh clone and the milestone gates; `release.yml`'s steps with `gh` stubbed |
 
 ## As built
 
@@ -61,3 +61,40 @@ Most of §7.3 was already built in earlier phases: a roving-tabindex tab list wi
   - The palette's announcement names the filter, since Tab changes it while the field keeps focus.
 - **Deviation, recorded in ADR-0009 item 6:** the sidebar stays a vertical `tablist` plus disclosure sections, not the `tree` §7.3 named.
 - **The user's checks:** `docs/testing/accessibility.md` (Narrator, keyboard only, contrast themes, text size, reduced motion).
+
+### M6.3
+
+Details are in [docs/distribution/releasing.md](../distribution/releasing.md) and ADR-0007 item 8.
+- **The installer** (`npm run package:installer`): one click, per user, into `%LOCALAPPDATA%\Programs\veltriva`. Start-menu and desktop shortcuts carry the AppUserModelID. The icon is drawn by a script. The build is unsigned; `docs/distribution/signing.md` says what each signing route needs.
+- **Uninstall:**
+  - It confirms, then asks whether to remove `%APPDATA%\Veltriva`; No is the default.
+  - `/S` keeps the profile; `/S --delete-app-data` removes it; an update never asks.
+  - **Found by running it:** the first build never asked. A one-click uninstaller turns itself silent after its own confirmation, so the hook now decides by the command line.
+- **Tested on this machine** with `scripts/installer-test.ps1`: install, launch, both uninstall answers, reinstall, the scripted uninstalls, and an upgrade from 0.0.0 to 0.1.0. The user's profile was renamed aside and restored each time.
+- **`veltriva://about`:** the versions, the MIT license, the third-party notices and the update status.
+- **The update notice:** off by default, and silent while off (no request, no DNS lookup, no timer). When on, it checks GitHub's latest-release API daily, or a feed the user sets, and shows a notice with a link. It downloads nothing.
+- **CI:**
+  - `ci.yml` runs the same npm scripts as the local gates. `codeql.yml`, Dependabot and a draft-release `release.yml` were added, with every action pinned by SHA.
+  - **Every step ran locally**, in a fresh clone (setup, typecheck, the whole `eslint .`, format, unit, `build:release`) and as the milestone gates (E2E, lifecycle, the installer). `release.yml`'s steps also ran, with `gh` stubbed.
+- **The release script** (`npm run release -- <version>`) prepared **v0.1.0** locally:
+  - the version commit, with an attested unit run;
+  - an annotated, unsigned tag on 654e29e, never pushed;
+  - the installer and its SHA-256;
+  - a draft `docs/releases/v0.1.0.md`.
+  - **Found by running it:** `veyra attest run` runs its command through `sh -c`, so the script now passes plain `node`.
+- **Deviations:** none from the brief. CI has never run on GitHub (there is no remote), and clean-VM installs are the user's (the final checklist).
+
+### M6.4
+
+- **The memory benchmark** ([docs/benchmarks/memory.md](../benchmarks/memory.md)): the measurement Phase 3 couldn't finish, retried and finished at 10, 25, 50 and 100 tabs.
+  - Unloading frees 33.7–34.2 MB per tab at every size, 3,385 MB with 99 of 100 tabs unloaded. Moving tabs to Sleeping alone frees nothing.
+  - The laptop was under load, and the harness now records how loaded at each run's start: free memory, commit charge, processor load, the largest processes.
+  - **The 100-tab size ran here** (about 3.8 GB live, with paging), though Phase 3 had expected it not to fit in 7.9 GB.
+- **A user-facing README:** what Veltriva is, install and uninstall, what it does, privacy, accessibility, shortcuts, the benchmarks and the known limitations. The developer material moved to [docs/development.md](../development.md).
+- **[docs/architecture/overview.md](../architecture/overview.md):** how v0.1.0 works, as built, pointing into the ADRs and the assessment. Writing it found five places where an ADR had drifted from the code; each is corrected.
+- **Screenshots and GIFs** in `docs/images/`, generated by `npm run docs:images` from the test build on a demo web of pages written for the project, so the pictures can be redone when the shell changes.
+- **The v0.1.0 release notes:** the "What's new" section of `docs/releases/v0.1.0.md`, with the measured numbers.
+- **[docs/testing/final-manual-checklist.md](../testing/final-manual-checklist.md):** the one list for the user, merging the five phase checklists with Phase 6's checks. The brief's six required items are marked: the OAuth popup, JS dialogs, the installer by hand, clean VMs, the quiet-machine benchmark and code signing.
+- **Deviations:**
+  - §9.3's real-page corpus and dynamic sites aren't measured; they need pages and accounts the repository doesn't hold. The report says so.
+  - Coverage isn't measured: no coverage provider is installed, so ADR-0008's 90% target is unenforced. Recorded in ADR-0008; a follow-up.

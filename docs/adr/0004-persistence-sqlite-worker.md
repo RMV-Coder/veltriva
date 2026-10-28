@@ -23,7 +23,7 @@ Electron's main-process JavaScript runs on Chromium's browser UI thread, so any 
 
 1. **SQLite through better-sqlite3 ≥ 13.0.2.** Version 13 uses N-API, so one `win32-x64` binary works in Electron and in plain Node. It runs in a dedicated `worker_threads` worker, behind an async repository interface, and the main process never touches SQLite directly.
 2. **Settings and constraints.**
-   - Connection pragmas: WAL, `synchronous=NORMAL`, `foreign_keys=ON`, `secure_delete=ON`, `busy_timeout=5000`, and an explicit `cache_size=-16000` (16 MB). With a smaller cache, searches at 50k pages were about 2.5× slower (S5). Setting it explicitly keeps the `node:sqlite` fallback, whose default cache is 2 MB, equally fast.
+   - Connection pragmas: WAL, `synchronous=NORMAL`, `foreign_keys=ON`, `secure_delete=ON`, `busy_timeout=5000`, `temp_store=MEMORY` (as built, `src/data/database.ts`), and an explicit `cache_size=-16000` (16 MB). With a smaller cache, searches at 50k pages were about 2.5× slower (S5). Setting it explicitly keeps the `node:sqlite` fallback, whose default cache is 2 MB, equally fast.
    - **Order matters:** on a brand-new file, `auto_vacuum=INCREMENTAL` must be set *before* `journal_mode=WAL`. In the reverse order it silently stays off (S5).
    - Tables are `STRICT`, with `CHECK` constraints.
 3. **Schema.** Workspace objects (`tabs`) are kept separate from memory (`pages`, `visits`). Alongside them:

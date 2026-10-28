@@ -47,6 +47,17 @@ export interface Load {
   readonly cpuPercent: number | null;
 }
 
+/** The machine's largest processes by working set, named, for the record of what else ran. */
+export function busiestProcesses(count = 10): readonly { name: string; workingSetMb: number }[] {
+  return powershell(
+    `Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First ${String(count)} | ForEach-Object { "$($_.ProcessName)=$([math]::Round($_.WorkingSet64 / 1MB))" }`,
+  )
+    .split(/\r?\n/)
+    .map((line) => line.trim().split('='))
+    .filter((parts): parts is [string, string] => parts.length === 2 && parts[0] !== '')
+    .map(([name, mb]) => ({ name, workingSetMb: Number(mb) }));
+}
+
 /** How busy the machine is right now. */
 export function currentLoad(): Load {
   const numbers = powershell(

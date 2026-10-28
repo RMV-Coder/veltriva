@@ -6,13 +6,15 @@
 // (10 MB of heap, 100 KB of DOM, spike S8's page) on a site of its own, `m<i>.test`, which the
 // host-resolver switch maps to the fixture server.
 //
-// It records the machine (CPU, memory, Windows build, power, Defender) and the free memory at each
-// run's start, and writes every run's raw reading to docs/benchmarks/data/, as JSON and CSV, after
-// each run: a run that fails is recorded with its error and the next one starts, so a machine too
-// loaded for some runs still leaves what it measured. The write-up in docs/benchmarks/ reports
-// medians and ranges from those files (tests/benchmarks/summarize-memory.mjs), and nothing else.
+// It records the machine (CPU, memory, Windows build, power, Defender), and at each run's start how
+// loaded it was (free memory, commit charge, processor load) and its largest processes, and writes
+// every run's raw reading to docs/benchmarks/data/, as JSON and CSV, after each run: a run that
+// fails is recorded with its error and the next one starts, so a machine too loaded for some runs
+// still leaves what it measured. The write-up in docs/benchmarks/ reports medians and ranges from
+// those files (tests/benchmarks/summarize-memory.mjs), and nothing else.
 //
 //   npm run bench:memory                     sizes 10, 25 and 50, 5 runs each
+//   BENCH_SIZES=100 npm run bench:memory     100 tabs (about 3.8 GB live: docs/benchmarks/memory.md)
 //   BENCH_SIZES=10 BENCH_RUNS=1 npm run bench:memory    a quick check of the harness
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
@@ -25,7 +27,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startFixtureServer } from '../fixtures/server';
 import type { FixtureServer } from '../fixtures/server';
 import { runScenario } from '../lifecycle/harness';
-import { environment } from './machine';
+import { busiestProcesses, currentLoad, environment } from './machine';
+import type { Load } from './machine';
 
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 /** Where the raw readings go; a smoke run of the harness points BENCH_OUT_DIR elsewhere. */
@@ -76,6 +79,9 @@ type Run = {
   readonly run: number;
   readonly warmUp: boolean;
   readonly freeMbAtStart: number;
+  /** How loaded the machine was as the run started, and what else was running. */
+  readonly loadAtStart: Load;
+  readonly busiestAtStart: readonly { name: string; workingSetMb: number }[];
 } & ({ readonly reading: Reading } | { readonly error: string });
 
 let server: FixtureServer;
@@ -93,7 +99,7 @@ describe('memory benchmark (§9.3)', () => {
   it(`measures ${SIZES.join(', ')} tabs, one warm-up and ${String(RUNS)} runs each`, async () => {
     const machine = environment();
     mkdirSync(OUT_DIR, { recursive: true });
-    const name = `phase-3-memory-${new Date().toISOString().slice(0, 10)}-${SIZES.join('-')}`;
+    const name = `memory-${new Date().toISOString().slice(0, 10)}-${SIZES.join('-')}`;
     const save = (): void => {
       writeFileSync(
         join(OUT_DIR, `${name}.json.gz`),
@@ -106,7 +112,14 @@ describe('memory benchmark (§9.3)', () => {
     for (const size of SIZES) {
       for (let run = 0; run <= RUNS; run += 1) {
         const freeMbAtStart = Math.round(freemem() / 2 ** 20);
-        const base = { size, run, warmUp: run === 0, freeMbAtStart };
+        const base = {
+          size,
+          run,
+          warmUp: run === 0,
+          freeMbAtStart,
+          loadAtStart: currentLoad(),
+          busiestAtStart: busiestProcesses(),
+        };
         try {
           const { result } = await runScenario<Reading>('memory-benchmark', {
             env: {
@@ -151,6 +164,9 @@ function toCsv(all: readonly Run[]): string {
     'run',
     'warm_up',
     'free_mb_at_start',
+    'commit_mb_at_start',
+    'commit_limit_mb',
+    'machine_cpu_percent_at_start',
     'phase',
     'live_tabs',
     'processes',
@@ -167,10 +183,19 @@ function toCsv(all: readonly Run[]): string {
     'discard_retries',
   ];
   const rows = all.flatMap((entry) => {
+    const start = [
+      entry.size,
+      entry.run,
+      entry.warmUp,
+      entry.freeMbAtStart,
+      entry.loadAtStart.commitMb ?? '',
+      entry.loadAtStart.commitLimitMb ?? '',
+      entry.loadAtStart.cpuPercent ?? '',
+    ];
     if (!('reading' in entry)) {
       const error = `"${entry.error.replaceAll('"', "'")}"`;
       return [
-        [entry.size, entry.run, entry.warmUp, entry.freeMbAtStart, '', '', '', '', '', '']
+        [...start, '', '', '', '', '', '']
           .concat(GROUPS.flatMap(() => ['', '']))
           .concat([error, '', '', '', '', '', ''])
           .join(','),
@@ -180,10 +205,7 @@ function toCsv(all: readonly Run[]): string {
     return PHASES.map(([label, key]) => {
       const phase = reading[key];
       return [
-        entry.size,
-        entry.run,
-        entry.warmUp,
-        entry.freeMbAtStart,
+        ...start,
         label,
         phase.liveTabs,
         phase.processes,

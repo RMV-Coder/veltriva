@@ -1,9 +1,9 @@
 // The update-available notification (M6.3, assessment §7.2 Release, ADR-0007 item 4, threat T14).
 // **Off by default, and silent while off:** no request, no DNS lookup, no timer. Only once the
-// user turns "Check for updates" on in Settings does Veltriva ask the release feed for the newest
-// version: 2 minutes after startup, then once a day, or when the user presses "Check now". A newer
-// version shows a notice with a link to its release page. Nothing is ever downloaded or installed
-// (auto-update waits for signed builds, ADR-0007 item 4).
+// user turns "Check for new versions" on in Settings does Veltriva ask the release feed for the
+// newest version: 2 minutes after startup, then once a day, or when the user presses "Check now".
+// A newer version shows a notice with a link to its release page. Nothing is ever downloaded or
+// installed (auto-update waits for signed builds, ADR-0007 item 4).
 //
 // The feed's answer is read as data only (core/updates/release-feed.ts): a version and an https
 // page. What was learnt is kept in the `updates` app_state document, so a restart doesn't ask
@@ -65,7 +65,7 @@ export interface UpdateView {
 }
 
 export interface UpdateCheckerOptions {
-  /** The user's "Check for updates" setting. */
+  /** The user's "Check for new versions" setting. */
   readonly enabled: () => boolean;
   readonly feedUrl: () => string;
   /** The running version, `app.getVersion()`. */

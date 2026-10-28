@@ -26,7 +26,7 @@ Afterwards, `check-packaged-app.mjs` checks `release/win-unpacked`:
 | Install | One click, per user, no admin rights, into `%LOCALAPPDATA%\Programs\veltriva`. Starts Veltriva when done |
 | Shortcuts | Start menu and desktop, "Veltriva Browser", stamped with the AppUserModelID `io.github.rmv-coder.veltriva`, which the app also sets for itself |
 | Profile | `%APPDATA%\Veltriva`: tabs, history, settings, site data |
-| Uninstall | Settings ▸ Apps ▸ Installed apps ▸ Veltriva Browser ▸ Uninstall. It confirms ("Are you sure you want to uninstall Veltriva Browser?"), then asks: **"Also remove your Veltriva data from this computer?"** (No is the default) |
+| Uninstall | Settings ▸ Apps ▸ Installed apps ▸ Veltriva Browser 0.1.0 (the entry carries the version) ▸ Uninstall. It confirms ("Are you sure you want to uninstall Veltriva Browser?"), then asks: **"Also remove your Veltriva data from this computer?"** (No is the default) |
 | Reinstall / update | Running a newer installer replaces the app and keeps the profile. The uninstall step an update runs never asks and never removes it |
 | Silent uninstall | `"%LOCALAPPDATA%\Programs\veltriva\Uninstall Veltriva.exe" /currentuser /S` keeps the profile; add `--delete-app-data` to remove it |
 | Icon | `build/icon.ico`, drawn by `scripts/make-icon.mjs` (run it again after changing the design) |

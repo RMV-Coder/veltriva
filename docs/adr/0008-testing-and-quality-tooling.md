@@ -11,6 +11,7 @@
 ## Decision
 
 1. **Unit tests.** Vitest 5 on Node 24, with `*.test.ts` files next to the code. `src/core` needs at least 90% line and branch coverage.
+   - **As built (v0.1.0): coverage isn't measured.** No coverage provider (such as `@vitest/coverage-v8`) is installed, and CI doesn't check the 90% target. The pure layers are tested heavily (8,576 tests at v0.1.0, with fast-check model and property tests), but the number is unmeasured. Adding the provider and a threshold is a follow-up.
 2. **Model-based tests (fast-check 4).**
    - Random command sequences run against TabManager with fake tab runtimes.
    - Async completions are reordered with `fc.scheduler()` and `scheduledModelRun`.
@@ -106,6 +107,10 @@
      - Its first version raised the shell in its normal, opaque state, and the page went `hidden`. That is how we learned that A′ depends on a transparent document root.
 5. **Installer smoke test**, without Playwright: install, launch, read back the fuses, assert that no test hooks exist, uninstall.
    - **As built in M6.1:** `package:dir` already refuses a build with test hooks (`check-production-build.mjs`). `check-packaged-app.mjs` now also reads the fuse wire back from `Veltriva.exe` (`scripts/fuse-wire.mjs`) and checks that the licenses ship. Installing and uninstalling come with the installer (M6.3).
+   - **As built in M6.3:** `scripts/installer-test.ps1` runs an installer end to end on this machine. It covers install, the shortcuts and their AppUserModelID, the license files, the fuses read back from the installed `Veltriva.exe`, launch, both answers to the uninstaller's profile question, reinstall, `/S`, `/S --delete-app-data`, and with `-Upgrade` an upgrade over an install.
+     - It presses the uninstaller's buttons with `BM_CLICK`, since UI Automation shows NSIS message-box buttons as panes, so the interactive path runs.
+     - It renames the user's profile aside and restores it.
+     - It is a script the user can run, not part of CI: it installs into the real per-user location.
 6. **Security tests:**
    - a hostile fixture page;
    - malformed payloads for every IPC handler;
@@ -120,6 +125,10 @@
    - `main`: also an unsigned NSIS build artifact.
    - Benchmarks run manually.
    - Releases are manual drafts; nothing is published automatically.
+   - **As built in M6.3:** `ci.yml`'s steps are the local gates' npm scripts. Every step ran locally, in a fresh clone and as the milestone gates. `codeql.yml`, Dependabot and a draft-release `release.yml` were added, with actions pinned by SHA.
+   - **As built in M6.4:**
+     - **The memory benchmark records how loaded the machine was** at each run's start: free memory, commit charge, processor load and the ten largest processes. On a shared laptop a number means little without that. `BENCH_SIZES=100` runs the 100-tab size.
+     - **The README's screenshots and GIFs are generated:** `npm run docs:images` runs `tests/docs-images/capture.spec.ts` (its own Playwright config, not part of E2E). It drives the test build on a demo web of `*.example` pages written for the project and served over TLS from this machine. It captures the whole window with `PrintWindow`, so the page under the shell is in the picture, and assembles the GIFs with ffmpeg when it is on the PATH.
 9. **Tooling.**
    - TypeScript 6.0 with `strict`, `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`.
    - ESLint 10 (flat config), typescript-eslint (type-aware rules such as `no-floating-promises`) and Prettier.

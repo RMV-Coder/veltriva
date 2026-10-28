@@ -76,7 +76,7 @@ The table names a file or a test as evidence. The last column is the milestone t
 
 | Item | Status | Evidence | Closed by |
 |---|---|---|---|
-| NSIS installer | **done** (M6.3) | `npm run package:installer`: per user, shortcuts with the AppUserModelID, an uninstaller that asks about the profile (`build/installer.nsh`). `scripts/installer-test.ps1` installed, launched, uninstalled (both answers, and silently) and reinstalled it on this machine; clean Windows 10 and 11 VMs are in the final manual checklist (ADR-0007 item 8) | M6.3 |
+| NSIS installer | **done** (M6.3) | `npm run package:installer`: per user, shortcuts with the AppUserModelID, an uninstaller that asks about the profile (`build/installer.nsh`). `scripts/installer-test.ps1` installed, launched, uninstalled (both answers, and silently), reinstalled and upgraded it (0.0.0 → 0.1.0) on this machine; clean Windows 10 and 11 VMs are in the final manual checklist (ADR-0007 item 8) | M6.3 |
 | Fuses | done | `electron-builder.yml` `electronFuses`; read back from the binary by `scripts/check-packaged-app.mjs` since M6.1 | — |
 | About page with versions and licenses | **done** (M6.3) | `veltriva://about`: Veltriva, Electron, Chromium, Node.js and V8; the MIT license; `THIRD_PARTY_NOTICES.txt` (M6.1); `tests/e2e/about-updates.spec.ts` | M6.3 |
 | Update-available notification before any public release | **done** (M6.3) | `src/main/updates`, off by default and silent while off; Settings ▸ Updates; a notice with View release and Skip; `tests/e2e/about-updates.spec.ts` | M6.3 |
