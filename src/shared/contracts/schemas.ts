@@ -207,6 +207,20 @@ const promptId = z.string().regex(/^prompt-[0-9]{1,15}$/);
 
 /** A notice about Veltriva itself: main's own handle (src/main/notices/app-notices.ts). */
 const noticeId = z.string().regex(/^notice-[0-9]{1,15}$/);
+/** A release's version, as the update check reads it from the feed (M6.3). */
+const releaseVersion = z.string().regex(/^\d{1,6}\.\d{1,6}\.\d{1,6}$/);
+/** Where the update check stands (M6.3, src/main/updates/update-checker.ts). */
+const updateView = z.strictObject({
+  enabled: z.boolean(),
+  feedUrl: z.string().max(2048),
+  currentVersion: z.string().max(64),
+  lastCheckedAt: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable(),
+  lastStatus: z.enum(['up-to-date', 'available', 'failed']).nullable(),
+  available: z
+    .strictObject({ version: releaseVersion, url: z.url({ protocol: /^https$/ }).max(2048) })
+    .nullable(),
+  checking: z.boolean(),
+});
 /**
  * A file's name, never a path: no separators, none of the characters Windows forbids in a name,
  * and no control characters. Main cleans the name before it gets here (`projectNotice`).
@@ -416,6 +430,12 @@ const workspaceSnapshot = z.strictObject({
         }),
         z.strictObject({ id: noticeId, kind: z.literal('session-recovered') }),
         z.strictObject({ id: noticeId, kind: z.literal('safe-mode') }),
+        /** M6.3: the update check found a newer version (its page stays in main). */
+        z.strictObject({
+          id: noticeId,
+          kind: z.literal('update-available'),
+          version: releaseVersion,
+        }),
       ]),
     )
     .max(3),
@@ -432,9 +452,20 @@ export const commandSchemas = {
         electron: z.string(),
         chrome: z.string(),
         node: z.string(),
+        v8: z.string(),
       }),
     }),
   },
+  /**
+   * About (M6.3): Veltriva's license and THIRD_PARTY_NOTICES.txt, as shipped in the app's
+   * resources. Plain text the page shows as text.
+   */
+  'app.licenses': {
+    input: nothing,
+    output: z.strictObject({ license: z.string().max(20_000), notices: z.string().max(2_000_000) }),
+  },
+  /** Selects the About tab, or opens one (`veltriva://about`). */
+  'app.openAbout': { input: nothing, output: nothing },
   'workspace.getSnapshot': { input: nothing, output: workspaceSnapshot },
   'tabs.create': { input: nothing, output: tabRef },
   'tabs.close': { input: tabFocusRef, output: nothing },
@@ -747,6 +778,14 @@ export const commandSchemas = {
   },
   /** Shows Settings: selects its tab if one is open, else opens one. */
   'settings.open': { input: nothing, output: nothing },
+  /** M6.3: where the update check stands. Asks nobody. */
+  'updates.status': { input: nothing, output: updateView },
+  /** "Check now": asks the release feed, only if the user turned checks on. */
+  'updates.check': { input: nothing, output: updateView },
+  /** "Skip this version": its notice won't come back. */
+  'updates.skip': { input: z.strictObject({ version: releaseVersion }), output: nothing },
+  /** "View release": main opens the release page the check found, in a new tab. */
+  'updates.openRelease': { input: nothing, output: nothing },
   // M5.2: clearing data and managing stored answers.
   /**
    * Clears what was recorded in a time range: the visits (`memory`), the tabs archived or closed

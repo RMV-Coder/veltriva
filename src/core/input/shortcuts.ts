@@ -25,7 +25,7 @@ export type ReservedCommand =
   | { readonly kind: 'selectTab'; readonly index: number }
   | { readonly kind: 'selectLastTab' }
   | { readonly kind: 'focusAddressBar' }
-  /** F6: between the address bar and the page. */
+  /** F6: cycles the address bar, the sidebar's selected tab and the page (M6.2). */
   | { readonly kind: 'cycleFocus' }
   | { readonly kind: 'reload' }
   | { readonly kind: 'reloadIgnoringCache' }

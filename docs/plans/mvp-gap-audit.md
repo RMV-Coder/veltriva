@@ -76,10 +76,10 @@ The table names a file or a test as evidence. The last column is the milestone t
 
 | Item | Status | Evidence | Closed by |
 |---|---|---|---|
-| NSIS installer | partial | configured in `electron-builder.yml`, not built (ADR-0007) | Phase 6 |
-| Fuses | done | `electron-builder.yml` `electronFuses`; `scripts/check-packaged-app.mjs` | — |
-| About page with versions and licenses | missing | — | Phase 6 |
-| Update-available notification before any public release | missing | — | Phase 6 |
+| NSIS installer | **done** (M6.3) | `npm run package:installer`: per user, shortcuts with the AppUserModelID, an uninstaller that asks about the profile (`build/installer.nsh`). `scripts/installer-test.ps1` installed, launched, uninstalled (both answers, and silently) and reinstalled it on this machine; clean Windows 10 and 11 VMs are in the final manual checklist (ADR-0007 item 8) | M6.3 |
+| Fuses | done | `electron-builder.yml` `electronFuses`; read back from the binary by `scripts/check-packaged-app.mjs` since M6.1 | — |
+| About page with versions and licenses | **done** (M6.3) | `veltriva://about`: Veltriva, Electron, Chromium, Node.js and V8; the MIT license; `THIRD_PARTY_NOTICES.txt` (M6.1); `tests/e2e/about-updates.spec.ts` | M6.3 |
+| Update-available notification before any public release | **done** (M6.3) | `src/main/updates`, off by default and silent while off; Settings ▸ Updates; a notice with View release and Skip; `tests/e2e/about-updates.spec.ts` | M6.3 |
 
 ## Should
 
@@ -93,7 +93,7 @@ The table names a file or a test as evidence. The last column is the milestone t
 | First-run onboarding (search engine, preset, preview mode) | **done** (M5.1) | `veltriva://welcome` on a new profile (`settings.spec.ts`) | M5.1 |
 | The freeze experiment behind a flag | done | `lifecycle.freeze`, off by default (M3.1), switched in Settings (M5.1) | — |
 | Regret rate on a diagnostics page | done | `veltriva://diagnostics` (M3.4) | — |
-| Silent auto-update once builds are signed | missing | — | Phase 6 |
+| Silent auto-update once builds are signed | not built: builds are unsigned (signing is the user's decision, `docs/distribution/signing.md`) | — | after signing |
 
 ## Also from §5.7 and §6.6
 

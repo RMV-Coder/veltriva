@@ -75,6 +75,12 @@ export const COMMAND_NAMES = [
   'diagnostics.export',
   'diagnostics.openLogFolder',
   'focus.page',
+  'app.licenses',
+  'app.openAbout',
+  'updates.status',
+  'updates.check',
+  'updates.skip',
+  'updates.openRelease',
 ] as const;
 export type CommandName = (typeof COMMAND_NAMES)[number];
 

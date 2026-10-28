@@ -48,6 +48,28 @@
    - **`THIRD_PARTY_NOTICES.txt`** is generated from that, committed, and shipped in `resources/` beside `LICENSE.txt` (`extraResources`). electron-builder puts `LICENSE.electron.txt` and `LICENSES.chromium.html` (Chromium and Node.js) next to `Veltriva.exe`.
    - **The license check** (`third-party-notices.mjs --check`, in `package:dir` and CI) fails when the file is stale or a license isn't on the allow-list. `check-packaged-app.mjs` checks that all four files ship, and reads the fuses back from `Veltriva.exe`.
 
+8. **As built in M6.3** ([docs/distribution/releasing.md](../distribution/releasing.md)).
+   - **The installer** (`npm run package:installer`): one-click and per-user, with Start-menu and desktop shortcuts carrying the AppUserModelID.
+     - **The uninstaller asks** whether to remove `%APPDATA%\Veltriva` (`build/installer.nsh`, the `customUnInstall` hook). An update's uninstall step, and a silent uninstall, never remove it.
+     - **The question is decided by the command line, not `${Silent}`.** A one-click uninstaller shows its own "Are you sure?", then turns itself silent for the rest (electron-builder's `un.onInit`). So `${Silent}` is always true by the time the hook runs, and a `/SD` default would answer the question without showing it. The first build had that bug and never asked; the install test on this machine found it.
+     - **The icon** is drawn by `scripts/make-icon.mjs`, with no image tool: bitmaps up to 64 px, PNG at 128 and 256.
+   - **Signing** stays off, the user's decision; [docs/distribution/signing.md](../distribution/signing.md) says what unsigned means and what to add for each route.
+   - **The update notice** (item 4's "update-available notification"): `src/main/updates`, off by default.
+     - **While off:** no request, DNS lookup or timer.
+     - **When on:** a check 2 minutes after startup and then daily, against GitHub's latest-release API for `RMV-Coder/veltriva`, or a feed the user sets. The request uses a separate in-memory session, https only (or http to this machine), and reads at most 1 MB.
+     - **What the user sees:** a notice for a newer version, with "View release". Main opens the page it read from the feed, so the shell never names a URL. Nothing is downloaded.
+   - **`veltriva://about`:** the versions (Veltriva, Electron, Chromium, Node.js, V8), the MIT license, `THIRD_PARTY_NOTICES.txt`, and the update status.
+   - **CI:**
+     - every step of `ci.yml` is an npm script that also runs locally;
+     - `codeql.yml` and Dependabot added (threat T12);
+     - `release.yml` builds and makes a **draft** release from a pushed tag;
+     - every action is pinned by SHA, checked against GitHub's API.
+   - **The release script** (`npm run release -- <version>`), all local, never pushed:
+     - the version bump, committed with Veyra;
+     - attested unit tests;
+     - `veyra release notes`, and `veyra release prepare` for an annotated tag;
+     - the installer, its SHA-256, and a draft `docs/releases/v<version>.md`.
+
 ## Consequences
 
 - **Positive:** a mature per-user installer with delta updates, and fuses with no extra dependency.

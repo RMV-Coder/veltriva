@@ -102,6 +102,7 @@ test.describe('window.veltriva', () => {
         electron: process.versions.electron,
         chrome: process.versions.chrome,
         node: process.versions.node,
+        v8: process.versions.v8,
       },
     }));
 

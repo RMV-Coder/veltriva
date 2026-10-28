@@ -17,7 +17,7 @@ const FROM_TAB: FakeEvent = { verdict: { trusted: false, reason: 'not-shell' } }
 const INFO = {
   productName: 'Veltriva Browser',
   version: '0.0.0',
-  versions: { electron: '44.7.2', chrome: '152.0.7977.149', node: '24.21.0' },
+  versions: { electron: '44.7.2', chrome: '152.0.7977.149', node: '24.21.0', v8: '15.2.124.43' },
 };
 
 /** Every other command throws: these tests only exercise `app.getInfo`. */

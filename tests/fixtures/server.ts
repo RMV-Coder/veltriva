@@ -2,6 +2,7 @@
 // OS-chosen port (or one the test asks for), with no external network. It serves the files in
 // ./pages and these routes made in code:
 //   /echo-headers      the request headers as JSON, to see what a page really sends
+//   /release-feed      a release feed in GitHub's format, from `tag` and `page` (M6.3)
 //   /download          a small file with `Content-Disposition: attachment`
 //   /sample.pdf        a tiny valid PDF
 //   /search?q=…        a local search engine: its title echoes the query (HTML-escaped)
@@ -188,6 +189,21 @@ async function route(
   switch (pathname) {
     case '/echo-headers':
       respond(response, 200, 'application/json; charset=utf-8', JSON.stringify(request.headers));
+      return;
+    case '/release-feed':
+      // A release feed in GitHub's latest-release format (M6.3, tests/e2e/about-updates.spec.ts):
+      // `tag` names the release, `page` is its page.
+      respond(
+        response,
+        200,
+        'application/json; charset=utf-8',
+        JSON.stringify({
+          tag_name: searchParams.get('tag') ?? 'v0.0.0',
+          html_url: searchParams.get('page') ?? 'https://releases.invalid/',
+          draft: false,
+          prerelease: false,
+        }),
+      );
       return;
     case '/client-hints-opt-in':
       // A page that asks for every opt-in client hint (tests/e2e/client-hints.spec.ts).

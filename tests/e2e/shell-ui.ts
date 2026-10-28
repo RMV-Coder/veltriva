@@ -62,7 +62,8 @@ export type InternalPageName =
   | 'crashed'
   | 'diagnostics'
   | 'settings'
-  | 'welcome';
+  | 'welcome'
+  | 'about';
 
 /** An internal page the shell draws in the content area. */
 export function internalPage(shell: Page, name: InternalPageName): Locator {

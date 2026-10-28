@@ -1,7 +1,7 @@
 {
   "name": "veltriva",
   "productName": "Veltriva Browser",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "A local-first, Chromium-powered desktop browser that manages inactive tabs and keeps a searchable local tab memory.",
   "author": "Raymond Valdepeñas",
@@ -25,7 +25,10 @@
     "bench:memory": "npm run build:test && vitest run --config vitest.benchmark.config.mts memory",
     "bench:search": "npm run build:test && vitest run --config vitest.benchmark.config.mts search",
     "licenses": "electron-vite build && node scripts/third-party-notices.mjs",
-    "package:dir": "node scripts/verify-sqlite-binary.mjs && electron-vite build && node scripts/check-production-build.mjs && node scripts/check-data-isolation.mjs && node scripts/third-party-notices.mjs --check && electron-builder --win --x64 --dir && node scripts/check-packaged-app.mjs"
+    "build:release": "node scripts/verify-sqlite-binary.mjs && electron-vite build && node scripts/check-production-build.mjs && node scripts/check-data-isolation.mjs && node scripts/third-party-notices.mjs --check",
+    "package:dir": "npm run build:release && electron-builder --win --x64 --dir && node scripts/check-packaged-app.mjs",
+    "package:installer": "npm run build:release && electron-builder --win --x64 && node scripts/check-packaged-app.mjs",
+    "release": "node scripts/release.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

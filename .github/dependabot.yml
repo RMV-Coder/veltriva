@@ -1,0 +1,35 @@
+# Dependency updates as pull requests (threat T12, assessment §6.5; M6.3). Inert until the
+# repository has a GitHub remote. Each update is a pull request that CI checks like any other;
+# nothing merges by itself. Versions stay exact (.npmrc save-exact), and Electron majors follow
+# ADR-0001's upgrade policy (a branch with the full checks).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Tooling that moves together; each group is one pull request.
+      lint-and-format:
+        patterns: ['eslint', '@eslint/*', 'typescript-eslint', 'eslint-plugin-*', 'prettier']
+      build:
+        patterns:
+          [
+            'vite',
+            '@vitejs/*',
+            'electron-vite',
+            'electron-builder',
+            '@tailwindcss/*',
+            'tailwindcss',
+          ]
+      test:
+        patterns: ['vitest', '@playwright/test', '@axe-core/playwright', 'fast-check']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5

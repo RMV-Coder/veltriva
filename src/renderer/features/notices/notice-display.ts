@@ -36,6 +36,8 @@ export function noticeLabel(kind: NoticeKind): string {
       return 'Session recovered';
     case 'safe-mode':
       return 'Safe mode';
+    case 'update-available':
+      return 'Update available';
   }
 }
 
@@ -116,6 +118,13 @@ export function noticeSentence(notice: Notice, format: TimeFormat = {}): readonl
       return [
         plain(
           'Veltriva closed unexpectedly twice soon after starting, so your tabs are back without loading. Select a tab, or press Reload, to load it.',
+        ),
+      ];
+    case 'update-available':
+      // The version is digits and dots: main read it from the feed as MAJOR.MINOR.PATCH only.
+      return [
+        plain(
+          `Veltriva ${notice.version} is available. Nothing is downloaded until you choose to get it from its release page.`,
         ),
       ];
   }

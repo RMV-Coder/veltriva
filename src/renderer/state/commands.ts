@@ -543,3 +543,48 @@ export async function openLogFolder(): Promise<boolean> {
 export async function focusPage(): Promise<boolean> {
   return (await run('focus.page', () => window.veltriva.focus.page())).ok;
 }
+
+// ── About and updates (M6.3) ──────────────────────────────────────────────────────────────────────
+
+export type AppInfo = CommandOutput<'app.getInfo'>;
+export type Licenses = CommandOutput<'app.licenses'>;
+export type UpdateStatus = CommandOutput<'updates.status'>;
+
+/** The versions of this build. Undefined if main could not answer. */
+export async function fetchAppInfo(): Promise<AppInfo | undefined> {
+  const result = await run('app.getInfo', () => window.veltriva.app.getInfo());
+  return result.ok ? result.value : undefined;
+}
+
+/** Veltriva's license and the third-party notices it ships. */
+export async function fetchLicenses(): Promise<Licenses | undefined> {
+  const result = await run('app.licenses', () => window.veltriva.app.licenses());
+  return result.ok ? result.value : undefined;
+}
+
+/** Where the update check stands. Asks nobody. */
+export async function fetchUpdateStatus(): Promise<UpdateStatus | undefined> {
+  const result = await run('updates.status', () => window.veltriva.updates.status());
+  return result.ok ? result.value : undefined;
+}
+
+/** "Check now": main asks the release feed, only if the user turned checks on. */
+export async function checkForUpdates(): Promise<UpdateStatus | undefined> {
+  const result = await run('updates.check', () => window.veltriva.updates.check());
+  return result.ok ? result.value : undefined;
+}
+
+/** "Skip this version": its notice won't come back. */
+export async function skipUpdate(version: string): Promise<boolean> {
+  return (await run('updates.skip', () => window.veltriva.updates.skip({ version }))).ok;
+}
+
+/** Selects the About tab, or opens one (`veltriva://about`). */
+export async function openAbout(): Promise<boolean> {
+  return (await run('app.openAbout', () => window.veltriva.app.openAbout())).ok;
+}
+
+/** "View release": main opens, in a new tab, the release page the update check found. */
+export async function openReleasePage(): Promise<boolean> {
+  return (await run('updates.openRelease', () => window.veltriva.updates.openRelease())).ok;
+}
