@@ -82,7 +82,7 @@ Every third-party action is pinned to a full commit SHA, with its release in a c
 - `actions/checkout` v7.0.1;
 - `actions/setup-node` v7.1.0;
 - `actions/upload-artifact` v7.0.2;
-- `github/codeql-action` v4.38.3.
+- `github/codeql-action` v4.39.1 (checked on 2026-10-30), for both `init` and `analyze`. The two must stay on one version, so Dependabot updates them together (the `codeql-action` group).
 
 ## The release script
 
