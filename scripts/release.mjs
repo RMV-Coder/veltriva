@@ -192,10 +192,20 @@ ${releaseSection('changes', sections.changes)}
 `;
 mkdirSync(join('docs', 'releases'), { recursive: true });
 const pagePath = join('docs', 'releases', `${tag}.md`);
+// Read it outright rather than check first, so nothing can change it in between (CodeQL: file
+// system race); a page that isn't there is a new one.
+let drafted;
+try {
+  drafted = readFileSync(pagePath, 'utf8');
+} catch (error) {
+  if (error?.code !== 'ENOENT') {
+    fail(`${pagePath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
 let page = newPage;
-if (existsSync(pagePath)) {
+if (drafted !== undefined) {
   try {
-    page = fillReleasePage(readFileSync(pagePath, 'utf8'), sections);
+    page = fillReleasePage(drafted, sections);
   } catch (error) {
     fail(`${pagePath}: ${error instanceof Error ? error.message : String(error)}`);
   }
