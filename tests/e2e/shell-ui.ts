@@ -262,16 +262,68 @@ export async function closeWithButton(shell: Page, tabId: TabId): Promise<void> 
   await row.getByRole('button', { name: 'Close tab', includeHidden: true }).click();
 }
 
-/** Clicks the row's "Pin tab" or "Unpin tab" button, whichever it shows. */
+/**
+ * Clicks the row's "Pin tab" or "Unpin tab" button, whichever it shows, and waits until the shell
+ * draws the tab in its new section. Waiting for the order isn't enough: pinning the first tab
+ * leaves the order as it was, but adds the "Pinned" label and a separator above the other tabs,
+ * which moves every unpinned row down by about one row (35 px, measured). Anything measured
+ * before that lands is a row off (the drag-reorder intermittent, M1.3b to v1.0.0).
+ */
 export async function togglePinWithButton(shell: Page, tabId: TabId): Promise<void> {
+  const tab = tabElement(shell, tabId);
+  const pinned = (await tab.getAttribute('data-pinned')) === 'true';
   const row = tabRow(shell, tabId);
   await row.hover();
   await row.getByRole('button', { name: /^(Un)?[Pp]in tab$/, includeHidden: true }).click();
+  await expect(tab).toHaveAttribute('data-pinned', String(!pinned));
+}
+
+/**
+ * The drop line the shell draws while `tabId` is dragged to `edge` of `onto`: at the top of the row
+ * the tab will land before, or at the bottom of its section's last row. A tab moves only within its
+ * own section, so aiming at a row of the other one lands it at the nearer end of its own.
+ */
+async function dropLineFor(
+  shell: Page,
+  tabId: TabId,
+  onto: TabId,
+  edge: 'before' | 'after',
+): Promise<Locator> {
+  const tabs = await sidebarTabs(shell);
+  const dragged = tabs.find((tab) => tab.id === tabId);
+  const target = tabs.find((tab) => tab.id === onto);
+  if (dragged === undefined || target === undefined) {
+    throw new Error('Both tabs must be in the sidebar to drag one.');
+  }
+  const section = tabs.filter((tab) => tab.pinned === dragged.pinned);
+  const from = section.indexOf(dragged);
+  let slot: number;
+  if (target.pinned === dragged.pinned) {
+    slot = section.indexOf(target) + (edge === 'after' ? 1 : 0);
+  } else {
+    slot = target.pinned ? 0 : section.length;
+  }
+  if (slot === from || slot === from + 1) {
+    throw new Error(`Dropping ${tabId} there leaves it where it is, and the shell draws no line.`);
+  }
+  const below = section[slot];
+  const last = section.at(-1);
+  if (below !== undefined) {
+    return tabRow(shell, below.id).locator('[data-drop-indicator="top"]');
+  }
+  if (last === undefined) {
+    throw new Error('unreachable: the dragged tab is in its own section');
+  }
+  return tabRow(shell, last.id).locator('[data-drop-indicator="bottom"]');
 }
 
 /**
  * Drags a tab with the pointer (press, move more than 4 px, release) until it is above or below
  * another tab's row. While the drag is in progress, `duringDrag` runs (to look at the drop line).
+ *
+ * It releases only once the shell shows the drag the test means: the pressed tab marked as
+ * dragged, and the drop line where the tab will land. Otherwise a drag that went wrong would drop
+ * the wrong tab, or drop it a slot off, and fail later as a wrong order.
  */
 export async function dragTab(
   shell: Page,
@@ -284,6 +336,7 @@ export async function dragTab(
   // moment (found by repeating the tabs spec): measure only once both are shown.
   await expect(tabElement(shell, tabId)).toBeVisible();
   await expect(tabElement(shell, onto)).toBeVisible();
+  const landing = await dropLineFor(shell, tabId, onto, edge);
   const from = await tabElement(shell, tabId).boundingBox();
   const to = await tabElement(shell, onto).boundingBox();
   if (from === null || to === null) {
@@ -300,9 +353,13 @@ export async function dragTab(
   await shell.mouse.move(x, startY + (endY >= startY ? 8 : -8));
   await shell.mouse.move(x, endY, { steps: 6 });
   try {
-    // Release only once the shell shows where the tab would land. On a loaded machine the moves
-    // can all be sent before the shell has started the drag, and then the release drops nothing
-    // (the drag-reorder intermittent, M1.3b to M2.1b).
+    // Release only once the shell shows this drag: on a loaded machine the moves can all be sent
+    // before the shell has started the drag, and then the release drops nothing (M1.3b to M2.1b).
+    await expect(tabElement(shell, tabId), `the shell should be dragging ${tabId}`).toHaveAttribute(
+      'data-dragging',
+      'true',
+    );
+    await expect(landing, `the drop line should show where ${tabId} will land`).toHaveCount(1);
     await expect(shell.locator('[data-drop-indicator]')).toHaveCount(1);
     await duringDrag?.();
   } finally {
