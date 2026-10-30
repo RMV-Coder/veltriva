@@ -2,7 +2,8 @@
 // no inspector and no CDP session attached, because those mask what these tests measure: focus
 // emulation keeps hidden pages "visible" and Playwright's loader disables renderer backgrounding
 // (spike S6). The app runs one scenario from src/main/testing/lifecycle-scenarios.ts, prints one
-// result line on stdout and exits; `runScenario` returns that result.
+// result line on stdout and exits; `runScenario` returns that result. Every app it starts has
+// Chromium's native window occlusion turned off (HARNESS_SWITCHES).
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -24,6 +25,25 @@ const BUILD_HINT = 'Run `npm run test:lifecycle`, which builds the test variant.
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 /** Startup plus the scenario. A first launch on a CI runner can be slow. */
 const SCENARIO_TIMEOUT_MS = 90_000;
+
+/**
+ * Put before the app's path on every launch (ADR-0008 4a). Chromium on Windows works out whether
+ * other windows cover each of its windows (native window occlusion) and reports every page in a
+ * covered window `hidden`: the selected tab, the shell (so no animation frame runs, and an overlay
+ * is never raised), a page shown again. A page that loads while its window counts as covered and
+ * is never shown also drops real clicks and keys. Keeping the window on top was not enough on a
+ * desktop in use: one visibility or typing check failed per run on the development laptop.
+ *
+ * Turning the calculation off removes only the other windows from the checks. A tab that isn't
+ * selected is still hidden, because its view is removed from the window, and a page under an
+ * opaque view in the same window still goes hidden, which the raised-shell checks need: both come
+ * from Chromium's occlusion inside the window, which this feature doesn't control. Measured with
+ * Electron 45.0.0. `--disable-backgrounding-occluded-windows` would not do: it reports any
+ * occluded page visible, a page under an opaque view included.
+ *
+ * A caller's own `--disable-features` would replace this one: Chromium keeps the last.
+ */
+const HARNESS_SWITCHES = ['--disable-features=CalculateNativeWinOcclusion'] as const;
 
 export interface ScenarioRun<T> {
   readonly result: T;
@@ -125,7 +145,7 @@ function runApp(
   options: { readonly switches: readonly string[]; readonly timeoutMs: number },
 ): Promise<AppRun> {
   return new Promise((resolve, reject) => {
-    const child = spawn(binary, [...options.switches, REPO_ROOT], {
+    const child = spawn(binary, [...HARNESS_SWITCHES, ...options.switches, REPO_ROOT], {
       cwd: REPO_ROOT,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -222,7 +242,7 @@ export async function runUntilKilled(
   },
 ): Promise<KilledRun> {
   const binary = electronBinary();
-  const child = spawn(binary, [REPO_ROOT], {
+  const child = spawn(binary, [...HARNESS_SWITCHES, REPO_ROOT], {
     cwd: REPO_ROOT,
     env: {
       ...envWithoutRunAsNode(),
