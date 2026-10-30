@@ -336,7 +336,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-electron 45.0.0
+electron 45.1.0
 License: MIT
 Source: https://github.com/electron/electron
 Shipped as: the runtime Veltriva runs on
@@ -364,7 +364,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-lucide-react 1.57.0
+lucide-react 1.61.0
 License: ISC
 Source: https://github.com/lucide-icons/lucide
 Shipped as: bundled into the shell
@@ -670,7 +670,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-vite 8.3.4
+vite 8.3.5
 License: MIT
 Source: https://github.com/vitejs/vite
 Shipped as: its module-preload helper, in the shell
@@ -729,7 +729,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-zustand 5.0.15
+zustand 5.0.16
 License: MIT
 Source: https://github.com/pmndrs/zustand
 Shipped as: bundled into the shell

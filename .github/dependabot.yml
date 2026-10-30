@@ -33,3 +33,7 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    groups:
+      # CodeQL's init and analyze must run the same version: apart, each pull request fails.
+      codeql-action:
+        patterns: ['github/codeql-action*']
