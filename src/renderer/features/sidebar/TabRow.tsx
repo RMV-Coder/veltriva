@@ -87,6 +87,7 @@ export function TabRow({
         data-user-protected={tab.userProtected}
         data-kept-awake={keptAwakeAttribute(tab.keptAwake)}
         data-preview-move={tab.previewMove ?? undefined}
+        data-dragging={dragging || undefined}
         onClick={onActivate}
         onKeyDown={onKeyDown}
         // Right-click, the Menu key or Shift+F10: main shows the tab's native menu (pin, duplicate,
