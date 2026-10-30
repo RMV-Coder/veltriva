@@ -94,13 +94,21 @@ It stops at the first failure, and `veyra undo` reverses its commits and its tag
 1. **Checks:** a plain `MAJOR.MINOR.PATCH` version, a clean working tree, and a tag name that is free.
 2. **The version:** sets it in `package.json` and `package-lock.json`, and commits "Release v0.2.0: the version" with Veyra.
 3. **The tests:** runs the unit tests under `veyra attest run`, so the release commit carries a test attestation (`--skip-tests` to skip).
-4. **The tag:** writes the release notes (`veyra release notes`), then tags the commit (`veyra release prepare v0.2.0`). The tag is annotated and local.
+4. **The notes and the tag:** groups the changes since the last tag by feature area (`scripts/release-notes.mjs`), then tags the commit (`veyra release prepare v0.2.0`). The tag is annotated and local.
 5. **The installer:** builds it, with every packaging check (`npm run package:installer`).
 6. **The checksum:** writes `release/SHA256SUMS.txt`.
-7. **The draft page:** writes `docs/releases/v0.2.0.md` (the notes, the file and its SHA-256, how to check it, install and remove), and commits it.
+7. **The draft page:** writes `docs/releases/v0.2.0.md` (the notes, the file and its SHA-256, how to check it, install and remove), and commits it. If you drafted that page by hand first, it keeps your text: the script writes only its three sections, each between `<!-- release:status -->`, `<!-- release:download -->` or `<!-- release:changes -->` and its closing marker, and stops if one is missing. [v1.0.0.md](../releases/v1.0.0.md) is such a draft.
 
 Options:
 - `--assisted-by "<model>"` and `--trailer "<line>"` pass through to the commits.
+- `--notes-range <range>` lists the changes of a git range instead of those since the last tag. v0.1.0 was never published, so v1.0.0 lists the whole history: `--notes-range HEAD`.
+
+### The release notes
+
+`node scripts/release-notes.mjs [<range>]` prints the grouped notes without releasing anything (the default range is since the last tag; `HEAD` is the whole history). Most commit subjects here aren't Conventional Commits, so `veyra release notes`, which groups by type, would put nearly every change under "Other changes". Instead, each commit goes under one area: browsing, tab lifecycle and session restore, memory and search, privacy, security, accessibility, install and release, Electron and dependencies, or tests, tooling and documentation.
+- A commit that changes no shipped code (only tests, docs, plans or tooling) goes under tests, tooling and documentation.
+- Otherwise the words of its subject name the area ("Sleeping", "palette", "permissions"), and the folders it changed decide when the words don't. The rules are in the script.
+- An `Area: <key>` line at the end of the commit message overrides both, for a commit the rules would misplace. The keys are `browsing`, `lifecycle`, `memory`, `privacy`, `security`, `accessibility`, `release`, `platform` and `development`.
 
 **To publish later (your decision):**
 1. Push the branch and the tag: `veyra push origin main`, `veyra push origin v0.2.0`.

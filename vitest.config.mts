@@ -1,10 +1,11 @@
 import { defineConfig } from 'vitest/config';
 
-// Unit tests run on plain Node 24, next to the code they test (ADR-0008 §1).
-// Playwright specs live in tests/e2e and are run by `npm run test:e2e`, not here.
+// Unit tests run on plain Node 24, next to the code they test (ADR-0008 §1): the app's, and the
+// release tooling's in scripts/. Playwright specs live in tests/e2e and are run by
+// `npm run test:e2e`, not here.
 export default defineConfig({
   test: {
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'scripts/*.test.ts'],
     environment: 'node',
     // `npm run test:coverage` (`--coverage`) measures the pure core and the data layer and fails
     // below ADR-0008's floors: src/core 90% of lines and branches, src/data 80% (assessment §9.4).
