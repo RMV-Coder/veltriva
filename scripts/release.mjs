@@ -2,17 +2,21 @@
 // machine: no push, no upload, no published release. Publishing stays the user's decision.
 //
 //   npm run release -- <version> [--assisted-by "<model>"] [--trailer "<line>"] [--skip-tests]
+//                                [--notes-range <range>]
 //
 // In order, stopping at the first failure:
 //   1. checks: a plain MAJOR.MINOR.PATCH version, a clean working tree, and a tag that is free;
 //   2. bumps the version in package.json and package-lock.json and commits it with Veyra;
 //   3. runs the unit tests under `veyra attest run`, so the release commit carries a test
 //      attestation (skip with --skip-tests);
-//   4. writes the release notes with `veyra release notes`, and tags the commit with
-//      `veyra release prepare` (an annotated tag, local only);
+//   4. groups the changes by feature area (scripts/release-notes.mjs; since the last tag, or
+//      --notes-range), and tags the commit with `veyra release prepare` (an annotated tag, local
+//      only);
 //   5. builds the installer (`npm run package:installer`, with every packaging check);
 //   6. writes release/SHA256SUMS.txt for the installer;
-//   7. drafts docs/releases/v<version>.md (the notes and the checksum) and commits it.
+//   7. drafts docs/releases/v<version>.md (the notes and the checksum) and commits it. A page
+//      already drafted by hand keeps its text: only its status, download and change sections,
+//      between <!-- release:… --> markers, are written.
 // A failure leaves what was done in place; `veyra undo` reverses the commits and the tag.
 import { createHash } from 'node:crypto';
 import console from 'node:console';
@@ -22,6 +26,8 @@ import { join } from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 
+import { fillReleasePage, releaseNotes, releaseSection } from './release-notes.mjs';
+
 const args = process.argv.slice(2);
 const version = args[0];
 const option = (name) => {
@@ -30,6 +36,7 @@ const option = (name) => {
 };
 const assistedBy = option('--assisted-by');
 const trailer = option('--trailer');
+const notesRange = option('--notes-range');
 const skipTests = args.includes('--skip-tests');
 
 function fail(message) {
@@ -118,8 +125,13 @@ if (!skipTests) {
   ]);
 }
 
-// 4. The notes and the tag.
-const notes = run('veyra', ['release', 'notes', '--title', tag], { capture: true });
+// 4. The notes, grouped by feature area before the tag exists, and the tag.
+let notes;
+try {
+  notes = releaseNotes({ range: notesRange, title: tag });
+} catch (error) {
+  fail(`the release notes: ${error instanceof Error ? error.message : String(error)}`);
+}
 run('veyra', ['release', 'prepare', tag]);
 
 // 5. The installer, with every packaging check.
@@ -135,16 +147,12 @@ const sha256 = createHash('sha256').update(readFileSync(installerPath)).digest('
 writeFileSync(join('release', 'SHA256SUMS.txt'), `${sha256}  ${installer}\n`);
 console.log(`\n${installer}: SHA-256 ${sha256}`);
 
-// 7. The draft release page.
+// 7. The draft release page: the sections the script owns, written into a page drafted by hand
+// when there is one, or into a new page.
 const date = new Date().toISOString().slice(0, 10);
-const allChanges = notes.replace(/^## .*\n+/, '').trim();
-const page = `# Veltriva Browser ${tag} (draft)
-
-**Status:** draft, prepared locally on ${date} by \`scripts/release.mjs\`. Not published: the tag \`${tag}\` exists only in the local repository.
-
-## Download
-
-| File | SHA-256 |
+const sections = {
+  status: `**Status:** draft, prepared locally on ${date} by \`scripts/release.mjs\`. Not published: the tag \`${tag}\` exists only in the local repository.`,
+  download: `| File | SHA-256 |
 |---|---|
 | \`${installer}\` | \`${sha256}\` |
 
@@ -152,7 +160,16 @@ Check a download in PowerShell before running it:
 
 \`\`\`powershell
 (Get-FileHash .\\${installer} -Algorithm SHA256).Hash -eq '${sha256.toUpperCase()}'
-\`\`\`
+\`\`\``,
+  changes: notes.replace(/^## .*\n+/, '').trim(),
+};
+const newPage = `# Veltriva Browser ${tag} (draft)
+
+${releaseSection('status', sections.status)}
+
+## Download
+
+${releaseSection('download', sections.download)}
 
 The installer is **unsigned**, so Windows SmartScreen warns before it runs ("Windows protected your PC": **More info ▸ Run anyway**). Why, and what signing would change: [docs/distribution/signing.md](../distribution/signing.md).
 
@@ -171,10 +188,28 @@ See the README's [Known limitations](../../README.md#known-limitations).
 
 ## All changes
 
-${allChanges}
+${releaseSection('changes', sections.changes)}
 `;
 mkdirSync(join('docs', 'releases'), { recursive: true });
 const pagePath = join('docs', 'releases', `${tag}.md`);
+// Read it outright rather than check first, so nothing can change it in between (CodeQL: file
+// system race); a page that isn't there is a new one.
+let drafted;
+try {
+  drafted = readFileSync(pagePath, 'utf8');
+} catch (error) {
+  if (error?.code !== 'ENOENT') {
+    fail(`${pagePath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+let page = newPage;
+if (drafted !== undefined) {
+  try {
+    page = fillReleasePage(drafted, sections);
+  } catch (error) {
+    fail(`${pagePath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
 writeFileSync(pagePath, page);
 npm(['exec', '--', 'prettier', '--write', pagePath]);
 run('veyra', ['add', pagePath]);

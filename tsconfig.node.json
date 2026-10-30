@@ -10,6 +10,7 @@
     "*.config.ts",
     "*.config.mts",
     "scripts/*.d.mts",
+    "scripts/*.test.ts",
     "src/**/*.test.ts",
     "src/data/*.d.ts",
     "src/data/repos/test-database.ts",
