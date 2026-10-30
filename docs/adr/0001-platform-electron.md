@@ -53,6 +53,27 @@ Build on **Electron**, tracking the newest stable major. 45.0.0 was still in bet
   - **Packaging.** Packaging with electron-builder 26.17.0 passed the production-build, data-isolation and packaged-app checks. `release/` was held open by another process, so the build went to another folder (`check-packaged-app.mjs` now takes the folder).
   - **A packaged launch on an existing database.** The database was the frozen v1 fixture, migrated to schema 2 beforehand. The window appeared in 13.8 s on a machine with 256 MB free, and the app exited with code 0, leaving no process behind. Afterwards the database was still at schema 2, `quick_check` was ok, and the run was recorded as clean.
   - **The WER helper.** Electron 45 ships a Windows Error Reporting helper, `electron_wer.dll`, which `crashReporter` expects renamed to `<app>_wer.dll`. electron-builder 26.17.0 doesn't rename it. Veltriva doesn't start `crashReporter`, so the helper isn't used.
+- **45.1.0** (v1.0.0 preparation, 2026-10-30; released 2026-10-27, the first 45.x after 45.0.0 and npm `latest`):
+  - **Versions:** Chromium 156.0.8078.49 (from .48) and Node 24.22.1 (from 24.22.0). V8 15.6.75.19 is unchanged, as are `NODE_MODULE_VERSION` 150 and N-API 10.
+  - **The zip:** `electron-v45.1.0-win32-x64.zip` has SHA-256 `55eaba17abff7b5bba6c3bbc85068967379024fe742fe9c7fdba9118922ccbe2`, matching `SHASUMS256.txt` from the GitHub release and the npm package's `checksums.json`.
+  - **better-sqlite3 13.0.3** needs nothing: N-API, the same ABI, and its pinned binary still matches.
+  - **What the release notes change for Veltriva.** A minor release, with no breaking changes. Each item was checked against the code:
+    - **`session.registerPreloadScript` gains URL filters** (#55181). Veltriva registers no session preloads: web pages get none, and the shell's preload is set in its `webPreferences`.
+    - **A main-process crash when `onSendHeaders` observed Blob uploads** (#55169). Veltriva's one `webRequest` listener per event is `onBeforeSendHeaders` and `onHeadersReceived` (`src/main/web/request-headers.ts`). It has no `onSendHeaders`.
+    - **Malformed asar archives, and asar paths in child processes** (#55175, #55184). These harden how `app.asar` is read. The packaged launch below loads the data worker's script from `app.asar` and the SQLite binary unpacked, as before.
+    - **File System Access blocklist gaps** (#55329). The permission policy refuses `fileSystem`, so pages never reach that API's write paths.
+    - **`protocol.registerSource` schemes** (#55178). Veltriva serves `app://shell` with `protocol.handle` and doesn't use `registerSource`.
+    - **The extension and `utilityProcess` fixes** (#55283, #55154, #55271, #55274) and **the macOS and Linux fixes** (#55326, #55292) don't apply. Veltriva loads no extensions, starts no utility process (the data worker is a `worker_threads` thread) and runs on Windows only. The extension fix's `clearStorageData` change concerns extensions' service workers; Veltriva clears data with `session.clearData`.
+    - **Still no handler for JS dialogs,** so ADR-0002 item 12's decision (native dialogs for v1.0) stands.
+  - **THIRD_PARTY_NOTICES.txt names Electron's version,** so the bump regenerates it (`npm run licenses`). The E2E run found it first: the About spec reads `electron 45.1.0` from the notices, and the stale file still said 45.0.0. `build:release`'s license check would have refused it too.
+  - **Checks**, on this laptop:
+    - typecheck, lint (by folder) and format: clean;
+    - unit tests with coverage: 8,620 of 8,620, with both floors met;
+    - **full E2E: 483 of 485 in 30.3 min.** One failure was the stale notices above; the About spec then passed 6 of 6. The other was the pointer-drag intermittent of `tabs.spec.ts`, which isn't Electron's and is fixed in its own change. Both popup gaps of ADR-0002 item 9 remain: their `test.fail` specs still fail as expected;
+    - **lifecycle harness: 12 of 13 in each of three runs,** and the 20-kill restore passed every time. Each run failed one of two other checks. Twice it was a `sendInputEvent` click that never focused a field ("Typing … did not arrive in 8 attempts"), and once a selected tab that reported `hidden`. Each passed 3 of 3 alone. The typing failure is not 45.1.0's: on 45.0.0, the same machine and hour, `discard.test.ts` alone failed the same way in 1 of 4 runs;
+    - `package:dir`: the SQLite pin, the production build, data isolation, the license check, and the packaged-app check with the fuses read back from `Veltriva.exe`;
+    - **a packaged launch** on the frozen schema-2 database: the window in 0.4 s and exit code 0, with no process left. The database moved to schema 3, passed `quick_check` and recorded a clean run, and its tabs and site rules were kept;
+    - **`package:installer` and `scripts/installer-test.ps1`:** every step passed. That is the install, with its shortcuts and AppUserModelID, the licenses and the fuses; three launches, each exiting 0; the uninstall keeping the profile and the one removing it, each asking both questions; and both silent uninstalls.
 
 Every web page is a `WebContentsView` inside a single `BaseWindow`. We don't use `BrowserView` (deprecated since Electron 30), `<webview>`, or iframes for browsing.
 
