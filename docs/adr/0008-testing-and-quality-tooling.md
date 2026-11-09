@@ -24,6 +24,7 @@
      - `src/data/worker.ts` (0%) is the worker thread's entry point. It runs only in the built app, so the E2E and lifecycle tests cover it.
      - Most of `src/core/url/local-network.ts`'s gap is IPv6 and IPv4 parsing that `classifyHost` never reaches, because the URL parser has already canonicalized or rejected those forms.
      - The rest are `??` fallbacks, and guards for SQLite misbehaving.
+   - **The data layer's tests get 30 s** for each test and each hook, as a Vitest project of their own (`data` in `vitest.config.mts`). Every other test keeps Vitest's 5 s and 10 s. On GitHub's runner, under coverage, one of them now and then stalled past the defaults, and a rerun passed: tests that take 39 to 241 ms on the laptop took 6.7 to 12.6 s, and a hook that opens a database took over 10 s.
 2. **Model-based tests (fast-check 4).**
    - Random command sequences run against TabManager with fake tab runtimes.
    - Async completions are reordered with `fc.scheduler()` and `scheduledModelRun`.
@@ -104,6 +105,18 @@
    - `beforeunload` handling.
 
    It runs in CI on `windows-latest`, with the test window kept always on top so native occlusion tracking can't skew results.
+
+   **As built (after v0.1.0): native occlusion is off.** Always on top wasn't enough on a desktop in use. On the development laptop about one check per run failed, a different one each time, while GitHub's runner passed: the selected tab read `hidden`, the palette or the fullscreen notice never raised the shell, a re-shown page stayed `hidden`, typing never reached the field. All four come from Chromium's native window occlusion, which reports every page `hidden` in a window it computes as covered by other windows, and also while the screen is locked or off. The harness (`tests/lifecycle/harness.ts`) now starts every app with `--disable-features=CalculateNativeWinOcclusion`.
+   - **It removes other windows, and nothing else.** A probe on Electron 45.0.0 read a page's `visibilityState`:
+     - its window covered by another window: `hidden` by default, `visible` with the switch;
+     - an opaque view above the page in the same window: `hidden` either way, so the raised-shell checks keep their point;
+     - a transparent view above it: `visible` either way.
+
+     A tab that isn't selected is still `hidden`, because its view is removed from the window. With the switch, a shell made opaque on purpose still fails both raised-shell checks.
+   - **Not `--disable-backgrounding-occluded-windows`.** It reports every occluded page `visible`, one under an opaque view included, so it would hide the failure the raised-shell checks exist to catch.
+   - **How the raise and typing failures followed.** A hidden shell runs no animation frame, and the palette and the fullscreen notice each wait for two before they ask to be raised. An http page that loads while its window counts as covered, and is never shown, drops `sendInputEvent` clicks and keys: 5 of 5 in the probe by default, and 5 of 5 typed with the switch.
+   - **Measured on the laptop.** A helper showed and hid a window of the class Windows uses for taskbar thumbnails every few seconds, which makes Chromium recompute occlusion each time. Under it, on Electron 45.0.0, the background-tab, raised-shell and discard checks (8) lost 1 and 3 checks in 2 runs before the switch, and passed 8 of 8 in 5 of 5 runs after it. On Electron 45.1.0 the full suite (13 checks) passed in 8 of 8 runs with the switch, 5 of them under the helper. Without the switch, under the helper, it passed once, then lost 5 checks: the selected tab, the typing, the freeze experiment and both raised-shell checks.
+   - **The benchmarks get it too,** since they start the app through the same harness: what is on the screen no longer decides whether their selected tab is visible.
 
    **As built in M3.1:** `tests/lifecycle/discard.test.ts` starts the E2E fixture server and passes its origin to the app in `VELTRIVA_FIXTURE_ORIGIN`; the scenarios are in `src/main/testing/discard-scenarios.ts`. They cover what only real hidden tabs show: the page-state flush of a just-hidden tab, renderer release, `beforeunload` with real input, background restore at 125% scaling, and freezing.
 

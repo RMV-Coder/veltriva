@@ -93,7 +93,8 @@ async function waitForView(
  * about one tick per second; the selected tab stays `visible` and unthrottled.
  */
 async function backgroundTabHidden({ main, tabs, views }: ScenarioContext): Promise<unknown> {
-  // ADR-0008 4a: keep the window on top so native occlusion tracking can't skew the result.
+  // ADR-0008 4a: keep the window on top. What guards the result from other windows is the
+  // harness, which turns Chromium's native occlusion off (tests/lifecycle/harness.ts).
   main.window.setAlwaysOnTop(true);
   const foreground = tabs.create();
   tabs.navigate(foreground, 'about:blank');
